@@ -1,23 +1,25 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { text, uuid, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
-// Platform users - shared across all apps
-export const usersTable = pgTable("users", {
-  id: text("id").primaryKey(), // UUID from Google sub or generated
+export const usersTable = platform.table("users",
+{
+  id: uuid("id").primaryKey(),
   email: text("email").notNull().unique(),
   name: text("name"),
   avatarUrl: text("avatar_url"),
-  googleId: text("google_id").unique(), // Google OAuth subject ID
+  googleId: text("google_id").unique(),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
-  activeOrgId: text("active_org_id"), // FK set after refs are defined
+  activeOrgId: uuid("active_org_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(usersTable).omit({
+export const insertUserSchema = createInsertSchema(usersTable).omit(
+{
   createdAt: true,
   updatedAt: true,
 });
-export type InsertUser = z.infer<typeof insertUserSchema>;
+
 export type User = typeof usersTable.$inferSelect;
+export type NewUser = typeof usersTable.$inferInsert;
