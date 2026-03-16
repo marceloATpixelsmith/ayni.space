@@ -1,0 +1,423 @@
+I want you to build a production-ready, portable, multi-tenant SaaS platform in a single monorepo.
+
+IMPORTANT:
+This project will be DEVELOPED on Replit but it must NOT depend on Replit-specific services. The architecture must remain portable so it can later be deployed on standard hosting platforms such as Render, Railway, Fly.io, or a Docker-compatible VPS with minimal changes.
+
+Treat Replit as a development environment only.
+
+The finished codebase must follow standard web architecture practices so it can run outside Replit without modification.
+
+DO NOT depend on:
+- Replit authentication
+- Replit databases
+- Replit-specific storage
+- Replit-only runtime assumptions
+
+Use standard tools and infrastructure patterns.
+
+---------------------------------------------------------------------
+
+PROJECT GOAL
+
+Build a shared SaaS platform that hosts a family of applications.
+
+The first two apps will be:
+
+1. Shipibo Dictionary
+2. Ayni Ceremony Management
+
+Both apps must run on the same SaaS platform infrastructure.
+
+The platform will provide shared functionality such as:
+
+- authentication
+- organization / tenant management
+- user management
+- permissions
+- app access control
+- SaaS billing
+- onboarding
+- invitations
+- subscription management
+- audit logging
+- platform administration
+
+Future apps should be able to plug into this same infrastructure.
+
+---------------------------------------------------------------------
+
+TECH STACK
+
+Use a modern stack that works well in Replit but remains portable.
+
+Preferred stack:
+
+- Next.js (App Router)
+- TypeScript
+- PostgreSQL
+- Prisma ORM (or Drizzle if you believe it is significantly better)
+- Tailwind CSS
+- shadcn/ui components
+- Zod validation
+- Stripe Billing API
+- Google OAuth / OpenID Connect
+- JWT or secure session cookies
+
+Keep the architecture modular and easy to maintain.
+
+---------------------------------------------------------------------
+
+PORTABILITY REQUIREMENTS
+
+The system must remain host-agnostic.
+
+Follow these rules:
+
+- All configuration must come from environment variables
+- No secrets in source code
+- No Replit-only APIs
+- No filesystem reliance for persistent data
+- Database connections must use standard PostgreSQL connection strings
+- OAuth must use standard Google OAuth/OIDC flows
+- Stripe integration must use official Stripe API + webhook verification
+- Application must run using standard Node/Next scripts
+- Include Docker support if feasible
+
+Create:
+
+.env.example
+README.md
+PORTABILITY.md
+
+PORTABILITY.md should explain how to deploy the system outside Replit.
+
+---------------------------------------------------------------------
+
+DATABASE ARCHITECTURE
+
+I already have PostgreSQL databases hosted on Render.
+
+Design the architecture so we have:
+
+1. Platform database
+   Shared SaaS infrastructure tables.
+
+2. Shipibo application database
+   Contains dictionary data and logic.
+
+3. Ayni application database
+   Contains ceremony management data.
+
+The platform database should contain tables such as:
+
+users
+organizations
+organization_memberships
+roles
+permissions
+apps
+organization_app_subscriptions
+subscriptions
+invitations
+audit_logs
+feature_flags
+
+Design the system so:
+
+- users can belong to multiple organizations
+- organizations can subscribe to multiple apps
+- roles are scoped by organization and app
+- app access is controlled by membership + role + subscription
+
+Keep platform tables separate from app-specific data.
+
+---------------------------------------------------------------------
+
+AUTHENTICATION
+
+Authentication must support:
+
+Google Sign In / Sign Up via OAuth/OpenID Connect.
+
+On first login:
+
+- create user record
+- allow creating a new organization
+- allow accepting an invitation
+- assign initial role
+- route user to organization dashboard
+
+Features required:
+
+- secure sessions
+- protected routes
+- organization switching
+- role-based access control
+- app access permissions
+- logout
+- onboarding flow
+
+---------------------------------------------------------------------
+
+MULTI-TENANT DESIGN
+
+Organizations represent tenants.
+
+Requirements:
+
+- users can belong to multiple organizations
+- each organization has its own members
+- each organization subscribes to apps
+- app access is controlled per organization
+
+Example:
+
+User A
+belongs to
+
+Org 1 → Shipibo + Ayni
+Org 2 → Shipibo only
+
+---------------------------------------------------------------------
+
+STRIPE BILLING
+
+Implement Stripe Billing for SaaS subscriptions.
+
+Requirements:
+
+- subscription per organization
+- different plans per app
+- monthly billing
+- free trial support
+- Stripe Checkout
+- Stripe Webhooks
+- Stripe Customer Portal
+
+Webhook processing must include:
+
+- subscription created
+- subscription updated
+- subscription canceled
+- payment failure
+
+Billing must be managed centrally by the platform.
+
+---------------------------------------------------------------------
+
+SUPER ADMIN APPLICATION
+
+Create a Super Admin interface.
+
+This app manages the entire platform.
+
+Features:
+
+- list all organizations
+- list all users
+- view memberships
+- view subscriptions
+- view Stripe customer info
+- enable/disable apps for organizations
+- manage feature flags
+- view audit logs
+- manage platform settings
+- manage plan definitions
+
+---------------------------------------------------------------------
+
+TENANT PLATFORM SHELL
+
+Create a shared tenant-facing dashboard.
+
+Features:
+
+organization dashboard  
+team members page  
+invitation management  
+organization settings  
+billing management  
+app launcher  
+profile management  
+
+This shell is where users access the apps they subscribe to.
+
+---------------------------------------------------------------------
+
+APP REGISTRY
+
+The system should include an "app registry".
+
+Each app registers itself with the platform.
+
+Example apps:
+
+Shipibo Dictionary  
+Ayni Ceremony Management  
+
+The registry controls:
+
+- which apps exist
+- which organizations have access
+- routing
+- permissions
+
+---------------------------------------------------------------------
+
+SHIPIBO DICTIONARY MODULE
+
+Create a module for Shipibo Dictionary.
+
+For now this module only needs scaffolding.
+
+Include placeholder sections for:
+
+words  
+categories  
+lists  
+comments  
+contributors  
+review / moderation  
+multilingual support  
+search  
+
+Create routes, permissions, service layer, and database integration points.
+
+Do not fake full business logic.
+
+---------------------------------------------------------------------
+
+AYNI CEREMONY MANAGEMENT MODULE
+
+Create a module for Ayni Ceremony Management.
+
+Include placeholders for:
+
+organizations  
+staff  
+participants  
+forms  
+submissions  
+screenings  
+ceremonies  
+scheduling  
+notes  
+communications  
+
+Create routes, permissions, service layer, and database integration points.
+
+Do not fake final logic yet.
+
+---------------------------------------------------------------------
+
+SECURITY REQUIREMENTS
+
+Follow best practices.
+
+Use:
+
+secure cookies  
+server-side authorization checks  
+input validation  
+CSRF protection where relevant  
+Stripe webhook signature verification  
+no secrets in repo  
+role-based route protection  
+audit logs for admin actions  
+
+---------------------------------------------------------------------
+
+DEVELOPER EXPERIENCE
+
+This project must be easy to develop in Replit.
+
+Provide:
+
+clear folder structure  
+modular architecture  
+scripts for dev / build / start  
+linting setup  
+.env.example  
+seed script  
+
+Seed data should include:
+
+one super admin  
+one organization  
+one Shipibo subscription  
+one Ayni subscription  
+one invited user  
+
+---------------------------------------------------------------------
+
+IMPLEMENTATION PHASES
+
+Build the system in phases.
+
+Phase 1
+Project scaffold  
+environment config  
+platform database models  
+authentication foundation  
+Google login  
+user creation  
+organization creation  
+protected routes  
+
+Phase 2
+roles and permissions  
+invitations  
+organization switcher  
+app registry  
+tenant dashboard  
+super admin dashboard  
+
+Phase 3
+Stripe billing  
+subscription system  
+checkout flow  
+webhook processing  
+customer portal  
+
+Phase 4
+Shipibo module scaffolding  
+Ayni module scaffolding  
+database integration adapters  
+
+Phase 5
+audit logs  
+feature flags  
+polish  
+deployment instructions  
+
+---------------------------------------------------------------------
+
+OUTPUT REQUIREMENTS
+
+Do not just describe the architecture.
+
+Generate the full project structure and files.
+
+For each file:
+
+provide real code  
+avoid pseudocode  
+include clear comments explaining major sections  
+
+Also generate:
+
+README.md
+PORTABILITY.md
+.env.example
+
+README.md must explain:
+
+how to run locally  
+how to run in Replit  
+how to configure environment variables  
+
+PORTABILITY.md must explain:
+
+how to deploy the project on non-Replit hosting platforms.
+
+Make the project runnable immediately once environment variables are provided.

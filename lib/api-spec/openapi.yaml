@@ -1,22 +1,45 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SaaS Platform API - Multi-tenant platform with auth, billing, and app registry
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User management
+  - name: organizations
+    description: Organization/tenant management
+  - name: memberships
+    description: Organization membership management
+  - name: invitations
+    description: Invitation management
+  - name: apps
+    description: App registry
+  - name: subscriptions
+    description: Subscription management
+  - name: billing
+    description: Stripe billing
+  - name: audit
+    description: Audit logs
+  - name: admin
+    description: Super admin operations
+  - name: shipibo
+    description: Shipibo Dictionary module
+  - name: ayni
+    description: Ayni Ceremony Management module
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +47,1497 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── AUTH ──────────────────────────────────────────────────────────────────
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user with active org context
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out current session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/google/url:
+    get:
+      operationId: getGoogleAuthUrl
+      tags: [auth]
+      summary: Get Google OAuth authorization URL
+      responses:
+        "200":
+          description: Google OAuth URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUrlResponse"
+
+  /auth/google/callback:
+    get:
+      operationId: googleAuthCallback
+      tags: [auth]
+      summary: Google OAuth callback
+      parameters:
+        - in: query
+          name: code
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: state
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after login
+        "200":
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  # ── USERS ─────────────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCurrentUser
+      tags: [users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/switch-org:
+    post:
+      operationId: switchOrganization
+      tags: [users]
+      summary: Switch active organization context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchOrgRequest"
+      responses:
+        "200":
+          description: Switched organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+  # ── ORGANIZATIONS ─────────────────────────────────────────────────────────
+  /organizations:
+    get:
+      operationId: getMyOrganizations
+      tags: [organizations]
+      summary: Get organizations the current user belongs to
+      responses:
+        "200":
+          description: Organizations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      summary: Create a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Created organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{orgId}:
+    get:
+      operationId: getOrganization
+      tags: [organizations]
+      summary: Get organization details
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+    patch:
+      operationId: updateOrganization
+      tags: [organizations]
+      summary: Update organization settings
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
+      responses:
+        "200":
+          description: Updated organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{orgId}/members:
+    get:
+      operationId: getOrgMembers
+      tags: [memberships]
+      summary: Get organization members
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Members list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgMember"
+
+  /organizations/{orgId}/members/{userId}:
+    delete:
+      operationId: removeOrgMember
+      tags: [memberships]
+      summary: Remove a member from organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+    patch:
+      operationId: updateOrgMemberRole
+      tags: [memberships]
+      summary: Update member role in organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRoleRequest"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMember"
+
+  # ── INVITATIONS ────────────────────────────────────────────────────────────
+  /organizations/{orgId}/invitations:
+    get:
+      operationId: getOrgInvitations
+      tags: [invitations]
+      summary: Get pending invitations for an organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invitation"
+    post:
+      operationId: createInvitation
+      tags: [invitations]
+      summary: Invite a user to an organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvitationRequest"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+
+  /organizations/{orgId}/invitations/{invitationId}:
+    delete:
+      operationId: cancelInvitation
+      tags: [invitations]
+      summary: Cancel an invitation
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: invitationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [invitations]
+      summary: Accept an invitation by token
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  # ── APPS ──────────────────────────────────────────────────────────────────
+  /apps:
+    get:
+      operationId: getApps
+      tags: [apps]
+      summary: Get all registered apps in the registry
+      responses:
+        "200":
+          description: Apps list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+
+  /apps/{appId}:
+    get:
+      operationId: getApp
+      tags: [apps]
+      summary: Get app details
+      parameters:
+        - in: path
+          name: appId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: App details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+
+  /organizations/{orgId}/apps:
+    get:
+      operationId: getOrgApps
+      tags: [apps]
+      summary: Get apps subscribed to by an organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Org apps list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgApp"
+
+  # ── SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+  /organizations/{orgId}/subscriptions:
+    get:
+      operationId: getOrgSubscriptions
+      tags: [subscriptions]
+      summary: Get subscriptions for an organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subscriptions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subscription"
+
+  # ── BILLING ───────────────────────────────────────────────────────────────
+  /billing/checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [billing]
+      summary: Create a Stripe Checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutRequest"
+      responses:
+        "200":
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutResponse"
+
+  /billing/portal:
+    post:
+      operationId: createPortalSession
+      tags: [billing]
+      summary: Create a Stripe Customer Portal session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalRequest"
+      responses:
+        "200":
+          description: Portal URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalResponse"
+
+  /billing/webhook:
+    post:
+      operationId: stripeWebhook
+      tags: [billing]
+      summary: Stripe webhook handler
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ── AUDIT LOGS ────────────────────────────────────────────────────────────
+  /organizations/{orgId}/audit-logs:
+    get:
+      operationId: getAuditLogs
+      tags: [audit]
+      summary: Get audit logs for an organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
+  # ── SUPER ADMIN ───────────────────────────────────────────────────────────
+  /admin/organizations:
+    get:
+      operationId: adminGetOrganizations
+      tags: [admin]
+      summary: Admin - list all organizations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgPage"
+
+  /admin/users:
+    get:
+      operationId: adminGetUsers
+      tags: [admin]
+      summary: Admin - list all users
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Admin - platform statistics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  /admin/organizations/{orgId}/apps/{appId}:
+    put:
+      operationId: adminSetOrgAppAccess
+      tags: [admin]
+      summary: Admin - enable or disable app access for organization
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAppAccessRequest"
+      responses:
+        "200":
+          description: Access updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/feature-flags:
+    get:
+      operationId: adminGetFeatureFlags
+      tags: [admin]
+      summary: Admin - list all feature flags
+      responses:
+        "200":
+          description: Feature flags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeatureFlag"
+    post:
+      operationId: adminSetFeatureFlag
+      tags: [admin]
+      summary: Admin - set a feature flag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetFeatureFlagRequest"
+      responses:
+        "200":
+          description: Feature flag updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeatureFlag"
+
+  /admin/audit-logs:
+    get:
+      operationId: adminGetAuditLogs
+      tags: [admin]
+      summary: Admin - get all audit logs
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
+  # ── SHIPIBO DICTIONARY ────────────────────────────────────────────────────
+  /shipibo/words:
+    get:
+      operationId: getShipiboWords
+      tags: [shipibo]
+      summary: Search and list Shipibo dictionary words
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Words list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipiboWordPage"
+    post:
+      operationId: createShipiboWord
+      tags: [shipibo]
+      summary: Create a new dictionary word entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShipiboWordRequest"
+      responses:
+        "201":
+          description: Created word
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipiboWord"
+
+  /shipibo/words/{wordId}:
+    get:
+      operationId: getShipiboWord
+      tags: [shipibo]
+      summary: Get a specific word entry
+      parameters:
+        - in: path
+          name: wordId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Word entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipiboWord"
+
+  /shipibo/categories:
+    get:
+      operationId: getShipiboCategories
+      tags: [shipibo]
+      summary: Get dictionary categories
+      responses:
+        "200":
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShipiboCategory"
+
+  # ── AYNI CEREMONY MANAGEMENT ──────────────────────────────────────────────
+  /ayni/ceremonies:
+    get:
+      operationId: getAyniCeremonies
+      tags: [ayni]
+      summary: List ceremonies
+      parameters:
+        - in: query
+          name: orgId
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ceremonies list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AyniCeremonyPage"
+    post:
+      operationId: createAyniCeremony
+      tags: [ayni]
+      summary: Create a ceremony
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAyniCeremonyRequest"
+      responses:
+        "201":
+          description: Created ceremony
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AyniCeremony"
+
+  /ayni/ceremonies/{ceremonyId}:
+    get:
+      operationId: getAyniCeremony
+      tags: [ayni]
+      summary: Get ceremony details
+      parameters:
+        - in: path
+          name: ceremonyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ceremony details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AyniCeremony"
+
+  /ayni/participants:
+    get:
+      operationId: getAyniParticipants
+      tags: [ayni]
+      summary: List participants for a ceremony
+      parameters:
+        - in: query
+          name: ceremonyId
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Participants list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AyniParticipant"
+
+  /ayni/staff:
+    get:
+      operationId: getAyniStaff
+      tags: [ayni]
+      summary: List staff members for an organization
+      parameters:
+        - in: query
+          name: orgId
+          schema:
+            type: string
+          required: true
+      responses:
+        "200":
+          description: Staff list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AyniStaff"
+
 components:
   schemas:
+    # ── SHARED ────────────────────────────────────────────────────────────────
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      required: [error]
+
+    # ── AUTH ──────────────────────────────────────────────────────────────────
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        isSuperAdmin:
+          type: boolean
+        activeOrgId:
+          type: ["string", "null"]
+        activeOrg:
+          $ref: "#/components/schemas/Organization"
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgMembershipSummary"
+      required: [id, email, isSuperAdmin]
+
+    AuthUrlResponse:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    OrgMembershipSummary:
+      type: object
+      properties:
+        orgId:
+          type: string
+        orgName:
+          type: string
+        orgSlug:
+          type: string
+        role:
+          type: string
+      required: [orgId, orgName, orgSlug, role]
+
+    # ── USERS ─────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        isSuperAdmin:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, isSuperAdmin, createdAt]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+
+    SwitchOrgRequest:
+      type: object
+      properties:
+        orgId:
+          type: string
+      required: [orgId]
+
+    UserPage:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [users, total, limit, offset]
+
+    # ── ORGANIZATIONS ─────────────────────────────────────────────────────────
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        logoUrl:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        memberCount:
+          type: integer
+        stripeCustomerId:
+          type: ["string", "null"]
+      required: [id, name, slug, createdAt]
+
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        website:
+          type: string
+      required: [name, slug]
+
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        website:
+          type: string
+        logoUrl:
+          type: string
+
+    OrgPage:
+      type: object
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [organizations, total, limit, offset]
+
+    # ── MEMBERSHIPS ───────────────────────────────────────────────────────────
+    OrgMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        orgId:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member, viewer]
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        joinedAt:
+          type: string
+          format: date-time
+      required: [userId, orgId, role, email, joinedAt]
+
+    UpdateMemberRoleRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, member, viewer]
+      required: [role]
+
+    # ── INVITATIONS ────────────────────────────────────────────────────────────
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member, viewer]
+        orgId:
+          type: string
+        orgName:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, cancelled, expired]
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, role, orgId, orgName, status, expiresAt, createdAt]
+
+    CreateInvitationRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member, viewer]
+      required: [email, role]
+
+    # ── APPS ──────────────────────────────────────────────────────────────────
+    App:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        iconUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        plans:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppPlan"
+      required: [id, name, slug, isActive]
+
+    AppPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        priceMonthly:
+          type: integer
+        stripePriceId:
+          type: ["string", "null"]
+        features:
+          type: array
+          items:
+            type: string
+      required: [id, name, priceMonthly]
+
+    OrgApp:
+      type: object
+      properties:
+        appId:
+          type: string
+        appName:
+          type: string
+        appSlug:
+          type: string
+        status:
+          type: string
+          enum: [active, trialing, past_due, canceled, inactive]
+        subscriptionId:
+          type: ["string", "null"]
+      required: [appId, appName, appSlug, status]
+
+    SetAppAccessRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required: [enabled]
+
+    # ── SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        appId:
+          type: string
+        appName:
+          type: string
+        planName:
+          type: string
+        status:
+          type: string
+          enum: [active, trialing, past_due, canceled, incomplete]
+        currentPeriodStart:
+          type: string
+          format: date-time
+        currentPeriodEnd:
+          type: string
+          format: date-time
+        stripeSubscriptionId:
+          type: ["string", "null"]
+        cancelAtPeriodEnd:
+          type: boolean
+      required: [id, orgId, appId, appName, planName, status, cancelAtPeriodEnd]
+
+    # ── BILLING ───────────────────────────────────────────────────────────────
+    CheckoutRequest:
+      type: object
+      properties:
+        orgId:
+          type: string
+        appId:
+          type: string
+        planId:
+          type: string
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+      required: [orgId, appId, planId]
+
+    CheckoutResponse:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    PortalRequest:
+      type: object
+      properties:
+        orgId:
+          type: string
+        returnUrl:
+          type: string
+      required: [orgId]
+
+    PortalResponse:
+      type: object
+      properties:
+        url:
+          type: string
+      required: [url]
+
+    # ── AUDIT LOGS ────────────────────────────────────────────────────────────
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        orgId:
+          type: ["string", "null"]
+        userId:
+          type: ["string", "null"]
+        userEmail:
+          type: ["string", "null"]
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, action, resourceType, createdAt]
+
+    AuditLogPage:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [logs, total, limit, offset]
+
+    # ── ADMIN ─────────────────────────────────────────────────────────────────
+    PlatformStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalOrgs:
+          type: integer
+        totalSubscriptions:
+          type: integer
+        activeSubscriptions:
+          type: integer
+        totalApps:
+          type: integer
+      required: [totalUsers, totalOrgs, totalSubscriptions, activeSubscriptions, totalApps]
+
+    FeatureFlag:
+      type: object
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        value:
+          type: boolean
+        orgId:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, key, value, updatedAt]
+
+    SetFeatureFlagRequest:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: boolean
+        orgId:
+          type: string
+        description:
+          type: string
+      required: [key, value]
+
+    # ── SHIPIBO DICTIONARY ────────────────────────────────────────────────────
+    ShipiboWord:
+      type: object
+      properties:
+        id:
+          type: string
+        word:
+          type: string
+        translation:
+          type: string
+        definition:
+          type: ["string", "null"]
+        pronunciation:
+          type: ["string", "null"]
+        partOfSpeech:
+          type: ["string", "null"]
+        categoryId:
+          type: ["string", "null"]
+        categoryName:
+          type: ["string", "null"]
+        examples:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, published, review]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, word, translation, status, createdAt]
+
+    CreateShipiboWordRequest:
+      type: object
+      properties:
+        word:
+          type: string
+        translation:
+          type: string
+        definition:
+          type: string
+        pronunciation:
+          type: string
+        partOfSpeech:
+          type: string
+        categoryId:
+          type: string
+        examples:
+          type: array
+          items:
+            type: string
+      required: [word, translation]
+
+    ShipiboWordPage:
+      type: object
+      properties:
+        words:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShipiboWord"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [words, total, limit, offset]
+
+    ShipiboCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        wordCount:
+          type: integer
+      required: [id, name, wordCount]
+
+    # ── AYNI CEREMONY MANAGEMENT ──────────────────────────────────────────────
+    AyniCeremony:
+      type: object
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        scheduledAt:
+          type: ["string", "null"]
+          format: date-time
+        location:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [draft, scheduled, in_progress, completed, cancelled]
+        capacity:
+          type: ["integer", "null"]
+        participantCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, orgId, name, status, participantCount, createdAt]
+
+    CreateAyniCeremonyRequest:
+      type: object
+      properties:
+        orgId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+        capacity:
+          type: integer
+      required: [orgId, name]
+
+    AyniCeremonyPage:
+      type: object
+      properties:
+        ceremonies:
+          type: array
+          items:
+            $ref: "#/components/schemas/AyniCeremony"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [ceremonies, total, limit, offset]
+
+    AyniParticipant:
+      type: object
+      properties:
+        id:
+          type: string
+        ceremonyId:
+          type: string
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [registered, screened, confirmed, attended, cancelled]
+        notes:
+          type: ["string", "null"]
+        registeredAt:
+          type: string
+          format: date-time
+      required: [id, ceremonyId, name, status, registeredAt]
+
+    AyniStaff:
+      type: object
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        userId:
+          type: ["string", "null"]
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        isActive:
+          type: boolean
+      required: [id, orgId, name, role, isActive]

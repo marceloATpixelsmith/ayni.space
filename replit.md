@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Multi-tenant SaaS platform monorepo. Hosts **Shipibo Dictionary** (indigenous language dictionary) and **Ayni Ceremony Management**. Features: Google OAuth auth, Stripe billing, role-based org access (owner/admin/member/viewer), super admin interface, tenant dashboard, invitation system, audit logs, feature flags.
 
 ## Stack
 
@@ -12,85 +12,150 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React 19 + Vite 7 + Tailwind + shadcn/ui
+- **Auth**: Google OAuth (google-auth-library), express-session + connect-pg-simple
+- **Billing**: Stripe (lazy-loaded for CJS compat)
+- **API codegen**: Orval (from OpenAPI spec → React Query hooks + Zod schemas)
+- **State management**: TanStack Query v5
 
 ## Structure
 
 ```text
-artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+.
+├── artifacts/
+│   ├── api-server/          # Express 5 API server (port 8080)
+│   └── platform/            # React + Vite frontend (previewPath "/")
+├── lib/
+│   ├── api-spec/            # OpenAPI 3.1 spec + Orval codegen config
+│   ├── api-client-react/    # Generated React Query hooks (used by platform)
+│   ├── api-zod/             # Generated Zod schemas (used by api-server)
+│   └── db/                  # Drizzle ORM schema + DB connection
+├── scripts/
+│   └── src/seed.ts          # Seeds demo data (run: pnpm --filter @workspace/scripts run seed)
+├── pnpm-workspace.yaml
+├── tsconfig.base.json       # composite: true, bundler resolution, es2022
+├── tsconfig.json            # Root project references
+└── .env.example             # Required env vars documentation
 ```
+
+## Required Environment Variables
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection URL (auto-provided by Replit) |
+| `SESSION_SECRET` | Secret for express-session cookie signing |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | OAuth callback URL (e.g., `https://your-domain/api/auth/google/callback`) |
+| `STRIPE_SECRET_KEY` | Stripe secret key (optional, needed for billing) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (optional) |
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root**: `pnpm run typecheck`
+- **`emitDeclarationOnly`** — only `.d.ts` files emitted; JS bundled by esbuild/tsx/vite
+- **Project references** — each package's `tsconfig.json` must list its workspace deps in `references`
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm run build` — typecheck + recursive build in all packages
+- `pnpm run typecheck` — `tsc --build --emitDeclarationOnly` (project references)
 
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server (port 8080). All routes are under `/api`.
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+- App: `src/app.ts` — CORS, JSON/urlencoded, session middleware, raw body for webhook
+- Routes: `src/routes/index.ts` mounts sub-routers
+  - `/api/healthz` — health check
+  - `/api/auth/*` — Google OAuth, me, logout
+  - `/api/users/*` — current user
+  - `/api/organizations/*` — CRUD, members, invitations, audit logs, subscriptions, apps
+  - `/api/apps/*` — app directory
+  - `/api/billing/*` — Stripe checkout, portal, webhook
+  - `/api/admin/*` — super admin (stats, orgs, users, feature flags, audit logs)
+  - `/api/shipibo/*` — Shipibo Dictionary CRUD
+  - `/api/ayni/*` — Ayni Ceremony Management CRUD
+- Session: PostgreSQL store (`sessions` table), cookie name `saas.sid`
+- Auth: Google OAuth via `google-auth-library`; session userId stored in `req.session.userId`
+- Middleware: `requireAuth`, `requireSuperAdmin`, `requireOrgAccess`, `requireOrgAdmin`
+
+### `artifacts/platform` (`@workspace/platform`)
+
+React + Vite frontend. Base path: `/`.
+
+Key pages:
+- `/login` — Google OAuth sign-in
+- `/onboarding` — create/join organization
+- `/dashboard` — home with org apps summary
+- `/dashboard/apps` — app directory
+- `/dashboard/members` — team management
+- `/dashboard/invitations` — invite new members
+- `/dashboard/billing` — subscriptions + Stripe portal
+- `/dashboard/settings` — org profile settings
+- `/apps/shipibo` — Shipibo Dictionary app
+- `/apps/ayni` — Ayni Ceremony Management app
+- `/admin` — Super admin (overview, orgs, users, audit logs, feature flags)
+
+Layout: `AppLayout` (named export from `src/components/layout/AppLayout.tsx`) — sidebar with org switcher, nav links, user menu.
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+Drizzle ORM with PostgreSQL. Tables:
+- `users` — auth users with Google profile, `isSuperAdmin`, `activeOrgId`
+- `organizations` — multi-tenant orgs with slug, Stripe customer ID
+- `org_memberships` — user↔org relationships with roles (owner/admin/member/viewer)
+- `apps` — app registry (Shipibo Dictionary, Ayni Ceremony Management)
+- `app_plans` — pricing plans per app
+- `subscriptions` — org→app subscriptions with Stripe data
+- `org_app_access` — admin overrides for app access
+- `invitations` — pending email invitations
+- `audit_logs` — action log per org
+- `feature_flags` — global/per-org feature toggles
+- `sessions` — express-session PostgreSQL store
+- `shipibo_words`, `shipibo_categories` — Shipibo Dictionary content
+- `ayni_ceremonies`, `ayni_participants`, `ayni_staff` — Ayni app data
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
+OpenAPI 3.1 spec (`openapi.yaml`) + Orval config. Codegen:
+```
+pnpm --filter @workspace/api-spec run codegen
+```
+Outputs to: `lib/api-client-react/src/generated/` and `lib/api-zod/src/generated/`
 
 ### `lib/api-client-react` (`@workspace/api-client-react`)
 
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
+Generated React Query hooks. Import: `from "@workspace/api-client-react"`.
+Custom fetch client in `src/lib/client.ts` — prepends `import.meta.env.BASE_URL` to API paths.
+
+### `lib/api-zod` (`@workspace/api-zod`)
+
+Generated Zod schemas from OpenAPI spec. Used by api-server for validation.
 
 ### `scripts` (`@workspace/scripts`)
 
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+Utility scripts. Run: `pnpm --filter @workspace/scripts run <script>`.
+- `seed` — seeds demo data: super admin (`admin@platform.dev`), Demo Organization, both apps + plans, subscriptions, Shipibo words, Ayni ceremony
+
+## Seeded Demo Data
+
+| Item | Value |
+|---|---|
+| Super admin email | `admin@platform.dev` |
+| Demo org | Demo Organization (slug: `demo-org`) |
+| Apps | Shipibo Dictionary (Free + Pro), Ayni Ceremony Management (Starter + Pro) |
+| Subscriptions | Shipibo Pro + Ayni Starter (active) |
+| Invited user | `invited@example.com` (pending) |
+
+## Deployment Notes
+
+- Google OAuth: set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` pointing to `/api/auth/google/callback`
+- Stripe: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; configure price IDs in `app_plans` table
+- See `PORTABILITY.md` for moving to other hosting providers
+- See `.env.example` for all required/optional env vars
