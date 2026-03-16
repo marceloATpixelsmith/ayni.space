@@ -1,23 +1,44 @@
 import { OAuth2Client } from "google-auth-library";
 
-const GOOGLE_CLIENT_ID = process.env["GOOGLE_CLIENT_ID"];
-const GOOGLE_CLIENT_SECRET = process.env["GOOGLE_CLIENT_SECRET"];
-const GOOGLE_REDIRECT_URI = process.env["GOOGLE_REDIRECT_URI"];
+function getGoogleEnv()
+{
+  const googleClientId = process.env["GOOGLE_CLIENT_ID"];
+  const googleClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const googleRedirectUri = process.env["GOOGLE_REDIRECT_URI"];
 
-// Create Google OAuth2 client — requires env vars at runtime
-export function getGoogleClient(): OAuth2Client {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+  if (!googleClientId || !googleClientSecret || !googleRedirectUri)
+  {
     throw new Error(
       "GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI are required for Google OAuth"
     );
   }
-  return new OAuth2Client(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+
+  return {
+    googleClientId,
+    googleClientSecret,
+    googleRedirectUri,
+  };
 }
 
-// Build the Google OAuth authorization URL
-export function buildGoogleAuthUrl(state: string): string {
+// CREATE GOOGLE OAUTH2 CLIENT — READ ENV VARS AT CALL TIME, NOT MODULE LOAD TIME
+export function getGoogleClient(): OAuth2Client
+{
+  const { googleClientId, googleClientSecret, googleRedirectUri } = getGoogleEnv();
+
+  return new OAuth2Client(
+    googleClientId,
+    googleClientSecret,
+    googleRedirectUri
+  );
+}
+
+// BUILD THE GOOGLE OAUTH AUTHORIZATION URL
+export function buildGoogleAuthUrl(state: string): string
+{
   const client = getGoogleClient();
-  return client.generateAuthUrl({
+
+  return client.generateAuthUrl(
+  {
     access_type: "offline",
     scope: ["openid", "email", "profile"],
     state,
@@ -25,26 +46,34 @@ export function buildGoogleAuthUrl(state: string): string {
   });
 }
 
-export interface GoogleUserInfo {
-  sub: string; // Google unique user ID
+export interface GoogleUserInfo
+{
+  sub: string;
   email: string;
   name?: string;
   picture?: string;
   email_verified?: boolean;
 }
 
-// Exchange code for tokens and fetch user info
-export async function exchangeCodeForUser(code: string): Promise<GoogleUserInfo> {
+// EXCHANGE CODE FOR TOKENS AND FETCH USER INFO
+export async function exchangeCodeForUser(code: string): Promise<GoogleUserInfo>
+{
   const client = getGoogleClient();
+  const { googleClientId } = getGoogleEnv();
+
   const { tokens } = await client.getToken(code);
   client.setCredentials(tokens);
 
-  const ticket = await client.verifyIdToken({
+  const ticket = await client.verifyIdToken(
+  {
     idToken: tokens.id_token!,
-    audience: GOOGLE_CLIENT_ID,
+    audience: googleClientId,
   });
+
   const payload = ticket.getPayload();
-  if (!payload) {
+
+  if (!payload)
+  {
     throw new Error("Invalid Google ID token payload");
   }
 
