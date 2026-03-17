@@ -211,8 +211,9 @@ async function acceptInvitation(req, res) {
   });
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  return res.json(org);
+  res.json(org);
 }
+
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
 router.post(
