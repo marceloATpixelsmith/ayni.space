@@ -10,42 +10,47 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
-// ── GET /organizations/:orgId/invitations ─────────────────────────────────────
-router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, async (req, res) => {
-  const { orgId } = req.params;
+//──────────────────────────────────────────────────────────────────────────────
+//GET /organizations/:orgId/invitations
+//──────────────────────────────────────────────────────────────────────────────
+router.get
+(
+  "/organizations/:orgId/invitations",
+  requireAuth,
+  requireOrgAccess,
+  async (req, res) =>
+  {
+    const { orgId } = req.params;
 
-  const org = await db.query.organizationsTable.findFirst({
-    where: eq(organizationsTable.id, orgId),
-  });
+    const org = await db.query.organizationsTable.findFirst
+    ({
+      where: eq(organizationsTable.id, orgId),
+    });
 
-  const invitations = await db.query.invitationsTable.findMany({
-    where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
-  });
+    const invitations = await db.query.invitationsTable.findMany
+    ({
+      where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
+    });
 
-  res.json(
-    invitations.map((inv) => ({
-      id: inv.id,
-      email: inv.email,
-      role: inv.role,
-      orgId: inv.orgId,
-      orgName: org?.name ?? "",
-      status: inv.status,
-      expiresAt: inv.expiresAt,
-      createdAt: inv.createdAt,
-    }))
-  );
-});
-
-// ── POST /organizations/:orgId/invitations ─────────────────────────────────────
-router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), async (req, res) => {
-  const { orgId } = req.params;
-  const userId = req.session.userId!;
-  const { email, role } = req.body as { email: string; role: string };
-
-  if (!email || !role) {
-    res.status(400).json({ error: "email and role are required" });
-    return;
+    res.json
+    (
+      invitations.map
+      (
+        (inv) =>
+        ({
+          id: inv.id,
+          email: inv.email,
+          role: inv.role,
+          orgId: inv.orgId,
+          orgName: org?.name ?? "",
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          createdAt: inv.createdAt,
+        })
+      )
+    );
   }
+);
 
   const existingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
   if (existingUser) {
@@ -56,21 +61,50 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
       res.status(409).json({ error: "User is already a member of this organization" });
       return;
     }
-  }
 
-  const org = await db.query.organizationsTable.findFirst({
-    where: eq(organizationsTable.id, orgId),
-  });
+    //CHECK IF ALREADY A MEMBER
+    const existingUser = await db.query.usersTable.findFirst
+    ({
+      where: eq(usersTable.email, email),
+    });
 
   const rawToken = randomBytes(32).toString("hex");
   const token = createHash("sha256").update(rawToken).digest("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  const [invitation] = await db
-    .insert(invitationsTable)
-    .values({
-      id: randomUUID(),
-      email,
+      if (membership)
+      {
+        res.status(409).json({ error: "User is already a member of this organization" });
+        return;
+      }
+    }
+
+    const org = await db.query.organizationsTable.findFirst
+    ({
+      where: eq(organizationsTable.id, orgId),
+    });
+
+    const rawToken = randomBytes(32).toString("hex");
+    const token = createHash("sha256").update(rawToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const [invitation] = await db
+      .insert(invitationsTable)
+      .values
+      ({
+        id: randomUUID(),
+        email,
+        orgId,
+        role,
+        token,
+        status: "pending",
+        invitedByUserId: userId,
+        expiresAt,
+      })
+      .returning();
+
+    writeAuditLog
+    ({
       orgId,
       role,
       token,
@@ -173,8 +207,19 @@ router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
     await db.insert(orgMembershipsTable).values({
       userId,
       orgId: invitation.orgId,
-      role: invitation.role,
+      userId,
+      action: "org.invitation.accepted",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      req,
     });
+
+    const org = await db.query.organizationsTable.findFirst
+    ({
+      where: eq(organizationsTable.id, invitation.orgId),
+    });
+
+    res.json(org);
   }
 
   await db.update(invitationsTable).set({ status: "accepted" }).where(eq(invitationsTable.id, invitation.id));
