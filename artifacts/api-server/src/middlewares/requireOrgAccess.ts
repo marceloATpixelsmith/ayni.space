@@ -11,12 +11,15 @@ export async function requireOrgAccess(req: Request, res: Response, next: NextFu
   }
 
   const role = await getUserOrgRole(userId, orgId);
-  if (!role) {
+
+  if (!role)
+  {
     res.status(403).json({ error: "Access denied. You are not a member of this organization." });
     return;
   }
 
   (req as Request & { orgRole: string }).orgRole = role;
+
   next();
 }
 
