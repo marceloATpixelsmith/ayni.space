@@ -145,17 +145,12 @@ router.get("/google/url", (req, res) => {
   }
 );
 
-//──────────────────────────────────────────────────────────────────────────────
-//GET /auth/google/url
-//──────────────────────────────────────────────────────────────────────────────
-router.get
-(
-  "/google/url",
-  (req, res) =>
-  {
-    try
-    {
-      const state = randomUUID();
+// ── GET /auth/google/callback ─────────────────────────────────────────────────
+router.get("/google/callback", async (req, res) => {
+  const codeParam = req.query.code;
+  const stateParam = req.query.state;
+  const code = Array.isArray(codeParam) ? codeParam[0] : codeParam;
+  const state = Array.isArray(stateParam) ? stateParam[0] : stateParam;
 
       req.session.oauthState = state;
 
@@ -173,15 +168,8 @@ router.get
   }
 );
 
-//──────────────────────────────────────────────────────────────────────────────
-//GET /auth/google/callback
-//──────────────────────────────────────────────────────────────────────────────
-router.get
-(
-  "/google/callback",
-  async (req, res) =>
-  {
-    const { code, state } = req.query as { code?: string; state?: string };
+  try {
+    const googleUser = await exchangeCodeForUser(code);
 
     if (!code)
     {
