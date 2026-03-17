@@ -13,10 +13,10 @@ const router = Router();
 async function listInvitations(req, res) {
   const orgId = req.params.orgId;
 
-  const org = await db.query.organizationsTable.findFirst({
-    where: eq(organizationsTable.id, orgId),
-  });
+async function listInvitations(req, res) {
+  const orgId = req.params.orgId;
 
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
   const invitations = await db.query.invitationsTable.findMany({
     where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
   });
@@ -116,8 +116,9 @@ async function cancelInvitation(req, res) {
 
   await db
     .update(invitationsTable)
-    .set({ status: "cancelled" })
-    .where(eq(invitationsTable.id, invitationId));
+    .set({ token: hashedInvitationToken, expiresAt: invitationExpiresAt, status: "pending" })
+    .where(eq(invitationsTable.id, invitationId))
+    .returning();
 
   res.json({ success: true, message: "Invitation cancelled" });
 }
@@ -192,8 +193,19 @@ async function acceptInvitation(req, res) {
     await db.insert(orgMembershipsTable).values({
       userId: userId,
       orgId: invitation.orgId,
-      role: invitation.role,
+      userId,
+      action: "org.invitation.accepted",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      req,
     });
+
+    const org = await db.query.organizationsTable.findFirst
+    ({
+      where: eq(organizationsTable.id, invitation.orgId),
+    });
+
+    res.json(org);
   }
 
   await db
@@ -211,9 +223,8 @@ async function acceptInvitation(req, res) {
   });
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  res.json(org);
+  return res.json(org);
 }
-
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
 router.post(
