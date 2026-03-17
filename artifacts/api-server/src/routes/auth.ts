@@ -43,6 +43,25 @@ async function handleMe(req, res) {
     activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
   }
 
+  const activeOrgPayload = activeOrg
+    ? {
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug,
+        logoUrl: activeOrg.logoUrl,
+        website: activeOrg.website,
+        createdAt: activeOrg.createdAt,
+        stripeCustomerId: activeOrg.stripeCustomerId,
+      }
+    : null;
+
+  const membershipsPayload = memberships.map((membership) => ({
+    orgId: membership.orgId,
+    orgName: membership.orgName,
+    orgSlug: membership.orgSlug,
+    role: membership.role,
+  }));
+
   res.json({
     id: user.id,
     email: user.email,
@@ -77,7 +96,10 @@ function handleGoogleUrl(req, res) {
       res.redirect(url);
     });
   } catch {
-    res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
+    res.status(501).json({
+      error:
+        "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
+    });
   }
 }
 
@@ -85,10 +107,7 @@ async function handleGoogleCallback(req, res) {
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
 
-  if (!code) {
-    res.status(400).json({ error: "Missing authorization code" });
-    return;
-  }
+      req.session.oauthState = state;
 
   if (!state || !req.session.oauthState || state !== req.session.oauthState) {
     res.status(400).json({ error: "Invalid OAuth state. Please try signing in again." });
@@ -179,6 +198,28 @@ async function handleGoogleCallback(req, res) {
       resourceId: user.id,
       req,
     });
+
+    if (!process.env["FRONTEND_URL"]) {
+      res.status(500).json({ error: "FRONTEND_URL is not configured" });
+      return;
+    }
+
+    const frontendBase = process.env["FRONTEND_URL"];
+    if (memberships.length === 0) {
+      res.redirect(`${frontendBase}/onboarding`);
+    } else {
+      res.redirect(`${frontendBase}/dashboard`);
+    }
+  } catch (error) {
+    console.error("Google callback failed:", error);
+    res.status(500).json({ error: "Google authentication failed" });
+  }
+}
+
+router.get("/me", requireAuth, handleMe);
+router.post("/logout", requireAuth, handleLogout);
+router.get("/google/url", handleGoogleUrl);
+router.get("/google/callback", handleGoogleCallback);
 
     if (!process.env["FRONTEND_URL"]) {
       res.status(500).json({ error: "FRONTEND_URL is not configured" });
