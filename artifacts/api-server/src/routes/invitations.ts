@@ -45,6 +45,7 @@ async function createInvitation(req, res) {
     res.status(400).json({ error: "email and role are required" });
     return;
   }
+);
 
   const existingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
   if (existingUser) {
@@ -170,8 +171,19 @@ async function acceptInvitation(req, res) {
     await db.insert(orgMembershipsTable).values({
       userId,
       orgId: invitation.orgId,
-      role: invitation.role,
+      userId,
+      action: "org.invitation.accepted",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      req,
     });
+
+    const org = await db.query.organizationsTable.findFirst
+    ({
+      where: eq(organizationsTable.id, invitation.orgId),
+    });
+
+    res.json(org);
   }
 
   await db.update(invitationsTable).set({ status: "accepted" }).where(eq(invitationsTable.id, invitation.id));
