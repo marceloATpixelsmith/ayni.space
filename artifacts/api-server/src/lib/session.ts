@@ -20,13 +20,25 @@ export function createSessionMiddleware() {
     secret,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset maxAge on every response (idle timeout)
     cookie: {
       httpOnly: true,
       secure: process.env["NODE_ENV"] === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      sameSite: "strict",
+      maxAge: 60 * 60 * 1000, // 1 hour absolute timeout
+      path: "/",
+      // Optionally set domain from env
+      ...(process.env["SESSION_COOKIE_DOMAIN"] ? { domain: process.env["SESSION_COOKIE_DOMAIN"] } : {}),
     },
     name: "saas.sid",
+  });
+}
+
+// Helper to rotate session on privilege/org changes
+export function rotateSession(req, cb) {
+  req.session.regenerate((err) => {
+    if (err) return cb(err);
+    cb();
   });
 }
 

@@ -17,6 +17,7 @@ interface AuditOptions {
 export function writeAuditLog(opts: AuditOptions): void {
   const ipAddress = opts.req?.ip;
   const userAgent = opts.req?.get("user-agent");
+  const correlationId = opts.req?.correlationId || opts.req?.headers["x-correlation-id"];
 
   db.insert(auditLogsTable)
     .values({
@@ -30,6 +31,7 @@ export function writeAuditLog(opts: AuditOptions): void {
       metadata: opts.metadata ?? null,
       ipAddress: ipAddress ?? null,
       userAgent: userAgent ?? null,
+      correlationId: correlationId ?? null,
     })
     .catch((err: unknown) => {
       console.error("Failed to write audit log:", err);

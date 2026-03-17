@@ -112,13 +112,15 @@ router.post("/portal", requireAuth, requireOrgAccess, async (req, res) => {
 router.post("/webhook", async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env["STRIPE_WEBHOOK_SECRET"];
-
   if (!webhookSecret) {
     console.error("STRIPE_WEBHOOK_SECRET not configured");
     res.status(500).json({ error: "Webhook secret not configured" });
     return;
   }
-
+  if (!sig || typeof sig !== "string") {
+    res.status(400).json({ error: "Missing Stripe signature" });
+    return;
+  }
   let event: { type: string; data: { object: Record<string, unknown> } };
   try {
     const stripe = getStripe();
@@ -153,7 +155,7 @@ router.post("/webhook", async (req, res) => {
             orgId: meta.orgId,
             action: "subscription.created",
             resourceType: "subscription",
-            metadata: { appId: meta.appId, planId: meta.planId },
+            metadata: { appId: meta.appId, planId: meta.planId, eventType: event.type, eventId: event["id"] },
           });
         }
         break;
@@ -170,6 +172,12 @@ router.post("/webhook", async (req, res) => {
               currentPeriodEnd: new Date((sub["current_period_end"] as number) * 1000),
             })
             .where(eq(subscriptionsTable.stripeSubscriptionId, sub["id"] as string));
+          writeAuditLog({
+            action: "subscription.updated",
+            resourceType: "subscription",
+            resourceId: sub["id"] as string,
+            metadata: { status: sub["status"], eventType: event.type, eventId: event["id"] },
+          });
         }
         break;
       }
@@ -180,6 +188,12 @@ router.post("/webhook", async (req, res) => {
             .update(subscriptionsTable)
             .set({ status: "canceled" })
             .where(eq(subscriptionsTable.stripeSubscriptionId, sub["id"] as string));
+          writeAuditLog({
+            action: "subscription.deleted",
+            resourceType: "subscription",
+            resourceId: sub["id"] as string,
+            metadata: { eventType: event.type, eventId: event["id"] },
+          });
         }
         break;
       }
@@ -191,11 +205,16 @@ router.post("/webhook", async (req, res) => {
             .update(subscriptionsTable)
             .set({ status: "past_due" })
             .where(eq(subscriptionsTable.stripeSubscriptionId, subId));
+          writeAuditLog({
+            action: "invoice.payment_failed",
+            resourceType: "subscription",
+            resourceId: subId,
+            metadata: { eventType: event.type, eventId: event["id"] },
+          });
         }
         break;
       }
     }
-
     res.json({ success: true });
   } catch (err) {
     console.error("Webhook processing error:", err);

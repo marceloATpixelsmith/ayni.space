@@ -45,22 +45,29 @@ export async function exchangeCodeForUser(code: string)
 
   const { tokens } = await client.getToken(code);
 
-  if (!tokens.id_token)
-  {
+  if (!tokens.id_token) {
     throw new Error("Google did not return an ID token");
   }
 
-  const ticket = await client.verifyIdToken(
-  {
+  const ticket = await client.verifyIdToken({
     idToken: tokens.id_token,
     audience: getRequiredEnv("GOOGLE_CLIENT_ID"),
   });
 
   const payload = ticket.getPayload();
 
-  if (!payload?.sub || !payload.email)
-  {
+  if (!payload?.sub || !payload.email) {
     throw new Error("Google user payload is missing required fields");
+  }
+
+  if (!payload.email_verified) {
+    throw new Error("Google account email is not verified");
+  }
+
+  // Hosted domain enforcement (if configured)
+  const hostedDomain = process.env["GOOGLE_HOSTED_DOMAIN"];
+  if (hostedDomain && payload.hd !== hostedDomain) {
+    throw new Error(`Google account must belong to hosted domain: ${hostedDomain}`);
   }
 
   return {
@@ -68,5 +75,6 @@ export async function exchangeCodeForUser(code: string)
     email: payload.email,
     name: payload.name ?? null,
     picture: payload.picture ?? null,
+    hd: payload.hd ?? null,
   };
 }

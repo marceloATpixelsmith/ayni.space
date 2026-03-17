@@ -75,6 +75,8 @@ router.post("/logout", requireAuth, (req, res) => {
       console.error("Session destroy error:", err);
     }
     res.clearCookie("saas.sid");
+    // Regenerate session after logout for extra safety
+    req.session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });
 });
@@ -100,103 +102,113 @@ router.get("/google/callback", async (req, res) => {
     return;
   }
 
-  // Validate state to prevent CSRF
-  if (state && req.session.oauthState && state !== req.session.oauthState) {
+  // Strict state validation (fail closed)
+  if (!state || !req.session.oauthState || state !== req.session.oauthState) {
     res.status(400).json({ error: "Invalid OAuth state. Please try signing in again." });
     return;
   }
+  // Clear state after use
   delete req.session.oauthState;
 
   try {
     const googleUser = await exchangeCodeForUser(code as string);
 
-    // Find or create user
-    let user = await db.query.usersTable.findFirst({
-      where: eq(usersTable.googleId, googleUser.sub),
-    });
+    // Regenerate session on login for session fixation protection
+    req.session.regenerate(async (err) => {
+      if (err) {
+        res.status(500).json({ error: "Session regeneration failed" });
+        return;
+      }
 
-    if (!user) {
-      // Check if user exists by email (account linking)
-      const existingByEmail = await db.query.usersTable.findFirst({
-        where: eq(usersTable.email, googleUser.email),
+      // Find or create user
+      let user = await db.query.usersTable.findFirst({
+        where: eq(usersTable.googleId, googleUser.sub),
       });
 
-      if (existingByEmail) {
-        // Link Google account to existing email account
-        const [updated] = await db
+      if (!user) {
+        // Explicit account-linking logic placeholder
+        // TODO: Add user prompt/approval for linking accounts if needed
+        const existingByEmail = await db.query.usersTable.findFirst({
+          where: eq(usersTable.email, googleUser.email),
+        });
+
+        if (existingByEmail) {
+          // Link Google account to existing email account
+          const [updated] = await db
+            .update(usersTable)
+            .set({
+              googleId: googleUser.sub,
+              avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
+              name: existingByEmail.name ?? googleUser.name ?? null,
+            })
+            .where(eq(usersTable.id, existingByEmail.id))
+            .returning();
+          user = updated;
+        } else {
+          // Create brand-new user
+          const [created] = await db
+            .insert(usersTable)
+            .values({
+              id: randomUUID(),
+              email: googleUser.email,
+              name: googleUser.name ?? null,
+              avatarUrl: googleUser.picture ?? null,
+              googleId: googleUser.sub,
+              isSuperAdmin: false,
+            })
+            .returning();
+          user = created;
+
+          writeAuditLog({
+            userId: user.id,
+            userEmail: user.email,
+            action: "user.created",
+            resourceType: "user",
+            resourceId: user.id,
+            req,
+          });
+        }
+      } else {
+        // Update avatar/name from Google on each login
+        await db
           .update(usersTable)
           .set({
-            googleId: googleUser.sub,
-            avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
-            name: existingByEmail.name ?? googleUser.name ?? null,
+            avatarUrl: googleUser.picture ?? user.avatarUrl,
+            name: user.name ?? googleUser.name ?? null,
           })
-          .where(eq(usersTable.id, existingByEmail.id))
-          .returning();
-        user = updated;
-      } else {
-        // Create brand-new user
-        const [created] = await db
-          .insert(usersTable)
-          .values({
-            id: randomUUID(),
-            email: googleUser.email,
-            name: googleUser.name ?? null,
-            avatarUrl: googleUser.picture ?? null,
-            googleId: googleUser.sub,
-            isSuperAdmin: false,
-          })
-          .returning();
-        user = created;
-
-        writeAuditLog({
-          userId: user.id,
-          userEmail: user.email,
-          action: "user.created",
-          resourceType: "user",
-          resourceId: user.id,
-          req,
-        });
+          .where(eq(usersTable.id, user.id));
       }
-    } else {
-      // Update avatar/name from Google on each login
-      await db
-        .update(usersTable)
-        .set({
-          avatarUrl: googleUser.picture ?? user.avatarUrl,
-          name: user.name ?? googleUser.name ?? null,
-        })
-        .where(eq(usersTable.id, user.id));
-    }
 
-    // Set session
-    req.session.userId = user.id;
-    req.session.activeOrgId = user.activeOrgId ?? undefined;
 
-    // Check if user has any orgs
-    const memberships = await db.query.orgMembershipsTable.findMany({
-      where: eq(orgMembershipsTable.userId, user.id),
+      // Update last_login_at
+      await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+
+      // Set session
+      req.session.userId = user.id;
+      req.session.activeOrgId = user.activeOrgId ?? undefined;
+
+      // Check if user has any orgs
+      const memberships = await db.query.orgMembershipsTable.findMany({
+        where: eq(orgMembershipsTable.userId, user.id),
+      });
+
+      writeAuditLog({
+        userId: user.id,
+        userEmail: user.email,
+        action: "user.login",
+        resourceType: "user",
+        resourceId: user.id,
+        req,
+      });
+
+      // Determine redirect path
+      const frontendBase = process.env["FRONTEND_URL"] || "";
+      if (memberships.length === 0) {
+        res.redirect(`${frontendBase}/onboarding`);
+      } else {
+        res.redirect(`${frontendBase}/dashboard`);
+      }
     });
-
-    writeAuditLog({
-      userId: user.id,
-      userEmail: user.email,
-      action: "user.login",
-      resourceType: "user",
-      resourceId: user.id,
-      req,
-    });
-
-    // Determine redirect path
-    const frontendBase = process.env["FRONTEND_URL"] || "";
-    if (memberships.length === 0) {
-      res.redirect(`${frontendBase}/onboarding`);
-    } else {
-      res.redirect(`${frontendBase}/dashboard`);
-    }
-  } catch (err) {
-    console.error("Google OAuth callback error:", err);
-    res.status(500).json({ error: "Authentication failed. Please try again." });
-  }
 });
 
 export default router;

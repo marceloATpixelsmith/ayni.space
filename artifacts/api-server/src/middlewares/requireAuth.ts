@@ -21,6 +21,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  if (user.suspended || user.deletedAt) {
+    req.session.destroy(() => {});
+    res.status(403).json({ error: "Account suspended or deleted. Contact support." });
+    return;
+  }
+
+  // Update last_seen_at
+  await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, userId));
+
   // Attach user to request for downstream handlers
   (req as Request & { user: typeof user }).user = user;
   next();

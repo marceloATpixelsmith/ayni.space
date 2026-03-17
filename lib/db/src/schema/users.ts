@@ -11,6 +11,12 @@ export const usersTable = platform.table("users",
   googleId: text("google_id").unique(),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   activeOrgId: uuid("active_org_id"),
+  // --- SaaS status fields ---
+  active: boolean("active").notNull().default(true),
+  suspended: boolean("suspended").notNull().default(false),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
