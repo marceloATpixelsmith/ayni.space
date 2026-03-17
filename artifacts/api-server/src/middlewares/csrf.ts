@@ -14,6 +14,12 @@ export function csrfTokenEndpoint(req, res) {
 // Origin/Referer validation middleware for sensitive routes
 export function originRefererProtection(allowedOrigins) {
   return (req, res, next) => {
+    // Google OAuth endpoints are browser navigations/redirects and can carry non-app
+    // referers/origins by design. OAuth state validation in callback protects the flow.
+    if (req.method === "GET" && req.path.startsWith("/api/auth/google/")) {
+      return next();
+    }
+
     const origin = req.get("origin");
     const referer = req.get("referer");
     if (!origin && !referer) return next();
