@@ -47,7 +47,6 @@ async function createInvitation(req, res) {
     res.status(400).json({ error: "email and role are required" });
     return;
   }
-);
 
   const existingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
 
