@@ -1,0 +1,14 @@
+{
+  "name": "ayni.space",
+  "postCreateCommand": "pnpm install",
+  "postStartCommand": "pnpm dev",
+  "forwardPorts": [3000, 5173],
+  "portsAttributes": {
+    "3000": {
+      "label": "API Server"
+    },
+    "5173": {
+      "label": "Frontend"
+    }
+  }
+}
