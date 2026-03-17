@@ -17,7 +17,10 @@
     "csurf": "^1.11.0",
     "drizzle-orm": "catalog:",
     "express": "^5",
-    "helmet": "^8.1.0"
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.10.0",
+    "rate-limit-redis": "^4.3.1"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",
