@@ -85,7 +85,7 @@ router.get("/google/url", (req, res) => {
     const state = randomUUID();
     req.session.oauthState = state;
     const url = buildGoogleAuthUrl(state);
-    res.json({ url });
+    res.redirect(url);
   } catch {
     res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
   }
