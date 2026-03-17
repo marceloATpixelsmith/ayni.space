@@ -104,11 +104,44 @@ router.post
         {
           console.error("Session destroy error:", err);
         }
+      : null,
+    memberships: memberships.map((m) => ({
+      orgId: m.orgId,
+      orgName: m.orgName,
+      orgSlug: m.orgSlug,
+      role: m.role,
+    })),
+  });
+});
 
-        res.clearCookie("saas.sid");
-        res.json({ success: true, message: "Logged out successfully" });
+// ── POST /auth/logout ─────────────────────────────────────────────────────────
+router.post("/logout", requireAuth, (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("Session destroy error:", err);
+    }
+    res.clearCookie("saas.sid");
+    // Regenerate session after logout for extra safety
+    req.session = null;
+    res.json({ success: true, message: "Logged out successfully" });
+  });
+});
+
+// ── GET /auth/google/url ──────────────────────────────────────────────────────
+router.get("/google/url", (req, res) => {
+  try {
+    const state = randomUUID();
+    req.session.oauthState = state;
+    const url = buildGoogleAuthUrl(state);
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: "Failed to initialize OAuth session" });
+        return;
       }
-    );
+      res.redirect(url);
+    });
+  } catch {
+    res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
   }
 );
 
