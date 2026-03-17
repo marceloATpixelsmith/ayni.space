@@ -15,13 +15,6 @@ function firstQueryParam(value) {
 }
 
 
-function firstQueryParam(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
-  return undefined;
-}
-
-
 // ── GET /auth/me ─────────────────────────────────────────────────────────────
 router.get("/me", requireAuth, async (req, res) => {
   const userId = req.session.userId!;

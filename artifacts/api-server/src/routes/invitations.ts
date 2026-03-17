@@ -10,27 +10,37 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
-//──────────────────────────────────────────────────────────────────────────────
-//GET /organizations/:orgId/invitations
-//──────────────────────────────────────────────────────────────────────────────
-router.get
-(
-  "/organizations/:orgId/invitations",
-  requireAuth,
-  requireOrgAccess,
-  async (req, res) =>
-  {
-    const { orgId } = req.params;
+// -- GET /organizations/:orgId/invitations -------------------------------------
+router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, async (req, res) => {
+  const { orgId } = req.params;
 
-    const org = await db.query.organizationsTable.findFirst
-    ({
-      where: eq(organizationsTable.id, orgId),
-    });
+  const org = await db.query.organizationsTable.findFirst({
+    where: eq(organizationsTable.id, orgId),
+  });
 
-    const invitations = await db.query.invitationsTable.findMany
-    ({
-      where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
-    });
+  const invitations = await db.query.invitationsTable.findMany({
+    where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
+  });
+
+  res.json(
+    invitations.map((inv) => ({
+      id: inv.id,
+      email: inv.email,
+      role: inv.role,
+      orgId: inv.orgId,
+      orgName: org?.name ?? "",
+      status: inv.status,
+      expiresAt: inv.expiresAt,
+      createdAt: inv.createdAt,
+    }))
+  );
+});
+
+// -- POST /organizations/:orgId/invitations -------------------------------------
+router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), async (req, res) => {
+  const { orgId } = req.params;
+  const userId = req.session.userId!;
+  const { email, role } = req.body as { email: string; role: string };
 
     res.json
     (
@@ -71,18 +81,6 @@ router.get
   const rawToken = randomBytes(32).toString("hex");
   const token = createHash("sha256").update(rawToken).digest("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-      if (membership)
-      {
-        res.status(409).json({ error: "User is already a member of this organization" });
-        return;
-      }
-    }
-
-    const org = await db.query.organizationsTable.findFirst
-    ({
-      where: eq(organizationsTable.id, orgId),
-    });
 
     const rawToken = randomBytes(32).toString("hex");
     const token = createHash("sha256").update(rawToken).digest("hex");
@@ -137,7 +135,7 @@ router.get
   });
 });
 
-// ── DELETE /organizations/:orgId/invitations/:invitationId ────────────────────
+// -- DELETE /organizations/:orgId/invitations/:invitationId --------------------
 router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, async (req, res) => {
   const { invitationId } = req.params;
 
@@ -146,7 +144,7 @@ router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, re
   res.json({ success: true, message: "Invitation cancelled" });
 });
 
-// ── POST /organizations/:orgId/invitations/:invitationId/resend ─────────────
+// -- POST /organizations/:orgId/invitations/:invitationId/resend -------------
 router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, async (req, res) => {
   const { orgId, invitationId } = req.params;
   const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
@@ -168,7 +166,7 @@ router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAut
   res.json({ success: true, invitationId, invitationToken: rawToken });
 });
 
-// ── POST /invitations/:token/accept ───────────────────────────────────────────
+// -- POST /invitations/:token/accept -------------------------------------------
 router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
   const { token } = req.params;
   const userId = req.session.userId!;
