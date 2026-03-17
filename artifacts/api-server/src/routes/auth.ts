@@ -41,9 +41,7 @@ router.get("/me", requireAuth, async (req, res) => {
 
   let activeOrg = null;
   if (user.activeOrgId) {
-    activeOrg = await db.query.organizationsTable.findFirst({
-      where: eq(organizationsTable.id, user.activeOrgId),
-    });
+    activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
   }
 
   const activeOrgPayload = activeOrg
@@ -110,17 +108,14 @@ router.get("/google/url", (req, res) => {
         "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
     });
   }
-});
+);
 
 // GET /auth/google/callback
 router.get("/google/callback", async (req, res) => {
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
 
-  if (!code) {
-    res.status(400).json({ error: "Missing authorization code" });
-    return;
-  }
+      req.session.oauthState = state;
 
   if (!state || !req.session.oauthState || state !== req.session.oauthState) {
     res.status(400).json({ error: "Invalid OAuth state. Please try signing in again." });
