@@ -8,21 +8,16 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
-//──────────────────────────────────────────────────────────────────────────────
-//GET /auth/me
-//──────────────────────────────────────────────────────────────────────────────
-router.get
-(
-  "/me",
-  requireAuth,
-  async (req, res) =>
-  {
-    const userId = req.session.userId!;
+function firstQueryParam(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
 
-    const user = await db.query.usersTable.findFirst
-    ({
-      where: eq(usersTable.id, userId),
-    });
+
+// ── GET /auth/me ─────────────────────────────────────────────────────────────
+router.get("/me", requireAuth, async (req, res) => {
+  const userId = req.session.userId!;
 
     if (!user)
     {
@@ -147,22 +142,26 @@ router.get("/google/url", (req, res) => {
 
 // ── GET /auth/google/callback ─────────────────────────────────────────────────
 router.get("/google/callback", async (req, res) => {
-  const codeParam = req.query.code;
-  const stateParam = req.query.state;
-  const code = Array.isArray(codeParam) ? codeParam[0] : codeParam;
-  const state = Array.isArray(stateParam) ? stateParam[0] : stateParam;
+  const code = firstQueryParam(req.query.code);
+  const state = firstQueryParam(req.query.state);
 
       req.session.oauthState = state;
 
       const url = buildGoogleAuthUrl(state);
 
-      res.redirect(url);
-    }
-    catch
-    {
-      res.status(501).json
-      ({
-        error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
+  try {
+    const googleUser = await exchangeCodeForUser(code);
+
+    // Regenerate session on login for session fixation protection
+    req.session.regenerate(async (err) => {
+      if (err) {
+        res.status(500).json({ error: "Session regeneration failed" });
+        return;
+      }
+
+      // Find or create user
+      let user = await db.query.usersTable.findFirst({
+        where: eq(usersTable.googleId, googleUser.sub),
       });
     }
   }
