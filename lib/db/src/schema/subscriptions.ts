@@ -1,6 +1,6 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // Subscription statuses matching Stripe statuses
 export const SUBSCRIPTION_STATUSES = [
@@ -13,7 +13,7 @@ export const SUBSCRIPTION_STATUSES = [
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 // Subscriptions - per-org per-app billing
-export const subscriptionsTable = pgTable("subscriptions", {
+export const subscriptionsTable = platform.table("subscriptions", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull(),
   appId: text("app_id").notNull(),

@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // Audit log for all significant platform actions
-export const auditLogsTable = pgTable("audit_logs", {
+export const auditLogsTable = platform.table("audit_logs", {
   id: text("id").primaryKey(),
   orgId: text("org_id"), // null for platform-level events
   userId: text("user_id"), // null for system events

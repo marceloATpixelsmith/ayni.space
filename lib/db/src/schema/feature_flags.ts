@@ -1,9 +1,9 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // Feature flags - platform-wide or per-org feature toggles
-export const featureFlagsTable = pgTable("feature_flags", {
+export const featureFlagsTable = platform.table("feature_flags", {
   id: text("id").primaryKey(),
   key: text("key").notNull(), // e.g. "shipibo.comments", "ayni.scheduling"
   value: boolean("value").notNull().default(false),

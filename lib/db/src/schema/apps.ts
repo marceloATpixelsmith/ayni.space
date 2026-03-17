@@ -1,9 +1,9 @@
-import { pgTable, text, boolean, integer, timestamp } from "drizzle-orm/pg-core";
+import { text, boolean, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // App registry - all apps available on the platform
-export const appsTable = pgTable("apps", {
+export const appsTable = platform.table("apps", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
@@ -15,7 +15,7 @@ export const appsTable = pgTable("apps", {
 });
 
 // App pricing plans
-export const appPlansTable = pgTable("app_plans", {
+export const appPlansTable = platform.table("app_plans", {
   id: text("id").primaryKey(),
   appId: text("app_id").notNull(),
   name: text("name").notNull(), // e.g. "Starter", "Pro", "Enterprise"
@@ -27,7 +27,7 @@ export const appPlansTable = pgTable("app_plans", {
 });
 
 // Which apps are enabled for each organization (admin override)
-export const orgAppAccessTable = pgTable("org_app_access", {
+export const orgAppAccessTable = platform.table("org_app_access", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull(),
   appId: text("app_id").notNull(),

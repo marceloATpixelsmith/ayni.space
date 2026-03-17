@@ -1,12 +1,12 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 export const INVITATION_STATUSES = ["pending", "accepted", "cancelled", "expired"] as const;
 export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 
 // Invitations to join an organization
-export const invitationsTable = pgTable("invitations", {
+export const invitationsTable = platform.table("invitations", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
   orgId: text("org_id").notNull(),

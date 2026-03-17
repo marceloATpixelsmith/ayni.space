@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { ayni } from "./_schemas";
 
 // Ayni Ceremony Management - ceremonies
-export const ayniCeremoniesTable = pgTable("ayni_ceremonies", {
+export const ayniCeremoniesTable = ayni.table("ayni_ceremonies", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull(),
   name: text("name").notNull(),
@@ -19,7 +19,7 @@ export const ayniCeremoniesTable = pgTable("ayni_ceremonies", {
 });
 
 // Ayni - participants registered to ceremonies
-export const ayniParticipantsTable = pgTable("ayni_participants", {
+export const ayniParticipantsTable = ayni.table("ayni_participants", {
   id: text("id").primaryKey(),
   ceremonyId: text("ceremony_id").notNull(),
   orgId: text("org_id").notNull(),
@@ -36,7 +36,7 @@ export const ayniParticipantsTable = pgTable("ayni_participants", {
 });
 
 // Ayni - staff members associated with an organization
-export const ayniStaffTable = pgTable("ayni_staff", {
+export const ayniStaffTable = ayni.table("ayni_staff", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull(),
   userId: text("user_id"), // optional link to platform user
@@ -49,7 +49,7 @@ export const ayniStaffTable = pgTable("ayni_staff", {
 });
 
 // Ayni - ceremony-staff assignments
-export const ayniCeremonyStaffTable = pgTable("ayni_ceremony_staff", {
+export const ayniCeremonyStaffTable = ayni.table("ayni_ceremony_staff", {
   id: text("id").primaryKey(),
   ceremonyId: text("ceremony_id").notNull(),
   staffId: text("staff_id").notNull(),

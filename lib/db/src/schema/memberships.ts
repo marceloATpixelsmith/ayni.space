@@ -1,13 +1,13 @@
-import { pgTable, text, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { text, timestamp, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // Roles that a member can have in an organization
 export const MEMBER_ROLES = ["owner", "admin", "member", "viewer"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 // Organization memberships - users can belong to multiple orgs
-export const orgMembershipsTable = pgTable(
+export const orgMembershipsTable = platform.table(
   "org_memberships",
   {
     userId: text("user_id").notNull(),

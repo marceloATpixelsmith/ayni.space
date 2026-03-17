@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { shipibo } from "./_schemas";
 
 // Shipibo Dictionary - categories for organizing words
-export const shipiboCategoriesTable = pgTable("shipibo_categories", {
+export const shipiboCategoriesTable = shipibo.table("shipibo_categories", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
@@ -11,7 +11,7 @@ export const shipiboCategoriesTable = pgTable("shipibo_categories", {
 });
 
 // Shipibo Dictionary - word entries
-export const shipiboWordsTable = pgTable("shipibo_words", {
+export const shipiboWordsTable = shipibo.table("shipibo_words", {
   id: text("id").primaryKey(),
   word: text("word").notNull(), // Shipibo word
   translation: text("translation").notNull(), // Spanish/English translation
