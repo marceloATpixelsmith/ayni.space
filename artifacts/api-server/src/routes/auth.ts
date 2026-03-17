@@ -87,7 +87,13 @@ router.get("/google/url", (req, res) => {
     const state = randomUUID();
     req.session.oauthState = state;
     const url = buildGoogleAuthUrl(state);
-    res.redirect(url);
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: "Failed to initialize OAuth session" });
+        return;
+      }
+      res.redirect(url);
+    });
   } catch {
     res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
   }
@@ -95,7 +101,10 @@ router.get("/google/url", (req, res) => {
 
 // ── GET /auth/google/callback ─────────────────────────────────────────────────
 router.get("/google/callback", async (req, res) => {
-  const { code, state } = req.query as { code?: string; state?: string };
+  const codeParam = req.query.code;
+  const stateParam = req.query.state;
+  const code = Array.isArray(codeParam) ? codeParam[0] : codeParam;
+  const state = Array.isArray(stateParam) ? stateParam[0] : stateParam;
 
   if (!code) {
     res.status(400).json({ error: "Missing authorization code" });
@@ -111,7 +120,7 @@ router.get("/google/callback", async (req, res) => {
   delete req.session.oauthState;
 
   try {
-    const googleUser = await exchangeCodeForUser(code as string);
+    const googleUser = await exchangeCodeForUser(code);
 
     // Regenerate session on login for session fixation protection
     req.session.regenerate(async (err) => {
@@ -209,6 +218,9 @@ router.get("/google/callback", async (req, res) => {
         res.redirect(`${frontendBase}/dashboard`);
       }
     });
+  } catch {
+    res.status(500).json({ error: "Google authentication failed" });
+  }
 });
 
 export default router;
