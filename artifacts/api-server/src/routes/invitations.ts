@@ -18,18 +18,22 @@ async function listInvitations(req, res) {
     where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
   });
 
-  res.json(
-    invitations.map((inv) => ({
+  const orgName = org && org.name ? org.name : "";
+  const payload = [];
+  for (const inv of invitations) {
+    payload.push({
       id: inv.id,
       email: inv.email,
       role: inv.role,
       orgId: inv.orgId,
-      orgName: org && org.name ? org.name : "",
+      orgName,
       status: inv.status,
       expiresAt: inv.expiresAt,
       createdAt: inv.createdAt,
-    }))
-  );
+    });
+  }
+
+  res.json(payload);
 }
 
 async function createInvitation(req, res) {
