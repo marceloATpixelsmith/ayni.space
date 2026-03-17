@@ -15,9 +15,13 @@ function firstQueryParam(value) {
 }
 
 
-// ── GET /auth/me ─────────────────────────────────────────────────────────────
+// -- GET /auth/me -------------------------------------------------------------
 router.get("/me", requireAuth, async (req, res) => {
-  const userId = req.session.userId!;
+  const userId = req.session.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
     if (!user)
     {
@@ -109,7 +113,7 @@ router.post
   });
 });
 
-// ── POST /auth/logout ─────────────────────────────────────────────────────────
+// -- POST /auth/logout ---------------------------------------------------------
 router.post("/logout", requireAuth, (req, res) => {
   req.session.destroy((err) => {
     if (err) {
@@ -122,7 +126,7 @@ router.post("/logout", requireAuth, (req, res) => {
   });
 });
 
-// ── GET /auth/google/url ──────────────────────────────────────────────────────
+// -- GET /auth/google/url ------------------------------------------------------
 router.get("/google/url", (req, res) => {
   try {
     const state = randomUUID();
@@ -140,7 +144,7 @@ router.get("/google/url", (req, res) => {
   }
 );
 
-// ── GET /auth/google/callback ─────────────────────────────────────────────────
+// -- GET /auth/google/callback -------------------------------------------------
 router.get("/google/callback", async (req, res) => {
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
