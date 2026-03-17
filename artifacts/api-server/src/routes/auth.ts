@@ -14,8 +14,7 @@ function firstQueryParam(value) {
   return undefined;
 }
 
-// GET /auth/me
-router.get("/me", requireAuth, async (req, res) => {
+async function handleMe(req, res) {
   const userId = req.session.userId;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -70,31 +69,25 @@ router.get("/me", requireAuth, async (req, res) => {
     avatarUrl: user.avatarUrl,
     isSuperAdmin: user.isSuperAdmin,
     activeOrgId: user.activeOrgId,
-    activeOrg: activeOrgPayload,
-    memberships: membershipsPayload,
+    activeOrg: activeOrg,
+    memberships,
   });
-});
+}
 
-// POST /auth/logout
-router.post("/logout", requireAuth, (req, res) => {
+function handleLogout(req, res) {
   req.session.destroy((err) => {
-    if (err) {
-      console.error("Session destroy error:", err);
-    }
-
+    if (err) console.error("Session destroy error:", err);
     res.clearCookie("saas.sid");
     req.session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });
-});
+}
 
-// GET /auth/google/url
-router.get("/google/url", (req, res) => {
+function handleGoogleUrl(req, res) {
   try {
     const state = randomUUID();
     req.session.oauthState = state;
     const url = buildGoogleAuthUrl(state);
-
     req.session.save((err) => {
       if (err) {
         res.status(500).json({ error: "Failed to initialize OAuth session" });
@@ -108,10 +101,9 @@ router.get("/google/url", (req, res) => {
         "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
     });
   }
-);
+}
 
-// GET /auth/google/callback
-router.get("/google/callback", async (req, res) => {
+async function handleGoogleCallback(req, res) {
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
 
@@ -208,6 +200,11 @@ router.get("/google/callback", async (req, res) => {
   } catch {
     res.status(500).json({ error: "Google authentication failed" });
   }
-});
+}
+
+router.get("/me", requireAuth, handleMe);
+router.post("/logout", requireAuth, handleLogout);
+router.get("/google/url", handleGoogleUrl);
+router.get("/google/callback", handleGoogleCallback);
 
 export default router;
