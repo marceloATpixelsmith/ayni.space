@@ -24,7 +24,7 @@ async function listInvitations(req, res) {
       email: inv.email,
       role: inv.role,
       orgId: inv.orgId,
-      orgName: org?.name ?? "",
+      orgName: org && org.name ? org.name : "",
       status: inv.status,
       expiresAt: inv.expiresAt,
       createdAt: inv.createdAt,
@@ -52,6 +52,7 @@ async function createInvitation(req, res) {
       res.status(409).json({ error: "User is already a member of this organization" });
       return;
     }
+  }
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
 
@@ -59,27 +60,11 @@ async function createInvitation(req, res) {
   const hashedInvitationToken = createHash("sha256").update(rawInvitationToken).digest("hex");
   const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const rawToken = randomBytes(32).toString("hex");
-    const token = createHash("sha256").update(rawToken).digest("hex");
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    const [invitation] = await db
-      .insert(invitationsTable)
-      .values
-      ({
-        id: randomUUID(),
-        email,
-        orgId,
-        role,
-        token,
-        status: "pending",
-        invitedByUserId: userId,
-        expiresAt,
-      })
-      .returning();
-
-    writeAuditLog
-    ({
+  const [invitation] = await db
+    .insert(invitationsTable)
+    .values({
+      id: randomUUID(),
+      email,
       orgId,
       role,
       token: hashedInvitationToken,
@@ -104,7 +89,7 @@ async function createInvitation(req, res) {
     email: invitation.email,
     role: invitation.role,
     orgId: invitation.orgId,
-    orgName: org?.name ?? "",
+    orgName: org && org.name ? org.name : "",
     status: invitation.status,
     expiresAt: invitation.expiresAt,
     createdAt: invitation.createdAt,
@@ -129,24 +114,6 @@ async function resendInvitation(req, res) {
   const rawInvitationToken = randomBytes(32).toString("hex");
   const hashedInvitationToken = createHash("sha256").update(rawInvitationToken).digest("hex");
   const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-  await db.update(invitationsTable).set({ status: "cancelled" }).where(eq(invitationsTable.id, invitationId));
-
-  res.json({ success: true, message: "Invitation cancelled" });
-});
-
-// -- POST /organizations/:orgId/invitations/:invitationId/resend -------------
-router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, async (req, res) => {
-  const { orgId, invitationId } = req.params;
-  const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
-  if (!invitation || invitation.orgId !== orgId || invitation.status !== "pending") {
-    res.status(404).json({ error: "Invitation not found or not pending" });
-    return;
-  }
-
-  const rawToken = randomBytes(32).toString("hex");
-  const token = createHash("sha256").update(rawToken).digest("hex");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   await db
     .update(invitationsTable)
@@ -231,7 +198,14 @@ async function acceptInvitation(req, res) {
 }
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
-router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), createInvitation);
+router.post(
+  "/organizations/:orgId/invitations",
+  turnstileVerifyMiddleware,
+  requireAuth,
+  requireOrgAdmin,
+  validateBody(inviteSchema),
+  createInvitation
+);
 router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, cancelInvitation);
 router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, resendInvitation);
 router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
