@@ -245,102 +245,17 @@ router.get
                   .where(eq(usersTable.id, existingByEmail.id))
                   .returning();
 
-                user = updated;
-              }
-              else
-              {
-                //CREATE BRAND-NEW USER
-                const [created] = await db
-                  .insert(usersTable)
-                  .values
-                  ({
-                    id: randomUUID(),
-                    email: googleUser.email,
-                    name: googleUser.name ?? null,
-                    avatarUrl: googleUser.picture ?? null,
-                    googleId: googleUser.sub,
-                    isSuperAdmin: false,
-                  })
-                  .returning();
-
-                user = created;
-
-                writeAuditLog
-                ({
-                  userId: user.id,
-                  userEmail: user.email,
-                  action: "user.created",
-                  resourceType: "user",
-                  resourceId: user.id,
-                  req,
-                });
-              }
-            }
-            else
-            {
-              //UPDATE AVATAR/NAME FROM GOOGLE ON EACH LOGIN
-              await db
-                .update(usersTable)
-                .set
-                ({
-                  avatarUrl: googleUser.picture ?? user.avatarUrl,
-                  name: user.name ?? googleUser.name ?? null,
-                })
-                .where(eq(usersTable.id, user.id));
-            }
-
-            //UPDATE LAST LOGIN AT
-            await db
-              .update(usersTable)
-              .set({ lastLoginAt: new Date() })
-              .where(eq(usersTable.id, user.id));
-
-            //SET SESSION
-            req.session.userId = user.id;
-            req.session.activeOrgId = user.activeOrgId ?? undefined;
-
-            //CHECK IF USER HAS ANY ORGS
-            const memberships = await db.query.orgMembershipsTable.findMany
-            ({
-              where: eq(orgMembershipsTable.userId, user.id),
-            });
-
-            writeAuditLog
-            ({
-              userId: user.id,
-              userEmail: user.email,
-              action: "user.login",
-              resourceType: "user",
-              resourceId: user.id,
-              req,
-            });
-
-            //DETERMINE REDIRECT PATH
-            const frontendBase = process.env["FRONTEND_URL"] || "";
-
-            if (memberships.length === 0)
-            {
-              res.redirect(`${frontendBase}/onboarding`);
-            }
-            else
-            {
-              res.redirect(`${frontendBase}/dashboard`);
-            }
-          }
-          catch (callbackError)
-          {
-            console.error("Google callback session handler error:", callbackError);
-            res.status(500).json({ error: "Authentication failed" });
-          }
-        }
-      );
-    }
-    catch (error)
-    {
-      console.error("Google OAuth callback error:", error);
-      res.status(500).json({ error: "Authentication failed" });
-    }
+      // Determine redirect path
+      const frontendBase = process.env["FRONTEND_URL"] || "";
+      if (memberships.length === 0) {
+        res.redirect(`${frontendBase}/onboarding`);
+      } else {
+        res.redirect(`${frontendBase}/dashboard`);
+      }
+    });
+  } catch {
+    res.status(500).json({ error: "Google authentication failed" });
   }
-);
+});
 
 export default router;
