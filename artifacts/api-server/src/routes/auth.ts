@@ -43,32 +43,35 @@ router.get("/me", requireAuth, async (req, res) => {
   if (user.activeOrgId) {
     activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
   }
-);
 
-//──────────────────────────────────────────────────────────────────────────────
-//POST /auth/logout
-//──────────────────────────────────────────────────────────────────────────────
-router.post
-(
-  "/logout",
-  requireAuth,
-  (req, res) =>
-  {
-    req.session.destroy
-    (
-      (err) =>
-      {
-        if (err)
-        {
-          console.error("Session destroy error:", err);
-        }
-      : null,
-    memberships: memberships.map((m) => ({
-      orgId: m.orgId,
-      orgName: m.orgName,
-      orgSlug: m.orgSlug,
-      role: m.role,
-    })),
+  const activeOrgPayload = activeOrg
+    ? {
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug,
+        logoUrl: activeOrg.logoUrl,
+        website: activeOrg.website,
+        createdAt: activeOrg.createdAt,
+        stripeCustomerId: activeOrg.stripeCustomerId,
+      }
+    : null;
+
+  const membershipsPayload = memberships.map((membership) => ({
+    orgId: membership.orgId,
+    orgName: membership.orgName,
+    orgSlug: membership.orgSlug,
+    role: membership.role,
+  }));
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
+    isSuperAdmin: user.isSuperAdmin,
+    activeOrgId: user.activeOrgId,
+    activeOrg: activeOrgPayload,
+    memberships: membershipsPayload,
   });
 });
 
@@ -186,54 +189,14 @@ router.get("/google/callback", async (req, res) => {
 
       const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
 
-    //CLEAR STATE AFTER USE
-    delete req.session.oauthState;
-
-    try
-    {
-      const googleUser = await exchangeCodeForUser(code);
-
-      //REGENERATE SESSION ON LOGIN FOR SESSION FIXATION PROTECTION
-      req.session.regenerate
-      (
-        async (err) =>
-        {
-          if (err)
-          {
-            res.status(500).json({ error: "Session regeneration failed" });
-            return;
-          }
-
-          try
-          {
-            //FIND OR CREATE USER
-            let user = await db.query.usersTable.findFirst
-            ({
-              where: eq(usersTable.googleId, googleUser.sub),
-            });
-
-            if (!user)
-            {
-              //EXPLICIT ACCOUNT-LINKING LOGIC PLACEHOLDER
-              //TODO:ADD USER PROMPT/APPROVAL FOR LINKING ACCOUNTS IF NEEDED
-              const existingByEmail = await db.query.usersTable.findFirst
-              ({
-                where: eq(usersTable.email, googleUser.email),
-              });
-
-              if (existingByEmail)
-              {
-                //LINK GOOGLE ACCOUNT TO EXISTING EMAIL ACCOUNT
-                const [updated] = await db
-                  .update(usersTable)
-                  .set
-                  ({
-                    googleId: googleUser.sub,
-                    avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
-                    name: existingByEmail.name ?? googleUser.name ?? null,
-                  })
-                  .where(eq(usersTable.id, existingByEmail.id))
-                  .returning();
+      writeAuditLog({
+        userId: user.id,
+        userEmail: user.email,
+        action: "user.login",
+        resourceType: "user",
+        resourceId: user.id,
+        req,
+      });
 
       const frontendBase = process.env["FRONTEND_URL"] || "";
       if (memberships.length === 0) {
