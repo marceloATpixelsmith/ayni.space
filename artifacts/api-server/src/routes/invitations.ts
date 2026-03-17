@@ -223,13 +223,30 @@ async function acceptInvitation(req, res) {
   });
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  res.json(org);
+  return res.json(org);
 }
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
-router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), createInvitation);
-router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, cancelInvitation);
-router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, resendInvitation);
+router.post(
+  "/organizations/:orgId/invitations",
+  turnstileVerifyMiddleware,
+  requireAuth,
+  requireOrgAdmin,
+  validateBody(inviteSchema),
+  createInvitation
+);
+router.delete(
+  "/organizations/:orgId/invitations/:invitationId",
+  requireAuth,
+  requireOrgAdmin,
+  cancelInvitation
+);
+router.post(
+  "/organizations/:orgId/invitations/:invitationId/resend",
+  requireAuth,
+  requireOrgAdmin,
+  resendInvitation
+);
 router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
 
 export default router;

@@ -221,4 +221,26 @@ router.post("/logout", requireAuth, handleLogout);
 router.get("/google/url", handleGoogleUrl);
 router.get("/google/callback", handleGoogleCallback);
 
+    if (!process.env["FRONTEND_URL"]) {
+      res.status(500).json({ error: "FRONTEND_URL is not configured" });
+      return;
+    }
+
+    const frontendBase = process.env["FRONTEND_URL"];
+    if (memberships.length === 0) {
+      res.redirect(`${frontendBase}/onboarding`);
+    } else {
+      res.redirect(`${frontendBase}/dashboard`);
+    }
+  } catch (error) {
+    console.error("Google callback failed:", error);
+    res.status(500).json({ error: "Google authentication failed" });
+  }
+}
+
+router.get("/me", requireAuth, handleMe);
+router.post("/logout", requireAuth, handleLogout);
+router.get("/google/url", handleGoogleUrl);
+router.get("/google/callback", handleGoogleCallback);
+
 export default router;
