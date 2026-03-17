@@ -250,3 +250,5 @@ Before deploying to production, ensure you have set:
 4. **Stripe Webhooks**: Verify your `STRIPE_WEBHOOK_SECRET` matches the one in your Stripe dashboard.
 5. **Rate Limiting**: Consider adding express-rate-limit to the API server for production.
 6. **Database SSL**: Add `?sslmode=require` to your `DATABASE_URL` for managed PostgreSQL providers.
+
+> Note: This guide is intentionally provider-agnostic and may be adapted to equivalent services.
