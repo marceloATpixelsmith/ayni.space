@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router } from "express";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -6,11 +6,22 @@ import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
 
-const router: IRouter = Router();
+const router = Router();
 
-// ── GET /auth/me ─────────────────────────────────────────────────────────────
+function firstQueryParam(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
+
+// -- GET /auth/me -------------------------------------------------------------
 router.get("/me", requireAuth, async (req, res) => {
-  const userId = req.session.userId!;
+  const userId = req.session.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   const user = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, userId),
@@ -68,7 +79,7 @@ router.get("/me", requireAuth, async (req, res) => {
   });
 });
 
-// ── POST /auth/logout ─────────────────────────────────────────────────────────
+// -- POST /auth/logout ---------------------------------------------------------
 router.post("/logout", requireAuth, (req, res) => {
   req.session.destroy((err) => {
     if (err) {
@@ -81,21 +92,28 @@ router.post("/logout", requireAuth, (req, res) => {
   });
 });
 
-// ── GET /auth/google/url ──────────────────────────────────────────────────────
+// -- GET /auth/google/url ------------------------------------------------------
 router.get("/google/url", (req, res) => {
   try {
     const state = randomUUID();
     req.session.oauthState = state;
     const url = buildGoogleAuthUrl(state);
-    res.redirect(url);
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: "Failed to initialize OAuth session" });
+        return;
+      }
+      res.redirect(url);
+    });
   } catch {
     res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
   }
 });
 
-// ── GET /auth/google/callback ─────────────────────────────────────────────────
+// -- GET /auth/google/callback -------------------------------------------------
 router.get("/google/callback", async (req, res) => {
-  const { code, state } = req.query as { code?: string; state?: string };
+  const code = firstQueryParam(req.query.code);
+  const state = firstQueryParam(req.query.state);
 
   if (!code) {
     res.status(400).json({ error: "Missing authorization code" });
@@ -111,7 +129,7 @@ router.get("/google/callback", async (req, res) => {
   delete req.session.oauthState;
 
   try {
-    const googleUser = await exchangeCodeForUser(code as string);
+    const googleUser = await exchangeCodeForUser(code);
 
     // Regenerate session on login for session fixation protection
     req.session.regenerate(async (err) => {
@@ -209,6 +227,9 @@ router.get("/google/callback", async (req, res) => {
         res.redirect(`${frontendBase}/dashboard`);
       }
     });
+  } catch {
+    res.status(500).json({ error: "Google authentication failed" });
+  }
 });
 
 export default router;
