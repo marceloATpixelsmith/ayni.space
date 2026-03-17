@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router } from "express";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -6,7 +6,14 @@ import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
 
-const router: IRouter = Router();
+const router = Router();
+
+function firstQueryParam(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
 
 function firstQueryParam(value: unknown): string | undefined {
   if (typeof value === "string") return value;
