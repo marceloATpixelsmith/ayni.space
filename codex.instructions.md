@@ -1,5 +1,6 @@
 ## CODING AGENT RULES (MANDATORY)
 
+- Code MUST compile and be syntactically valid before committing
 - ALWAYS work directly on the master branch
 - NEVER create a new branch
 - NEVER create a pull request
