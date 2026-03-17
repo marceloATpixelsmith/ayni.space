@@ -1,23 +1,19 @@
-import { Router, type IRouter } from "express";
-import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { Router } from "express";
 import { randomUUID, randomBytes, createHash } from "crypto";
+import { eq, and } from "drizzle-orm";
+import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
 import { validateBody, inviteSchema } from "../middlewares/validation.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { writeAuditLog } from "../lib/audit.js";
 
-const router: IRouter = Router();
+const router = Router();
 
-// -- GET /organizations/:orgId/invitations -------------------------------------
-router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, async (req, res) => {
+async function listInvitations(req, res) {
   const { orgId } = req.params;
 
-  const org = await db.query.organizationsTable.findFirst({
-    where: eq(organizationsTable.id, orgId),
-  });
-
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
   const invitations = await db.query.invitationsTable.findMany({
     where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
   });
@@ -34,31 +30,16 @@ router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, a
       createdAt: inv.createdAt,
     }))
   );
-});
+}
 
-// -- POST /organizations/:orgId/invitations -------------------------------------
-router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), async (req, res) => {
+async function createInvitation(req, res) {
   const { orgId } = req.params;
-  const userId = req.session.userId!;
-  const { email, role } = req.body as { email: string; role: string };
+  const userId = req.session.userId;
+  const { email, role } = req.body;
 
-    res.json
-    (
-      invitations.map
-      (
-        (inv) =>
-        ({
-          id: inv.id,
-          email: inv.email,
-          role: inv.role,
-          orgId: inv.orgId,
-          orgName: org?.name ?? "",
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          createdAt: inv.createdAt,
-        })
-      )
-    );
+  if (!userId || !email || !role) {
+    res.status(400).json({ error: "email and role are required" });
+    return;
   }
 );
 
@@ -72,15 +53,11 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
       return;
     }
 
-    //CHECK IF ALREADY A MEMBER
-    const existingUser = await db.query.usersTable.findFirst
-    ({
-      where: eq(usersTable.email, email),
-    });
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
 
-  const rawToken = randomBytes(32).toString("hex");
-  const token = createHash("sha256").update(rawToken).digest("hex");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const rawInvitationToken = randomBytes(32).toString("hex");
+  const hashedInvitationToken = createHash("sha256").update(rawInvitationToken).digest("hex");
+  const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const rawToken = randomBytes(32).toString("hex");
     const token = createHash("sha256").update(rawToken).digest("hex");
@@ -105,10 +82,10 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
     ({
       orgId,
       role,
-      token,
+      token: hashedInvitationToken,
       status: "pending",
       invitedByUserId: userId,
-      expiresAt,
+      expiresAt: invitationExpiresAt,
     })
     .returning();
 
@@ -131,13 +108,27 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
     status: invitation.status,
     expiresAt: invitation.expiresAt,
     createdAt: invitation.createdAt,
-    invitationToken: rawToken,
+    invitationToken: rawInvitationToken,
   });
-});
+}
 
-// -- DELETE /organizations/:orgId/invitations/:invitationId --------------------
-router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, async (req, res) => {
+async function cancelInvitation(req, res) {
   const { invitationId } = req.params;
+  await db.update(invitationsTable).set({ status: "cancelled" }).where(eq(invitationsTable.id, invitationId));
+  res.json({ success: true, message: "Invitation cancelled" });
+}
+
+async function resendInvitation(req, res) {
+  const { orgId, invitationId } = req.params;
+  const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
+  if (!invitation || invitation.orgId !== orgId || invitation.status !== "pending") {
+    res.status(404).json({ error: "Invitation not found or not pending" });
+    return;
+  }
+
+  const rawInvitationToken = randomBytes(32).toString("hex");
+  const hashedInvitationToken = createHash("sha256").update(rawInvitationToken).digest("hex");
+  const invitationExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   await db.update(invitationsTable).set({ status: "cancelled" }).where(eq(invitationsTable.id, invitationId));
 
@@ -159,17 +150,20 @@ router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAut
 
   await db
     .update(invitationsTable)
-    .set({ token, expiresAt, status: "pending" })
+    .set({ token: hashedInvitationToken, expiresAt: invitationExpiresAt, status: "pending" })
     .where(eq(invitationsTable.id, invitationId))
     .returning();
 
-  res.json({ success: true, invitationId, invitationToken: rawToken });
-});
+  res.json({ success: true, invitationId, invitationToken: rawInvitationToken });
+}
 
-// -- POST /invitations/:token/accept -------------------------------------------
-router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
-  const { token } = req.params;
-  const userId = req.session.userId!;
+async function acceptInvitation(req, res) {
+  const invitationToken = req.params.token;
+  const userId = req.session.userId;
+  if (!invitationToken || !userId) {
+    res.status(400).json({ error: "Invalid invitation request" });
+    return;
+  }
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user) {
@@ -177,9 +171,9 @@ router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
     return;
   }
 
-  const hashedToken = createHash("sha256").update(token).digest("hex");
+  const hashedInvitationToken = createHash("sha256").update(invitationToken).digest("hex");
   const invitation = await db.query.invitationsTable.findFirst({
-    where: and(eq(invitationsTable.token, hashedToken), eq(invitationsTable.status, "pending")),
+    where: and(eq(invitationsTable.token, hashedInvitationToken), eq(invitationsTable.status, "pending")),
   });
 
   if (!invitation) {
@@ -201,6 +195,7 @@ router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
   const existing = await db.query.orgMembershipsTable.findFirst({
     where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, invitation.orgId)),
   });
+
   if (!existing) {
     await db.insert(orgMembershipsTable).values({
       userId,
@@ -231,11 +226,14 @@ router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
     req,
   });
 
-  const org = await db.query.organizationsTable.findFirst({
-    where: eq(organizationsTable.id, invitation.orgId),
-  });
-
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
   res.json(org);
-});
+}
+
+router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
+router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), createInvitation);
+router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, cancelInvitation);
+router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, resendInvitation);
+router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
 
 export default router;
