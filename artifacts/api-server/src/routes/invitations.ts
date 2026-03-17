@@ -1,23 +1,3 @@
-// ── POST /organizations/:orgId/invitations/:invitationId/resend ─────────────
-router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, async (req, res) => {
-  const { orgId, invitationId } = req.params;
-  const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
-  if (!invitation || invitation.orgId !== orgId || invitation.status !== "pending") {
-    return res.status(404).json({ error: "Invitation not found or not pending" });
-  }
-  // Generate a new token and expiry
-  const { randomBytes, createHash } = await import("crypto");
-  const rawToken = randomBytes(32).toString("hex");
-  const token = createHash("sha256").update(rawToken).digest("hex");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  const [updated] = await db.update(invitationsTable)
-    .set({ token, expiresAt, status: "pending" })
-    .where(eq(invitationsTable.id, invitationId))
-    .returning();
-  // TODO: Integrate Brevo (Sendinblue) email delivery here
-  // sendInvitationEmail(updated.email, rawToken, orgId, ...)
-  res.json({ success: true, invitationId, invitationToken: rawToken });
-});
 import { Router, type IRouter } from "express";
 import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -30,7 +10,7 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
-// ── GET /organizations/:orgId/invitations ─────────────────────────────────────
+// -- GET /organizations/:orgId/invitations -------------------------------------
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, async (req, res) => {
   const { orgId } = req.params;
 
@@ -56,7 +36,7 @@ router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, a
   );
 });
 
-// ── POST /organizations/:orgId/invitations ─────────────────────────────────────
+// -- POST /organizations/:orgId/invitations -------------------------------------
 router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requireAuth, requireOrgAdmin, validateBody(inviteSchema), async (req, res) => {
   const { orgId } = req.params;
   const userId = req.session.userId!;
@@ -67,10 +47,7 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
     return;
   }
 
-  // Check if already a member
-  const existingUser = await db.query.usersTable.findFirst({
-    where: eq(usersTable.email, email),
-  });
+  const existingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
   if (existingUser) {
     const membership = await db.query.orgMembershipsTable.findFirst({
       where: and(eq(orgMembershipsTable.userId, existingUser.id), eq(orgMembershipsTable.orgId, orgId)),
@@ -87,7 +64,7 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
 
   const rawToken = randomBytes(32).toString("hex");
   const token = createHash("sha256").update(rawToken).digest("hex");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   const [invitation] = await db
     .insert(invitationsTable)
@@ -113,7 +90,6 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
     req,
   });
 
-  // Return the raw token for email sending (not stored in DB)
   res.status(201).json({
     id: invitation.id,
     email: invitation.email,
@@ -127,43 +103,69 @@ router.post("/organizations/:orgId/invitations", turnstileVerifyMiddleware, requ
   });
 });
 
-// ── DELETE /organizations/:orgId/invitations/:invitationId ────────────────────
+// -- DELETE /organizations/:orgId/invitations/:invitationId --------------------
 router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, async (req, res) => {
   const { invitationId } = req.params;
 
-  await db
-    .update(invitationsTable)
-    .set({ status: "cancelled" })
-    .where(eq(invitationsTable.id, invitationId));
+  await db.update(invitationsTable).set({ status: "cancelled" }).where(eq(invitationsTable.id, invitationId));
 
   res.json({ success: true, message: "Invitation cancelled" });
 });
 
-// ── POST /invitations/:token/accept ───────────────────────────────────────────
+// -- POST /organizations/:orgId/invitations/:invitationId/resend -------------
+router.post("/organizations/:orgId/invitations/:invitationId/resend", requireAuth, requireOrgAdmin, async (req, res) => {
+  const { orgId, invitationId } = req.params;
+  const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
+  if (!invitation || invitation.orgId !== orgId || invitation.status !== "pending") {
+    res.status(404).json({ error: "Invitation not found or not pending" });
+    return;
+  }
+
+  const rawToken = randomBytes(32).toString("hex");
+  const token = createHash("sha256").update(rawToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  await db
+    .update(invitationsTable)
+    .set({ token, expiresAt, status: "pending" })
+    .where(eq(invitationsTable.id, invitationId))
+    .returning();
+
+  res.json({ success: true, invitationId, invitationToken: rawToken });
+});
+
+// -- POST /invitations/:token/accept -------------------------------------------
+router.post("/invitations/:token/accept", requireAuth, async (req, res) => {
   const { token } = req.params;
   const userId = req.session.userId!;
+
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  if (!user) return res.status(401).json({ error: "User not found" });
-  // Hash the provided token
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
   const hashedToken = createHash("sha256").update(token).digest("hex");
   const invitation = await db.query.invitationsTable.findFirst({
     where: and(eq(invitationsTable.token, hashedToken), eq(invitationsTable.status, "pending")),
   });
+
   if (!invitation) {
     res.status(404).json({ error: "Invitation not found or already used" });
     return;
   }
+
   if (new Date() > invitation.expiresAt) {
     await db.update(invitationsTable).set({ status: "expired" }).where(eq(invitationsTable.id, invitation.id));
     res.status(410).json({ error: "Invitation has expired" });
     return;
   }
-  // Enforce email match
+
   if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
     res.status(403).json({ error: "Invitation email does not match your account." });
     return;
   }
-  // Add user to org (single-use)
+
   const existing = await db.query.orgMembershipsTable.findFirst({
     where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, invitation.orgId)),
   });
@@ -174,7 +176,9 @@ router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, re
       role: invitation.role,
     });
   }
+
   await db.update(invitationsTable).set({ status: "accepted" }).where(eq(invitationsTable.id, invitation.id));
+
   writeAuditLog({
     orgId: invitation.orgId,
     userId,
