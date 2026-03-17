@@ -119,85 +119,99 @@ async function handleGoogleCallback(req, res) {
   try {
     const googleUser = await exchangeCodeForUser(code);
 
-    req.session.regenerate(async (err) => {
-      if (err) {
-        res.status(500).json({ error: "Session regeneration failed" });
-        return;
-      }
-
-      let user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleId, googleUser.sub) });
-
-      if (!user) {
-        const existingByEmail = await db.query.usersTable.findFirst({ where: eq(usersTable.email, googleUser.email) });
-
-        if (existingByEmail) {
-          const [updated] = await db
-            .update(usersTable)
-            .set({
-              googleId: googleUser.sub,
-              avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
-              name: existingByEmail.name ?? googleUser.name ?? null,
-            })
-            .where(eq(usersTable.id, existingByEmail.id))
-            .returning();
-          user = updated;
-        } else {
-          const [created] = await db
-            .insert(usersTable)
-            .values({
-              id: randomUUID(),
-              email: googleUser.email,
-              name: googleUser.name ?? null,
-              avatarUrl: googleUser.picture ?? null,
-              googleId: googleUser.sub,
-              isSuperAdmin: false,
-            })
-            .returning();
-          user = created;
-
-          writeAuditLog({
-            userId: user.id,
-            userEmail: user.email,
-            action: "user.created",
-            resourceType: "user",
-            resourceId: user.id,
-            req,
-          });
+    await new Promise((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) {
+          reject(err);
+          return;
         }
-      } else {
-        await db
+        resolve(undefined);
+      });
+    });
+
+    let user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleId, googleUser.sub) });
+
+    if (!user) {
+      const existingByEmail = await db.query.usersTable.findFirst({ where: eq(usersTable.email, googleUser.email) });
+
+      if (existingByEmail) {
+        const [updated] = await db
           .update(usersTable)
           .set({
-            avatarUrl: googleUser.picture ?? user.avatarUrl,
-            name: user.name ?? googleUser.name ?? null,
+            googleId: googleUser.sub,
+            avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
+            name: existingByEmail.name ?? googleUser.name ?? null,
           })
-          .where(eq(usersTable.id, user.id));
-      }
-
-      await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-
-      req.session.userId = user.id;
-      req.session.activeOrgId = user.activeOrgId ?? undefined;
-
-      const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
-
-      writeAuditLog({
-        userId: user.id,
-        userEmail: user.email,
-        action: "user.login",
-        resourceType: "user",
-        resourceId: user.id,
-        req,
-      });
-
-      const frontendBase = process.env["FRONTEND_URL"] || "";
-      if (memberships.length === 0) {
-        res.redirect(`${frontendBase}/onboarding`);
+          .where(eq(usersTable.id, existingByEmail.id))
+          .returning();
+        user = updated;
       } else {
-        res.redirect(`${frontendBase}/dashboard`);
+        const [created] = await db
+          .insert(usersTable)
+          .values({
+            id: randomUUID(),
+            email: googleUser.email,
+            name: googleUser.name ?? null,
+            avatarUrl: googleUser.picture ?? null,
+            googleId: googleUser.sub,
+            isSuperAdmin: false,
+          })
+          .returning();
+        user = created;
+
+        writeAuditLog({
+          userId: user.id,
+          userEmail: user.email,
+          action: "user.created",
+          resourceType: "user",
+          resourceId: user.id,
+          req,
+        });
       }
+    } else {
+      await db
+        .update(usersTable)
+        .set({
+          avatarUrl: googleUser.picture ?? user.avatarUrl,
+          name: user.name ?? googleUser.name ?? null,
+        })
+        .where(eq(usersTable.id, user.id));
+    }
+
+    if (!user) {
+      res.status(500).json({ error: "Failed to resolve authenticated user" });
+      return;
+    }
+
+    await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+
+    req.session.userId = user.id;
+    req.session.activeOrgId = user.activeOrgId ?? undefined;
+
+    const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
+
+    writeAuditLog({
+      userId: user.id,
+      userEmail: user.email,
+      action: "user.login",
+      resourceType: "user",
+      resourceId: user.id,
+      req,
     });
-  } catch {
+
+    if (!process.env["FRONTEND_URL"]) {
+      res.status(500).json({ error: "FRONTEND_URL is not configured" });
+      return;
+    }
+
+    const frontendBase = process.env["FRONTEND_URL"];
+    if (memberships.length === 0) {
+      res.redirect(`${frontendBase}/onboarding`);
+    } else {
+      res.redirect(`${frontendBase}/dashboard`);
+    }
+  } catch (error) {
+    console.error("Google callback failed:", error);
     res.status(500).json({ error: "Google authentication failed" });
   }
 }

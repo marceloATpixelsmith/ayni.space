@@ -13,6 +13,9 @@ const router = Router();
 async function listInvitations(req, res) {
   const orgId = req.params.orgId;
 
+async function listInvitations(req, res) {
+  const orgId = req.params.orgId;
+
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
   const invitations = await db.query.invitationsTable.findMany({
     where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
