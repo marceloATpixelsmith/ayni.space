@@ -10,11 +10,8 @@ import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./mi
 import { rateLimiter } from "./middlewares/rateLimit.js";
 
 
-console.info("[startup] app.ts: validating environment...");
 validateEnv();
-console.info("[startup] app.ts: running critical assertions...");
 runCriticalAssertions();
-console.info("[startup] app.ts: initializing observability...");
 initSentry();
 const app: Express = express();
 // ── CORRELATION ID ──────────────────────────────────────────────────────────
@@ -58,19 +55,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── SESSION ───────────────────────────────────────────────────────────────────
-console.info("[startup] app.ts: initializing session middleware...");
-try {
-  app.use(createSessionMiddleware());
-  console.info("[startup] app.ts: session middleware initialized.");
-} catch (error) {
-  console.error("[startup] app.ts: session store initialization failed.");
-  if (error instanceof Error) {
-    console.error(error.stack ?? error.message);
-  } else {
-    console.error(error);
-  }
-  throw new Error("Session middleware initialization failed. Check DATABASE_URL, session table permissions, and connect-pg-simple setup.");
-}
+
+app.use(createSessionMiddleware());
 
 // ── CSRF PROTECTION (all state-changing routes) ─────────────────────────────
 // ── RATE LIMITING (public/auth/invitation/org/profile/billing) ──────────────
