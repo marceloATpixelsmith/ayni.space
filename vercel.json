@@ -1,0 +1,5 @@
+{
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/admin build && SRC=apps/admin/dist/public && [ -d \"$SRC\" ] || SRC=dist/public && rm -rf public && cp -R \"$SRC\" ./public",
+  "outputDirectory": "public"
+}

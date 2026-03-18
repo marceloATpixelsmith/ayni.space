@@ -22,7 +22,7 @@ This platform is developed on Replit but is **not dependent on any Replit-specif
 2. Connect your GitHub repository
 3. Configure:
    - **Build Command**: `pnpm install && pnpm run build`
-   - **Start Command**: `node artifacts/api-server/dist/index.cjs`
+   - **Start Command**: `node apps/api-server/dist/index.cjs`
    - **Environment**: Node 20+
 
 4. Set environment variables:
@@ -43,8 +43,8 @@ This platform is developed on Replit but is **not dependent on any Replit-specif
 
 1. Create a **Static Site** on Render
 2. Configure:
-   - **Build Command**: `pnpm install && pnpm --filter @workspace/platform run build`
-   - **Publish Directory**: `artifacts/platform/dist`
+   - **Build Command**: `pnpm install && pnpm --filter @workspace/admin run build`
+   - **Publish Directory**: `apps/admin/dist`
 
 3. Set environment variable:
    ```
@@ -65,7 +65,7 @@ builder = "nixpacks"
 buildCommand = "pnpm install && pnpm run build"
 
 [deploy]
-startCommand = "node artifacts/api-server/dist/index.cjs"
+startCommand = "node apps/api-server/dist/index.cjs"
 healthcheckPath = "/api/healthz"
 ```
 
@@ -74,10 +74,10 @@ Add all required environment variables in the Railway dashboard.
 For the frontend, create a second Railway service:
 ```toml
 [build]
-buildCommand = "pnpm install && pnpm --filter @workspace/platform run build"
+buildCommand = "pnpm install && pnpm --filter @workspace/admin run build"
 
 [deploy]
-staticDir = "artifacts/platform/dist"
+staticDir = "apps/admin/dist"
 ```
 
 ## Deploying on Fly.io
@@ -92,7 +92,7 @@ RUN npm install -g pnpm
 # Install dependencies
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY lib/ lib/
-COPY artifacts/api-server/ artifacts/api-server/
+COPY apps/api-server/ apps/api-server/
 COPY tsconfig*.json ./
 RUN pnpm install --frozen-lockfile
 
@@ -103,7 +103,7 @@ RUN pnpm run build
 FROM node:20-alpine
 WORKDIR /app
 RUN npm install -g pnpm
-COPY --from=base /app/artifacts/api-server/dist ./dist
+COPY --from=base /app/apps/api-server/dist ./dist
 COPY --from=base /app/node_modules ./node_modules
 EXPOSE 8080
 CMD ["node", "dist/index.cjs"]
@@ -171,7 +171,7 @@ services:
   frontend:
     image: nginx:alpine
     volumes:
-      - ./artifacts/platform/dist:/usr/share/nginx/html
+      - ./apps/admin/dist:/usr/share/nginx/html
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     ports:
       - "80:80"
@@ -250,3 +250,5 @@ Before deploying to production, ensure you have set:
 4. **Stripe Webhooks**: Verify your `STRIPE_WEBHOOK_SECRET` matches the one in your Stripe dashboard.
 5. **Rate Limiting**: Consider adding express-rate-limit to the API server for production.
 6. **Database SSL**: Add `?sslmode=require` to your `DATABASE_URL` for managed PostgreSQL providers.
+
+> Note: This guide is intentionally provider-agnostic and may be adapted to equivalent services.
