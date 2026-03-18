@@ -70,7 +70,7 @@ app.use(csrfProtection);
 app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // ── ORIGIN/REFERER PROTECTION (for sensitive routes) ───────────────────────
-const allowedOriginsForOriginCheck = process.env["ALLOWED_ORIGINS"]?.split(",") || [];
+const allowedOriginsForOriginCheck = process.env["ALLOWED_ORIGINS"]?.split(",").map(o => o.trim()).filter(Boolean) || [];
 app.use(originRefererProtection(allowedOriginsForOriginCheck));
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
