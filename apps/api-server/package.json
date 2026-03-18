@@ -1,0 +1,36 @@
+{
+  "name": "@workspace/api-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development tsx ./src/index.ts",
+    "build": "tsx ./build.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@sentry/node": "^10.10.0",
+    "@workspace/api-zod": "workspace:*",
+    "@workspace/db": "workspace:*",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2",
+    "drizzle-orm": "catalog:",
+    "express": "^5"
+  },
+  "devDependencies": {
+    "@types/connect-pg-simple": "^7.0.3",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
+    "@types/node": "catalog:",
+    "@types/uuid": "^11.0.0",
+    "connect-pg-simple": "^10.0.0",
+    "esbuild": "^0.27.3",
+    "express-session": "^1.19.0",
+    "google-auth-library": "^10.6.1",
+    "stripe": "^20.4.1",
+    "tsx": "catalog:",
+    "uuid": "^13.0.0"
+  }
+}
