@@ -8,21 +8,27 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router = Router();
 
-function firstQueryParam(value) {
+function firstQueryParam(value)
+{
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
 }
 
-async function handleMe(req, res) {
+async function handleMe(req, res)
+{
   const userId = req.session.userId;
-  if (!userId) {
+
+  if (!userId)
+  {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  if (!user) {
+
+  if (!user)
+  {
     res.status(401).json({ error: "User not found" });
     return;
   }
@@ -39,7 +45,9 @@ async function handleMe(req, res) {
     .where(eq(orgMembershipsTable.userId, userId));
 
   let activeOrg = null;
-  if (user.activeOrgId) {
+
+  if (user.activeOrgId)
+  {
     activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
   }
 
@@ -55,8 +63,10 @@ async function handleMe(req, res) {
   });
 }
 
-function handleLogout(req, res) {
-  req.session.destroy((err) => {
+function handleLogout(req, res)
+{
+  req.session.destroy((err) =>
+  {
     if (err) console.error("Session destroy error:", err);
     res.clearCookie("saas.sid");
     req.session = null;
@@ -64,58 +74,73 @@ function handleLogout(req, res) {
   });
 }
 
-function handleGoogleUrl(req, res) {
-  try {
+function handleGoogleUrl(req, res)
+{
+  try
+  {
     const state = randomUUID();
     req.session.oauthState = state;
     const url = buildGoogleAuthUrl(state);
-    req.session.save((err) => {
-      if (err) {
+
+    req.session.save((err) =>
+    {
+      if (err)
+      {
         res.status(500).json({ error: "Failed to initialize OAuth session" });
         return;
       }
+
       res.redirect(url);
     });
-  } catch {
-    res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
+  }
+  catch
+  {
+    res.status(501).json({
+      error:
+        "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
+    });
   }
 }
 
-async function handleGoogleCallback(req, res) {
+async function handleGoogleCallback(req, res)
+{
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
 
-  if (!code) {
-    res.status(400).json({ error: "Missing authorization code" });
-    return;
-  }
-
-  if (!state || !req.session.oauthState || state !== req.session.oauthState) {
+  if (!state || !req.session.oauthState || state !== req.session.oauthState)
+  {
     res.status(400).json({ error: "Invalid OAuth state. Please try signing in again." });
     return;
   }
 
   delete req.session.oauthState;
 
-  try {
+  try
+  {
     const googleUser = await exchangeCodeForUser(code);
 
-    await new Promise((resolve, reject) => {
-      req.session.regenerate((err) => {
-        if (err) {
+    await new Promise((resolve, reject) =>
+    {
+      req.session.regenerate((err) =>
+      {
+        if (err)
+        {
           reject(err);
           return;
         }
+
         resolve(undefined);
       });
     });
 
     let user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleId, googleUser.sub) });
 
-    if (!user) {
+    if (!user)
+    {
       const existingByEmail = await db.query.usersTable.findFirst({ where: eq(usersTable.email, googleUser.email) });
 
-      if (existingByEmail) {
+      if (existingByEmail)
+      {
         const [updated] = await db
           .update(usersTable)
           .set({
@@ -125,8 +150,11 @@ async function handleGoogleCallback(req, res) {
           })
           .where(eq(usersTable.id, existingByEmail.id))
           .returning();
+
         user = updated;
-      } else {
+      }
+      else
+      {
         const [created] = await db
           .insert(usersTable)
           .values({
@@ -138,6 +166,7 @@ async function handleGoogleCallback(req, res) {
             isSuperAdmin: false,
           })
           .returning();
+
         user = created;
 
         writeAuditLog({
@@ -149,7 +178,9 @@ async function handleGoogleCallback(req, res) {
           req,
         });
       }
-    } else {
+    }
+    else
+    {
       await db
         .update(usersTable)
         .set({
@@ -159,7 +190,8 @@ async function handleGoogleCallback(req, res) {
         .where(eq(usersTable.id, user.id));
     }
 
-    if (!user) {
+    if (!user)
+    {
       res.status(500).json({ error: "Failed to resolve authenticated user" });
       return;
     }
@@ -180,18 +212,25 @@ async function handleGoogleCallback(req, res) {
       req,
     });
 
-    if (!process.env["FRONTEND_URL"]) {
+    if (!process.env["FRONTEND_URL"])
+    {
       res.status(500).json({ error: "FRONTEND_URL is not configured" });
       return;
     }
 
     const frontendBase = process.env["FRONTEND_URL"];
-    if (memberships.length === 0) {
+
+    if (memberships.length === 0)
+    {
       res.redirect(`${frontendBase}/onboarding`);
-    } else {
+    }
+    else
+    {
       res.redirect(`${frontendBase}/dashboard`);
     }
-  } catch (error) {
+  }
+  catch (error)
+  {
     console.error("Google callback failed:", error);
     res.status(500).json({ error: "Google authentication failed" });
   }
