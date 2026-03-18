@@ -6,10 +6,10 @@ packages:
   "recharts": "Analytics visualization for the admin dashboard"
 
 images:
-  - path: "artifacts/platform/public/images/auth-bg.png"
+  - path: "apps/admin/public/images/auth-bg.png"
     description: "Abstract minimal 3d geometric shapes, soft lighting, gradient background in deep indigo and slate, professional premium corporate tech aesthetic"
     aspect_ratio: "16:9"
-  - path: "artifacts/platform/public/images/logo.png"
+  - path: "apps/admin/public/images/logo.png"
     description: "Minimal modern geometric SaaS platform logo, interlocking blue and slate shapes, transparent background"
     aspect_ratio: "1:1"
 

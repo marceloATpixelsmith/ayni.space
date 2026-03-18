@@ -164,7 +164,7 @@ importers:
         specifier: ~5.9.2
         version: 5.9.3
 
-  artifacts/api-server:
+  apps/api-server:
     dependencies:
       '@workspace/api-zod':
         specifier: workspace:*
@@ -228,7 +228,7 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
 
-  artifacts/mockup-sandbox:
+  apps/mockup-sandbox:
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
@@ -411,7 +411,7 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
 
-  artifacts/platform:
+  apps/admin:
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0
