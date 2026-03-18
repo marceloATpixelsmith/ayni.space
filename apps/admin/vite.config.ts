@@ -20,10 +20,10 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
-          runtimeErrorOverlay(),
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer({
               root: path.resolve(import.meta.dirname, ".."),
@@ -46,19 +46,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    rollupOptions: {
-      onwarn(warning, warn) {
-        if (
-          warning.message.includes(
-            "Error when using sourcemap for reporting an error: Can't resolve original location of error.",
-          )
-        ) {
-          return;
-        }
-
-        warn(warning);
-      },
-    },
   },
   server: {
     port,
