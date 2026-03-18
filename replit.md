@@ -22,9 +22,9 @@ Multi-tenant SaaS platform monorepo. Hosts **Shipibo Dictionary** (indigenous la
 
 ```text
 .
-├── artifacts/
+├── apps/
 │   ├── api-server/          # Express 5 API server (port 8080)
-│   └── platform/            # React + Vite frontend (previewPath "/")
+│   └── admin/             # React + Vite frontend (previewPath "/")
 ├── lib/
 │   ├── api-spec/            # OpenAPI 3.1 spec + Orval codegen config
 │   ├── api-client-react/    # Generated React Query hooks (used by platform)
@@ -65,7 +65,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ## Packages
 
-### `artifacts/api-server` (`@workspace/api-server`)
+### `apps/api-server` (`@workspace/api-server`)
 
 Express 5 API server (port 8080). All routes are under `/api`.
 
@@ -85,7 +85,7 @@ Express 5 API server (port 8080). All routes are under `/api`.
 - Auth: Google OAuth via `google-auth-library`; session userId stored in `req.session.userId`
 - Middleware: `requireAuth`, `requireSuperAdmin`, `requireOrgAccess`, `requireOrgAdmin`
 
-### `artifacts/platform` (`@workspace/platform`)
+### `apps/admin` (`@workspace/admin`)
 
 React + Vite frontend. Base path: `/`.
 
