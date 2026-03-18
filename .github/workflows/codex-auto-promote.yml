@@ -1,0 +1,43 @@
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    if: startsWith(github.event.pull_request.head.ref, 'codex/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Fetch PR branch
+        run: |
+          git fetch origin "${{ github.event.pull_request.head.ref }}"
+
+      - name: Force master to match Codex branch
+        run: |
+          git checkout master
+          git reset --hard "origin/${{ github.event.pull_request.head.ref }}"
+          git push origin master --force-with-lease
+
+      - name: Close PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr close "${{ github.event.pull_request.number }}" \
+            --comment "Automatically promoted this Codex branch to master."
