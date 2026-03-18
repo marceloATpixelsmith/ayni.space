@@ -1,27 +1,23 @@
-// Sentry integration and correlation ID middleware
-import * as Sentry from "@sentry/node";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "node:crypto";
+import type { ErrorRequestHandler, RequestHandler } from "express";
 
 export function initSentry() {
-  if (process.env.SENTRY_DSN) {
-    Sentry.init({
-      dsn: process.env.SENTRY_DSN,
-      tracesSampleRate: 0.2,
-      environment: process.env.NODE_ENV,
-    });
-  }
+  // No-op by default. Can be replaced with a full provider integration when installed.
 }
 
-export function sentryRequestHandler() {
-  return process.env.SENTRY_DSN ? Sentry.Handlers.requestHandler() : (req, res, next) => next();
+export function sentryRequestHandler(): RequestHandler {
+  return (_req, _res, next) => next();
 }
 
-export function sentryErrorHandler() {
-  return process.env.SENTRY_DSN ? Sentry.Handlers.errorHandler() : (err, req, res, next) => next(err);
+export function sentryErrorHandler(): ErrorRequestHandler {
+  return (err, _req, _res, next) => next(err);
 }
 
-export function correlationIdMiddleware(req, res, next) {
-  req.correlationId = req.headers["x-correlation-id"] || uuidv4();
-  res.setHeader("X-Correlation-Id", req.correlationId);
+export const correlationIdMiddleware: RequestHandler = (req, res, next) => {
+  const incoming = req.headers["x-correlation-id"];
+  const correlationId = typeof incoming === "string" && incoming.trim() ? incoming : randomUUID();
+
+  req.correlationId = correlationId;
+  res.setHeader("X-Correlation-Id", correlationId);
   next();
-}
+};
