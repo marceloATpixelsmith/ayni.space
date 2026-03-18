@@ -24,7 +24,8 @@ export function createSessionMiddleware() {
     cookie: {
       httpOnly: true,
       secure: process.env["NODE_ENV"] === "production",
-      sameSite: "strict",
+      // OAuth returns from google.com are cross-site navigations, so strict would drop session cookie
+      sameSite: "lax",
       maxAge: 60 * 60 * 1000, // 1 hour absolute timeout
       path: "/",
       // Optionally set domain from env

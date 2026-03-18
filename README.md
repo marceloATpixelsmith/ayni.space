@@ -6,9 +6,9 @@ A production-ready, portable, multi-tenant SaaS platform hosting **Shipibo Dicti
 
 ```
 artifacts-monorepo/
-├── artifacts/
+├── apps/
 │   ├── api-server/     # Express 5 API (auth, orgs, billing, apps, admin)
-│   └── platform/       # React + Vite frontend (tenant dashboard, admin, apps)
+│   └── admin/          # React + Vite frontend (tenant dashboard, admin, apps)
 ├── lib/
 │   ├── db/             # Drizzle ORM schema + PostgreSQL connection
 │   ├── api-spec/       # OpenAPI 3.1 spec + Orval codegen config
@@ -73,7 +73,7 @@ pnpm --filter @workspace/scripts run seed
 pnpm --filter @workspace/api-server run dev
 
 # Terminal 2 — Frontend
-pnpm --filter @workspace/platform run dev
+pnpm --filter @workspace/admin run dev
 ```
 
 The API runs at `http://localhost:3000/api`  
@@ -192,7 +192,7 @@ pnpm --filter @workspace/api-spec run codegen
 pnpm --filter @workspace/api-server run dev
 
 # Dev server (Frontend)
-pnpm --filter @workspace/platform run dev
+pnpm --filter @workspace/admin run dev
 ```
 
 ## Multi-tenant Design
@@ -208,8 +208,8 @@ Users can belong to multiple organizations. Each organization can subscribe to m
 
 1. Add an entry to `appsTable` in the database
 2. Add pricing plans to `appPlansTable`
-3. Create a new route file in `artifacts/api-server/src/routes/`
-4. Add frontend pages under `artifacts/platform/src/pages/apps/`
+3. Create a new route file in `apps/api-server/src/routes/`
+4. Add frontend pages under `apps/admin/src/pages/apps/`
 5. The app will automatically appear in the registry and org dashboard
 
 ## License
