@@ -364,6 +364,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
+      '@opentelemetry/instrumentation-http':
+        specifier: workspace:*
+        version: link:../../packages/opentelemetry-instrumentation-http
       '@sentry/node':
         specifier: ^10.10.0
         version: 10.10.0
@@ -674,6 +677,8 @@ importers:
   packages/auth: {}
 
   packages/config: {}
+
+  packages/opentelemetry-instrumentation-http: {}
 
   packages/security: {}
 

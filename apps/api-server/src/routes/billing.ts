@@ -8,6 +8,24 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
+function getAllowedOrigins() {
+  return (process.env["ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function resolveFrontendBase(req): string | null {
+  const originHeader = req.headers["origin"];
+  const origin = typeof originHeader === "string" ? originHeader.trim() : "";
+
+  if (origin && getAllowedOrigins().includes(origin)) {
+    return origin;
+  }
+
+  return null;
+}
+
 function getStripe() {
   const Stripe = require("stripe");
   const key = process.env["STRIPE_SECRET_KEY"];
@@ -58,7 +76,11 @@ router.post("/checkout", requireAuth, requireOrgAccess, async (req, res) => {
         .where(eq(organizationsTable.id, orgId));
     }
 
-    const frontendBase = process.env["FRONTEND_URL"] || "";
+    const frontendBase = resolveFrontendBase(req);
+    if (!successUrl && !cancelUrl && !frontendBase) {
+      res.status(400).json({ error: "Request origin is missing or not allowed" });
+      return;
+    }
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -94,7 +116,11 @@ router.post("/portal", requireAuth, requireOrgAccess, async (req, res) => {
       return;
     }
 
-    const frontendBase = process.env["FRONTEND_URL"] || "";
+    const frontendBase = resolveFrontendBase(req);
+    if (!returnUrl && !frontendBase) {
+      res.status(400).json({ error: "Request origin is missing or not allowed" });
+      return;
+    }
     const session = await stripe.billingPortal.sessions.create({
       customer: org.stripeCustomerId,
       return_url: returnUrl || `${frontendBase}/dashboard/billing`,

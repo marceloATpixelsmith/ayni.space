@@ -49,5 +49,6 @@ declare module "express-session" {
     userId?: string;
     activeOrgId?: string;
     oauthState?: string;
+    oauthReturnTo?: string;
   }
 }
