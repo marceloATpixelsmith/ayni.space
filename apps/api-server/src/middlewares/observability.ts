@@ -320,6 +320,76 @@ export async function captureSentryTestError(message: string) {
   return { captured: true, eventId: eventId ?? null } as const;
 }
 
+
+export function captureFrontendMonitoringEvent(payload: {
+  exception?: { message?: unknown; name?: unknown; stack?: unknown };
+  context?: {
+    app?: unknown;
+    area?: unknown;
+    action?: unknown;
+    route?: unknown;
+    user?: { id?: unknown; email?: unknown };
+    organizationId?: unknown;
+    tags?: Record<string, unknown>;
+    extra?: Record<string, unknown>;
+  };
+  apiError?: unknown;
+  fingerprint?: unknown;
+}) {
+  const Sentry = getSentryModule();
+  if (!sentryDsn || !Sentry || typeof Sentry.withScope !== "function") {
+    return { captured: false, reason: sentryLoadError ?? "Sentry disabled (SENTRY_DSN missing)" } as const;
+  }
+
+  const context = payload.context ?? {};
+  const exceptionName = typeof payload.exception?.name === "string" ? payload.exception.name : "FrontendHandledError";
+  const exceptionMessage = typeof payload.exception?.message === "string" ? payload.exception.message : "Frontend handled error";
+  const error = new Error(exceptionMessage);
+  error.name = exceptionName;
+  if (typeof payload.exception?.stack === "string") {
+    error.stack = payload.exception.stack;
+  }
+
+  const eventId = Sentry.withScope((scope: any) => {
+    if (typeof context.app === "string") scope.setTag("app", context.app);
+    if (typeof context.area === "string") scope.setTag("area", context.area);
+    if (typeof context.action === "string") scope.setTag("action", context.action);
+    if (typeof context.route === "string") scope.setTag("route", context.route);
+    if (typeof context.organizationId === "string") scope.setTag("org_id", context.organizationId);
+
+    if (context.tags && typeof context.tags === "object") {
+      for (const [key, value] of Object.entries(context.tags)) {
+        if (typeof value === "string") scope.setTag(key, value);
+      }
+    }
+
+    if (context.extra && typeof context.extra === "object") {
+      scope.setContext("monitoring_extra", context.extra);
+    }
+
+    if (payload.apiError && typeof payload.apiError === "object") {
+      scope.setContext("api", payload.apiError);
+    }
+
+    if (Array.isArray(payload.fingerprint) && payload.fingerprint.length > 0) {
+      scope.setFingerprint(payload.fingerprint.map((value) => String(value)));
+    }
+
+    const userId = typeof context.user?.id === "string" ? context.user.id : undefined;
+    const userEmail = typeof context.user?.email === "string" ? context.user.email : undefined;
+    if (userId || userEmail) {
+      scope.setUser({
+        ...(userId ? { id: userId } : {}),
+        ...(userEmail ? { email: userEmail } : {}),
+      });
+    }
+
+    return Sentry.captureException(error);
+  });
+
+  return { captured: true, eventId: eventId ?? null } as const;
+}
+
 export const correlationIdMiddleware: RequestHandler = (req, res, next) => {
   const incoming = req.headers["x-correlation-id"];
   const correlationId =

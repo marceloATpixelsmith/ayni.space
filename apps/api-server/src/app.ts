@@ -3,7 +3,7 @@ import cors from "cors";
 import { securityHeaders } from "./middlewares/securityHeaders.js";
 import router from "./routes/index.js";
 import { createSessionMiddleware } from "./lib/session.js";
-import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureSentryTestError } from "./middlewares/observability.js";
+import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureSentryTestError, captureFrontendMonitoringEvent } from "./middlewares/observability.js";
 import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
@@ -78,6 +78,13 @@ app.use("/api/organizations", rateLimiter());
 app.use("/api/users", rateLimiter());
 app.use("/api/billing", rateLimiter());
 
+
+// ── FRONTEND MONITORING INGEST (handled frontend errors) ───────────────────
+app.post("/api/monitoring/events", (req, res) => {
+  const result = captureFrontendMonitoringEvent(req.body ?? {});
+  res.status(result.captured ? 202 : 503).json(result);
+});
+
 app.use(csrfProtection);
 app.get("/api/csrf-token", csrfTokenEndpoint);
 
@@ -96,6 +103,17 @@ app.get("/debug-sentry", async (_req, res) => {
       ? "Sentry test event submitted. Check Sentry dashboard for 'Sentry Test Error'."
       : "Sentry test event was not captured.",
     ...result,
+  });
+});
+
+// ── PUBLIC FRONTEND MONITORING CONFIG ─────────────────────────────────────────
+app.get("/api/monitoring/config", (_req, res) => {
+  const dsn = process.env["SENTRY_DSN"] ?? null;
+  const environment = process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development";
+
+  res.json({
+    dsn,
+    environment,
   });
 });
 
