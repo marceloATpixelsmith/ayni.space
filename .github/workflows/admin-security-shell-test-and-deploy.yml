@@ -1,0 +1,74 @@
+name: Admin Security Shell Test & Deploy
+
+on:
+  pull_request:
+    paths:
+      - "apps/admin/**"
+      - ".github/workflows/admin-security-shell-test-and-deploy.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+  push:
+    branches:
+      - master
+    paths:
+      - "apps/admin/**"
+      - ".github/workflows/admin-security-shell-test-and-deploy.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-security-shell-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-admin-security-shell:
+    name: Run admin security shell tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security shell contract tests
+        run: pnpm --filter @workspace/admin run test:security-shell
+
+  deploy:
+    name: Deploy after passing tests
+    runs-on: ubuntu-latest
+    needs:
+      - test-admin-security-shell
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger deployment webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK_URL" ]; then
+            echo "DEPLOY_WEBHOOK_URL secret is not set."
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --location \
+            --request POST \
+            "$DEPLOY_WEBHOOK_URL"
