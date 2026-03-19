@@ -4,6 +4,7 @@ import {
   useGetGoogleAuthUrl,
   useGetMe,
   useLogout,
+  setCsrfTokenProvider,
   useSwitchOrganization,
   type AuthUser,
   type SwitchOrgRequest,
@@ -69,6 +70,7 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
   const [csrfReady, setCsrfReady] = React.useState(false);
+  const csrfTokenRef = React.useRef<string | null>(null);
 
   const meQuery = useGetMe({ query: { retry: false } });
   const googleUrlQuery = useGetGoogleAuthUrl({ query: { retry: false } });
@@ -79,6 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshSession = React.useCallback(async () => {
     await meQuery.refetch();
   }, [meQuery]);
+
+  React.useEffect(() => {
+    csrfTokenRef.current = csrfToken;
+  }, [csrfToken]);
+
+  React.useEffect(() => {
+    setCsrfTokenProvider(() => csrfTokenRef.current);
+    return () => {
+      setCsrfTokenProvider(null);
+    };
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;

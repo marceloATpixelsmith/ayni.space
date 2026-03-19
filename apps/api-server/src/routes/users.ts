@@ -71,9 +71,22 @@ router.post("/me/switch-org", requireAuth, validateBody(switchOrgSchema), async 
   await db.update(usersTable).set({ activeOrgId: orgId }).where(eq(usersTable.id, userId));
 
   const { rotateSession } = await import("../lib/session.js");
-  rotateSession(req, () => {
+  rotateSession(req, (err: unknown) => {
+    if (err) {
+      res.status(500).json({ error: "Failed to rotate session" });
+      return;
+    }
+
+    req.session.userId = userId;
     req.session.activeOrgId = orgId;
-    res.json({ success: true, activeOrgId: orgId });
+    req.session.save((saveErr: unknown) => {
+      if (saveErr) {
+        res.status(500).json({ error: "Failed to persist switched organization" });
+        return;
+      }
+
+      res.json({ success: true, activeOrgId: orgId });
+    });
   });
 });
 

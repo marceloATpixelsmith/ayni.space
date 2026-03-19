@@ -95,7 +95,7 @@ function handleGoogleUrl(req, res) {
         res.status(500).json({ error: "Failed to initialize OAuth session" });
         return;
       }
-      res.redirect(url);
+      res.json({ url });
     });
   } catch {
     res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
