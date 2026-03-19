@@ -1,0 +1,35 @@
+name: Lockfile Sync Check
+
+on:
+  pull_request:
+    paths:
+      - '**/package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/lockfile-sync-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile-sync:
+    name: Verify pnpm lockfile is up to date
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Validate lockfile sync
+        run: pnpm install --frozen-lockfile
