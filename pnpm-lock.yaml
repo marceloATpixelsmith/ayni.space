@@ -283,6 +283,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/frontend-observability':
+        specifier: workspace:*
+        version: link:../../lib/frontend-observability
       '@workspace/frontend-security':
         specifier: workspace:*
         version: link:../../lib/frontend-security
@@ -539,6 +542,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 5.1.4(vite@7.3.1(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@workspace/frontend-observability':
+        specifier: workspace:*
+        version: link:../../lib/frontend-observability
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
@@ -657,6 +663,12 @@ importers:
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
+
+  lib/frontend-observability:
+    dependencies:
+      react:
+        specifier: 'catalog:'
+        version: 19.1.0
 
   lib/frontend-security:
     dependencies:
