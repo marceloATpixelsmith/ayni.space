@@ -99,6 +99,17 @@ app.get("/debug-sentry", async (_req, res) => {
   });
 });
 
+// ── PUBLIC FRONTEND MONITORING CONFIG ─────────────────────────────────────────
+app.get("/api/monitoring/config", (_req, res) => {
+  const dsn = process.env["SENTRY_DSN"] ?? null;
+  const environment = process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development";
+
+  res.json({
+    dsn,
+    environment,
+  });
+});
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use("/api", router);
 

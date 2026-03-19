@@ -48,6 +48,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
+      "@workspace/frontend-observability": path.resolve(import.meta.dirname, "..", "..", "lib", "frontend-observability", "src", "index.tsx"),
     },
   },
   root: path.resolve(import.meta.dirname),

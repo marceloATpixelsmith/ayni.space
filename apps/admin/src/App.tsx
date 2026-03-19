@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import React from "react";
 import { AuthProvider, RequireAuth, useAuth } from "@workspace/frontend-security";
+import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
 
 import Login from "./pages/auth/Login";
 import Onboarding from "./pages/auth/Onboarding";
@@ -112,14 +113,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </AuthProvider>
+      <MonitoringErrorBoundary app="admin" fallback={<AuthLoading />}>
+        <AuthProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
+      </MonitoringErrorBoundary>
     </QueryClientProvider>
   );
 }
