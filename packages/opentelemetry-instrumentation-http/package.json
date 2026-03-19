@@ -1,0 +1,7 @@
+{
+  "name": "@opentelemetry/instrumentation-http",
+  "version": "0.206.0",
+  "private": true,
+  "main": "index.js",
+  "type": "commonjs"
+}
