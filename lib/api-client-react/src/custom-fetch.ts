@@ -8,6 +8,15 @@ export type BodyType<T> = T;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+let csrfTokenProvider: (() => string | null | undefined) | null = null;
+
+export function setCsrfTokenProvider(
+  provider: (() => string | null | undefined) | null,
+): void {
+  csrfTokenProvider = provider;
+}
 
 function isRequest(input: RequestInfo | URL): input is Request {
   return typeof Request !== "undefined" && input instanceof Request;
@@ -297,9 +306,21 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
+  if (!SAFE_METHODS.has(method) && !headers.has("x-csrf-token")) {
+    const token = csrfTokenProvider?.();
+    if (token) {
+      headers.set("x-csrf-token", token);
+    }
+  }
+
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetch(input, {
+    ...init,
+    method,
+    headers,
+    credentials: init.credentials ?? "include",
+  });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
