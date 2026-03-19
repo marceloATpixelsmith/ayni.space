@@ -41,6 +41,7 @@ export default defineConfig({
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
       "@workspace/frontend-security": path.resolve(import.meta.dirname, "..", "..", "lib", "frontend-security", "src", "index.tsx"),
       "@workspace/api-client-react": path.resolve(import.meta.dirname, "..", "..", "lib", "api-client-react", "src", "index.ts"),
+      "@workspace/frontend-observability": path.resolve(import.meta.dirname, "..", "..", "lib", "frontend-observability", "src", "index.tsx"),
     },
     dedupe: ["react", "react-dom"],
   },
