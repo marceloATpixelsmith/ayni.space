@@ -36,8 +36,11 @@ jobs:
           git push origin master --force-with-lease
 
       - name: Close PR
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr close "${{ github.event.pull_request.number }}" \
-            --comment "Automatically promoted this Codex branch to master."
+          if ! gh pr close "${{ github.event.pull_request.number }}" \
+            --comment "Automatically promoted this Codex branch to master."; then
+            echo "Warning: Failed to close PR #${{ github.event.pull_request.number }}; continuing."
+          fi
