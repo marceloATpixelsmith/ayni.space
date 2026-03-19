@@ -11,7 +11,7 @@
  * - Sample Ayni ceremony
  */
 
-import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable } from "@workspace/db";
+import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { addDays } from "./seedHelpers.js";
 
@@ -25,30 +25,20 @@ async function seed() {
     id: adminId,
     email: "admin@platform.dev",
     name: "Platform Admin",
-    googleId: null,
+    googleSubject: null,
     isSuperAdmin: true,
   }).onConflictDoNothing();
 
   // ── APPS ───────────────────────────────────────────────────────────────────
   console.log("Creating apps...");
-  const shipiboAppId = "app-shipibo-dict";
-  const ayniAppId = "app-ayni-ceremony";
+  const shipiboAppId = "shipibo";
+  const ayniAppId = "ayni";
+  const adminAppId = "admin";
 
   await db.insert(appsTable).values([
-    {
-      id: shipiboAppId,
-      name: "Shipibo Dictionary",
-      slug: "shipibo",
-      description: "Comprehensive Shipibo-Conibo language dictionary with multilingual support, etymology, and community contributions.",
-      isActive: true,
-    },
-    {
-      id: ayniAppId,
-      name: "Ayni Ceremony Management",
-      slug: "ayni",
-      description: "Full ceremony management platform for scheduling, participant screening, staff coordination, and communications.",
-      isActive: true,
-    },
+    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "restricted", tenancyMode: "none", onboardingMode: "disabled", invitesAllowed: false, isActive: true },
+    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "public_signup", tenancyMode: "solo", onboardingMode: "light", invitesAllowed: false, isActive: true },
+    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "public_signup", tenancyMode: "organization", onboardingMode: "required", invitesAllowed: true, isActive: true },
   ]).onConflictDoNothing();
 
   // ── APP PLANS ──────────────────────────────────────────────────────────────
@@ -96,20 +86,32 @@ async function seed() {
     name: "Demo Organization",
     slug: "demo-org",
     website: "https://demo.example.com",
+    appId: ayniAppId,
+    ownerUserId: adminId,
   }).onConflictDoNothing();
 
   // ── MEMBERSHIPS ────────────────────────────────────────────────────────────
   console.log("Creating memberships...");
   await db.insert(orgMembershipsTable).values({
+    id: randomUUID(),
     userId: adminId,
     orgId,
-    role: "owner",
+    role: "org_owner",
+    membershipStatus: "active",
+    joinedAt: new Date(),
   }).onConflictDoNothing();
 
   // Update admin's active org
   await db.update(usersTable)
     .set({ activeOrgId: orgId })
     .where(eq(usersTable.id, adminId));
+
+  
+  await db.insert(userAppAccessTable).values([
+    { id: randomUUID(), userId: adminId, appId: adminAppId, role: "super_admin", accessStatus: "active" },
+    { id: randomUUID(), userId: adminId, appId: ayniAppId, role: "org_owner", accessStatus: "active" },
+    { id: randomUUID(), userId: adminId, appId: shipiboAppId, role: "solo_user", accessStatus: "active" },
+  ]).onConflictDoNothing();
 
   // ── SUBSCRIPTIONS ──────────────────────────────────────────────────────────
   console.log("Creating subscriptions...");
@@ -145,9 +147,10 @@ async function seed() {
     id: randomUUID(),
     email: "invited@example.com",
     orgId,
-    role: "member",
+    appId: ayniAppId,
+    invitedRole: "staff",
     token: "demo-invite-token-" + randomUUID(),
-    status: "pending",
+    invitationStatus: "pending",
     invitedByUserId: adminId,
     expiresAt: addDays(now, 7),
   }).onConflictDoNothing();

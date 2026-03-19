@@ -1,8 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { db, usersTable, userAppAccessTable, appsTable } from "@workspace/db";
 
-// Middleware: require a valid session with a userId
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
   if (!userId) {
@@ -10,7 +9,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  // Verify user still exists in DB
   const user = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, userId),
   });
@@ -21,26 +19,34 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  if (user.suspended || user.deletedAt) {
+  if (user.suspended || user.deletedAt || !user.active) {
     req.session.destroy(() => {});
     res.status(403).json({ error: "Account suspended or deleted. Contact support." });
     return;
   }
 
-  // Update last_seen_at
   await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, userId));
-
-  // Attach user to request for downstream handlers
   (req as Request & { user: typeof user }).user = user;
   next();
 }
 
-// Middleware: require super admin role
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
-  await requireAuth(req, res, () => {
-    const user = (req as Request & { user: { isSuperAdmin: boolean } }).user;
-    if (!user?.isSuperAdmin) {
-      res.status(403).json({ error: "Forbidden. Super admin access required." });
+  await requireAuth(req, res, async () => {
+    const user = (req as Request & { user: { isSuperAdmin: boolean; id: string } }).user;
+
+    const adminApp = await db.query.appsTable.findFirst({ where: eq(appsTable.slug, "admin") });
+    const appAccess = adminApp
+      ? await db.query.userAppAccessTable.findFirst({
+          where: and(
+            eq(userAppAccessTable.userId, user.id),
+            eq(userAppAccessTable.appId, adminApp.id),
+            eq(userAppAccessTable.accessStatus, "active")
+          ),
+        })
+      : null;
+
+    if (!user?.isSuperAdmin || !appAccess) {
+      res.status(403).json({ error: "Forbidden. Super admin + admin app access required." });
       return;
     }
     next();

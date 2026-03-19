@@ -1,32 +1,68 @@
-import { text, boolean, integer, timestamp } from "drizzle-orm/pg-core";
+import { text, boolean, integer, timestamp, jsonb, uniqueIndex, index, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 import { platform } from "./_schemas";
 
-// App registry - all apps available on the platform
-export const appsTable = platform.table("apps", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  iconUrl: text("icon_url"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+export const appAccessModeEnum = pgEnum("app_access_mode", ["restricted", "public_signup"]);
+export const appTenancyModeEnum = pgEnum("app_tenancy_mode", ["none", "organization", "solo"]);
+export const appOnboardingModeEnum = pgEnum("app_onboarding_mode", ["disabled", "required", "light"]);
+export const accessStatusEnum = pgEnum("access_status", ["pending", "active", "revoked", "suspended"]);
+
+// App registry - reusable definition for current and future apps.
+export const appsTable = platform.table(
+  "apps",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    description: text("description"),
+    iconUrl: text("icon_url"),
+    accessMode: appAccessModeEnum("access_mode").notNull().default("public_signup"),
+    tenancyMode: appTenancyModeEnum("tenancy_mode").notNull().default("organization"),
+    onboardingMode: appOnboardingModeEnum("onboarding_mode").notNull().default("required"),
+    invitesAllowed: boolean("invites_allowed").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("apps_slug_unique").on(t.slug)]
+);
+
+export const userAppAccessTable = platform.table(
+  "user_app_access",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    appId: text("app_id").notNull(),
+    role: text("role").notNull(),
+    accessStatus: accessStatusEnum("access_status").notNull().default("active"),
+    grantedByUserId: text("granted_by_user_id"),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("user_app_access_user_app_unique").on(t.userId, t.appId),
+    index("user_app_access_user_id_idx").on(t.userId),
+    index("user_app_access_app_id_idx").on(t.appId),
+  ]
+);
 
 // App pricing plans
 export const appPlansTable = platform.table("app_plans", {
   id: text("id").primaryKey(),
   appId: text("app_id").notNull(),
-  name: text("name").notNull(), // e.g. "Starter", "Pro", "Enterprise"
-  priceMonthly: integer("price_monthly").notNull().default(0), // in cents
+  name: text("name").notNull(),
+  priceMonthly: integer("price_monthly").notNull().default(0),
   stripePriceId: text("stripe_price_id"),
   features: text("features").array().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Which apps are enabled for each organization (admin override)
 export const orgAppAccessTable = platform.table("org_app_access", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull(),
@@ -38,8 +74,11 @@ export const orgAppAccessTable = platform.table("org_app_access", {
 
 export const insertAppSchema = createInsertSchema(appsTable).omit({ createdAt: true, updatedAt: true });
 export const insertAppPlanSchema = createInsertSchema(appPlansTable).omit({ createdAt: true });
+export const insertUserAppAccessSchema = createInsertSchema(userAppAccessTable).omit({ createdAt: true, updatedAt: true, grantedAt: true });
 export type InsertApp = z.infer<typeof insertAppSchema>;
 export type InsertAppPlan = z.infer<typeof insertAppPlanSchema>;
+export type InsertUserAppAccess = z.infer<typeof insertUserAppAccessSchema>;
 export type App = typeof appsTable.$inferSelect;
 export type AppPlan = typeof appPlansTable.$inferSelect;
+export type UserAppAccess = typeof userAppAccessTable.$inferSelect;
 export type OrgAppAccess = typeof orgAppAccessTable.$inferSelect;

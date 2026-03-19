@@ -33,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
     })
     .from(orgMembershipsTable)
     .innerJoin(organizationsTable, eq(orgMembershipsTable.orgId, organizationsTable.id))
-    .where(eq(orgMembershipsTable.userId, userId));
+    .where(and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.membershipStatus, "active")));
 
   res.json(result.map((o) => ({ ...o, memberCount: 0 })));
 });
@@ -60,14 +60,17 @@ router.post("/", turnstileVerifyMiddleware, requireAuth, validateBody(createOrgS
   const orgId = randomUUID();
   const [org] = await db
     .insert(organizationsTable)
-    .values({ id: orgId, name, slug, website: website ?? null })
+    .values({ id: orgId, name, slug, website: website ?? null, appId: "ayni", ownerUserId: userId })
     .returning();
 
   // Add creator as owner
   await db.insert(orgMembershipsTable).values({
     userId,
     orgId: org.id,
-    role: "owner",
+    id: randomUUID(),
+    role: "org_owner",
+    membershipStatus: "active",
+    joinedAt: new Date(),
   });
 
   // Set as active org for user
@@ -164,7 +167,7 @@ router.patch("/:orgId/members/:userId", requireAuth, requireOrgAdmin, async (req
   const { orgId, userId } = req.params;
   const { role } = req.body as { role: string };
 
-  const validRoles = ["owner", "admin", "member", "viewer"];
+  const validRoles = ["org_owner", "org_admin", "staff"];
   if (!validRoles.includes(role)) {
     res.status(400).json({ error: "Invalid role" });
     return;

@@ -8,11 +8,12 @@ import {
 import { eq, count, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { requireAppAccess } from "../middlewares/requireAppAccess.js";
 
 const router: IRouter = Router();
 
 // ── GET /ayni/ceremonies ──────────────────────────────────────────────────────
-router.get("/ceremonies", requireAuth, async (req, res) => {
+router.get("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, res) => {
   const { orgId, limit: limitStr, offset: offsetStr } = req.query as Record<string, string>;
   const limit = Math.min(parseInt(limitStr) || 50, 200);
   const offset = parseInt(offsetStr) || 0;
@@ -49,7 +50,7 @@ router.get("/ceremonies", requireAuth, async (req, res) => {
 });
 
 // ── GET /ayni/ceremonies/:ceremonyId ─────────────────────────────────────────
-router.get("/ceremonies/:ceremonyId", requireAuth, async (req, res) => {
+router.get("/ceremonies/:ceremonyId", requireAuth, requireAppAccess("ayni"), async (req, res) => {
   const ceremony = await db.query.ayniCeremoniesTable.findFirst({
     where: eq(ayniCeremoniesTable.id, req.params["ceremonyId"]),
   });
@@ -68,7 +69,7 @@ router.get("/ceremonies/:ceremonyId", requireAuth, async (req, res) => {
 });
 
 // ── POST /ayni/ceremonies ─────────────────────────────────────────────────────
-router.post("/ceremonies", requireAuth, async (req, res) => {
+router.post("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, res) => {
   const { orgId, name, description, scheduledAt, location, capacity } = req.body as {
     orgId: string;
     name: string;
@@ -102,7 +103,7 @@ router.post("/ceremonies", requireAuth, async (req, res) => {
 });
 
 // ── GET /ayni/participants ────────────────────────────────────────────────────
-router.get("/participants", requireAuth, async (req, res) => {
+router.get("/participants", requireAuth, requireAppAccess("ayni"), async (req, res) => {
   const { ceremonyId } = req.query as { ceremonyId: string };
 
   if (!ceremonyId) {
@@ -118,7 +119,7 @@ router.get("/participants", requireAuth, async (req, res) => {
 });
 
 // ── GET /ayni/staff ───────────────────────────────────────────────────────────
-router.get("/staff", requireAuth, async (req, res) => {
+router.get("/staff", requireAuth, requireAppAccess("ayni"), async (req, res) => {
   const { orgId } = req.query as { orgId: string };
 
   if (!orgId) {

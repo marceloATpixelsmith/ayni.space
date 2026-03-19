@@ -19,17 +19,17 @@ async function listInvitations(req, res) {
   });
 
   const invitations = await db.query.invitationsTable.findMany({
-    where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.status, "pending")),
+    where: and(eq(invitationsTable.orgId, orgId), eq(invitationsTable.invitationStatus, "pending")),
   });
 
   res.json(
     invitations.map((invitation) => ({
       id: invitation.id,
       email: invitation.email,
-      role: invitation.role,
+      role: invitation.invitedRole,
       orgId: invitation.orgId,
       orgName: org?.name ?? "",
-      status: invitation.status,
+      status: invitation.invitationStatus,
       expiresAt: invitation.expiresAt,
       createdAt: invitation.createdAt,
     }))
@@ -71,9 +71,10 @@ async function createInvitation(req, res) {
       id: randomUUID(),
       email,
       orgId,
-      role,
+      invitedRole: role,
       token: tokenHash,
-      status: "pending",
+      invitationStatus: "pending",
+      appId: "ayni",
       invitedByUserId: userId,
       expiresAt: invitationExpiresAt,
     })
@@ -92,10 +93,10 @@ async function createInvitation(req, res) {
   res.status(201).json({
     id: invitation.id,
     email: invitation.email,
-    role: invitation.role,
+    role: invitation.invitedRole,
     orgId: invitation.orgId,
     orgName: org?.name ?? "",
-    status: invitation.status,
+    status: invitation.invitationStatus,
     expiresAt: invitation.expiresAt,
     createdAt: invitation.createdAt,
     invitationToken: rawInvitationToken,
@@ -107,7 +108,7 @@ async function cancelInvitation(req, res) {
 
   await db
     .update(invitationsTable)
-    .set({ status: "cancelled" })
+    .set({ invitationStatus: "revoked" })
     .where(eq(invitationsTable.id, invitationId));
 
   res.json({ success: true, message: "Invitation cancelled" });
@@ -118,7 +119,7 @@ async function resendInvitation(req, res) {
 
   const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
 
-  if (!invitation || invitation.orgId !== orgId || invitation.status !== "pending") {
+  if (!invitation || invitation.orgId !== orgId || invitation.invitationStatus !== "pending") {
     res.status(404).json({ error: "Invitation not found or not pending" });
     return;
   }
@@ -129,7 +130,7 @@ async function resendInvitation(req, res) {
 
   await db
     .update(invitationsTable)
-    .set({ token: tokenHash, expiresAt: invitationExpiresAt, status: "pending" })
+    .set({ token: tokenHash, expiresAt: invitationExpiresAt, invitationStatus: "pending" })
     .where(eq(invitationsTable.id, invitationId));
 
   res.json({ success: true, invitationId, invitationToken: rawInvitationToken });
@@ -154,7 +155,7 @@ async function acceptInvitation(req, res) {
   const hashedInvitationToken = createHash("sha256").update(invitationToken).digest("hex");
 
   const invitation = await db.query.invitationsTable.findFirst({
-    where: and(eq(invitationsTable.token, hashedInvitationToken), eq(invitationsTable.status, "pending")),
+    where: and(eq(invitationsTable.token, hashedInvitationToken), eq(invitationsTable.invitationStatus, "pending")),
   });
 
   if (!invitation) {
@@ -163,7 +164,7 @@ async function acceptInvitation(req, res) {
   }
 
   if (new Date() > invitation.expiresAt) {
-    await db.update(invitationsTable).set({ status: "expired" }).where(eq(invitationsTable.id, invitation.id));
+    await db.update(invitationsTable).set({ invitationStatus: "expired" }).where(eq(invitationsTable.id, invitation.id));
     res.status(410).json({ error: "Invitation has expired" });
     return;
   }
@@ -179,15 +180,18 @@ async function acceptInvitation(req, res) {
 
   if (!existingMembership) {
     await db.insert(orgMembershipsTable).values({
+      id: randomUUID(),
       userId,
-      orgId: invitation.orgId,
-      role: invitation.role,
+      orgId: invitation.orgId!,
+      role: invitation.invitedRole,
+      membershipStatus: "active",
+      joinedAt: new Date(),
     });
   }
 
   await db
     .update(invitationsTable)
-    .set({ status: "accepted" })
+    .set({ invitationStatus: "accepted", acceptedAt: new Date(), acceptedUserId: userId })
     .where(eq(invitationsTable.id, invitation.id));
 
   writeAuditLog({

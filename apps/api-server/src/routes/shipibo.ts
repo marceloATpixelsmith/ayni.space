@@ -3,11 +3,12 @@ import { db, shipiboWordsTable, shipiboCategoriesTable } from "@workspace/db";
 import { eq, ilike, count, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { requireAppAccess } from "../middlewares/requireAppAccess.js";
 
 const router: IRouter = Router();
 
 // ── GET /shipibo/words ────────────────────────────────────────────────────────
-router.get("/words", requireAuth, async (req, res) => {
+router.get("/words", requireAuth, requireAppAccess("shipibo"), async (req, res) => {
   const { q, limit: limitStr, offset: offsetStr } = req.query as Record<string, string>;
   const limit = Math.min(parseInt(limitStr) || 50, 200);
   const offset = parseInt(offsetStr) || 0;
@@ -53,7 +54,7 @@ router.get("/words", requireAuth, async (req, res) => {
 });
 
 // ── GET /shipibo/words/:wordId ─────────────────────────────────────────────────
-router.get("/words/:wordId", requireAuth, async (req, res) => {
+router.get("/words/:wordId", requireAuth, requireAppAccess("shipibo"), async (req, res) => {
   const word = await db.query.shipiboWordsTable.findFirst({
     where: eq(shipiboWordsTable.id, req.params["wordId"]),
   });
@@ -75,7 +76,7 @@ router.get("/words/:wordId", requireAuth, async (req, res) => {
 });
 
 // ── POST /shipibo/words ────────────────────────────────────────────────────────
-router.post("/words", requireAuth, async (req, res) => {
+router.post("/words", requireAuth, requireAppAccess("shipibo"), async (req, res) => {
   const { word, translation, definition, pronunciation, partOfSpeech, categoryId, examples } =
     req.body as {
       word: string;
@@ -112,7 +113,7 @@ router.post("/words", requireAuth, async (req, res) => {
 });
 
 // ── GET /shipibo/categories ────────────────────────────────────────────────────
-router.get("/categories", requireAuth, async (_req, res) => {
+router.get("/categories", requireAuth, requireAppAccess("shipibo"), async (_req, res) => {
   const categories = await db.query.shipiboCategoriesTable.findMany();
 
   const categoriesWithCounts = await Promise.all(

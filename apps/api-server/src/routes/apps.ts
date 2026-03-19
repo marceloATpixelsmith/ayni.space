@@ -9,6 +9,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
+import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute } from "../lib/appAccess.js";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,29 @@ router.get("/", async (_req, res) => {
   });
   const formatted = await Promise.all(apps.map(formatApp));
   res.json(formatted);
+});
+
+
+// ── GET /apps/slug/:appSlug/context ─────────────────────────────────────────
+router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
+  const userId = req.session.userId!;
+  const appSlug = req.params["appSlug"];
+  const context = await getAppContext(userId, appSlug);
+
+  if (!context) {
+    res.status(404).json({ error: "App context not found" });
+    return;
+  }
+
+  res.json({
+    canAccess: await canAccessApp(userId, appSlug),
+    requiredOnboarding: await getRequiredOnboarding(userId, appSlug),
+    defaultRoute: await getDefaultRoute(userId, appSlug),
+    app: context.app,
+    appAccess: context.appAccess,
+    activeOrg: context.activeOrg,
+    orgMembership: context.orgMembership,
+  });
 });
 
 // ── GET /apps/:appId ──────────────────────────────────────────────────────────

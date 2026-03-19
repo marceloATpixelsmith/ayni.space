@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { getUserOrgRole, ROLES } from "../lib/rbac.js";
+import { getUserOrgRole, ORG_ROLES } from "../lib/rbac.js";
 
 export async function requireOrgAccess(req: Request, res: Response, next: NextFunction) {
   const orgId = req.params["orgId"];
@@ -12,7 +12,7 @@ export async function requireOrgAccess(req: Request, res: Response, next: NextFu
 
   const role = await getUserOrgRole(userId, orgId);
   if (!role) {
-    res.status(403).json({ error: "Access denied. You are not a member of this organization." });
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
     return;
   }
 
@@ -23,9 +23,9 @@ export async function requireOrgAccess(req: Request, res: Response, next: NextFu
 export async function requireOrgAdmin(req: Request, res: Response, next: NextFunction) {
   await requireOrgAccess(req, res, () => {
     const role = (req as Request & { orgRole: string }).orgRole;
-    const minIdx = ROLES.indexOf("admin");
-    if (!role || ROLES.indexOf(role) < minIdx) {
-      res.status(403).json({ error: "Admin or owner role required." });
+    const minIdx = ORG_ROLES.indexOf("org_admin");
+    if (!role || ORG_ROLES.indexOf(role) < minIdx) {
+      res.status(403).json({ error: "Org admin or owner role required." });
       return;
     }
 

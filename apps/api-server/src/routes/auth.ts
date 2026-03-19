@@ -133,7 +133,7 @@ async function handleGoogleCallback(req, res) {
       });
     });
 
-    let user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleId, googleUser.sub) });
+    let user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, googleUser.sub) });
 
     if (!user) {
       const existingByEmail = await db.query.usersTable.findFirst({ where: eq(usersTable.email, googleUser.email) });
@@ -142,7 +142,7 @@ async function handleGoogleCallback(req, res) {
         const [updated] = await db
           .update(usersTable)
           .set({
-            googleId: googleUser.sub,
+            googleSubject: googleUser.sub,
             avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
             name: existingByEmail.name ?? googleUser.name ?? null,
           })
@@ -157,7 +157,7 @@ async function handleGoogleCallback(req, res) {
             email: googleUser.email,
             name: googleUser.name ?? null,
             avatarUrl: googleUser.picture ?? null,
-            googleId: googleUser.sub,
+            googleSubject: googleUser.sub,
             isSuperAdmin: false,
           })
           .returning();
@@ -209,11 +209,7 @@ async function handleGoogleCallback(req, res) {
     }
 
     const frontendBase = oauthReturnTo;
-    if (memberships.length === 0) {
-      res.redirect(`${frontendBase}/onboarding`);
-    } else {
-      res.redirect(`${frontendBase}/dashboard`);
-    }
+    res.redirect(`${frontendBase}/app`);
   } catch (error) {
     console.error("Google callback failed:", error);
     res.status(500).json({ error: "Google authentication failed" });
