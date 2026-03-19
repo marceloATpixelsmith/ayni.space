@@ -8,6 +8,21 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router = Router();
 
+function getAllowedOrigins() {
+  return (process.env["ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getRequestFrontendOrigin(req): string | null {
+  const originHeader = req.headers["origin"];
+  const origin = typeof originHeader === "string" ? originHeader.trim() : "";
+  if (!origin) return null;
+
+  return getAllowedOrigins().includes(origin) ? origin : null;
+}
+
 function firstQueryParam(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
@@ -68,6 +83,7 @@ function handleGoogleUrl(req, res) {
   try {
     const state = randomUUID();
     req.session.oauthState = state;
+    req.session.oauthReturnTo = getRequestFrontendOrigin(req) ?? undefined;
     const url = buildGoogleAuthUrl(state);
     req.session.save((err) => {
       if (err) {
@@ -96,6 +112,8 @@ async function handleGoogleCallback(req, res) {
   }
 
   delete req.session.oauthState;
+  const oauthReturnTo = req.session.oauthReturnTo;
+  delete req.session.oauthReturnTo;
 
   try {
     const googleUser = await exchangeCodeForUser(code);
@@ -185,7 +203,7 @@ async function handleGoogleCallback(req, res) {
       return;
     }
 
-    const frontendBase = process.env["FRONTEND_URL"];
+    const frontendBase = oauthReturnTo || process.env["FRONTEND_URL"];
     if (memberships.length === 0) {
       res.redirect(`${frontendBase}/onboarding`);
     } else {

@@ -12,6 +12,189 @@ let sentryModule: any | null = null;
 let sentryLoadAttempted = false;
 let sentryLoadError: string | null = null;
 
+function sanitizeHeaders(headers: Record<string, unknown>) {
+  const redactedHeaderPattern = /(authorization|cookie|token|secret|password|api[-_]?key)/i;
+  const safe: Record<string, string | string[]> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (redactedHeaderPattern.test(key)) {
+      continue;
+    }
+    if (typeof value === "string") {
+      safe[key] = value;
+    } else if (Array.isArray(value)) {
+      safe[key] = value.filter((entry): entry is string => typeof entry === "string");
+    }
+  }
+
+  return safe;
+}
+
+function getRequestOrgId(req: any) {
+  const fromParams = req?.params?.orgId;
+  if (typeof fromParams === "string" && fromParams) return fromParams;
+
+  const fromBody = req?.body?.orgId;
+  if (typeof fromBody === "string" && fromBody) return fromBody;
+
+  const fromQuery = req?.query?.orgId;
+  if (typeof fromQuery === "string" && fromQuery) return fromQuery;
+
+  const fromSession = req?.session?.activeOrgId;
+  if (typeof fromSession === "string" && fromSession) return fromSession;
+
+  return null;
+}
+
+function applySentryRequestContext(Sentry: any, req: any) {
+  const userId = typeof req?.session?.userId === "string" ? req.session.userId : undefined;
+  const possibleUser = req?.user as { id?: string; email?: string } | undefined;
+  const userEmail = typeof possibleUser?.email === "string" ? possibleUser.email : undefined;
+  const orgId = getRequestOrgId(req);
+
+  if (typeof Sentry.setTag === "function" && req?.correlationId) {
+    Sentry.setTag("correlation_id", req.correlationId);
+  }
+
+  if (typeof Sentry.setContext === "function") {
+    Sentry.setContext("request", {
+      method: req?.method,
+      url: req?.originalUrl ?? req?.url,
+      headers: sanitizeHeaders(req?.headers ?? {}),
+      correlationId: req?.correlationId,
+    });
+
+    if (orgId) {
+      Sentry.setContext("organization", { id: orgId });
+    }
+  }
+
+  if (typeof Sentry.setUser === "function") {
+    Sentry.setUser(
+      userId || userEmail
+        ? {
+          ...(userId ? { id: userId } : {}),
+          ...(userEmail ? { email: userEmail } : {}),
+        }
+        : null,
+    );
+  }
+}
+
+function createSentryDsnEnvelopeUrl(dsn: string) {
+  const parsed = new URL(dsn);
+  const projectId = parsed.pathname.split("/").filter(Boolean).at(-1);
+  if (!projectId) {
+    return null;
+  }
+  const basePath = parsed.pathname.split("/").filter(Boolean).slice(0, -1).join("/");
+  const prefix = basePath ? `/${basePath}` : "";
+  return `${parsed.protocol}//${parsed.host}${prefix}/api/${projectId}/envelope/`;
+}
+
+function createFallbackSentryModule() {
+  if (!sentryDsn) {
+    return null;
+  }
+
+  const envelopeUrl = createSentryDsnEnvelopeUrl(sentryDsn);
+  if (!envelopeUrl) {
+    return null;
+  }
+
+  let activeScope: { tags: Record<string, string>; contexts: Record<string, unknown> } | null = null;
+  const globalScope = { tags: {} as Record<string, string>, contexts: {} as Record<string, unknown> };
+  let globalUser: { id?: string; email?: string } | null = null;
+  const pendingSends = new Set<Promise<unknown>>();
+
+  const captureException = (error: unknown) => {
+    const eventId = randomUUID().replaceAll("-", "");
+    const err = error instanceof Error ? error : new Error(String(error));
+    const scope = activeScope;
+
+    const eventPayload = {
+      event_id: eventId,
+      level: "error",
+      environment: sentryEnvironment,
+      platform: "node",
+      timestamp: new Date().toISOString(),
+      tags: { ...globalScope.tags, ...(scope?.tags ?? {}) },
+      contexts: { ...globalScope.contexts, ...(scope?.contexts ?? {}) },
+      exception: {
+        values: [
+          {
+            type: err.name,
+            value: err.message,
+            ...(err.stack ? { stacktrace: { type: "raw", stacktrace: err.stack } } : {}),
+          },
+        ],
+      },
+      ...(globalUser ? { user: globalUser } : {}),
+    };
+
+    const envelopeHeaders = {
+      event_id: eventId,
+      dsn: sentryDsn,
+      sent_at: new Date().toISOString(),
+    };
+
+    const envelope = `${JSON.stringify(envelopeHeaders)}\n${JSON.stringify({ type: "event" })}\n${JSON.stringify(eventPayload)}`;
+    const sendPromise = fetch(envelopeUrl, {
+      method: "POST",
+      headers: { "content-type": "application/x-sentry-envelope" },
+      body: envelope,
+    }).catch((err) => {
+      console.warn("[observability] Fallback Sentry send failed.");
+      console.warn(err instanceof Error ? err.message : String(err));
+    }).finally(() => {
+      pendingSends.delete(sendPromise);
+    });
+
+    pendingSends.add(sendPromise);
+    return eventId;
+  };
+
+  return {
+    init: () => undefined,
+    setTag: (key: string, value: string) => {
+      globalScope.tags[key] = value;
+    },
+    setContext: (key: string, value: unknown) => {
+      globalScope.contexts[key] = value;
+    },
+    setUser: (user: { id?: string; email?: string } | null) => {
+      globalUser = user;
+    },
+    captureException,
+    withScope: (callback: (scope: any) => void) => {
+      activeScope = {
+        tags: { ...globalScope.tags },
+        contexts: { ...globalScope.contexts },
+      };
+      try {
+        callback({
+          setTag: (key: string, value: string) => {
+            activeScope?.tags && (activeScope.tags[key] = value);
+          },
+          setContext: (key: string, value: unknown) => {
+            activeScope?.contexts && (activeScope.contexts[key] = value);
+          },
+        });
+      } finally {
+        activeScope = null;
+      }
+    },
+    flush: async (timeoutMs = 2000) => {
+      const settled = Promise.allSettled([...pendingSends]);
+      await Promise.race([
+        settled,
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+      ]);
+      return true;
+    },
+  };
+}
+
 function getSentryModule() {
   if (sentryLoadAttempted) {
     return sentryModule;
@@ -21,9 +204,9 @@ function getSentryModule() {
   try {
     sentryModule = require("@sentry/node");
   } catch (error) {
-    sentryModule = null;
+    sentryModule = createFallbackSentryModule();
     sentryLoadError = error instanceof Error ? error.message : String(error);
-    console.warn("[observability] Sentry SDK unavailable; continuing without Sentry capture.");
+    console.warn("[observability] Sentry SDK unavailable; using fallback transport.");
     if (sentryLoadError) {
       console.warn(sentryLoadError);
     }
@@ -69,11 +252,15 @@ export function sentryRequestHandler(): RequestHandler {
   }
 
   if (typeof Sentry.Handlers?.requestHandler === "function") {
-    return Sentry.Handlers.requestHandler();
+    const handler = Sentry.Handlers.requestHandler();
+    return (req, res, next) => {
+      applySentryRequestContext(Sentry, req);
+      handler(req, res, next);
+    };
   }
 
   return (req, _res, next) => {
-    Sentry.setTag("correlation_id", req.correlationId);
+    applySentryRequestContext(Sentry, req);
     next();
   };
 }

@@ -8,6 +8,24 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
+function getAllowedOrigins() {
+  return (process.env["ALLOWED_ORIGINS"] ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function resolveFrontendBase(req): string {
+  const originHeader = req.headers["origin"];
+  const origin = typeof originHeader === "string" ? originHeader.trim() : "";
+
+  if (origin && getAllowedOrigins().includes(origin)) {
+    return origin;
+  }
+
+  return process.env["FRONTEND_URL"] || "";
+}
+
 function getStripe() {
   const Stripe = require("stripe");
   const key = process.env["STRIPE_SECRET_KEY"];
@@ -58,7 +76,7 @@ router.post("/checkout", requireAuth, requireOrgAccess, async (req, res) => {
         .where(eq(organizationsTable.id, orgId));
     }
 
-    const frontendBase = process.env["FRONTEND_URL"] || "";
+    const frontendBase = resolveFrontendBase(req);
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -94,7 +112,7 @@ router.post("/portal", requireAuth, requireOrgAccess, async (req, res) => {
       return;
     }
 
-    const frontendBase = process.env["FRONTEND_URL"] || "";
+    const frontendBase = resolveFrontendBase(req);
     const session = await stripe.billingPortal.sessions.create({
       customer: org.stripeCustomerId,
       return_url: returnUrl || `${frontendBase}/dashboard/billing`,
