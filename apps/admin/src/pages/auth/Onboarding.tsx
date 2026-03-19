@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Building2, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTurnstileToken } from "@workspace/frontend-security";
+import { captureApiFailure, getUserSafeErrorMessage } from "@workspace/frontend-observability";
 
 const formSchema = z.object({
   name: z.string().min(2, "Organization name must be at least 2 characters"),
@@ -52,10 +53,25 @@ export default function Onboarding() {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         setLocation("/dashboard");
       },
-      onError: (error: any) => {
-        toast({ 
-          title: "Failed to create organization", 
-          description: error.error || "An unexpected error occurred",
+      onError: (error: unknown, variables: { data: { name: string; slug: string } }) => {
+        captureApiFailure(error, {
+          area: "onboarding",
+          action: "create_organization",
+          route: "/onboarding",
+          app: "admin",
+          user: {
+            id: user?.id,
+            email: user?.email,
+          },
+          extra: {
+            organizationName: variables.data.name,
+            slug: variables.data.slug,
+          },
+        });
+
+        toast({
+          title: "Failed to create organization",
+          description: getUserSafeErrorMessage(error, "Please try again in a moment."),
           variant: "destructive"
         });
       }

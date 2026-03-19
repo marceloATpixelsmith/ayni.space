@@ -33,6 +33,9 @@
       ],
       "@workspace/api-client-react": [
         "../../lib/api-client-react/src/index.ts"
+      ],
+      "@workspace/frontend-observability": [
+        "../../lib/frontend-observability/src/index.tsx"
       ]
     }
   },
@@ -42,6 +45,9 @@
     },
     {
       "path": "../../lib/frontend-security"
+    },
+    {
+      "path": "../../lib/frontend-observability"
     }
   ]
 }
