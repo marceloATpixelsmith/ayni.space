@@ -88,11 +88,12 @@ export default function Onboarding() {
       return;
     }
 
+    const payload = turnstile.token
+      ? ({ ...values, "cf-turnstile-response": turnstile.token } as typeof values)
+      : values;
+
     createOrg({
-      data: values,
-      request: {
-        headers: turnstile.token ? { "cf-turnstile-response": turnstile.token } : undefined,
-      },
+      data: payload,
     });
   };
 
