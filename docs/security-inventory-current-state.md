@@ -185,8 +185,8 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Evidence: `apps/api-server/src/middlewares/turnstile.ts`, `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/organizations.ts`, `lib/frontend-security/src/turnstile.tsx`.
 
 3. **Audit logging coverage improved, but should be reviewed continuously**
-   - Several admin/org mutation routes write audit entries. Coverage now includes user suspend/unsuspend and membership role updates; ongoing review is still needed as new privileged writes are added.
-   - Evidence: compare `apps/api-server/src/routes/admin.ts`, `apps/api-server/src/routes/organizations.ts`, `apps/api-server/src/routes/users.ts`.
+   - Several admin/org mutation routes write audit entries. Coverage now includes user suspend/unsuspend, membership role updates, active-org switch, self-delete, logout-other-sessions, invitation revoke, and invitation resend.
+   - Evidence: compare `apps/api-server/src/routes/admin.ts`, `apps/api-server/src/routes/organizations.ts`, `apps/api-server/src/routes/users.ts`, `apps/api-server/src/routes/invitations.ts`.
 
 4. **Tenant checks improved in Ayni app-module routes**
    - Ayni org-scoped handlers now enforce explicit active org membership validation for provided `orgId` and ceremony-linked reads. Shipibo currently has no org-scoped identifiers in schema/routes.
@@ -241,7 +241,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Root `.gitignore` now ignores `.env` and `.env.*` while preserving `!.env.example`.
 
 11. **Webhook idempotency/dedup tracking for Stripe events** (Implemented)
-   - Persistent `stripe_webhook_events` table tracks processed `event_id`; duplicate webhook deliveries are acknowledged and skipped safely.
+   - Persistent `stripe_webhook_events` table tracks processed `event_id`; duplicate webhook deliveries are acknowledged and skipped safely. Handler now also skips/records malformed `checkout.session.completed` events with missing subscription id.
 
 12. **Auth endpoint-specific hardening controls** (Partial)
    - No explicit login attempt telemetry/lockout/cooldown policy besides optional generic limiter + Turnstile toggles.
@@ -268,26 +268,30 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Evidence: `docs/security-incident-response.md`.
 
 5. **Audit logging coverage**
-   - Added audit events for super-admin user suspend/unsuspend and org member role updates.
-   - Evidence: `apps/api-server/src/routes/users.ts`, `apps/api-server/src/routes/organizations.ts`.
+   - Added audit events for super-admin user suspend/unsuspend, org member role updates, active-org switch, self-delete, logout-other-sessions, invitation revoke, and invitation resend.
+   - Evidence: `apps/api-server/src/routes/users.ts`, `apps/api-server/src/routes/organizations.ts`, `apps/api-server/src/routes/invitations.ts`.
 
 6. **Stripe webhook idempotency**
-   - Added DB-backed webhook replay deduplication keyed by Stripe `event.id`.
+   - Added DB-backed webhook replay deduplication keyed by Stripe `event.id` plus a defensive skip path for malformed checkout completion payloads.
    - Evidence: `apps/api-server/src/routes/billing.ts`, `lib/db/src/schema/stripe_webhook_events.ts`, `lib/db/migrations/20260320_stripe_webhook_events.sql`.
 
 7. **Rate limiter production safety default**
-   - Rate limiting now defaults enabled in production unless explicitly disabled.
-   - Evidence: `apps/api-server/src/middlewares/rateLimit.ts`.
+   - Rate limiting defaults enabled in production; disabling it in production now requires explicit `RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION=true` override.
+   - Evidence: `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/lib/assertions.ts`.
 
-8. **OpenAPI security docs alignment**
+8. **Turnstile production-disable guardrail**
+   - Turnstile now remains enabled in production by default even if `TURNSTILE_ENABLED=false` is set accidentally; production disable requires explicit `TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION=true`.
+   - Evidence: `apps/api-server/src/middlewares/turnstile.ts`, `apps/api-server/src/lib/assertions.ts`.
+
+9. **OpenAPI security docs alignment**
    - API spec now explicitly documents cookie session auth and CSRF header expectations for unsafe methods.
    - Evidence: `lib/api-spec/openapi.yaml`.
 
-9. **Backup/restore runbook + local env ignore protections**
+10. **Backup/restore runbook + local env ignore protections**
    - Added practical backup/restore doc and `.gitignore` protections for local secret files.
    - Evidence: `docs/security-backup-and-restore.md`, `.gitignore`.
 
-10. **Restore-drill cadence + tracking template**
+11. **Restore-drill cadence + tracking template**
    - Added explicit cadence guidance and a copy/paste-friendly manual drill log template.
    - Evidence: `docs/security-backup-and-restore.md`, `docs/security-restore-drill-log.md`.
 
@@ -306,7 +310,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Super-admin enforcement | Implemented | `apps/api-server/src/middlewares/requireAuth.ts`, `apps/api-server/src/routes/admin.ts` | Requires both super-admin flag and admin app entitlement. |
 | Tenant isolation (org routes) | Implemented | `apps/api-server/src/routes/organizations.ts`, `.../invitations.ts`, `.../audit.ts` | Strong on org-centric routes. |
 | Tenant isolation (app module routes) | Partial | `apps/api-server/src/routes/ayni.ts`, `.../shipibo.ts` | App entitlement check exists; per-org ownership validation not consistently explicit. |
-| Turnstile anti-bot | Partial | `lib/frontend-security/src/turnstile.tsx`, `apps/api-server/src/middlewares/turnstile.ts` | Good integration but toggle-dependent. |
+| Turnstile anti-bot | Partial | `lib/frontend-security/src/turnstile.tsx`, `apps/api-server/src/middlewares/turnstile.ts` | Production-safe defaults now enforced; still toggle-dependent by explicit override. |
 | Rate limiting | Partial | `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts` | In-memory, env-enabled, not distributed. |
 | Invitation token security | Implemented | `apps/api-server/src/routes/invitations.ts`, `lib/db/src/schema/invitations.ts` | Random token, hashed at rest, expiry/status checks. |
 | Audit logging | Implemented/Partial | `apps/api-server/src/lib/audit.ts`, routes | Good coverage but not exhaustive on all privileged actions. |
@@ -408,4 +412,3 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
    - Evidence: `PORTABILITY.md`, `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts`.
 4. **Operational claims vs guardrails**: docs state “no secrets in source code”; repo includes seed defaults with privileged demo identity and static emails (not secrets, but operationally sensitive defaults).
    - Evidence: `PORTABILITY.md`, `scripts/src/seed.ts`.
-

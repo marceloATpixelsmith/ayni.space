@@ -74,6 +74,15 @@ router.post("/me/switch-org", requireAuth, validateBody(switchOrgSchema), async 
   }
 
   await db.update(usersTable).set({ activeOrgId: orgId }).where(eq(usersTable.id, userId));
+  writeAuditLog({
+    orgId,
+    userId,
+    action: "user.active_org.switched",
+    resourceType: "user",
+    resourceId: userId,
+    metadata: { activeOrgId: orgId },
+    req,
+  });
 
   const { rotateSession } = await import("../lib/session.js");
   const originalSessionCreatedAt = req.session.sessionCreatedAt;
@@ -144,6 +153,13 @@ router.delete("/me", requireAuth, async (req, res) => {
     .set({ deletedAt: new Date(), active: false })
     .where(eq(usersTable.id, userId))
     .returning();
+  writeAuditLog({
+    userId,
+    action: "user.deleted.self",
+    resourceType: "user",
+    resourceId: userId,
+    req,
+  });
 
   req.session.destroy(() => {});
   res.json({ success: true, message: "Account deleted", user });
@@ -158,6 +174,13 @@ router.post("/logout-others", requireAuth, async (req, res) => {
     `DELETE FROM sessions WHERE sess::jsonb->>'userId' = $1 AND sid != $2`,
     [userId, sid],
   );
+  writeAuditLog({
+    userId,
+    action: "user.sessions.revoked_others",
+    resourceType: "session",
+    resourceId: sid,
+    req,
+  });
 
   res.json({ success: true, message: "Other sessions logged out" });
 });

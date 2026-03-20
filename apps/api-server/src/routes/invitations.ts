@@ -105,12 +105,21 @@ async function createInvitation(req, res) {
 }
 
 async function cancelInvitation(req, res) {
-  const { invitationId } = req.params;
+  const { orgId, invitationId } = req.params;
 
   await db
     .update(invitationsTable)
     .set({ invitationStatus: "revoked" })
     .where(eq(invitationsTable.id, invitationId));
+
+  writeAuditLog({
+    orgId,
+    userId: req.session.userId,
+    action: "org.invitation.revoked",
+    resourceType: "invitation",
+    resourceId: invitationId,
+    req,
+  });
 
   res.json({ success: true, message: "Invitation cancelled" });
 }
@@ -133,6 +142,15 @@ async function resendInvitation(req, res) {
     .update(invitationsTable)
     .set({ token: tokenHash, expiresAt: invitationExpiresAt, invitationStatus: "pending" })
     .where(eq(invitationsTable.id, invitationId));
+
+  writeAuditLog({
+    orgId,
+    userId: req.session.userId,
+    action: "org.invitation.resent",
+    resourceType: "invitation",
+    resourceId: invitationId,
+    req,
+  });
 
   res.json({ success: true, invitationId, invitationToken: rawInvitationToken });
 }

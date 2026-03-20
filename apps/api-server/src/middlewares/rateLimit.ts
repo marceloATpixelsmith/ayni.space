@@ -1,10 +1,12 @@
 import type { RequestHandler } from "express";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const configuredRateLimitEnabled = process.env.RATE_LIMIT_ENABLED;
 const RATE_LIMIT_ENABLED =
-  process.env.RATE_LIMIT_ENABLED === undefined
+  configuredRateLimitEnabled === undefined
     ? IS_PRODUCTION
-    : process.env.RATE_LIMIT_ENABLED === "true";
+    : configuredRateLimitEnabled === "true";
+const RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION = process.env.RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION === "true";
 const DEFAULT_WINDOW_MS = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
 const DEFAULT_MAX = Number.parseInt(process.env.RATE_LIMIT_MAX ?? "30", 10);
 const DEFAULT_AUTH_MAX = Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? "10", 10);
@@ -25,7 +27,7 @@ type RateLimitOptions = {
 };
 
 export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
-  if (!RATE_LIMIT_ENABLED) {
+  if (!RATE_LIMIT_ENABLED && (!IS_PRODUCTION || RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION)) {
     return (_req, _res, next) => next();
   }
 

@@ -41,6 +41,7 @@
 24. `security-backup-and-restore.md`
 25. `security-incident-response.md`
 26. `security-restore-drill-log.md`
+27. `security-baseline-status.md`
 
 ## Consistency policy
 - Every architecture doc must include:
