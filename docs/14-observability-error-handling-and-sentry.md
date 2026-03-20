@@ -1,4 +1,4 @@
-# 10 — Observability, Error Handling, and Sentry
+# 14 — Observability, Error Handling, and Sentry
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

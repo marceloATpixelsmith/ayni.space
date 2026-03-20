@@ -1,4 +1,4 @@
-# 17 — Codex Working Rules (Architecture Docs)
+# 22 — Codex Working Rules (Architecture Docs)
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

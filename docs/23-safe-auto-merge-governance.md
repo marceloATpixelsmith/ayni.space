@@ -1,4 +1,4 @@
-# 20 — Safe Auto-Merge Governance
+# 23 — Safe Auto-Merge Governance
 
 ## Scope
 - Define the approved governance model for flowing Codex changes to `master` automatically with practical safety gates.

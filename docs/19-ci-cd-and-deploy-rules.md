@@ -1,4 +1,4 @@
-# 13 — CI/CD and Deploy Rules
+# 19 — CI/CD and Deploy Rules
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

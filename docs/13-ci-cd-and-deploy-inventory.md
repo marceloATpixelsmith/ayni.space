@@ -1,8 +1,8 @@
-# 09 — CI/CD and Deploy Inventory
+# 13 — CI/CD and Deploy Inventory
 
 ## Scope
 - Inventory current workflows and deploy assumptions from repository automation files.
-- Canonical companion: `docs/13-ci-cd-and-deploy-rules.md`.
+- Canonical companion: `docs/19-ci-cd-and-deploy-rules.md`.
 
 ## Confirmed
 - Workflow: `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install.
