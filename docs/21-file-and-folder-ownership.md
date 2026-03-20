@@ -1,4 +1,4 @@
-# 16 — File and Folder Ownership
+# 21 — File and Folder Ownership
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

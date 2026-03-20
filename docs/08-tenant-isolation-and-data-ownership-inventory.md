@@ -1,8 +1,8 @@
-# 06 — Tenant Isolation and Data Ownership Inventory
+# 08 — Tenant Isolation and Data Ownership Inventory
 
 ## Scope
 - Inventory tenant/org boundaries and ownership-related schema/routes.
-- Canonical companion: `docs/07-tenant-isolation-and-data-ownership.md`.
+- Canonical companion: `docs/10-tenant-isolation-and-data-ownership.md`.
 
 ## Confirmed
 - Tenant/org routes:

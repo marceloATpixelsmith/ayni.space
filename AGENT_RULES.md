@@ -9,36 +9,36 @@
 ### 1) Architecture documentation changes
 Required before editing:
 - `docs/01-monorepo-overview.md`
-- `docs/README.md`
+- `docs/24-architecture-documentation-index.md`
 - Domain doc(s) being edited
-- `docs/11-open-questions-and-conflicts.md`
+- `docs/16-open-questions-and-conflicts.md`
 
 ### 2) Auth / session / security-related code or docs
 Required before editing:
 - `docs/01-monorepo-overview.md`
 - `docs/05-authentication-and-session-architecture.md`
-- `docs/06-authorization-roles-and-access-model.md`
-- `docs/11-security-standards-and-non-negotiables.md`
+- `docs/07-authorization-roles-and-access-model.md`
+- `docs/17-security-standards-and-non-negotiables.md`
 
 ### 3) Backend/API architecture changes
 Required before editing:
 - `docs/01-monorepo-overview.md`
-- `docs/09-api-and-backend-architecture.md`
-- `docs/07-tenant-isolation-and-data-ownership.md`
-- `docs/10-observability-error-handling-and-sentry.md`
+- `docs/12-api-and-backend-architecture.md`
+- `docs/10-tenant-isolation-and-data-ownership.md`
+- `docs/14-observability-error-handling-and-sentry.md`
 
 ### 4) Dependency/workspace/CI changes
 Required before editing:
 - `docs/01-monorepo-overview.md`
-- `docs/12-dependency-and-lockfile-rules.md`
-- `docs/13-ci-cd-and-deploy-rules.md`
-- `docs/16-file-and-folder-ownership.md`
+- `docs/18-dependency-and-lockfile-rules.md`
+- `docs/19-ci-cd-and-deploy-rules.md`
+- `docs/21-file-and-folder-ownership.md`
 
 ### 5) Ownership/process updates
 Required before editing:
 - `docs/01-monorepo-overview.md`
-- `docs/16-file-and-folder-ownership.md`
-- `docs/17-codex-working-rules.md`
+- `docs/21-file-and-folder-ownership.md`
+- `docs/22-codex-working-rules.md`
 
 ## Documentation consistency requirements
 - Do not contradict `docs/01-monorepo-overview.md`.

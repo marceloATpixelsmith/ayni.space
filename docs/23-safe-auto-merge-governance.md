@@ -1,17 +1,17 @@
-# 20 — Safe Auto-Merge Governance
+# 23 — Safe Auto-Merge Governance
 
 ## Scope
-- Define the approved governance model for flowing Codex changes to `master` automatically with practical safety gates.
+- Define the approved governance model for flowing in-repo changes to `master` automatically with practical safety gates.
 - Establish this repository’s default as solo-builder, low-friction, check-gated automation.
 
 ## Confirmed
 
 ### Purpose
-- This repository intentionally uses safe automatic merge of Codex PRs to `master` after checks pass.
+- This repository intentionally uses safe automatic merge of in-repo PRs to `master` after checks pass.
 - The model is designed to keep delivery fast without destructive promotion behavior.
 
 ### Current approved workflow
-- Codex opens a pull request from an in-repo branch matching `codex/*` to `master`.
+- A contributor opens a pull request from an in-repo branch to `master`.
 - CI workflows run for that PR according to workflow path filters.
 - `.github/workflows/codex-safe-auto-merge.yml` determines required checks from changed files and waits for successful completion on the PR head SHA.
 - If all required checks succeed, the workflow merges the PR with normal merge behavior (`gh pr merge --squash --delete-branch`).
@@ -19,8 +19,8 @@
 
 ### What is explicitly not allowed
 - Force-reset promotion of `master`.
-- Force-push overwrite of `master` from Codex branches.
-- Destructive branch replacement workflows for Codex promotion.
+- Force-push overwrite of `master` from contributor branches.
+- Destructive branch replacement workflows for PR promotion.
 
 ### Required checks before auto-merge
 - Safe auto-merge requires success of relevant checks for the PR head SHA, based on changed-file scope:
@@ -31,7 +31,7 @@
 
 ### Why this model is used in this repo
 - Repository operation is solo-builder and speed-first.
-- CI checks are the safety gate while keeping normal Codex flow automatic.
+- CI checks are the safety gate while keeping normal contributor flow automatic.
 
 ### Future changes policy
 - This governance model remains default unless the repository owner explicitly requests a change.

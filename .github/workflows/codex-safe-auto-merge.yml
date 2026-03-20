@@ -1,4 +1,4 @@
-name: Codex Safe Auto Merge
+name: Safe Auto Merge
 
 on:
   pull_request_target:
@@ -14,7 +14,6 @@ permissions:
 jobs:
   safe-auto-merge:
     if: >-
-      startsWith(github.event.pull_request.head.ref, 'codex/') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'master' &&
       github.event.pull_request.state == 'open' &&
@@ -22,6 +21,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Update PR branch with latest master when possible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # This merges the latest base branch into the PR branch when possible.
+          # If the branch is already up to date (or cannot be auto-updated), continue.
+          gh api \
+            --method PUT \
+            "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" \
+            --silent || true
+
       - name: Decide required checks from changed files
         id: checks
         env:
@@ -143,7 +157,7 @@ jobs:
           echo "Timed out waiting for required checks. Not merging."
           exit 1
 
-      - name: Merge Codex PR safely (normal merge behavior)
+      - name: Merge PR safely (normal merge behavior)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
