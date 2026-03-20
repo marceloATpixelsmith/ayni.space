@@ -26,7 +26,7 @@
 - Safe auto-merge requires success of relevant checks for the PR head SHA, based on changed-file scope:
   - `Verify pnpm lockfile is up to date` (lockfile/install integrity scope).
   - `Backend build/typecheck/test/codegen validation` (backend regression scope).
-  - `Run admin security shell tests` (admin shell scope).
+  - `Run admin security tests and build` (admin shell + frontend build scope).
 - If any required check is missing, in progress, or failed, auto-merge must not occur.
 
 ### Why this model is used in this repo
