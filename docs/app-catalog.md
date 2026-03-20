@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory the app surfaces currently present under `apps/*` and their implementation status.
-- Source of truth: `docs/01-monorepo-overview.md` plus referenced app paths.
+- Source of truth: `docs/monorepo-overview.md` plus referenced app paths.
 
 ## Confirmed
 - Active app: `apps/api-server` (backend runtime entry + routes).

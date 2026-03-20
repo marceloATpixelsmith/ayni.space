@@ -1,11 +1,11 @@
-# 11 — Open Questions and Conflicts
+# 16 — Open Questions and Conflicts
 
 ## Scope
 - Track unresolved architecture questions and known drift areas while preserving `01` as source of truth.
 
 ## Confirmed conflicts/drift
 - Workspace config includes `lib/integrations/*` while directory is absent (`pnpm-workspace.yaml` vs missing `lib/integrations/`).
-- `lib/*` is heavily active while many `packages/*` remain dormant (see imports/usage inventory in `docs/01-monorepo-overview.md`).
+- `lib/*` is heavily active while many `packages/*` remain dormant (see imports/usage inventory in `docs/monorepo-overview.md`).
 - Placeholder apps (`apps/ayni`, `apps/shipibo`, `apps/screening`) exist without implementation (`.gitkeep` only).
 
 ## Inferred
