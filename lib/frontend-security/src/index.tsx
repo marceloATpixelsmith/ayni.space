@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  useAcceptInvitation,
   useGetGoogleAuthUrl,
   useGetMe,
   useLogout,
@@ -21,7 +20,7 @@ type AuthContextValue = {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
-  acceptInvitation: (token: string) => Promise<void>;
+  acceptInvitation: (token: string, turnstileToken?: string | null) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -76,7 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const googleUrlQuery = useGetGoogleAuthUrl({ query: { retry: false } });
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
-  const acceptInviteMutation = useAcceptInvitation();
 
   const refreshSession = React.useCallback(async () => {
     await meQuery.refetch();
@@ -136,11 +134,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const acceptInvitation = React.useCallback(
-    async (token: string) => {
-      await acceptInviteMutation.mutateAsync({ token });
+    async (token: string, turnstileToken?: string | null) => {
+      const headers: HeadersInit = {};
+      if (turnstileToken) {
+        headers["cf-turnstile-response"] = turnstileToken;
+      }
+
+      const response = await secureApiFetch(`/api/invitations/${token}/accept`, {
+        method: "POST",
+        headers,
+      }, csrfTokenRef.current);
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Failed to accept invitation.");
+      }
+
       await refreshSession();
     },
-    [acceptInviteMutation, refreshSession],
+    [refreshSession],
   );
 
   const status: AuthStatus = meQuery.isLoading

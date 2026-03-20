@@ -39,7 +39,7 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /organizations ────────────────────────────────────────────────────────
-router.post("/", turnstileVerifyMiddleware, requireAuth, validateBody(createOrgSchema), async (req, res) => {
+router.post("/", turnstileVerifyMiddleware(), requireAuth, validateBody(createOrgSchema), async (req, res) => {
   const userId = req.session.userId!;
   const { name, slug, website } = req.body as { name: string; slug: string; website?: string };
 

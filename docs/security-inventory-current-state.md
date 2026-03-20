@@ -12,7 +12,7 @@
 ### Plain-English posture
 The repo has a solid **application-layer security baseline** for a public SaaS MVP: centralized auth/authz middleware, session cookies in Postgres, CSRF + origin/referer checks, CORS allowlist, explicit idle+absolute session policy, and meaningful audit logging coverage for key admin/org actions. Frontend routing is guarded and shares centralized auth/session client behavior.
 
-At the same time, there are still notable **operational and perimeter gaps**: edge/WAF configuration remains out-of-repo, rate limiting is still in-memory (non-distributed), and static analysis is now covered by an in-repo CodeQL workflow. Free CI/security automation now includes Dependabot, dependency audit workflow, gitleaks, CodeQL, and backup/restore + incident response runbooks.
+At the same time, there are still notable **operational and perimeter gaps**: edge/WAF configuration remains out-of-repo and rate limiting is still in-memory (non-distributed). Free CI/security automation now includes Dependabot, dependency audit workflow, gitleaks, CodeQL, and backup/restore + incident response runbooks, while auth-abuse hardening now includes production-default Turnstile on targeted public POST flows.
 
 ### Biggest strengths
 1. Centralized backend security middleware composition (`app.ts`) with explicit ordering for headers, CORS, session, CSRF, origin checks, and route mounting.
@@ -105,13 +105,17 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
   - `apps/api-server/src/app.ts`
 
 ### H) Abuse prevention / rate limiting / bot checks
-- **Backend rate limiter middleware exists and is mounted on auth/org/invite/user/billing surfaces**.
+- **Backend rate limiter middleware exists and is mounted on auth/org/invite/user/billing surfaces**, with stricter defaults for auth-sensitive route groups.
   - `apps/api-server/src/middlewares/rateLimit.ts`
   - `apps/api-server/src/app.ts`
-- **Turnstile server-side verification middleware** and integration in sensitive onboarding/invitation/org-create routes.
+- **Turnstile server-side verification middleware** defaults to enabled in production and is applied to targeted high-risk public POST flows (org creation, invitation creation, invitation acceptance).
   - `apps/api-server/src/middlewares/turnstile.ts`
   - `apps/api-server/src/routes/invitations.ts`
   - `apps/api-server/src/routes/organizations.ts`
+- **Lightweight abuse telemetry** logs repeated auth failures, repeated Turnstile failures, and suspicious invitation acceptance attempts.
+  - `apps/api-server/src/routes/auth.ts`
+  - `apps/api-server/src/middlewares/turnstile.ts`
+  - `apps/api-server/src/routes/invitations.ts`
 
 ### I) Signup / onboarding / invitation security
 - **Invitation tokens are random high-entropy and stored hashed (SHA-256)**; TTL enforced and status transitions tracked.
@@ -176,9 +180,9 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Middleware exists and is mounted on sensitive route groups, and now defaults on in production unless explicitly disabled; state remains in-memory map per process (non-distributed, reset on restart, not shared across instances).
    - Evidence: `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts`.
 
-2. **Turnstile is integrated but optional/toggle-based**
-   - Verification only occurs when env toggles are enabled and token supplied. This is correct for feature flags, but leaves risk if ops forget to enable in production.
-   - Evidence: `apps/api-server/src/middlewares/turnstile.ts`, `lib/frontend-security/src/turnstile.tsx`.
+2. **Turnstile is production-default for targeted public POST flows**
+   - Verification is mandatory by default in production for selected high-risk flows, while development can remain practical with local toggles. Coverage is intentionally targeted (not applied to every route).
+   - Evidence: `apps/api-server/src/middlewares/turnstile.ts`, `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/organizations.ts`, `lib/frontend-security/src/turnstile.tsx`.
 
 3. **Audit logging coverage improved, but should be reviewed continuously**
    - Several admin/org mutation routes write audit entries. Coverage now includes user suspend/unsuspend and membership role updates; ongoing review is still needed as new privileged writes are added.
@@ -324,7 +328,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 - **Absolute timeout:** hard cap regardless of activity (default 24 hours via `SESSION_ABSOLUTE_TIMEOUT_MS`).
 - **Cookie posture:** `httpOnly`, `secure` in production, `sameSite=lax` (OAuth-compatible), explicit cookie maxAge.
 - **Anomaly awareness:** last IP and last user-agent are tracked in session and changes generate `session.anomaly_observed` audit events.
-- **Current limitations:** no MFA, no device fingerprinting/binding, no adaptive/risk-based re-auth challenges.
+- **Current limitations:** no MFA, no device fingerprinting/binding, no adaptive/risk-based re-auth challenges, and no automated fraud decisioning/blocking beyond targeted middleware + audit telemetry.
 
 ## 6) Priority gaps (FREE solutions only)
 

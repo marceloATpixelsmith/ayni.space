@@ -5,8 +5,9 @@ const RATE_LIMIT_ENABLED =
   process.env.RATE_LIMIT_ENABLED === undefined
     ? IS_PRODUCTION
     : process.env.RATE_LIMIT_ENABLED === "true";
-const WINDOW_MS = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
-const MAX = Number.parseInt(process.env.RATE_LIMIT_MAX ?? "30", 10);
+const DEFAULT_WINDOW_MS = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
+const DEFAULT_MAX = Number.parseInt(process.env.RATE_LIMIT_MAX ?? "30", 10);
+const DEFAULT_AUTH_MAX = Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? "10", 10);
 
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
@@ -17,23 +18,33 @@ function getClientKey(req: Parameters<RequestHandler>[0]): string {
   return req.ip || "unknown";
 }
 
-export function rateLimiter(): RequestHandler {
+type RateLimitOptions = {
+  windowMs?: number;
+  max?: number;
+  keyPrefix?: string;
+};
+
+export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
   if (!RATE_LIMIT_ENABLED) {
     return (_req, _res, next) => next();
   }
 
+  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
+  const max = options.max ?? DEFAULT_MAX;
+  const keyPrefix = options.keyPrefix ?? "default";
+
   return (req, res, next) => {
     const now = Date.now();
-    const key = getClientKey(req);
+    const key = `${keyPrefix}:${getClientKey(req)}`;
     const current = buckets.get(key);
 
     if (!current || current.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
       next();
       return;
     }
 
-    if (current.count >= MAX) {
+    if (current.count >= max) {
       const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSeconds));
       res.status(429).json({ error: "Too many requests, please try again later." });
@@ -43,4 +54,8 @@ export function rateLimiter(): RequestHandler {
     current.count += 1;
     next();
   };
+}
+
+export function authRateLimiter(): RequestHandler {
+  return rateLimiter({ max: DEFAULT_AUTH_MAX, keyPrefix: "auth" });
 }

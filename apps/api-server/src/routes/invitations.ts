@@ -3,6 +3,7 @@ import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit.js";
+import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
@@ -141,6 +142,14 @@ async function acceptInvitation(req, res) {
   const userId = req.session.userId;
 
   if (!invitationToken || !userId) {
+    writeAuditLog({
+      userId,
+      action: "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitationToken ?? null,
+      metadata: { reason: "invalid-request" },
+      req,
+    });
     res.status(400).json({ error: "Invalid invitation request" });
     return;
   }
@@ -148,6 +157,14 @@ async function acceptInvitation(req, res) {
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
 
   if (!user) {
+    writeAuditLog({
+      userId,
+      action: "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitationToken,
+      metadata: { reason: "user-not-found" },
+      req,
+    });
     res.status(401).json({ error: "User not found" });
     return;
   }
@@ -155,21 +172,76 @@ async function acceptInvitation(req, res) {
   const hashedInvitationToken = createHash("sha256").update(invitationToken).digest("hex");
 
   const invitation = await db.query.invitationsTable.findFirst({
-    where: and(eq(invitationsTable.token, hashedInvitationToken), eq(invitationsTable.invitationStatus, "pending")),
+    where: eq(invitationsTable.token, hashedInvitationToken),
   });
 
   if (!invitation) {
-    res.status(404).json({ error: "Invitation not found or already used" });
+    const signal = recordAbuseSignal(`invitation:accept:not-found:${getAbuseClientKey(req)}`);
+    writeAuditLog({
+      userId,
+      action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitationToken,
+      metadata: { reason: "not-found", count: signal.count, threshold: signal.threshold },
+      req,
+    });
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+
+  if (invitation.invitationStatus !== "pending") {
+    const signal = recordAbuseSignal(`invitation:accept:status:${getAbuseClientKey(req)}`);
+    writeAuditLog({
+      orgId: invitation.orgId,
+      userId,
+      action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: {
+        reason: "already-processed",
+        invitationStatus: invitation.invitationStatus,
+        count: signal.count,
+        threshold: signal.threshold,
+      },
+      req,
+    });
+    res.status(409).json({ error: "Invitation is no longer pending" });
     return;
   }
 
   if (new Date() > invitation.expiresAt) {
     await db.update(invitationsTable).set({ invitationStatus: "expired" }).where(eq(invitationsTable.id, invitation.id));
+    const signal = recordAbuseSignal(`invitation:accept:expired:${getAbuseClientKey(req)}`);
+    writeAuditLog({
+      orgId: invitation.orgId,
+      userId,
+      action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: { reason: "expired", count: signal.count, threshold: signal.threshold },
+      req,
+    });
     res.status(410).json({ error: "Invitation has expired" });
     return;
   }
 
   if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+    const signal = recordAbuseSignal(`invitation:accept:email-mismatch:${getAbuseClientKey(req)}`);
+    writeAuditLog({
+      orgId: invitation.orgId,
+      userId,
+      action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: {
+        reason: "email-mismatch",
+        invitedEmail: invitation.email,
+        actorEmail: user.email,
+        count: signal.count,
+        threshold: signal.threshold,
+      },
+      req,
+    });
     res.status(403).json({ error: "Invitation email does not match your account." });
     return;
   }
@@ -210,7 +282,7 @@ async function acceptInvitation(req, res) {
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
 router.post(
   "/organizations/:orgId/invitations",
-  turnstileVerifyMiddleware,
+  turnstileVerifyMiddleware(),
   requireAuth,
   requireOrgAdmin,
   validateBody(inviteSchema),
@@ -223,6 +295,6 @@ router.post(
   requireOrgAdmin,
   resendInvitation
 );
-router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
+router.post("/invitations/:token/accept", turnstileVerifyMiddleware(), requireAuth, acceptInvitation);
 
 export default router;

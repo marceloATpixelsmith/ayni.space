@@ -1,14 +1,39 @@
-const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
-const TURNSTILE_ENABLED = process.env.TURNSTILE_ENABLED === "true";
+import type { Request, RequestHandler } from "express";
+import { writeAuditLog } from "../lib/audit.js";
+import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
+
+function isProduction(): boolean {
+  return process.env["NODE_ENV"] === "production";
+}
+
+export function isTurnstileEnabled(): boolean {
+  const configured = process.env["TURNSTILE_ENABLED"];
+  // Production-safe default: ON unless explicitly disabled and force-override is set.
+  if (configured === undefined) return isProduction();
+  if (configured === "true") return true;
+  if (configured === "false" && isProduction()) {
+    return process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"] === "true";
+  }
+  return configured === "true";
+}
+
+function getTurnstileSecret(): string {
+  return process.env["TURNSTILE_SECRET_KEY"] ?? "";
+}
 
 export async function verifyTurnstileToken(token: string, remoteip?: string): Promise<boolean> {
-  if (!TURNSTILE_ENABLED) return true;
-  if (!TURNSTILE_SECRET_KEY) throw new Error("TURNSTILE_SECRET_KEY not set");
+  if (!isTurnstileEnabled()) return true;
+
+  const secret = getTurnstileSecret();
+  if (!secret) {
+    throw new Error("TURNSTILE_SECRET_KEY not set");
+  }
+
   if (!token) return false;
 
   try {
     const body = new URLSearchParams({
-      secret: TURNSTILE_SECRET_KEY,
+      secret,
       response: token,
       ...(remoteip ? { remoteip } : {}),
     });
@@ -27,22 +52,63 @@ export async function verifyTurnstileToken(token: string, remoteip?: string): Pr
   }
 }
 
-export function turnstileVerifyMiddleware(req, res, next) {
-  if (!TURNSTILE_ENABLED) {
-    next();
-    return;
-  }
+function getTokenFromRequest(req: Request): string {
+  const headerValue = req.headers["cf-turnstile-response"];
+  const headerToken = typeof headerValue === "string" ? headerValue : undefined;
+  const bodyToken = typeof req.body?.["cf-turnstile-response"] === "string" ? req.body["cf-turnstile-response"] : undefined;
+  return bodyToken ?? headerToken ?? "";
+}
 
-  const token = req.body["cf-turnstile-response"] || req.headers["cf-turnstile-response"];
-  verifyTurnstileToken(token, req.ip)
-    .then((ok) => {
-      if (!ok) {
-        res.status(403).json({ error: "Turnstile verification failed" });
-        return;
-      }
+function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: typeof writeAuditLog) {
+  const userId = req.session?.userId;
+  const key = `${req.path}:${getAbuseClientKey(req)}`;
+  const signal = recordAbuseSignal(`turnstile:${key}`);
+
+  writeAuditLogFn({
+    userId,
+    action: signal.repeated ? "turnstile.failed.repeated" : "turnstile.failed",
+    resourceType: "security",
+    resourceId: req.path,
+    metadata: {
+      reason,
+      count: signal.count,
+      threshold: signal.threshold,
+      method: req.method,
+      path: req.path,
+    },
+    req,
+  });
+}
+
+export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnstileToken; writeAuditLogFn?: typeof writeAuditLog } = {}): RequestHandler {
+  const verifyFn = deps.verifyFn ?? verifyTurnstileToken;
+  const writeAuditLogFn = deps.writeAuditLogFn ?? writeAuditLog;
+
+  return (req, res, next) => {
+    if (!isTurnstileEnabled()) {
       next();
-    })
-    .catch(() => {
-      res.status(500).json({ error: "Turnstile verification error" });
-    });
+      return;
+    }
+
+    const token = getTokenFromRequest(req);
+    if (!token) {
+      logTurnstileFailure(req, "missing-token", writeAuditLogFn);
+      res.status(403).json({ error: "Turnstile verification failed" });
+      return;
+    }
+
+    verifyFn(token, req.ip)
+      .then((ok) => {
+        if (!ok) {
+          logTurnstileFailure(req, "invalid-token", writeAuditLogFn);
+          res.status(403).json({ error: "Turnstile verification failed" });
+          return;
+        }
+        next();
+      })
+      .catch(() => {
+        logTurnstileFailure(req, "verification-error", writeAuditLogFn);
+        res.status(500).json({ error: "Turnstile verification error" });
+      });
+  };
 }
