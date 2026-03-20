@@ -174,14 +174,4 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git checkout master
-          git reset --hard "$HEAD_SHA"
-          git push --force origin master
-
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "✅ Zero-friction promotion applied: master was force-updated to PR head SHA \`$HEAD_SHA\`."
-          gh pr close "$PR_NUMBER" --repo "$REPO" --delete-branch
+          gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --squash --delete-branch
