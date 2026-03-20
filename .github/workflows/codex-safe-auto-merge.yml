@@ -1,9 +1,10 @@
 name: Safe Auto Merge
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -23,10 +24,145 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Enable GitHub auto-merge (squash + delete branch)
+      - name: Update PR branch with latest master when possible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # This merges the latest base branch into the PR branch when possible.
+          # If the branch is already up to date (or cannot be auto-updated), continue.
+          gh api \
+            --method PUT \
+            "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" \
+            --silent || true
+
+      - name: Decide required checks from changed files
+        id: checks
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+
+          files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" --paginate --jq '.[].filename')
+
+          require_lockfile=0
+          require_backend=0
+          require_admin=0
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            if [[ "$file" == *"/package.json" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == ".github/workflows/lockfile-sync-check.yml" ]]; then
+              require_lockfile=1
+            fi
+
+            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]]; then
+              require_backend=1
+            fi
+
+            if [[ "$file" == apps/admin/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
+              require_admin=1
+            fi
+          done <<< "$files"
+
+          required=()
+          if [[ "$require_lockfile" -eq 1 ]]; then
+            required+=("Verify pnpm lockfile is up to date")
+          fi
+          if [[ "$require_backend" -eq 1 ]]; then
+            required+=("Backend build/typecheck/test/codegen validation")
+          fi
+          if [[ "$require_admin" -eq 1 ]]; then
+            required+=("Run admin security shell tests")
+          fi
+
+          required_checks_b64=""
+          if [[ ${#required[@]} -gt 0 ]]; then
+            required_checks_b64=$(printf '%s\n' "${required[@]}" | base64 | tr -d '\n')
+          fi
+          printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until required checks for PR head SHA are successful
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REQUIRED_CHECKS_B64: ${{ steps.checks.outputs.required_checks_b64 }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${REQUIRED_CHECKS_B64:-}" ]]; then
+            echo "No required checks for this PR based on changed files."
+            exit 0
+          fi
+
+          REQUIRED_CHECKS=$(printf '%s' "$REQUIRED_CHECKS_B64" | base64 --decode)
+
+          echo "Required checks:"
+          echo "$REQUIRED_CHECKS"
+
+          max_attempts=80
+          sleep_seconds=30
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Attempt ${attempt}/${max_attempts}: checking status for ${HEAD_SHA}"
+
+            runs=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv')
+
+            missing=0
+            pending=0
+            failed=0
+
+            while IFS= read -r req; do
+              [ -z "$req" ] && continue
+
+              match=$(printf '%s\n' "$runs" | awk -F'\t' -v n="$req" '$1==n {print; exit}')
+              if [[ -z "$match" ]]; then
+                echo "- ${req}: missing"
+                missing=1
+                continue
+              fi
+
+              status=$(printf '%s' "$match" | awk -F'\t' '{print $2}')
+              conclusion=$(printf '%s' "$match" | awk -F'\t' '{print $3}')
+
+              if [[ "$status" != "completed" ]]; then
+                echo "- ${req}: ${status}"
+                pending=1
+                continue
+              fi
+
+              if [[ "$conclusion" != "success" ]]; then
+                echo "- ${req}: failed (${conclusion})"
+                failed=1
+                continue
+              fi
+
+              echo "- ${req}: success"
+            done <<< "$REQUIRED_CHECKS"
+
+            if [[ "$failed" -eq 1 ]]; then
+              echo "At least one required check failed. Not merging."
+              exit 1
+            fi
+
+            if [[ "$missing" -eq 0 && "$pending" -eq 0 ]]; then
+              echo "All required checks succeeded."
+              exit 0
+            fi
+
+            sleep "$sleep_seconds"
+          done
+
+          echo "Timed out waiting for required checks. Not merging."
+          exit 1
+
+      - name: Merge PR safely (normal merge behavior)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch

@@ -2,7 +2,7 @@
 
 ## Scope
 - Quick-reference chart for CI workflows, triggers, and deployment gates in this monorepo.
-- Companion to `docs/19-ci-cd-and-deploy-rules.md` and `docs/13-ci-cd-and-deploy-inventory.md`.
+- Companion to `docs/ci-cd-and-deploy-rules.md` and `docs/ci-cd-and-deploy-inventory.md`.
 
 ## Confirmed
 

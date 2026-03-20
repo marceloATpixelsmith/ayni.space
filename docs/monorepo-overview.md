@@ -1,4 +1,4 @@
-# 01 — Monorepo Overview
+# Monorepo Overview
 
 ## Scope
 - Canonical architecture baseline for this repository.

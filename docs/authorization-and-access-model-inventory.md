@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory backend authorization boundaries and access enforcement locations.
-- Canonical companion: `docs/07-authorization-roles-and-access-model.md`.
+- Canonical companion: `docs/authorization-roles-and-access-model.md`.
 
 ## Confirmed
 - Core middleware files:
@@ -11,7 +11,7 @@
   - `apps/api-server/src/middlewares/requireAppAccess.ts`
 - App access helper: `apps/api-server/src/lib/appAccess.ts`.
 - Route registration integration point: `apps/api-server/src/routes/*` via `apps/api-server/src/routes/index.ts`.
-- Overview non-negotiable role of middleware remains explicit in `docs/01-monorepo-overview.md`.
+- Overview non-negotiable role of middleware remains explicit in `docs/monorepo-overview.md`.
 
 ## Inferred
 - Authz is layered via middleware composition rather than ad hoc per-handler checks.
