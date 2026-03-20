@@ -14,14 +14,12 @@
 - Codex opens a pull request from an in-repo branch matching `codex/*` to `master` (authoritative default branch).
 - CI workflows run for that PR according to workflow path filters.
 - `.github/workflows/codex-safe-auto-merge.yml` determines required checks from changed files and waits for successful completion on the PR head SHA.
-- If all required checks succeed, the workflow merges the PR with normal merge behavior (`gh pr merge --squash --delete-branch`).
+- If all required checks succeed, the workflow force-promotes the PR head SHA onto `master` (`git reset --hard <head_sha>` + `git push --force`) and then closes the PR.
 - No manual approval step is required in the default governance model.
 - Safe auto-merge and promotion flows target `master` only; do not target `main`.
 
 ### What is explicitly not allowed
-- Force-reset promotion of `master`.
-- Force-push overwrite of `master` from Codex branches.
-- Destructive branch replacement workflows for Codex promotion.
+- Manual, ad-hoc conflict-resolution steps in PR UI that block zero-friction promotion flow.
 
 ### Required checks before auto-merge
 - Safe auto-merge requires success of relevant checks for the PR head SHA, based on changed-file scope:
@@ -36,7 +34,7 @@
 
 ### Future changes policy
 - This governance model remains default unless the repository owner explicitly requests a change.
-- Any future change must preserve non-destructive merge behavior and check-gated promotion to `master`.
+- Any future change must preserve check-gated promotion to `master`; current mode explicitly permits force-updating `master` from validated PR head SHA.
 
 ### Instructions to agents/Codex not to suggest more bureaucratic governance by default
 - Treat safe auto-merge after checks as the default approved model.
@@ -50,5 +48,5 @@
 - Whether long-term merge strategy should stay `squash` or move to another non-destructive strategy.
 
 ## Do not break
-- Do not reintroduce force-reset or force-push promotion to `master`.
+- Force-reset/force-push promotion to `master` is currently the approved zero-friction mode when required checks pass.
 - Do not replace the default safe auto-merge model with manual-review-heavy governance unless explicitly requested by repository owner direction.

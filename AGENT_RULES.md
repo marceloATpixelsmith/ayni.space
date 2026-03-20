@@ -88,9 +88,9 @@ After making changes, report:
 ### Agent instructions (governance)
 - Treat safe auto-merge to `master` after passing checks as the approved repo governance model.
 - Do not suggest branch protection/manual approvals/heavy PR review by default.
-- Do not reintroduce force-reset/force-push promotion behavior.
+- Current owner-approved mode may use force-reset/force-push promotion when explicitly configured in workflows.
 - Suggest a different governance model only if the user explicitly asks for it.
 
 ### Do not break
-- Do not claim force-reset or destructive overwrite of `master` is acceptable governance in this repository.
+- Destructive overwrite of `master` is acceptable only when explicitly owner-approved and implemented in check-gated workflow automation.
 - Do not remove governance workflows/CODEOWNERS without updating this section and matching docs.
