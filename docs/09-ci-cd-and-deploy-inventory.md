@@ -7,13 +7,13 @@
 ## Confirmed
 - Workflow: `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install.
 - Workflow: `.github/workflows/admin-security-shell-test-and-deploy.yml` runs admin shell tests and deploys on `master` push.
-- Workflow: `.github/workflows/codex-auto-promote.yml` force-resets `master` to codex PR branch state.
+- Workflow: `.github/workflows/codex-safe-auto-merge.yml` waits for required checks and merges in-repo Codex PRs into `master` with normal merge behavior (no force-reset/push).
 
 ## Inferred
 - CI coverage is intentionally narrow (admin shell + lockfile integrity), with known backend coverage gaps.
 
 ## Unclear
-- Required backend regression gates before deployment are not codified.
+- Safe Codex auto-merge depends on workflow check-gating and no-destructive-merge constraints.
 
 ## Do not break
 - Do not remove lockfile sync enforcement.

@@ -1,0 +1,18 @@
+# Default ownership
+* @ayni-space
+
+# Governance and process
+/AGENT_RULES.md @ayni-space
+/docs/ @ayni-space
+/.github/workflows/ @ayni-space
+/.github/CODEOWNERS @ayni-space
+/package.json @ayni-space
+/pnpm-workspace.yaml @ayni-space
+/pnpm-lock.yaml @ayni-space
+
+# Backend architecture-critical paths
+/apps/api-server/ @ayni-space
+/lib/db/ @ayni-space
+/lib/api-spec/ @ayni-space
+/lib/api-zod/ @ayni-space
+/lib/api-client-react/ @ayni-space

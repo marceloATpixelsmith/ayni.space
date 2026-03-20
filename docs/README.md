@@ -36,6 +36,7 @@
 19. `13-ci-cd-and-deploy-rules.md`
 20. `16-file-and-folder-ownership.md`
 21. `17-codex-working-rules.md`
+22. `20-safe-auto-merge-governance.md`
 
 ## Consistency policy
 - Every architecture doc must include:

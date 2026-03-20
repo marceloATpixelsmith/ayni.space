@@ -70,3 +70,27 @@ After making changes, report:
 - Do not change app/runtime boundaries that violate `01` non-negotiable invariants without explicit architecture approval.
 - Do not bypass shared security/observability/data layers in documentation guidance.
 - Do not treat placeholder apps or dormant packages as active production surfaces.
+
+## Governance enforcement state
+
+### Approved governance model (default)
+- This repository intentionally uses **safe automatic Codex PR merge to `master`** after checks pass.
+- Default operating mode is **solo-builder, low-friction automation** (no manual approval gates by default).
+- CI checks are the safety gate; do not propose manual-review-heavy governance unless explicitly requested by the user.
+
+### Enforced in repository files
+- CODEOWNERS is defined in `.github/CODEOWNERS` for docs, workflows, governance files, and backend-critical paths.
+- Backend regression gates are defined in `.github/workflows/backend-regression-gates.yml` (lockfile/install integrity, api-server build/typecheck/tests, API codegen diff validation).
+- Lockfile integrity gate remains in `.github/workflows/lockfile-sync-check.yml`.
+- Admin shell gate remains in `.github/workflows/admin-security-shell-test-and-deploy.yml`.
+- Codex safe auto-merge is defined in `.github/workflows/codex-safe-auto-merge.yml` and only merges in-repo `codex/*` PRs to `master` after required checks succeed.
+
+### Agent instructions (governance)
+- Treat safe auto-merge to `master` after passing checks as the approved repo governance model.
+- Do not suggest branch protection/manual approvals/heavy PR review by default.
+- Do not reintroduce force-reset/force-push promotion behavior.
+- Suggest a different governance model only if the user explicitly asks for it.
+
+### Do not break
+- Do not claim force-reset or destructive overwrite of `master` is acceptable governance in this repository.
+- Do not remove governance workflows/CODEOWNERS without updating this section and matching docs.

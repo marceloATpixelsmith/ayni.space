@@ -1,0 +1,81 @@
+name: Backend Regression Gates
+
+on:
+  pull_request:
+    paths:
+      - "apps/api-server/**"
+      - "lib/db/**"
+      - "lib/api-spec/**"
+      - "lib/api-client-react/**"
+      - "lib/api-zod/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/backend-regression-gates.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "apps/api-server/**"
+      - "lib/db/**"
+      - "lib/api-spec/**"
+      - "lib/api-client-react/**"
+      - "lib/api-zod/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/backend-regression-gates.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-regression:
+    name: Backend build/typecheck/test/codegen validation
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ayni_test
+      SESSION_SECRET: test-session-secret
+      GOOGLE_CLIENT_ID: test-google-client-id
+      GOOGLE_CLIENT_SECRET: test-google-client-secret
+      GOOGLE_REDIRECT_URI: http://localhost:3000/api/auth/google/callback
+      ALLOWED_ORIGINS: http://localhost:3000
+      STRIPE_WEBHOOK_SECRET: whsec_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Validate lockfile/install integrity
+        run: pnpm install --frozen-lockfile
+
+      - name: Build api-server
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Typecheck api-server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Run api-server backend tests
+        run: pnpm --filter @workspace/api-server run test
+
+      - name: Regenerate API contracts
+        run: pnpm --filter @workspace/api-spec run codegen
+
+      - name: Validate generated artifacts are up to date
+        run: git diff --exit-code -- lib/api-client-react lib/api-zod
