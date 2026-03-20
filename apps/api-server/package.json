@@ -31,7 +31,7 @@
     "connect-pg-simple": "^10.0.0",
     "esbuild": "^0.27.3",
     "express-session": "^1.19.0",
-    "google-auth-library": "^10.6.1",
+    "google-auth-library": "^10.6.2",
     "stripe": "^20.4.1",
     "tsx": "catalog:",
     "uuid": "^13.0.0"
