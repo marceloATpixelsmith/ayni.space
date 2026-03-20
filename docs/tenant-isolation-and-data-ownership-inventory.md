@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory tenant/org boundaries and ownership-related schema/routes.
-- Canonical companion: `docs/07-tenant-isolation-and-data-ownership.md`.
+- Canonical companion: `docs/tenant-isolation-and-data-ownership.md`.
 
 ## Confirmed
 - Tenant/org routes:
