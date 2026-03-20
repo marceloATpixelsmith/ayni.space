@@ -78,25 +78,27 @@ jobs:
             required+=("Run admin security shell tests")
           fi
 
-          printf "required_checks<<EOF\n" >> "$GITHUB_OUTPUT"
+          required_checks_b64=""
           if [[ ${#required[@]} -gt 0 ]]; then
-            printf '%s\n' "${required[@]}" >> "$GITHUB_OUTPUT"
+            required_checks_b64=$(printf '%s\n' "${required[@]}" | base64 | tr -d '\n')
           fi
-          printf "EOF\n" >> "$GITHUB_OUTPUT"
+          printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
 
       - name: Wait until required checks for PR head SHA are successful
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REQUIRED_CHECKS: ${{ steps.checks.outputs.required_checks }}
+          REQUIRED_CHECKS_B64: ${{ steps.checks.outputs.required_checks_b64 }}
         run: |
           set -euo pipefail
 
-          if [[ -z "${REQUIRED_CHECKS:-}" ]]; then
+          if [[ -z "${REQUIRED_CHECKS_B64:-}" ]]; then
             echo "No required checks for this PR based on changed files."
             exit 0
           fi
+
+          REQUIRED_CHECKS=$(printf '%s' "$REQUIRED_CHECKS_B64" | base64 --decode)
 
           echo "Required checks:"
           echo "$REQUIRED_CHECKS"
