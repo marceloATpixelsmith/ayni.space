@@ -162,8 +162,16 @@ jobs:
           echo "Timed out waiting for required checks. Not merging."
           exit 1
 
-      - name: Merge PR safely (normal merge behavior)
+      - name: Force-promote PR head onto master (zero-friction mode)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Overwrite master with PR head and close PR
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --squash --delete-branch
