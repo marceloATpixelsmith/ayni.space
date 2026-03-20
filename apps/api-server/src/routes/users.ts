@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, orgMembershipsTable, organizationsTable, pool } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAuth, requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { validateBody, updateUserSchema, switchOrgSchema } from "../middlewares/validation.js";
+import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
@@ -60,7 +61,11 @@ router.post("/me/switch-org", requireAuth, validateBody(switchOrgSchema), async 
   }
 
   const membership = await db.query.orgMembershipsTable.findFirst({
-    where: (t, { and, eq }) => and(eq(t.userId, userId), eq(t.orgId, orgId)),
+    where: and(
+      eq(orgMembershipsTable.userId, userId),
+      eq(orgMembershipsTable.orgId, orgId),
+      eq(orgMembershipsTable.membershipStatus, "active")
+    ),
   });
 
   if (!membership) {
@@ -98,6 +103,13 @@ router.patch("/:id/suspend", requireSuperAdmin, async (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
+  writeAuditLog({
+    userId: req.session.userId,
+    action: "user.suspended",
+    resourceType: "user",
+    resourceId: id,
+    req,
+  });
   res.json({ success: true, user });
 });
 
@@ -109,6 +121,13 @@ router.patch("/:id/unsuspend", requireSuperAdmin, async (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
+  writeAuditLog({
+    userId: req.session.userId,
+    action: "user.unsuspended",
+    resourceType: "user",
+    resourceId: id,
+    req,
+  });
   res.json({ success: true, user });
 });
 

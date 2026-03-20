@@ -178,8 +178,21 @@ router.patch("/:orgId/members/:userId", requireAuth, requireOrgAdmin, async (req
     .set({ role })
     .where(and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, orgId)))
     .returning();
+  if (!updated) {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  writeAuditLog({
+    orgId,
+    userId: req.session.userId,
+    action: "org.member.role.updated",
+    resourceType: "membership",
+    resourceId: userId,
+    metadata: { role },
+    req,
+  });
 
   res.json({
     userId: updated.userId,
