@@ -1,7 +1,7 @@
 # 10 — Observability, Error Handling, and Sentry
 
 ## Scope
-- This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
+- This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
 - Backend observability middleware lives in `apps/api-server/src/middlewares/observability.ts`.
