@@ -5,6 +5,7 @@ import { db, usersTable, orgMembershipsTable, organizationsTable } from "@worksp
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 
 const router = Router();
 
@@ -27,6 +28,24 @@ function firstQueryParam(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
+}
+
+
+function logAuthFailure(req, reason: string, metadata: Record<string, unknown> = {}) {
+  const signal = recordAbuseSignal(`auth:${reason}:${getAbuseClientKey(req)}`);
+  writeAuditLog({
+    userId: req.session?.userId,
+    action: signal.repeated ? "auth.failure.repeated" : "auth.failure",
+    resourceType: "auth",
+    resourceId: reason,
+    metadata: {
+      reason,
+      count: signal.count,
+      threshold: signal.threshold,
+      ...metadata,
+    },
+    req,
+  });
 }
 
 async function handleMe(req, res) {
@@ -84,6 +103,7 @@ function handleGoogleUrl(req, res) {
     const state = randomUUID();
     const returnTo = getRequestFrontendOrigin(req);
     if (!returnTo) {
+      logAuthFailure(req, "google-url-origin-invalid");
       res.status(400).json({ error: "Request origin is missing or not allowed" });
       return;
     }
@@ -92,6 +112,7 @@ function handleGoogleUrl(req, res) {
     const url = buildGoogleAuthUrl(state);
     req.session.save((err) => {
       if (err) {
+        logAuthFailure(req, "google-url-session-init-failed");
         res.status(500).json({ error: "Failed to initialize OAuth session" });
         return;
       }
@@ -107,11 +128,13 @@ async function handleGoogleCallback(req, res) {
   const state = firstQueryParam(req.query.state);
 
   if (!code) {
+    logAuthFailure(req, "google-callback-missing-code");
     res.status(400).json({ error: "Missing authorization code" });
     return;
   }
 
   if (!state || !req.session.oauthState || state !== req.session.oauthState) {
+    logAuthFailure(req, "google-callback-invalid-state");
     res.status(400).json({ error: "Invalid OAuth state. Please try signing in again." });
     return;
   }
@@ -191,6 +214,7 @@ async function handleGoogleCallback(req, res) {
 
     req.session.userId = user.id;
     req.session.activeOrgId = user.activeOrgId ?? undefined;
+    req.session.sessionAuthenticatedAt = Date.now();
 
     const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
 
@@ -204,6 +228,7 @@ async function handleGoogleCallback(req, res) {
     });
 
     if (!oauthReturnTo) {
+      logAuthFailure(req, "google-callback-missing-return-origin");
       res.status(400).json({ error: "Unable to determine return app for OAuth callback" });
       return;
     }
@@ -212,6 +237,7 @@ async function handleGoogleCallback(req, res) {
     res.redirect(`${frontendBase}/app`);
   } catch (error) {
     console.error("Google callback failed:", error);
+    logAuthFailure(req, "google-callback-exception");
     res.status(500).json({ error: "Google authentication failed" });
   }
 }

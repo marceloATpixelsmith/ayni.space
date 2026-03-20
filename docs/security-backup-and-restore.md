@@ -58,6 +58,19 @@
 - Keep runtime secrets outside git and rotate on incident or suspected exposure.
 - Keep this runbook and `docs/security-inventory-current-state.md` updated with real implementation state.
 
+## Restore Drill Cadence
+- **Recommended cadence:** monthly for active production systems; quarterly is acceptable only for very early MVP phases with low change volume.
+- **Minimum MVP expectation:** complete at least one documented restore drill every quarter, and one extra drill after any significant schema/auth/session/security change.
+- **Keep it lightweight:**
+  - run drills manually on a non-production database,
+  - limit each drill to the minimum recovery checklist,
+  - record outcomes in `docs/security-restore-drill-log.md` using the template.
+- **Good enough at this stage looks like:**
+  - recent log entries exist with date/environment/result,
+  - rough time-to-recover is captured,
+  - follow-up issues are tracked and closed in normal backlog flow,
+  - no claim of automation beyond what is actually being run.
+
 ## Inferred
 - Given Postgres-backed sessions and audit logs, DB recoverability is the primary security continuity dependency.
 - Backup validation (restore drills) is more important than backup existence alone.

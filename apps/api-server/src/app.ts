@@ -2,12 +2,12 @@ import express, { type Express } from "express";
 import cors from "cors";
 import { securityHeaders } from "./middlewares/securityHeaders.js";
 import router from "./routes/index.js";
-import { createSessionMiddleware } from "./lib/session.js";
+import { createSessionMiddleware, sessionSecurityMiddleware } from "./lib/session.js";
 import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureSentryTestError, captureFrontendMonitoringEvent } from "./middlewares/observability.js";
 import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
-import { rateLimiter } from "./middlewares/rateLimit.js";
+import { authRateLimiter, rateLimiter } from "./middlewares/rateLimit.js";
 
 
 console.info("[startup] app.ts: validating environment...");
@@ -59,6 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 console.info("[startup] app.ts: initializing session middleware...");
 try {
   app.use(createSessionMiddleware());
+  app.use(sessionSecurityMiddleware());
   console.info("[startup] app.ts: session middleware initialized.");
 } catch (error) {
   console.error("[startup] app.ts: session store initialization failed.");
@@ -72,9 +73,9 @@ try {
 
 // ── CSRF PROTECTION (all state-changing routes) ─────────────────────────────
 // ── RATE LIMITING (public/auth/invitation/org/profile/billing) ──────────────
-app.use("/api/auth", rateLimiter());
-app.use("/api/invitations", rateLimiter());
-app.use("/api/organizations", rateLimiter());
+app.use("/api/auth", authRateLimiter());
+app.use("/api/invitations", authRateLimiter());
+app.use("/api/organizations", authRateLimiter());
 app.use("/api/users", rateLimiter());
 app.use("/api/billing", rateLimiter());
 
