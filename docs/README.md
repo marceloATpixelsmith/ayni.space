@@ -1,4 +1,4 @@
-# 24 — Architecture Documentation Index
+# 25 — Architecture Documentation Index
 
 ## Scope
 - Index and reading order for architecture docs.
@@ -38,6 +38,7 @@
 21. `file-and-folder-ownership.md`
 22. `codex-working-rules.md`
 23. `safe-auto-merge-governance.md`
+24. `security-backup-and-restore.md`
 
 ## Consistency policy
 - Every architecture doc must include:

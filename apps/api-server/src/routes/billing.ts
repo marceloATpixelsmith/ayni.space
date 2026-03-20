@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import { db, organizationsTable, appPlansTable, subscriptionsTable } from "@workspace/db";
+import { db, organizationsTable, appPlansTable, subscriptionsTable, stripeWebhookEventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
-import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { userHasActiveOrgMembership } from "../lib/orgMembership.js";
 
 const router: IRouter = Router();
 
@@ -34,7 +34,7 @@ function getStripe() {
 }
 
 // ── POST /billing/checkout ────────────────────────────────────────────────────
-router.post("/checkout", requireAuth, requireOrgAccess, async (req, res) => {
+router.post("/checkout", requireAuth, async (req, res) => {
   const { orgId, appId, planId, successUrl, cancelUrl } = req.body as {
     orgId: string;
     appId: string;
@@ -42,6 +42,10 @@ router.post("/checkout", requireAuth, requireOrgAccess, async (req, res) => {
     successUrl?: string;
     cancelUrl?: string;
   };
+  if (!(await userHasActiveOrgMembership(req.session.userId!, orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
+    return;
+  }
 
   try {
     const stripe = getStripe();
@@ -102,8 +106,12 @@ router.post("/checkout", requireAuth, requireOrgAccess, async (req, res) => {
 });
 
 // ── POST /billing/portal ──────────────────────────────────────────────────────
-router.post("/portal", requireAuth, requireOrgAccess, async (req, res) => {
+router.post("/portal", requireAuth, async (req, res) => {
   const { orgId, returnUrl } = req.body as { orgId: string; returnUrl?: string };
+  if (!(await userHasActiveOrgMembership(req.session.userId!, orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
+    return;
+  }
 
   try {
     const stripe = getStripe();
@@ -147,7 +155,7 @@ router.post("/webhook", async (req, res) => {
     res.status(400).json({ error: "Missing Stripe signature" });
     return;
   }
-  let event: { type: string; data: { object: Record<string, unknown> } };
+  let event: { id: string; type: string; data: { object: Record<string, unknown> } };
   try {
     const stripe = getStripe();
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
@@ -158,6 +166,19 @@ router.post("/webhook", async (req, res) => {
   }
 
   try {
+    const [insertedEvent] = await db
+      .insert(stripeWebhookEventsTable)
+      .values({
+        eventId: event.id,
+        eventType: event.type,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!insertedEvent) {
+      res.json({ success: true, duplicate: true });
+      return;
+    }
+
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Record<string, unknown>;

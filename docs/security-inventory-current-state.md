@@ -12,7 +12,7 @@
 ### Plain-English posture
 The repo has a solid **application-layer security baseline** for a public SaaS MVP: centralized auth/authz middleware, session cookies in Postgres, CSRF + origin/referer checks, CORS allowlist, and meaningful audit logging coverage for key admin/org actions. Frontend routing is guarded and shares centralized auth/session client behavior.
 
-At the same time, there are notable **operational and perimeter gaps**: no repo evidence of edge/WAF configuration, no automated dependency vulnerability scanning workflow, no backup/restore runbook, no explicit secret scanning in CI, and no persistent/distributed rate-limiter (current limiter is in-memory and opt-in via env).
+At the same time, there are still notable **operational and perimeter gaps**: edge/WAF configuration remains out-of-repo, rate limiting is still in-memory (non-distributed), and there is no in-repo static-analysis workflow (e.g., CodeQL). Free CI/security automation has been improved (Dependabot, dependency audit workflow, gitleaks, backup/restore runbook).
 
 ### Biggest strengths
 1. Centralized backend security middleware composition (`app.ts`) with explicit ordering for headers, CORS, session, CSRF, origin checks, and route mounting.
@@ -23,10 +23,10 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 
 ### Biggest likely gaps
 1. Edge/perimeter controls are not codified in-repo (WAF/bot DDoS policy, edge rate limiting, managed firewall rules).
-2. Rate limiting is process-memory based and disabled unless env flag is set.
-3. No repository evidence of Dependabot/GitHub Advisory scanning, CodeQL, or SBOM generation.
-4. No backup/restore policy artifacts found.
-5. Some tenant-bound routes rely on app-access only and accept org IDs from request parameters without explicit org membership enforcement in the route itself.
+2. Rate limiting remains process-memory based (non-distributed).
+3. No repository evidence of CodeQL or SBOM generation.
+4. Backup/restore policy is documented, but restore-drill evidence is still operational (out-of-repo).
+5. Tenant checks were hardened for Ayni org-scoped handlers; additional review should continue for future app-module routes as they are added.
 
 ---
 
@@ -166,24 +166,24 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 
 ## 3) Partially implemented / unclear controls
 
-1. **Rate limiting is present but weak by default**
-   - Middleware exists and is mounted on sensitive route groups, but it is disabled unless `RATE_LIMIT_ENABLED=true`; state is in-memory map per process (non-distributed, reset on restart, not shared across instances).  
+1. **Rate limiting is present with safer production default, but still limited architecturally**
+   - Middleware exists and is mounted on sensitive route groups, and now defaults on in production unless explicitly disabled; state remains in-memory map per process (non-distributed, reset on restart, not shared across instances).  
    - Evidence: `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts`.
 
 2. **Turnstile is integrated but optional/toggle-based**
    - Verification only occurs when env toggles are enabled and token supplied. This is correct for feature flags, but leaves risk if ops forget to enable in production.  
    - Evidence: `apps/api-server/src/middlewares/turnstile.ts`, `lib/frontend-security/src/turnstile.tsx`.
 
-3. **Audit logging is good but not comprehensive for all privileged actions**
-   - Several admin/org mutation routes write audit entries; others (e.g., user suspend/unsuspend, membership role changes) do not consistently log action metadata.  
+3. **Audit logging coverage improved, but should be reviewed continuously**
+   - Several admin/org mutation routes write audit entries. Coverage now includes user suspend/unsuspend and membership role updates; ongoing review is still needed as new privileged writes are added.  
    - Evidence: compare `apps/api-server/src/routes/admin.ts`, `apps/api-server/src/routes/organizations.ts`, `apps/api-server/src/routes/users.ts`.
 
-4. **Tenant checks are inconsistent across app-module routes**
-   - Some app routes (notably Ayni/Shipibo module endpoints) enforce `requireAppAccess` but do not enforce org membership on provided `orgId` query values in each handler, creating potential cross-tenant read/write exposure depending on app-access model.  
+4. **Tenant checks improved in Ayni app-module routes**
+   - Ayni org-scoped handlers now enforce explicit active org membership validation for provided `orgId` and ceremony-linked reads. Shipibo currently has no org-scoped identifiers in schema/routes.  
    - Evidence: `apps/api-server/src/routes/ayni.ts`, `apps/api-server/src/routes/shipibo.ts`, `apps/api-server/src/middlewares/requireAppAccess.ts`, `apps/api-server/src/lib/appAccess.ts`.
 
-5. **OpenAPI contract lacks explicit security scheme documentation**
-   - The API spec defines paths but does not declare cookie auth/CSRF requirements as reusable `components.securitySchemes` + operation `security` declarations.  
+5. **OpenAPI security docs were improved but need ongoing parity checks**
+   - The API spec now declares cookie session auth and CSRF header expectations; operations should be kept aligned as endpoints evolve.  
    - Evidence: `lib/api-spec/openapi.yaml`.
 
 6. **Frontend access checks are partly UX-level for super-admin**
@@ -206,17 +206,17 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 2. **Distributed/persistent rate limiting for auth & high-risk endpoints** (Missing)
    - Current limiter is in-process memory; no Redis/Postgres-backed algorithm present.
 
-3. **Automated dependency vulnerability scanning** (Missing)
-   - No `dependabot.yml`, no explicit npm/pnpm audit workflow, no osv/audit-ci/Snyk free alternative workflow in CI.
+3. **Automated dependency vulnerability scanning** (Implemented)
+   - Dependabot config and CI `pnpm audit --prod --audit-level=high` workflow are now present.
 
 4. **Static security analysis workflow** (Missing)
    - No CodeQL (free for public repos) or equivalent SAST workflow file present.
 
-5. **Secret scanning policy in CI** (Missing)
-   - No gitleaks/trufflehog-style scan workflow in repo.
+5. **Secret scanning policy in CI** (Implemented)
+   - Gitleaks workflow is present in `.github/workflows/secret-scan.yml`.
 
-6. **Backup/restore procedure artifacts** (Missing)
-   - No documented DB backup cadence, retention, restore drills, or runbooks in docs.
+6. **Backup/restore procedure artifacts** (Implemented/Operationally Partial)
+   - Backup/restore runbook now exists in `docs/security-backup-and-restore.md`; actual backup retention/drill execution remains operational and out-of-repo.
 
 7. **Incident response / security runbook** (Missing)
    - No dedicated incident/severity handling doc found under `docs/`.
@@ -227,16 +227,47 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 9. **Security headers on static frontend hosting layer** (Unclear/Missing)
    - API sets headers, but no explicit vercel/nginx/static host header policy file for frontend routes/assets.
 
-10. **Guaranteed `.env` local secret-file protection in gitignore** (Missing)
-   - `.env.example` warns not to commit `.env`, but root `.gitignore` does not currently list `.env`/`.env.*` ignore patterns.
+10. **Guaranteed `.env` local secret-file protection in gitignore** (Implemented)
+   - Root `.gitignore` now ignores `.env` and `.env.*` while preserving `!.env.example`.
 
-11. **Webhook idempotency/dedup tracking for Stripe events** (Missing)
-   - Signature verification exists, but no persistent processed-event ID deduping visible.
+11. **Webhook idempotency/dedup tracking for Stripe events** (Implemented)
+   - Persistent `stripe_webhook_events` table tracks processed `event_id`; duplicate webhook deliveries are acknowledged and skipped safely.
 
 12. **Auth endpoint-specific hardening controls** (Partial)
    - No explicit login attempt telemetry/lockout/cooldown policy besides optional generic limiter + Turnstile toggles.
 
 ---
+
+
+## 4.1 Implemented now in this hardening pass
+
+1. **Tenant isolation hardening (Ayni org-scoped handlers)**
+   - Added explicit server-side active-org-membership checks before org-scoped reads/writes and ceremony-linked reads.
+   - Evidence: `apps/api-server/src/routes/ayni.ts`, `apps/api-server/src/lib/orgMembership.ts`, `apps/api-server/src/__tests__/tenant-isolation.test.ts`.
+
+2. **Dependency and secret automation (free-only)**
+   - Added Dependabot config, CI dependency vulnerability audit, and CI gitleaks secret scanning.
+   - Evidence: `.github/dependabot.yml`, `.github/workflows/dependency-vulnerability-scan.yml`, `.github/workflows/secret-scan.yml`.
+
+3. **Audit logging coverage**
+   - Added audit events for super-admin user suspend/unsuspend and org member role updates.
+   - Evidence: `apps/api-server/src/routes/users.ts`, `apps/api-server/src/routes/organizations.ts`.
+
+4. **Stripe webhook idempotency**
+   - Added DB-backed webhook replay deduplication keyed by Stripe `event.id`.
+   - Evidence: `apps/api-server/src/routes/billing.ts`, `lib/db/src/schema/stripe_webhook_events.ts`, `lib/db/migrations/20260320_stripe_webhook_events.sql`.
+
+5. **Rate limiter production safety default**
+   - Rate limiting now defaults enabled in production unless explicitly disabled.
+   - Evidence: `apps/api-server/src/middlewares/rateLimit.ts`.
+
+6. **OpenAPI security docs alignment**
+   - API spec now explicitly documents cookie session auth and CSRF header expectations for unsafe methods.
+   - Evidence: `lib/api-spec/openapi.yaml`.
+
+7. **Backup/restore runbook + local env ignore protections**
+   - Added practical backup/restore doc and `.gitignore` protections for local secret files.
+   - Evidence: `docs/security-backup-and-restore.md`, `.gitignore`.
 
 ## 5) Security control matrix
 
@@ -262,10 +293,10 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 | Secrets/env validation | Implemented/Partial | `apps/api-server/src/lib/env.ts`, `apps/api-server/src/lib/assertions.ts` | Core vars enforced; secret hygiene policy docs limited. |
 | DB TLS posture | Partial | `lib/db/src/index.ts` | TLS on, but `rejectUnauthorized=false` weakens trust verification. |
 | Dependency integrity lockfile check | Implemented | `.github/workflows/lockfile-sync-check.yml` | Good baseline integrity check. |
-| Dependency vulnerability scanning | Missing | (no workflow/config found) | Add free Dependabot + audit workflow. |
+| Dependency vulnerability scanning | Implemented | `.github/dependabot.yml`, `.github/workflows/dependency-vulnerability-scan.yml` | Runs Dependabot and high-severity production audit checks. |
 | SAST/CodeQL | Missing | (no workflow found) | GitHub CodeQL free on public repos. |
-| Secrets scanning | Missing | (no workflow found) | Add gitleaks/trufflehog free CI step. |
-| Backup/restore runbook | Missing | (no docs/workflows found) | High operational risk for SaaS continuity. |
+| Secrets scanning | Implemented | `.github/workflows/secret-scan.yml` | Gitleaks runs on PR/push/schedule. |
+| Backup/restore runbook | Implemented/Operationally Partial | `docs/security-backup-and-restore.md` | Runbook exists; retention/drill execution remains operational. |
 | Edge/WAF controls | Unclear/Missing | `apps/admin/vercel.json` has rewrites only | No explicit edge security policy in repo. |
 
 ---
@@ -273,24 +304,24 @@ At the same time, there are notable **operational and perimeter gaps**: no repo 
 ## 6) Priority gaps (FREE solutions only)
 
 ### Ranked by highest risk
-1. **Inconsistent tenant checks in app module routes** — enforce org ownership/membership checks server-side for every org-scoped query/body param.  
-2. **No dependency vuln scanning** — enable Dependabot alerts/PRs + scheduled `pnpm audit --prod` CI.  
-3. **No secret scanning in CI** — add gitleaks/trufflehog workflow.  
-4. **No backup/restore playbook** — add documented free runbook + periodic restore test checklist.  
-5. **Rate limiting not production-robust** — enable by default and move to free persistent backend (Postgres or free Redis tier) if multi-instance.
+1. **Distributed/persistent rate limiting is still missing** — current limiter is in-memory per process.  
+2. **Static security analysis still missing** — add free CodeQL/SAST workflow.  
+3. **Incident response runbook still missing** — add lightweight documented incident procedures.  
+4. **Edge/perimeter policy not codified in repo** — keep deployment checklist aligned outside-in.  
+5. **Restore-drill evidence still operational** — run and document periodic restore verifications.
 
 ### Ranked by easiest to implement
-1. Add `.env` and `.env.*` ignore patterns in `.gitignore`.
-2. Add `/.github/dependabot.yml` for npm/pnpm ecosystem.
-3. Add CodeQL workflow (`github/codeql-action`) for JS/TS.
-4. Add gitleaks workflow (free OSS action).
-5. Add `docs/security-backup-and-restore.md` runbook and recovery objectives.
+1. Add CodeQL workflow (`github/codeql-action`) for JS/TS.
+2. Add incident response/security operations runbook in `docs/`.
+3. Add periodic restore-drill log template in docs.
+4. Evaluate Postgres-backed sliding-window rate limiting for multi-instance safety.
+5. Keep OpenAPI security declarations synced with middleware behavior.
 
 ### Ranked by biggest impact
 1. Server-side tenant-bound query hardening (prevents cross-tenant data leak class).
-2. Free dependency + secret scanning automation in CI (prevents known-vuln and leaked-secret classes).
-3. Production-default rate limit policy for auth/onboarding/invitation endpoints.
-4. Backup/restore readiness documentation and routine verification.
+2. Production-default rate limit policy for auth/onboarding/invitation endpoints.
+3. Backup/restore readiness documentation and routine verification.
+4. Free dependency + secret scanning automation in CI (now implemented; keep tuned for low-noise).
 5. Edge free-tier baseline (e.g., Cloudflare free: bot fight mode, basic WAF managed rules, DNS proxy, TLS mode) documented as deployment checklist.
 
 ---
@@ -328,16 +359,16 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
 10. CI gates for lockfile integrity + backend regression + admin security shell behavior.
 
 ## Top 10 missing controls (free solutions)
-1. Dependabot (or equivalent free dependency vulnerability automation).
-2. CodeQL/SAST workflow.
-3. Secret scanning workflow.
-4. Backup/restore runbook and restore test cadence.
-5. Distributed/persistent rate limiter (or hardened single-instance defaults).
-6. Edge free-tier baseline checklist (Cloudflare/Vercel/Nginx) committed in docs.
-7. Explicit OpenAPI security scheme declarations.
-8. Webhook idempotency event-store for Stripe webhook replay protection.
-9. Full audit coverage for all privileged writes (suspend/unsuspend/role changes, etc.).
-10. `.env` ignore patterns in `.gitignore` to align with secret-handling expectations.
+1. CodeQL/SAST workflow.
+2. Distributed/persistent rate limiter (or hardened single-instance defaults).
+3. Incident response runbook and drill cadence.
+4. Edge free-tier baseline checklist (Cloudflare/Vercel/Nginx) committed in docs.
+5. Restore-drill evidence tracked on a defined cadence.
+6. DB TLS CA validation (`rejectUnauthorized=true`) where provider supports it.
+7. Session anomaly controls (risk-based re-auth / suspicious-login heuristics).
+8. Continued audit-log coverage checks as new privileged endpoints are added.
+9. Endpoint-level OpenAPI security annotations for each unsafe operation.
+10. Optional SBOM generation and artifact retention in CI.
 
 ## Contradictions between docs and code
 1. **Role model mismatch**: narrative docs/readme mention roles like `owner/admin/member/viewer`, while backend RBAC constants and org admin checks use `org_owner/org_admin/staff`.  

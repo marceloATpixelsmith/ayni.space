@@ -2,7 +2,11 @@ openapi: 3.1.0
 info:
   title: Api
   version: 0.1.0
-  description: SaaS Platform API - Multi-tenant platform with auth, billing, and app registry
+  description: |
+    SaaS Platform API - Multi-tenant platform with auth, billing, and app registry.
+   
+    Authentication uses the `saas.sid` cookie-backed session. For authenticated state-changing requests
+    (`POST`, `PATCH`, `PUT`, `DELETE`), clients must also include `x-csrf-token` from `/api/csrf-token`.
 servers:
   - url: /api
     description: Base API path
@@ -34,12 +38,16 @@ tags:
   - name: ayni
     description: Ayni Ceremony Management module
 
+security:
+  - CookieSessionAuth: []
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
+      security: []
       responses:
         "200":
           description: Healthy
@@ -86,6 +94,7 @@ paths:
       operationId: getGoogleAuthUrl
       tags: [auth]
       summary: Get Google OAuth authorization URL
+      security: []
       responses:
         "200":
           description: Google OAuth URL
@@ -99,6 +108,7 @@ paths:
       operationId: googleAuthCallback
       tags: [auth]
       summary: Google OAuth callback
+      security: []
       parameters:
         - in: query
           name: code
@@ -533,6 +543,7 @@ paths:
       operationId: stripeWebhook
       tags: [billing]
       summary: Stripe webhook handler
+      security: []
       responses:
         "200":
           description: Webhook processed
@@ -896,6 +907,18 @@ paths:
                   $ref: "#/components/schemas/AyniStaff"
 
 components:
+  securitySchemes:
+    CookieSessionAuth:
+      type: apiKey
+      in: cookie
+      name: saas.sid
+      description: Session cookie set by the API after login.
+    CsrfTokenHeader:
+      type: apiKey
+      in: header
+      name: x-csrf-token
+      description: Required for authenticated state-changing requests (POST/PATCH/PUT/DELETE).
+
   schemas:
     # ── SHARED ────────────────────────────────────────────────────────────────
     HealthStatus:

@@ -9,6 +9,7 @@ import { eq, count, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireAppAccess } from "../middlewares/requireAppAccess.js";
+import { userHasActiveOrgMembership } from "../lib/orgMembership.js";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,10 @@ router.get("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, res
 
   if (!orgId) {
     res.status(400).json({ error: "orgId query param required" });
+    return;
+  }
+  if (!(await userHasActiveOrgMembership(req.session.userId!, orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
     return;
   }
 
@@ -59,6 +64,10 @@ router.get("/ceremonies/:ceremonyId", requireAuth, requireAppAccess("ayni"), asy
     res.status(404).json({ error: "Ceremony not found" });
     return;
   }
+  if (!(await userHasActiveOrgMembership(req.session.userId!, ceremony.orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
+    return;
+  }
 
   const [pCount] = await db
     .select({ count: count() })
@@ -81,6 +90,10 @@ router.post("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, re
 
   if (!orgId || !name) {
     res.status(400).json({ error: "orgId and name are required" });
+    return;
+  }
+  if (!(await userHasActiveOrgMembership(req.session.userId!, orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
     return;
   }
 
@@ -110,6 +123,17 @@ router.get("/participants", requireAuth, requireAppAccess("ayni"), async (req, r
     res.status(400).json({ error: "ceremonyId query param required" });
     return;
   }
+  const ceremony = await db.query.ayniCeremoniesTable.findFirst({
+    where: eq(ayniCeremoniesTable.id, ceremonyId),
+  });
+  if (!ceremony) {
+    res.status(404).json({ error: "Ceremony not found" });
+    return;
+  }
+  if (!(await userHasActiveOrgMembership(req.session.userId!, ceremony.orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
+    return;
+  }
 
   const participants = await db.query.ayniParticipantsTable.findMany({
     where: eq(ayniParticipantsTable.ceremonyId, ceremonyId),
@@ -124,6 +148,10 @@ router.get("/staff", requireAuth, requireAppAccess("ayni"), async (req, res) => 
 
   if (!orgId) {
     res.status(400).json({ error: "orgId query param required" });
+    return;
+  }
+  if (!(await userHasActiveOrgMembership(req.session.userId!, orgId))) {
+    res.status(403).json({ error: "Access denied. You are not an active member of this organization." });
     return;
   }
 
