@@ -64,7 +64,7 @@ jobs:
               require_backend=1
             fi
 
-            if [[ "$file" == apps/admin/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
+            if [[ "$file" == apps/admin/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/frontend-security/* ]] || [[ "$file" == lib/frontend-observability/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
               require_admin=1
             fi
           done <<< "$files"
@@ -77,7 +77,7 @@ jobs:
             required+=("Backend build/typecheck/test/codegen validation")
           fi
           if [[ "$require_admin" -eq 1 ]]; then
-            required+=("Run admin security shell tests")
+            required+=("Run admin security tests and build")
           fi
 
           required_checks_b64=""
