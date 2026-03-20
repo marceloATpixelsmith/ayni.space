@@ -1,4 +1,4 @@
-# 12 — Dependency and Lockfile Rules
+# 18 — Dependency and Lockfile Rules
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

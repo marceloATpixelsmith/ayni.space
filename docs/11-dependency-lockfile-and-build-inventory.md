@@ -1,8 +1,8 @@
-# 08 — Dependency, Lockfile, and Build Inventory
+# 11 — Dependency, Lockfile, and Build Inventory
 
 ## Scope
 - Inventory dependency/lockfile/build controls at monorepo level.
-- Canonical companion: `docs/12-dependency-and-lockfile-rules.md`.
+- Canonical companion: `docs/18-dependency-and-lockfile-rules.md`.
 
 ## Confirmed
 - Workspace globs are managed via `pnpm-workspace.yaml`.

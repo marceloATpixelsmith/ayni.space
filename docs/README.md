@@ -1,4 +1,4 @@
-# Architecture Documentation Index
+# 24 — Architecture Documentation Index
 
 ## Scope
 - Index and reading order for architecture docs.
@@ -10,9 +10,9 @@
 
 ## Required reading order
 1. `01-monorepo-overview.md` (source of truth)
-2. Domain docs (`03` through `13`, `16`, `17`)
-3. Supporting inventories (`02`, `04`, legacy inventory companions)
-4. `11-open-questions-and-conflicts.md` for unresolved items
+2. Domain docs (`03-shared-packages.md` through `19-ci-cd-and-deploy-rules.md`, plus ownership/codex/governance docs)
+3. Supporting inventories (`02-app-catalog.md`, auth/session and other inventory companions)
+4. `16-open-questions-and-conflicts.md` for unresolved items
 
 ## Document index (all current docs)
 1. `01-monorepo-overview.md`
@@ -20,30 +20,31 @@
 3. `03-shared-packages.md`
 4. `04-auth-and-session-inventory.md`
 5. `05-authentication-and-session-architecture.md`
-6. `05-authorization-and-access-model-inventory.md`
-7. `06-authorization-roles-and-access-model.md`
-8. `06-tenant-isolation-and-data-ownership-inventory.md`
-9. `07-observability-error-handling-and-sentry-inventory.md`
-10. `07-tenant-isolation-and-data-ownership.md`
-11. `08-dependency-lockfile-and-build-inventory.md`
-12. `09-api-and-backend-architecture.md`
-13. `09-ci-cd-and-deploy-inventory.md`
-14. `10-observability-error-handling-and-sentry.md`
-15. `10-shared-systems-inventory.md`
-16. `11-open-questions-and-conflicts.md`
-17. `11-security-standards-and-non-negotiables.md`
-18. `12-dependency-and-lockfile-rules.md`
-19. `13-ci-cd-and-deploy-rules.md`
-20. `16-file-and-folder-ownership.md`
-21. `17-codex-working-rules.md`
-22. `20-safe-auto-merge-governance.md`
+6. `06-authorization-and-access-model-inventory.md`
+7. `07-authorization-roles-and-access-model.md`
+8. `08-tenant-isolation-and-data-ownership-inventory.md`
+9. `09-observability-error-handling-and-sentry-inventory.md`
+10. `10-tenant-isolation-and-data-ownership.md`
+11. `11-dependency-lockfile-and-build-inventory.md`
+12. `12-api-and-backend-architecture.md`
+13. `13-ci-cd-and-deploy-inventory.md`
+14. `14-observability-error-handling-and-sentry.md`
+15. `15-shared-systems-inventory.md`
+16. `16-open-questions-and-conflicts.md`
+17. `17-security-standards-and-non-negotiables.md`
+18. `18-dependency-and-lockfile-rules.md`
+19. `19-ci-cd-and-deploy-rules.md`
+20. `20-ci-cd-and-deploy-chart.md`
+21. `21-file-and-folder-ownership.md`
+22. `22-codex-working-rules.md`
+23. `23-safe-auto-merge-governance.md`
 
 ## Consistency policy
 - Every architecture doc must include:
   - a clear `Scope`
   - concrete file/path references
   - `Confirmed`, `Inferred`, `Unclear`, and `Do not break` sections
-- When conflicts appear, resolve toward `01-monorepo-overview.md` and carry remaining ambiguity into `11-open-questions-and-conflicts.md`.
+- When conflicts appear, resolve toward `01-monorepo-overview.md` and carry remaining ambiguity into `16-open-questions-and-conflicts.md`.
 
 ## Inferred
 - The doc set is intentionally split into canonical domain docs and companion inventory docs to preserve traceability while keeping enforceable rules explicit.

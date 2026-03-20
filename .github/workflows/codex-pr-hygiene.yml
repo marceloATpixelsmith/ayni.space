@@ -1,0 +1,48 @@
+name: Codex PR Hygiene
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  verify-fresh-base:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'master' &&
+      github.event.pull_request.state == 'open'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify PR branch starts from latest master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin master "$HEAD_REF"
+
+          master_sha=$(git rev-parse "origin/master")
+          merge_base=$(git merge-base "origin/master" "origin/$HEAD_REF")
+
+          echo "master_sha=$master_sha"
+          echo "merge_base=$merge_base"
+
+          if [[ "$merge_base" != "$master_sha" ]]; then
+            gh pr comment "$PR_NUMBER" --body "🚫 This PR branch was not created from the latest \`master\`.\n\nFor frictionless solo flow, start each Codex task from current \`master\` and open a fresh PR branch."
+            echo "Branch is stale or stacked (merge-base != current master)."
+            exit 1
+          fi
+
+          echo "Branch origin is fresh (merge-base matches latest master)."

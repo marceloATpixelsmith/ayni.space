@@ -1,4 +1,4 @@
-# 13 — CI/CD and Deploy Rules
+# 19 — CI/CD and Deploy Rules
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
@@ -9,21 +9,26 @@
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
   - deploys only on push to `master`,
   - uses workflow path filters focused on admin + workspace metadata.
-- `.github/workflows/codex-safe-auto-merge.yml` is the approved Codex promotion path:
-  - applies only to in-repo `codex/*` PR branches targeting `master`,
-  - waits for configured required checks on the PR head SHA to complete with success,
-  - merges PRs with normal GitHub merge behavior (no force-reset/force-push).
-  - does not depend on GitHub built-in auto-merge or paid/protected-branch features.
+- `.github/workflows/codex-pr-hygiene.yml` is the branch-origin guard:
+  - runs on PR open/reopen targeting `master`,
+  - requires PR merge-base to match latest `master`,
+  - fails fast for stale or stacked PR ancestry so Codex tasks always start from current `master`.
+- `.github/workflows/codex-safe-auto-merge.yml` is the approved promotion path:
+  - applies to open, non-draft in-repo PR branches targeting `master`,
+  - enables GitHub native auto-merge (`--auto --squash --delete-branch`) for eligible PRs,
+  - relies on branch-protection required checks as the merge safety gate.
+  - does not perform automatic PR-branch update merges because Codex cannot currently continue updates on PRs modified outside Codex.
 - `.github/workflows/backend-regression-gates.yml` enforces backend regression gates for API changes:
   - `pnpm install --frozen-lockfile` (install/lockfile integrity),
   - `pnpm --filter @workspace/api-server run build` (backend build),
   - `pnpm --filter @workspace/api-server run typecheck` (backend typecheck),
   - `pnpm --filter @workspace/api-server run test` (backend auth/authz + tenant/session regression suites),
   - `pnpm --filter @workspace/api-spec run codegen` + `git diff --exit-code -- lib/api-client-react lib/api-zod` (contract/codegen artifact validation).
+- `.gitattributes` configures `docs/*.md` and `AGENT_RULES.md` with `merge=union` to reduce manual conflict resolution for concurrent documentation edits.
 
 ## Inferred
-- Release governance is intentionally low-friction and workflow-driven for a solo-builder path (Codex PRs auto-merge after checks).
-- Safety is enforced by CI workflow checks plus the codex safe auto-merge workflow gating logic.
+- Release governance is intentionally low-friction and workflow-driven for a solo-builder path (in-repo PRs auto-merge after checks).
+- Safety is enforced by CI checks configured in branch protection plus non-destructive auto-merge behavior.
 
 ## Unclear
 - Whether additional app surfaces should receive dedicated CI and deploy workflows.
