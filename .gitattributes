@@ -1,0 +1,5 @@
+# Reduce conflict friction for documentation-heavy PRs.
+# Use Git's built-in union merge driver for markdown docs so concurrent
+# edits are combined instead of blocking on conflict markers.
+docs/*.md merge=union
+AGENT_RULES.md merge=union

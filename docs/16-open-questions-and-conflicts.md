@@ -1,4 +1,4 @@
-# 11 — Open Questions and Conflicts
+# 16 — Open Questions and Conflicts
 
 ## Scope
 - Track unresolved architecture questions and known drift areas while preserving `01` as source of truth.
