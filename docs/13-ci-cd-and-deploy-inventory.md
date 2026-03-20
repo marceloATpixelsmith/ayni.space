@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory current workflows and deploy assumptions from repository automation files.
-- Canonical companion: `docs/ci-cd-and-deploy-rules.md`.
+- Canonical companion: `docs/19-ci-cd-and-deploy-rules.md`.
 
 ## Confirmed
 - Workflow: `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install.
