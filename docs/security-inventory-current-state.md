@@ -211,7 +211,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 > Marked missing only where no evidence was found in repository/docs.
 
 1. **Edge/WAF baseline not codified** (Missing)
-   - No repo evidence for Cloudflare free-tier WAF/rate-limit/bot mode configuration, Vercel edge firewall config, or equivalent perimeter policy artifacts.
+   - No repo evidence for Cloudflare free-tier WAF/rate-limit/bot mode configuration (beyond Pages deploy wiring), or equivalent perimeter policy artifacts.
 
 2. **Distributed/persistent rate limiting for auth & high-risk endpoints** (Missing)
    - Current limiter is in-process memory; no Redis/Postgres-backed algorithm present.
@@ -235,7 +235,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Last IP and user-agent change events are now audit-logged for visibility, but there is still no device binding, risk-based re-auth, or MFA challenge flow.
 
 9. **Security headers on static frontend hosting layer** (Unclear/Missing)
-   - API sets headers, but no explicit vercel/nginx/static host header policy file for frontend routes/assets.
+   - API sets headers, but no explicit Cloudflare Pages/nginx/static host header policy file for frontend routes/assets.
 
 10. **Guaranteed `.env` local secret-file protection in gitignore** (Implemented)
    - Root `.gitignore` now ignores `.env` and `.env.*` while preserving `!.env.example`.
@@ -323,7 +323,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | SAST/CodeQL | Implemented | `.github/workflows/codeql.yml` | JavaScript/TypeScript CodeQL runs on PR, master push, and weekly schedule. |
 | Secrets scanning | Implemented | `.github/workflows/secret-scan.yml` | Gitleaks runs on PR/push/schedule. |
 | Backup/restore runbook | Implemented/Operationally Partial | `docs/security-backup-and-restore.md` | Runbook exists; retention/drill execution remains operational. |
-| Edge/WAF controls | Unclear/Missing | `apps/admin/vercel.json` has rewrites only | No explicit edge security policy in repo. |
+| Edge/WAF controls | Unclear/Missing | `apps/admin/public/_redirects` provides SPA routing fallback only | No explicit edge security policy in repo. |
 
 ---
 
@@ -361,7 +361,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 
 ## 7) Questions needing user confirmation
 
-1. Which production edge sits in front of API/admin today (Cloudflare free, Vercel edge, Nginx, other)?
+1. Which production edge sits in front of API/admin today (Cloudflare free, Nginx, other)?
 2. Is this repository public on GitHub (to confirm free CodeQL + Dependabot availability)?
 3. Do you want rate limiting enabled by default in production (`RATE_LIMIT_ENABLED=true`) as a non-negotiable?
 4. Is `apps/api-server` deployed as a single instance only, or horizontally scaled?
@@ -393,7 +393,7 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
 
 ## Top 10 missing controls (free solutions)
 1. Distributed/persistent rate limiter (or hardened single-instance defaults).
-2. Edge free-tier baseline checklist (Cloudflare/Vercel/Nginx) committed in docs.
+2. Edge free-tier baseline checklist (Cloudflare/Nginx) committed in docs.
 3. Restore-drill log entries kept current on the defined cadence.
 4. DB TLS CA validation (`rejectUnauthorized=true`) where provider supports it.
 5. Session anomaly controls (risk-based re-auth / suspicious-login heuristics).

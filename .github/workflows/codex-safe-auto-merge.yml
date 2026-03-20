@@ -60,7 +60,7 @@ jobs:
               require_lockfile=1
             fi
 
-            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]]; then
+            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]]; then
               require_backend=1
             fi
 

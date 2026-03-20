@@ -120,14 +120,15 @@
   - Enforces lockfile/install consistency by running `pnpm install --frozen-lockfile`.
   - Trigger assumes monorepo dependencies are represented by root lockfile + workspace manifests.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
-  - Enforces only admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`).
-  - Deploy step only triggers on push to `master` and depends on a deploy webhook secret.
-  - Workflow path filters target `apps/admin/**` and lock/workspace metadata.
+  - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
+  - Deploy step only triggers on push to `master` and deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload.
+  - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
 - `.github/workflows/codex-safe-auto-merge.yml`:
   - Automates safe merge of in-repo `codex/*` pull requests into `master` only after configured checks pass on the PR head SHA.
   - Uses normal merge behavior (no force-reset, no force-push).
 - `.github/workflows/backend-regression-gates.yml`:
   - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
+  - Deploys backend to Render via deploy hook only after backend checks pass on push to `master`.
   - Produces a stable workflow name suitable for required status checks in branch protection.
 
 ### Runtime entry points and flow
