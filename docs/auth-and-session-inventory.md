@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory auth/session architecture at the system level without adding policy details not present in `01`.
-- Canonical companion: `docs/05-authentication-and-session-architecture.md`.
+- Canonical companion: `docs/authentication-and-session-architecture.md`.
 
 ## Confirmed
 - Backend auth implementation location: `apps/api-server/src/lib/auth.ts`.
