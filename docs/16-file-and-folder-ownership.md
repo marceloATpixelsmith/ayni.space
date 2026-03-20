@@ -26,10 +26,12 @@
 ### Workflow/operational ownership
 - `.github/workflows/lockfile-sync-check.yml`: lockfile governance.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`: admin shell test + deploy flow.
-- `.github/workflows/codex-auto-promote.yml`: codex promotion workflow.
+- `.github/workflows/codex-safe-auto-merge.yml`: codex safe auto-merge workflow (check-gated, no force-push/reset).
+- `.github/workflows/backend-regression-gates.yml`: backend hard-gate workflow for build/typecheck/tests/codegen validation.
+- `.github/CODEOWNERS`: path-based ownership map for governance-critical and backend-critical files.
 
 ## Inferred
-- Ownership is currently code-centric and practical (active usage), not fully formalized by CODEOWNERS or explicit policy files.
+- Ownership is code-centric and now partially formalized via `.github/CODEOWNERS` for governance-critical and backend-critical paths.
 - `lib/*` carries most shared ownership burden; `packages/*` ownership remains mostly reserved/inactive.
 
 ## Unclear

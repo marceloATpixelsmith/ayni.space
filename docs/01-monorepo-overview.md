@@ -122,10 +122,13 @@
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
   - Enforces only admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`).
   - Deploy step only triggers on push to `master` and depends on a deploy webhook secret.
-  - Workflow path filters target `apps/admin/**` and lock/workspace metadata.
-- `.github/workflows/codex-auto-promote.yml`:
-  - Automates promotion by force-resetting `master` to matching codex PR branch.
-  - Assumes branch governance and force-push semantics are accepted operationally.
+  - Pull request path filters target `apps/admin/**` and lock/workspace metadata; push-to-`master` runs are unfiltered so deploy webhook can trigger on normal merges.
+- `.github/workflows/codex-safe-auto-merge.yml`:
+  - Automates safe merge of in-repo `codex/*` pull requests into `master` only after configured checks pass on the PR head SHA.
+  - Uses normal merge behavior (no force-reset, no force-push).
+- `.github/workflows/backend-regression-gates.yml`:
+  - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
+  - Produces a stable workflow name suitable for required status checks in branch protection.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
@@ -197,7 +200,6 @@
   - Dormant `packages/*` modules (except instrumentation-http stub package).
 - **Inconsistent/drifting**
   - Shared code location strategy is mixed (`lib` active, `packages` mostly inactive) without enforcement.
-  - CI validates admin shell and lockfile sync but not full backend behavior or all workspace executables.
 
 ## Unclear / requires confirmation
 - Whether `apps/mockup-sandbox` is intended to become a supported product surface or remain local prototyping only.
@@ -216,9 +218,6 @@
 - Database access: `lib/db/src/index.ts`, `lib/db/src/schema/*.ts`, `lib/db/migrations/*.sql`.
 
 ## Potential architectural risks
-- **Immediate risk — CI coverage gap**
-  - Location: `.github/workflows/admin-security-shell-test-and-deploy.yml`, `.github/workflows/lockfile-sync-check.yml`.
-  - Consequence: backend regressions in authz/tenancy/billing paths can merge without automated route-level verification.
 - **Immediate risk — source-alias coupling to library internals**
   - Location: `apps/admin/vite.config.ts`, `apps/admin/tsconfig.json`, `apps/mockup-sandbox/vite.config.ts`.
   - Consequence: internal refactors inside `lib/*/src` can break apps even when package export contracts are unchanged.
@@ -238,6 +237,7 @@
 - Should shared runtime code be standardized under `lib/*`, `packages/*`, or a strict split model?
 - Should `lib/integrations/*` be created now or removed from workspace configuration until needed?
 - Should dormant `packages/*` be kept as reserved boundaries or removed to reduce drift and ambiguity?
+- Should the codex safe auto-merge workflow continue using squash merge as default strategy?
 
 ## Do not break
 - Do not contradict the non-negotiable invariants listed in this document when updating architecture docs.

@@ -11,12 +11,6 @@ on:
   push:
     branches:
       - master
-    paths:
-      - "apps/admin/**"
-      - ".github/workflows/admin-security-shell-test-and-deploy.yml"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
 
 permissions:
   contents: read
