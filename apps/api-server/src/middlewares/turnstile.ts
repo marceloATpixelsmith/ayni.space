@@ -11,10 +11,13 @@ export function isTurnstileEnabled(): boolean {
   // Production-safe default: ON unless explicitly disabled and force-override is set.
   if (configured === undefined) return isProduction();
   if (configured === "true") return true;
-  if (configured === "false" && isProduction()) {
-    return process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"] === "true";
+  if (configured === "false") {
+    if (isProduction()) {
+      return process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"] === "true" ? false : true;
+    }
+    return false;
   }
-  return configured === "true";
+  return isProduction();
 }
 
 function getTurnstileSecret(): string {

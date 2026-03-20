@@ -52,6 +52,8 @@ Use this file as a simple running log for manual restore drills.
 
 ## Entries
 
+> Current state: template placeholder only. Replace this with dated real drill entries as they happen; do not claim drill coverage until at least one dated entry exists.
+
 ### Drill Date
 - Date: YYYY-MM-DD
 - Environment: 

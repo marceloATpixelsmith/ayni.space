@@ -48,7 +48,7 @@
 - [ ] `/api/healthz` returns healthy.
 - [ ] Auth login/logout works; protected endpoints reject unauthenticated requests.
 - [ ] Org membership checks block cross-tenant org access.
-- [ ] Stripe webhook endpoint accepts signed events and deduplicates replayed `event.id`.
+- [ ] Stripe webhook endpoint accepts signed events, deduplicates replayed `event.id`, and does not reprocess malformed checkout completion payloads.
 - [ ] Audit logs endpoint returns recent entries.
 
 ## Recommended free / low-cost operating practice
@@ -56,7 +56,7 @@
 - Keep **weekly restore drill** on a non-production database using the latest backup.
 - Record a simple restore log (date, backup point, restore success/failure, issues).
 - Keep runtime secrets outside git and rotate on incident or suspected exposure.
-- Keep this runbook and `docs/security-inventory-current-state.md` updated with real implementation state.
+- Keep this runbook, `docs/security-inventory-current-state.md`, and `docs/security-baseline-status.md` updated with real implementation state.
 
 ## Restore Drill Cadence
 - **Recommended cadence:** monthly for active production systems; quarterly is acceptable only for very early MVP phases with low change volume.

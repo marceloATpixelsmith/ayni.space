@@ -77,9 +77,14 @@ When exposure is confirmed or reasonably suspected:
 - [ ] Publish short post-incident summary (what happened, impact, timeline, fixes).
 - [ ] Add one or two concrete prevention tasks to backlog (avoid broad enterprise process overhead).
 - [ ] Update `docs/security-inventory-current-state.md` if control status changed.
+- [ ] Update `docs/security-baseline-status.md` if baseline protections/limitations changed.
 - [ ] If backup/restore gaps were found, update `docs/security-backup-and-restore.md` cadence guidance and log follow-up in `docs/security-restore-drill-log.md`.
 - [ ] Add/update targeted tests or CI checks for the exploited failure mode.
 - [ ] Close incident only after verifying controls are active in repo/config.
+
+## Security toggle checks during containment/recovery
+- [ ] Confirm production has not unintentionally disabled `RATE_LIMIT_ENABLED` without explicit `RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION=true`.
+- [ ] Confirm production has not unintentionally disabled `TURNSTILE_ENABLED` without explicit `TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION=true`.
 
 ## Manual vs automated today
 ### Automated today (repo evidence)

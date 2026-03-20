@@ -182,9 +182,20 @@ router.post("/webhook", async (req, res) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Record<string, unknown>;
-        const meta = (session["subscription_data"] as Record<string, unknown>)?.["metadata"] as Record<string, string>;
+        const subscriptionData = session["subscription_data"] as Record<string, unknown> | undefined;
+        const sessionMetadata = session["metadata"] as Record<string, string> | undefined;
+        const meta = (subscriptionData?.["metadata"] as Record<string, string> | undefined) ?? sessionMetadata;
         if (meta?.orgId && meta?.appId && meta?.planId) {
           const subId = session["subscription"] as string;
+          if (!subId) {
+            writeAuditLog({
+              orgId: meta.orgId,
+              action: "subscription.webhook.skipped",
+              resourceType: "subscription",
+              metadata: { reason: "missing-subscription-id", eventType: event.type, eventId: event.id },
+            });
+            break;
+          }
           const sub = await getStripe().subscriptions.retrieve(subId);
           await db.insert(subscriptionsTable).values({
             id: randomUUID(),
