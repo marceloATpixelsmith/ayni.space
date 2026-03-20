@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory backend authorization boundaries and access enforcement locations.
-- Canonical companion: `docs/06-authorization-roles-and-access-model.md`.
+- Canonical companion: `docs/07-authorization-roles-and-access-model.md`.
 
 ## Confirmed
 - Core middleware files:
