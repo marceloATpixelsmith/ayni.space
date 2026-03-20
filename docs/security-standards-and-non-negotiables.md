@@ -1,7 +1,7 @@
 # 17 — Security Standards and Non-Negotiables
 
 ## Scope
-- This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
+- This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
 - Security-critical controls are centralized in API middleware stack (`apps/api-server/src/app.ts`) including security headers, CORS, CSRF, origin/referer checks, and auth/session middleware integration.

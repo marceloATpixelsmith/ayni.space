@@ -2,46 +2,46 @@
 
 ## Scope
 - These rules govern repository work in `/workspace/ayni.space`.
-- For architecture and documentation tasks, `docs/01-monorepo-overview.md` is the source of truth.
+- For architecture and documentation tasks, `docs/monorepo-overview.md` is the source of truth.
 
 ## Mandatory reading map by task type
 
 ### 1) Architecture documentation changes
 Required before editing:
-- `docs/01-monorepo-overview.md`
-- `docs/24-architecture-documentation-index.md`
+- `docs/monorepo-overview.md`
+- `docs/README.md`
 - Domain doc(s) being edited
-- `docs/16-open-questions-and-conflicts.md`
+- `docs/open-questions-and-conflicts.md`
 
 ### 2) Auth / session / security-related code or docs
 Required before editing:
-- `docs/01-monorepo-overview.md`
-- `docs/05-authentication-and-session-architecture.md`
-- `docs/07-authorization-roles-and-access-model.md`
-- `docs/17-security-standards-and-non-negotiables.md`
+- `docs/monorepo-overview.md`
+- `docs/authentication-and-session-architecture.md`
+- `docs/authorization-roles-and-access-model.md`
+- `docs/security-standards-and-non-negotiables.md`
 
 ### 3) Backend/API architecture changes
 Required before editing:
-- `docs/01-monorepo-overview.md`
-- `docs/12-api-and-backend-architecture.md`
-- `docs/10-tenant-isolation-and-data-ownership.md`
-- `docs/14-observability-error-handling-and-sentry.md`
+- `docs/monorepo-overview.md`
+- `docs/api-and-backend-architecture.md`
+- `docs/tenant-isolation-and-data-ownership.md`
+- `docs/observability-error-handling-and-sentry.md`
 
 ### 4) Dependency/workspace/CI changes
 Required before editing:
-- `docs/01-monorepo-overview.md`
-- `docs/18-dependency-and-lockfile-rules.md`
-- `docs/19-ci-cd-and-deploy-rules.md`
-- `docs/21-file-and-folder-ownership.md`
+- `docs/monorepo-overview.md`
+- `docs/dependency-and-lockfile-rules.md`
+- `docs/ci-cd-and-deploy-rules.md`
+- `docs/file-and-folder-ownership.md`
 
 ### 5) Ownership/process updates
 Required before editing:
-- `docs/01-monorepo-overview.md`
-- `docs/21-file-and-folder-ownership.md`
-- `docs/22-codex-working-rules.md`
+- `docs/monorepo-overview.md`
+- `docs/file-and-folder-ownership.md`
+- `docs/codex-working-rules.md`
 
 ## Documentation consistency requirements
-- Do not contradict `docs/01-monorepo-overview.md`.
+- Do not contradict `docs/monorepo-overview.md`.
 - Do not invent architecture not grounded in repository files.
 - Every architecture doc must include:
   - `Scope`
