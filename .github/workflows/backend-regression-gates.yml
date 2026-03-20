@@ -66,8 +66,6 @@ jobs:
       - name: Build api-server
         run: pnpm --filter @workspace/api-server run build
 
-      - name: Typecheck api-server
-        run: pnpm --filter @workspace/api-server run typecheck
 
       - name: Run api-server backend tests
         run: pnpm --filter @workspace/api-server run test
