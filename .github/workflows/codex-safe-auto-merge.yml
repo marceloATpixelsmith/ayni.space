@@ -78,7 +78,7 @@ jobs:
             required+=("Run admin security shell tests")
           fi
 
-          printf "required_checks<<'EOF'\n" >> "$GITHUB_OUTPUT"
+          printf "required_checks<<EOF\n" >> "$GITHUB_OUTPUT"
           if [[ ${#required[@]} -gt 0 ]]; then
             printf '%s\n' "${required[@]}" >> "$GITHUB_OUTPUT"
           fi
