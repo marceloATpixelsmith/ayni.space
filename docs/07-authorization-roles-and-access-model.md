@@ -1,4 +1,4 @@
-# 06 — Authorization, Roles, and Access Model
+# 07 — Authorization, Roles, and Access Model
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.

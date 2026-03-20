@@ -1,4 +1,4 @@
-# 10 — Shared Systems Inventory
+# 15 — Shared Systems Inventory
 
 ## Scope
 - Inventory shared cross-cutting systems and their concrete locations.

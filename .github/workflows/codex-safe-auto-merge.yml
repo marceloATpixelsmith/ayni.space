@@ -1,7 +1,7 @@
-name: Codex Safe Auto Merge
+name: Safe Auto Merge
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - master
@@ -14,7 +14,6 @@ permissions:
 jobs:
   safe-auto-merge:
     if: >-
-      startsWith(github.event.pull_request.head.ref, 'codex/') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'master' &&
       github.event.pull_request.state == 'open' &&
@@ -22,6 +21,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Update PR branch with latest master when possible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # This merges the latest base branch into the PR branch when possible.
+          # If the branch is already up to date (or cannot be auto-updated), continue.
+          gh api \
+            --method PUT \
+            "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" \
+            --silent || true
+
       - name: Decide required checks from changed files
         id: checks
         env:
@@ -64,25 +78,27 @@ jobs:
             required+=("Run admin security shell tests")
           fi
 
-          printf "required_checks<<'EOF'\n" >> "$GITHUB_OUTPUT"
+          required_checks_b64=""
           if [[ ${#required[@]} -gt 0 ]]; then
-            printf '%s\n' "${required[@]}" >> "$GITHUB_OUTPUT"
+            required_checks_b64=$(printf '%s\n' "${required[@]}" | base64 | tr -d '\n')
           fi
-          printf "EOF\n" >> "$GITHUB_OUTPUT"
+          printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
 
       - name: Wait until required checks for PR head SHA are successful
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REQUIRED_CHECKS: ${{ steps.checks.outputs.required_checks }}
+          REQUIRED_CHECKS_B64: ${{ steps.checks.outputs.required_checks_b64 }}
         run: |
           set -euo pipefail
 
-          if [[ -z "${REQUIRED_CHECKS:-}" ]]; then
+          if [[ -z "${REQUIRED_CHECKS_B64:-}" ]]; then
             echo "No required checks for this PR based on changed files."
             exit 0
           fi
+
+          REQUIRED_CHECKS=$(printf '%s' "$REQUIRED_CHECKS_B64" | base64 --decode)
 
           echo "Required checks:"
           echo "$REQUIRED_CHECKS"
@@ -143,7 +159,7 @@ jobs:
           echo "Timed out waiting for required checks. Not merging."
           exit 1
 
-      - name: Merge Codex PR safely (normal merge behavior)
+      - name: Merge PR safely (normal merge behavior)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

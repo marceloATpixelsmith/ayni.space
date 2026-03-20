@@ -1,4 +1,4 @@
-# 13 — CI/CD and Deploy Rules
+# 19 — CI/CD and Deploy Rules
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
@@ -9,8 +9,8 @@
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
   - deploys only on push to `master`,
   - uses workflow path filters focused on admin + workspace metadata.
-- `.github/workflows/codex-safe-auto-merge.yml` is the approved Codex promotion path:
-  - applies only to in-repo `codex/*` PR branches targeting `master`,
+- `.github/workflows/codex-safe-auto-merge.yml` is the approved promotion path:
+  - applies to open, non-draft in-repo PR branches targeting `master`,
   - waits for configured required checks on the PR head SHA to complete with success,
   - merges PRs with normal GitHub merge behavior (no force-reset/force-push).
   - does not depend on GitHub built-in auto-merge or paid/protected-branch features.
@@ -20,9 +20,10 @@
   - `pnpm --filter @workspace/api-server run typecheck` (backend typecheck),
   - `pnpm --filter @workspace/api-server run test` (backend auth/authz + tenant/session regression suites),
   - `pnpm --filter @workspace/api-spec run codegen` + `git diff --exit-code -- lib/api-client-react lib/api-zod` (contract/codegen artifact validation).
+- `.gitattributes` configures `docs/*.md` and `AGENT_RULES.md` with `merge=union` to reduce manual conflict resolution for concurrent documentation edits.
 
 ## Inferred
-- Release governance is intentionally low-friction and workflow-driven for a solo-builder path (Codex PRs auto-merge after checks).
+- Release governance is intentionally low-friction and workflow-driven for a solo-builder path (in-repo PRs auto-merge after checks).
 - Safety is enforced by CI workflow checks plus the codex safe auto-merge workflow gating logic.
 
 ## Unclear

@@ -1,4 +1,4 @@
-# 11 — Security Standards and Non-Negotiables
+# 17 — Security Standards and Non-Negotiables
 
 ## Scope
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
