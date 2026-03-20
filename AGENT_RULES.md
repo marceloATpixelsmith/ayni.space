@@ -70,3 +70,22 @@ After making changes, report:
 - Do not change app/runtime boundaries that violate `01` non-negotiable invariants without explicit architecture approval.
 - Do not bypass shared security/observability/data layers in documentation guidance.
 - Do not treat placeholder apps or dormant packages as active production surfaces.
+
+
+## Governance enforcement state
+
+### Enforced in repository files
+- CODEOWNERS is defined in `.github/CODEOWNERS` for docs, workflows, governance files, and backend-critical paths.
+- Backend regression gates are defined in `.github/workflows/backend-regression-gates.yml` (lockfile/install integrity, api-server build/typecheck/tests, API codegen diff validation).
+- Lockfile integrity gate remains in `.github/workflows/lockfile-sync-check.yml`.
+- Admin shell gate remains in `.github/workflows/admin-security-shell-test-and-deploy.yml`.
+
+### Requires GitHub admin/repository settings
+- Branch protection rule(s) that require status checks to pass before merge.
+- Selecting required checks (for example: `Lockfile Sync Check`, `Backend Regression Gates`, and `Admin Security Shell Test & Deploy` job checks as applicable).
+- Enabling “Require branches to be up to date before merging.”
+- Enabling “Require review from Code Owners.”
+
+### Do not break
+- Do not claim branch protection or required checks are enforced unless GitHub settings are configured.
+- Do not remove governance workflows/CODEOWNERS without updating this section and corresponding docs.

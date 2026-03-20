@@ -7,7 +7,6 @@
 - Workspace config includes `lib/integrations/*` while directory is absent (`pnpm-workspace.yaml` vs missing `lib/integrations/`).
 - `lib/*` is heavily active while many `packages/*` remain dormant (see imports/usage inventory in `docs/01-monorepo-overview.md`).
 - Placeholder apps (`apps/ayni`, `apps/shipibo`, `apps/screening`) exist without implementation (`.gitkeep` only).
-- CI coverage is narrow relative to backend risk surface (`.github/workflows/lockfile-sync-check.yml`, `.github/workflows/admin-security-shell-test-and-deploy.yml`).
 
 ## Inferred
 - Current ambiguity is mostly roadmap/governance ambiguity, not conflicting active runtime ownership.
