@@ -1,4 +1,4 @@
-# Architecture Documentation Index
+# 24 — Architecture Documentation Index
 
 ## Scope
 - Index and reading order for architecture docs.
