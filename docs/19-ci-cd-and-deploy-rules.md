@@ -4,6 +4,7 @@
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
+- Vercel is no longer part of the deployment path; admin frontend deploys only via GitHub Actions prebuild + Wrangler direct upload to Cloudflare Pages.
 - `.github/workflows/lockfile-sync-check.yml` enforces install/lockfile consistency with `pnpm install --frozen-lockfile`.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),

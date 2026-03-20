@@ -116,6 +116,7 @@
   - SQL migration(s): `lib/db/migrations/*.sql`.
 
 ### CI/CD enforcement and deploy assumptions (actual)
+- Vercel is not part of current deployment automation; frontend deployment path is GitHub Actions -> Wrangler -> Cloudflare Pages direct upload.
 - `.github/workflows/lockfile-sync-check.yml`:
   - Enforces lockfile/install consistency by running `pnpm install --frozen-lockfile`.
   - Trigger assumes monorepo dependencies are represented by root lockfile + workspace manifests.
