@@ -11,11 +11,12 @@
 - The model is designed to keep delivery fast without destructive promotion behavior.
 
 ### Current approved workflow
-- Codex opens a pull request from an in-repo branch matching `codex/*` to `master`.
+- Codex opens a pull request from an in-repo branch matching `codex/*` to `master` (authoritative default branch).
 - CI workflows run for that PR according to workflow path filters.
 - `.github/workflows/codex-safe-auto-merge.yml` determines required checks from changed files and waits for successful completion on the PR head SHA.
 - If all required checks succeed, the workflow merges the PR with normal merge behavior (`gh pr merge --squash --delete-branch`).
 - No manual approval step is required in the default governance model.
+- Safe auto-merge and promotion flows target `master` only; do not target `main`.
 
 ### What is explicitly not allowed
 - Force-reset promotion of `master`.

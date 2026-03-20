@@ -19,7 +19,7 @@
 
 ## Unclear
 - Whether future app surfaces (`apps/ayni`, `apps/shipibo`, `apps/screening`) will each receive dedicated deployment pipelines.
-- Whether branch strategy will remain `master`-centric for deploy triggers long-term.
+- Branch strategy is fixed to `master` as the only default/source-of-truth branch for deploy triggers (future staged environments can be added explicitly later).
 
 ## Do not break
 - Do not bypass required checks in branch protection by renaming or replacing workflow jobs without updating protection rules.
