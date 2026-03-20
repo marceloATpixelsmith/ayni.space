@@ -191,6 +191,7 @@ async function handleGoogleCallback(req, res) {
 
     req.session.userId = user.id;
     req.session.activeOrgId = user.activeOrgId ?? undefined;
+    req.session.sessionAuthenticatedAt = Date.now();
 
     const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
 

@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import { securityHeaders } from "./middlewares/securityHeaders.js";
 import router from "./routes/index.js";
-import { createSessionMiddleware } from "./lib/session.js";
+import { createSessionMiddleware, sessionSecurityMiddleware } from "./lib/session.js";
 import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureSentryTestError, captureFrontendMonitoringEvent } from "./middlewares/observability.js";
 import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
@@ -59,6 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 console.info("[startup] app.ts: initializing session middleware...");
 try {
   app.use(createSessionMiddleware());
+  app.use(sessionSecurityMiddleware());
   console.info("[startup] app.ts: session middleware initialized.");
 } catch (error) {
   console.error("[startup] app.ts: session store initialization failed.");
