@@ -2,7 +2,7 @@
 
 ## Scope
 - Inventory observability and error-handling architecture locations.
-- Canonical companion: `docs/14-observability-error-handling-and-sentry.md`.
+- Canonical companion: `docs/observability-error-handling-and-sentry.md`.
 
 ## Confirmed
 - Backend observability middleware: `apps/api-server/src/middlewares/observability.ts`.
