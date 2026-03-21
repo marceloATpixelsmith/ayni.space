@@ -124,9 +124,7 @@
   - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
   - Deploy step only triggers on push to `master` and deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload.
   - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
-- `.github/workflows/codex-safe-auto-merge.yml`:
-  - Automates safe merge of in-repo `codex/*` pull requests into `master` only after configured checks pass on the PR head SHA.
-  - Uses normal merge behavior (no force-reset, no force-push).
+- PR-promotion workflows are retired for normal delivery; deployment automation is direct push-to-`master` plus manual `workflow_dispatch` only.
 - `.github/workflows/backend-regression-gates.yml`:
   - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
   - Deploys backend to Render via deploy hook only after backend checks pass on push to `master`.
@@ -239,7 +237,7 @@
 - Should shared runtime code be standardized under `lib/*`, `packages/*`, or a strict split model?
 - Should `lib/integrations/*` be created now or removed from workspace configuration until needed?
 - Should dormant `packages/*` be kept as reserved boundaries or removed to reduce drift and ambiguity?
-- Should the codex safe auto-merge workflow continue using squash merge as default strategy?
+- No PR auto-merge promotion path is active; reassess only if a future branch-based release model is intentionally introduced.
 
 ## Do not break
 - Do not contradict the non-negotiable invariants listed in this document when updating architecture docs.
