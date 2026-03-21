@@ -1,49 +1,28 @@
-# 20 — Direct-to-Master Deployment Governance
+# 20 — Retired Safe Auto-Merge Governance (Historical)
 
 ## Scope
-- Define the approved governance model for solo-developer delivery in this repository.
-- Document that `master` is the deployment source of truth and CI/CD trigger branch.
+- Preserve historical context for the previously considered safe auto-merge governance topic.
+- Clarify that this document is **not** the active deployment governance source.
 
 ## Confirmed
-
-### Purpose
-- This repository now uses **direct push-to-`master` CI/CD** as the normal delivery path.
-- Codex/automation is expected to work directly on `master` instead of PR promotion branches.
-
-### Current approved workflow
-- Every push to `master` starts both deployment workflows:
+- As of this revision, normal deployment behavior is **direct push-to-`master`** and optional manual `workflow_dispatch` in deploy workflows.
+- PR auto-merge promotion is **retired** and is not part of current CI/CD execution.
+- Active governance lives in:
+  - `docs/ci-cd-and-deploy-rules.md`
+  - `docs/ci-cd-and-deploy-chart.md`
   - `.github/workflows/admin-security-shell-test-and-deploy.yml`
   - `.github/workflows/backend-regression-gates.yml`
-- Each workflow detects changed files for its scope and logs:
-  - event name
-  - ref
-  - changed files
-  - scope flag (`frontend_changed` or `backend_changed`)
-  - force input
-  - deploy intent and reason
-- Validation jobs run only when that surface is requested (by scope change or manual force input).
-- Deploy jobs run only after validation passes and only on push to `master`.
 
-### What is explicitly not allowed
-- No PR-based auto-merge promotion flow for normal deployment.
-- No `update-branch` conflict-resolution automation.
-- No polling for PR-head required checks to decide deployment promotion.
-
-### Manual controls
-- `workflow_dispatch` remains enabled in both deploy workflows.
-- `force_deploy` input allows manual validation+deploy intent even without matching changed files.
-
-### Required deployment secrets
-- Frontend deploy requires: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_PAGES_PROJECT_NAME`.
-- Backend deploy requires: `RENDER_DEPLOY_HOOK_URL`.
+## Historical note
+- Earlier planning discussed a “safe auto-merge” governance track for PR promotion.
+- That track is retained only as historical context and should not be treated as active behavior.
 
 ## Inferred
-- The simplified model reduces branch/PR conflict management overhead for a solo maintainer while preserving CI safety gates before deploy.
+- Keeping this retired document avoids ambiguity when older references appear in commit history or external notes.
 
 ## Unclear
-- Whether future additional app surfaces should be added to deploy scope detection.
+- Whether this historical page should be deleted entirely after downstream references are cleaned up.
 
 ## Do not break
-- Do not reintroduce PR auto-merge governance as the default deploy path.
-- Do not bypass validation gates before deploy jobs.
-- Do not change the deployment source-of-truth away from pushes to `master` without explicit owner direction.
+- Do not interpret this file as active operational policy.
+- Do not reintroduce PR-promotion deployment automation based on this retired document.

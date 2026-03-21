@@ -168,9 +168,10 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 ### N) Deployment safety and governance
 - **Deploy flow gated by tests and master branch condition for admin pipeline**.
   - `.github/workflows/admin-security-shell-test-and-deploy.yml`
-- **Safe non-destructive codex auto-merge model with required-check gating logic**.
-  - `.github/workflows/codex-safe-auto-merge.yml`
-  - `docs/safe-auto-merge-governance.md`
+- **Deployment governance uses direct push-to-`master` with validation gates and explicit deploy conditions**.
+  - `.github/workflows/admin-security-shell-test-and-deploy.yml`
+  - `.github/workflows/backend-regression-gates.yml`
+  - `docs/ci-cd-and-deploy-rules.md`
 
 ---
 
