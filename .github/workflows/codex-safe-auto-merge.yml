@@ -45,15 +45,16 @@ jobs:
           fi
 
           if [[ "$current" != "$PR_NUMBER" ]]; then
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "ℹ️ This is not the current promotion PR. Latest active codex PR is #$current, so auto-merge is skipped for this branch."
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "ℹ️ Auto-merge skipped: this is not the newest codex/* promotion PR. Latest active codex PR is #$current."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "proceed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Update PR branch with latest master when possible
+      - name: Gather PR context and changed files
         if: steps.promotion.outputs.proceed == 'true'
+        id: context
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -61,42 +62,162 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh api \
-            --method PUT \
-            "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" \
-            --silent || true
+          pr=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")
+          head_ref=$(jq -r '.head.ref' <<< "$pr")
+          head_sha=$(jq -r '.head.sha' <<< "$pr")
+          mergeable_state=$(jq -r '.mergeable_state // "unknown"' <<< "$pr")
+          mergeable=$(jq -r '.mergeable // "unknown"' <<< "$pr")
 
-      - name: Decide required checks from changed files
-        if: steps.promotion.outputs.proceed == 'true'
-        id: checks
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
+          compare=$(gh api "repos/${REPO}/compare/master...${head_sha}")
+          behind_by=$(jq -r '.behind_by // 0' <<< "$compare")
+          compare_status=$(jq -r '.status // "unknown"' <<< "$compare")
 
           files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" --paginate --jq '.[].filename')
+          files_b64=$(printf '%s' "$files" | base64 | tr -d '\n')
+
+          echo "head_ref=${head_ref}" >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}" >> "$GITHUB_OUTPUT"
+          echo "mergeable_state=${mergeable_state}" >> "$GITHUB_OUTPUT"
+          echo "mergeable=${mergeable}" >> "$GITHUB_OUTPUT"
+          echo "behind_by=${behind_by}" >> "$GITHUB_OUTPUT"
+          echo "compare_status=${compare_status}" >> "$GITHUB_OUTPUT"
+          echo "changed_files_b64=${files_b64}" >> "$GITHUB_OUTPUT"
+
+          echo "PR number: ${PR_NUMBER}"
+          echo "Head branch: ${head_ref}"
+          echo "Head SHA: ${head_sha}"
+          echo "Initial mergeable_state: ${mergeable_state}"
+          echo "Initial mergeable: ${mergeable}"
+          echo "Behind master by commits: ${behind_by}"
+          echo "Compare status vs master: ${compare_status}"
+          echo "Changed files:"
+          if [[ -z "$files" ]]; then
+            echo "- <none>"
+          else
+            while IFS= read -r f; do
+              [[ -z "$f" ]] && continue
+              echo "- $f"
+            done <<< "$files"
+          fi
+
+      - name: Attempt update-branch if PR is behind master
+        if: steps.promotion.outputs.proceed == 'true' && steps.context.outputs.behind_by != '0'
+        id: update_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          echo "Branch is behind master; attempting GitHub update-branch for PR #${PR_NUMBER}."
+
+          if gh api --method PUT "repos/${REPO}/pulls/${PR_NUMBER}/update-branch" --silent; then
+            echo "update_result=success" >> "$GITHUB_OUTPUT"
+            echo "update-branch succeeded. A new synchronize event should re-run checks on the refreshed head."
+            exit 0
+          fi
+
+          echo "update_result=failed" >> "$GITHUB_OUTPUT"
+          echo "update-branch failed (likely conflict while rebasing onto latest master)."
+
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "❌ Auto-merge blocked: this codex PR cannot be updated cleanly onto current master. Likely cause: stale branch or overlapping codex changes. Please recreate this branch from latest master and re-open the PR."
+          exit 1
+
+      - name: Stop current run after successful update-branch
+        if: steps.promotion.outputs.proceed == 'true' && steps.context.outputs.behind_by != '0' && steps.update_branch.outputs.update_result == 'success'
+        run: |
+          echo "update-branch succeeded; stopping this run and waiting for the synchronize-triggered run on the new head SHA."
+
+      - name: Refresh mergeability and fail fast on conflicts
+        if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
+        id: mergeability
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          mergeable_state="unknown"
+          mergeable="unknown"
+
+          for attempt in $(seq 1 20); do
+            pr=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")
+            mergeable_state=$(jq -r '.mergeable_state // "unknown"' <<< "$pr")
+            mergeable=$(jq -r '.mergeable // "unknown"' <<< "$pr")
+            echo "mergeability probe ${attempt}: mergeable_state=${mergeable_state}, mergeable=${mergeable}"
+
+            if [[ "$mergeable_state" != "unknown" ]]; then
+              break
+            fi
+
+            sleep 3
+          done
+
+          echo "mergeable_state=${mergeable_state}" >> "$GITHUB_OUTPUT"
+          echo "mergeable=${mergeable}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$mergeable_state" == "dirty" ]] || [[ "$mergeable" == "false" ]]; then
+            echo "PR is conflicted/unmergeable: mergeable_state=${mergeable_state}, mergeable=${mergeable}"
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "❌ Auto-merge blocked: this PR conflicts with current master and cannot be merged cleanly. Likely cause: stale branch or overlapping codex PR changes. Recommended fix: recreate the branch from latest master and open a fresh PR."
+            exit 1
+          fi
+
+      - name: Decide required checks from changed files
+        if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
+        id: checks
+        env:
+          CHANGED_FILES_B64: ${{ steps.context.outputs.changed_files_b64 }}
+        run: |
+          set -euo pipefail
+
+          files=$(printf '%s' "$CHANGED_FILES_B64" | base64 --decode)
 
           require_lockfile=0
           require_backend=0
           require_admin=0
 
+          echo "Changed files detected for required-check selection:"
+          if [[ -z "${files}" ]]; then
+            echo "- <none>"
+          else
+            while IFS= read -r changed_file; do
+              [ -z "$changed_file" ] && continue
+              echo "- ${changed_file}"
+            done <<< "$files"
+          fi
+
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            if [[ "$file" == *"/package.json" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == ".github/workflows/lockfile-sync-check.yml" ]]; then
+            # lockfile-sync-check.yml pull_request paths
+            if [[ "$file" == */package.json ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == ".github/workflows/lockfile-sync-check.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_lockfile=1
             fi
 
-            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]]; then
+            # backend-regression-gates.yml pull_request paths
+            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == packages/* ]] || [[ "$file" == scripts/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_backend=1
             fi
 
-            if [[ "$file" == apps/admin/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/frontend-security/* ]] || [[ "$file" == lib/frontend-observability/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
+            # admin-security-shell-test-and-deploy.yml pull_request paths
+            if [[ "$file" == apps/admin/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/frontend-security/* ]] || [[ "$file" == lib/frontend-observability/* ]] || [[ "$file" == packages/* ]] || [[ "$file" == scripts/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
               require_admin=1
             fi
           done <<< "$files"
+
+          if [[ "$require_admin" -eq 1 ]]; then
+            echo "frontend_scope=true"
+          else
+            echo "frontend_scope=false"
+          fi
+
+          if [[ "$require_backend" -eq 1 ]]; then
+            echo "backend_scope=true"
+          else
+            echo "backend_scope=false"
+          fi
 
           required=()
           if [[ "$require_lockfile" -eq 1 ]]; then
@@ -115,12 +236,19 @@ jobs:
           fi
           printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
 
+          echo "Final required checks list:"
+          if [[ ${#required[@]} -eq 0 ]]; then
+            echo "- <none>"
+          else
+            printf -- "- %s\n" "${required[@]}"
+          fi
+
       - name: Wait until required checks for PR head SHA are successful
-        if: steps.promotion.outputs.proceed == 'true'
+        if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ steps.context.outputs.head_sha }}
           REQUIRED_CHECKS_B64: ${{ steps.checks.outputs.required_checks_b64 }}
         run: |
           set -euo pipefail
@@ -147,12 +275,14 @@ jobs:
 
               match=$(printf '%s\n' "$runs" | awk -F'\t' -v n="$req" '$1==n {print; exit}')
               if [[ -z "$match" ]]; then
+                echo "Missing check run: $req"
                 missing=1
                 continue
               fi
 
               status=$(printf '%s' "$match" | awk -F'\t' '{print $2}')
               conclusion=$(printf '%s' "$match" | awk -F'\t' '{print $3}')
+              echo "Check '$req' status=${status} conclusion=${conclusion}"
 
               if [[ "$status" != "completed" ]]; then
                 pending=1
@@ -181,16 +311,9 @@ jobs:
           echo "Timed out waiting for required checks."
           exit 1
 
-      - name: Force-promote PR head onto master (zero-friction mode)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Overwrite master with PR head and close PR
+      - name: Merge PR
+        if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           gh pr merge "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --squash --delete-branch
