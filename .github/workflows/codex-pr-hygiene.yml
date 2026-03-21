@@ -2,7 +2,7 @@ name: Codex PR Hygiene
 
 on:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize, ready_for_review]
     branches: [master]
 
 permissions:
@@ -14,7 +14,8 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'master' &&
-      github.event.pull_request.state == 'open'
+      github.event.pull_request.state == 'open' &&
+      startsWith(github.event.pull_request.head.ref, 'codex/')
     runs-on: ubuntu-latest
 
     steps:
@@ -23,15 +24,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify PR branch starts from latest master
+      - name: Warn on stale or stacked codex branch base (non-blocking)
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
 
-          git fetch origin master "$HEAD_REF"
+          git fetch origin master "$HEAD_REF" 'refs/heads/codex/*:refs/remotes/origin/codex/*' || true
 
           master_sha=$(git rev-parse "origin/master")
           merge_base=$(git merge-base "origin/master" "origin/$HEAD_REF")
@@ -45,4 +47,21 @@ jobs:
             exit 0
           fi
 
-          echo "Branch origin is fresh (merge-base matches latest master)."
+          stacked_parent=""
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            [[ "$ref" == "origin/$HEAD_REF" ]] && continue
+
+            ref_sha=$(git rev-parse "$ref")
+            if [[ "$ref_sha" == "$merge_base" ]]; then
+              stacked_parent="$ref"
+              break
+            fi
+          done < <(git for-each-ref --format='%(refname:short)' refs/remotes/origin/codex/)
+
+          if [[ -n "$stacked_parent" ]]; then
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "⚠️ Stacked-branch warning: this codex PR appears to branch from \`$stacked_parent\` instead of latest \`master\`. This is non-blocking, but solo flow is cleaner when each task starts from fresh \`origin/master\`."
+            echo "Stacked-branch warning emitted (non-blocking)."
+          fi
+
+          echo "Codex PR hygiene checks completed (warning-only)."
