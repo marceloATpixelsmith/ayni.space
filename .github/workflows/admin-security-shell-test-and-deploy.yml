@@ -11,7 +11,6 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/admin-security-shell-test-and-deploy.yml"
-      - ".github/workflows/**"
   push:
     branches:
       - master
@@ -24,7 +23,6 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/admin-security-shell-test-and-deploy.yml"
-      - ".github/workflows/**"
 
 permissions:
   contents: read

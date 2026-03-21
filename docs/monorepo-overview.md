@@ -116,7 +116,6 @@
   - SQL migration(s): `lib/db/migrations/*.sql`.
 
 ### CI/CD enforcement and deploy assumptions (actual)
-- **Default/source-of-truth branch policy:** `master` is the only deploy/default branch in this repository right now; do not configure CI/deploy flows against `main`.
 - Vercel is not part of current deployment automation; frontend deployment path is GitHub Actions -> Wrangler -> Cloudflare Pages direct upload.
 - `.github/workflows/lockfile-sync-check.yml`:
   - Enforces lockfile/install consistency by running `pnpm install --frozen-lockfile`.
