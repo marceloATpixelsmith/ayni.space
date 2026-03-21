@@ -247,6 +247,13 @@ jobs:
             printf -- "- %s\n" "${required[@]}"
           fi
 
+          echo "Final required checks list:"
+          if [[ ${#required[@]} -eq 0 ]]; then
+            echo "- <none>"
+          else
+            printf -- "- %s\n" "${required[@]}"
+          fi
+
       - name: Wait until required checks for PR head SHA are successful
         if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
         env:
