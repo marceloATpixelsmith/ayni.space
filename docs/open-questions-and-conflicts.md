@@ -15,7 +15,6 @@
 - Should `apps/mockup-sandbox` be promoted, archived, or removed?
 - Should dormant `packages/*` be activated, consolidated, or removed?
 - Should `lib/integrations/*` be implemented now or removed from workspace globs?
-- Should codex safe auto-merge keep squash strategy as default, or switch strategy later?
 
 ## Do not break
 - Do not “resolve” unknowns by inventing architecture not in code/overview.

@@ -7,13 +7,13 @@
 ## Confirmed
 - Workflow: `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install.
 - Workflow: `.github/workflows/admin-security-shell-test-and-deploy.yml` runs admin shell tests, builds prebuilt assets, and deploys to Cloudflare Pages on `master` push.
-- Workflow: `.github/workflows/codex-safe-auto-merge.yml` waits for required checks and merges in-repo Codex PRs into `master` with normal merge behavior (no force-reset/push).
+- Deployment automation is direct push-to-`master`; no Codex PR auto-merge workflow is part of normal delivery.
 
 ## Inferred
 - CI coverage includes lockfile integrity, admin shell + frontend build/deploy, and backend regression gates + Render deploy hook.
 
 ## Unclear
-- Safe Codex auto-merge depends on workflow check-gating and no-destructive-merge constraints.
+- Whether additional app surfaces should be added to deploy scopes in existing push-to-`master` workflows.
 
 ## Do not break
 - Do not remove lockfile sync enforcement.

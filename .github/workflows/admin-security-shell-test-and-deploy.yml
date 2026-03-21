@@ -1,18 +1,6 @@
 name: Admin Frontend Test, Build & Deploy (Cloudflare Pages)
 
 on:
-  pull_request:
-    paths:
-      - "apps/admin/**"
-      - "lib/api-client-react/**"
-      - "lib/frontend-security/**"
-      - "lib/frontend-observability/**"
-      - "packages/**"
-      - "scripts/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/admin-security-shell-test-and-deploy.yml"
   push:
     branches:
       - master
@@ -26,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: admin-frontend-${{ github.ref }}
@@ -38,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       frontend_changed: ${{ steps.filter.outputs.frontend }}
+      all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
       matched_files: ${{ steps.filter.outputs.frontend_files }}
       force_deploy: ${{ steps.scope.outputs.force_deploy }}
       deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
@@ -48,6 +36,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Collect changed files for logging
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" ]] && [[ -n "${BEFORE_SHA}" ]] && [[ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+          else
+            changed_files=$(git show --pretty="" --name-only "$GITHUB_SHA")
+          fi
+
+          {
+            echo "all_changed_files<<EOF"
+            if [[ -z "$changed_files" ]]; then
+              echo "<none>"
+            else
+              printf '%s\n' "$changed_files"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Detect changed frontend files
         id: filter
@@ -92,6 +104,7 @@ jobs:
 
       - name: Log frontend scope decision
         env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
           MATCHED_FILES: ${{ steps.filter.outputs.frontend_files }}
           FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
           FORCE_DEPLOY_INPUT: ${{ steps.scope.outputs.force_deploy }}
@@ -100,6 +113,7 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
           echo "frontend_changed=${FRONTEND_CHANGED}"
           echo "force_deploy=${FORCE_DEPLOY_INPUT}"
           echo "deploy_requested=${DEPLOY_REQUESTED}"
@@ -158,6 +172,7 @@ jobs:
           echo "ref=${{ github.ref }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
           echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
 
   deploy-admin-to-cloudflare-pages:
@@ -175,6 +190,7 @@ jobs:
           echo "ref=${{ github.ref }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
           echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
 
       - name: Validate required Cloudflare secrets

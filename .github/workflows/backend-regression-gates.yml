@@ -1,19 +1,6 @@
 name: Backend Regression Gates & Render Deploy
 
 on:
-  pull_request:
-    paths:
-      - "apps/api-server/**"
-      - "lib/db/**"
-      - "lib/api-spec/**"
-      - "lib/api-zod/**"
-      - "packages/**"
-      - "scripts/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
-      - ".github/workflows/**"
   push:
     branches:
       - master
@@ -27,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: backend-regression-${{ github.ref }}
@@ -39,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend_changed: ${{ steps.filter.outputs.backend }}
+      all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
       matched_files: ${{ steps.filter.outputs.backend_files }}
       force_deploy: ${{ steps.scope.outputs.force_deploy }}
       deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
@@ -49,6 +36,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Collect changed files for logging
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" ]] && [[ -n "${BEFORE_SHA}" ]] && [[ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+          else
+            changed_files=$(git show --pretty="" --name-only "$GITHUB_SHA")
+          fi
+
+          {
+            echo "all_changed_files<<EOF"
+            if [[ -z "$changed_files" ]]; then
+              echo "<none>"
+            else
+              printf '%s\n' "$changed_files"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Detect changed backend files
         id: filter
@@ -94,6 +105,7 @@ jobs:
 
       - name: Log backend scope decision
         env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
           MATCHED_FILES: ${{ steps.filter.outputs.backend_files }}
           BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
           FORCE_DEPLOY_INPUT: ${{ steps.scope.outputs.force_deploy }}
@@ -102,6 +114,7 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
           echo "backend_changed=${BACKEND_CHANGED}"
           echo "force_deploy=${FORCE_DEPLOY_INPUT}"
           echo "deploy_requested=${DEPLOY_REQUESTED}"
@@ -145,6 +158,9 @@ jobs:
       - name: Build api-server
         run: pnpm --filter @workspace/api-server run build
 
+      - name: Typecheck api-server
+        run: pnpm --filter @workspace/api-server run typecheck
+
       - name: Run api-server backend tests
         run: pnpm --filter @workspace/api-server run test
 
@@ -167,6 +183,7 @@ jobs:
           echo "ref=${{ github.ref }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
           echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
 
   deploy-backend-to-render:
@@ -184,6 +201,7 @@ jobs:
           echo "ref=${{ github.ref }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
           echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
 
       - name: Validate Render deploy hook secret
