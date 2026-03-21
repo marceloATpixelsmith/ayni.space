@@ -11,17 +11,18 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/admin-security-shell-test-and-deploy.yml"
-      - ".github/workflows/**"
   push:
     branches:
       - master
-  workflow_dispatch:
-    inputs:
-      force_deploy:
-        description: "Force frontend validation/deploy regardless of path changes"
-        required: false
-        default: false
-        type: boolean
+    paths:
+      - "apps/admin/**"
+      - "lib/api-client-react/**"
+      - "lib/frontend-security/**"
+      - "lib/frontend-observability/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/admin-security-shell-test-and-deploy.yml"
 
 permissions:
   contents: read
@@ -31,67 +32,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-frontend-scope:
-    name: Detect frontend deploy scope
-    runs-on: ubuntu-latest
-    outputs:
-      frontend_changed: ${{ steps.filter.outputs.frontend }}
-      frontend_files: ${{ steps.filter.outputs.frontend_files }}
-      deploy_requested: ${{ steps.decide.outputs.deploy_requested }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect frontend-relevant changes
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          list-files: shell
-          filters: |
-            frontend:
-              - 'apps/admin/**'
-              - 'lib/api-client-react/**'
-              - 'lib/frontend-security/**'
-              - 'lib/frontend-observability/**'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'package.json'
-              - '.github/workflows/admin-security-shell-test-and-deploy.yml'
-              - '.github/workflows/**'
-
-      - name: Decide whether deploy path should run
-        id: decide
-        env:
-          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
-          FRONTEND_FILES: ${{ steps.filter.outputs.frontend_files }}
-          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy || false }}
-        run: |
-          set -euo pipefail
-
-          echo "Frontend changed: ${FRONTEND_CHANGED}"
-          if [[ -n "${FRONTEND_FILES}" ]]; then
-            echo "Changed files that matched frontend scope:"
-            printf '%s\n' "${FRONTEND_FILES}"
-          else
-            echo "No frontend-scope files matched on this event."
-          fi
-
-          deploy_requested="false"
-          if [[ "${FORCE_DEPLOY}" == "true" ]]; then
-            deploy_requested="true"
-            echo "Manual override enabled via workflow_dispatch.force_deploy=true."
-          elif [[ "${FRONTEND_CHANGED}" == "true" ]]; then
-            deploy_requested="true"
-            echo "Deploy path enabled because frontend-relevant files changed."
-          else
-            echo "Deploy path disabled: no frontend-relevant changes detected."
-          fi
-
-          echo "deploy_requested=${deploy_requested}" >> "$GITHUB_OUTPUT"
-
   test-and-build-admin:
     name: Run admin security tests and build
     runs-on: ubuntu-latest
@@ -123,7 +63,7 @@ jobs:
         run: pnpm --filter @workspace/admin run build
 
       - name: Upload admin build artifact
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: admin-frontend-build
@@ -134,17 +74,10 @@ jobs:
     name: Deploy admin frontend to Cloudflare Pages
     runs-on: ubuntu-latest
     needs:
-      - detect-frontend-scope
       - test-and-build-admin
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-frontend-scope.outputs.deploy_requested == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
     steps:
-      - name: Explain deploy trigger
-        run: |
-          echo "Deploy is running because frontend deploy scope was enabled."
-          echo "Matched frontend files:"
-          printf '%s\n' "${{ needs.detect-frontend-scope.outputs.frontend_files }}"
-
       - name: Download admin build artifact
         uses: actions/download-artifact@v4
         with:
@@ -158,7 +91,7 @@ jobs:
           CLOUDFLARE_PAGES_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$CLOUDFLARE_PAGES_PROJECT_NAME" ]; then
-            echo "Missing one or more required Cloudflare secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_PAGES_PROJECT_NAME"
+            echo "Cloudflare Pages secrets are not fully configured."
             exit 1
           fi
 

@@ -15,13 +15,16 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
-    inputs:
-      force_deploy:
-        description: "Force backend validation/deploy regardless of path changes"
-        required: false
-        default: false
-        type: boolean
+    paths:
+      - "apps/api-server/**"
+      - "lib/db/**"
+      - "lib/api-spec/**"
+      - "lib/api-zod/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+      - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -128,6 +131,7 @@ jobs:
       - name: Build api-server
         run: pnpm --filter @workspace/api-server run build
 
+
       - name: Run api-server backend tests
         run: pnpm --filter @workspace/api-server run test
 
@@ -141,23 +145,16 @@ jobs:
     name: Deploy backend to Render via deploy hook
     runs-on: ubuntu-latest
     needs:
-      - detect-backend-scope
       - backend-regression
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-backend-scope.outputs.deploy_requested == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
     steps:
-      - name: Explain deploy trigger
-        run: |
-          echo "Deploy is running because backend deploy scope was enabled."
-          echo "Matched backend files:"
-          printf '%s\n' "${{ needs.detect-backend-scope.outputs.backend_files }}"
-
       - name: Trigger Render deploy hook
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Missing required secret: RENDER_DEPLOY_HOOK_URL"
+            echo "RENDER_DEPLOY_HOOK_URL secret is not set."
             exit 1
           fi
 

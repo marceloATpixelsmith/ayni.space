@@ -42,8 +42,9 @@ jobs:
           echo "merge_base=$merge_base"
 
           if [[ "$merge_base" != "$master_sha" ]]; then
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "⚠️ Branch freshness warning: this codex PR branch is not based on latest \`master\` (merge-base != current master). It won't block merge, but rebasing from current \`master\` is recommended."
-            echo "Stale-base warning emitted (non-blocking)."
+            gh pr comment "$PR_NUMBER" --body "🚫 This PR branch was not created from the latest \`master\`.\n\nFor frictionless solo flow, start each Codex task from current \`master\` and open a fresh PR branch."
+            echo "Branch is stale or stacked (merge-base != current master). Continuing as warning only."
+            exit 0
           fi
 
           stacked_parent=""
