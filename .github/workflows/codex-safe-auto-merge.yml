@@ -95,13 +95,11 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            # lockfile-sync-check.yml pull_request paths
-            if [[ "$file" == */package.json ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == ".github/workflows/lockfile-sync-check.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
+            if [[ "$file" == *"/package.json" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_lockfile=1
             fi
 
-            # backend-regression-gates.yml pull_request paths
-            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == packages/* ]] || [[ "$file" == scripts/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
+            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_backend=1
             fi
 
@@ -139,7 +137,7 @@ jobs:
             required_checks_b64=$(printf '%s\n' "${required[@]}" | base64 | tr -d '\n')
           fi
           printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
-          echo "Final required checks list:"
+          echo "Required checks selected:"
           if [[ ${#required[@]} -eq 0 ]]; then
             echo "- <none>"
           else
