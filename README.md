@@ -121,7 +121,7 @@ The platform uses a **shared multi-tenant schema**:
 - `shipibo_words` / `shipibo_categories` — Shipibo Dictionary data
 - `ayni_ceremonies` / `ayni_participants` / `ayni_staff` — Ayni data
 
-## API Routes
+## API Routes -
 
 | Method | Path | Description |
 |--------|------|-------------|
