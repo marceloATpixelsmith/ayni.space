@@ -168,6 +168,7 @@ jobs:
         if: steps.promotion.outputs.proceed == 'true' && (steps.context.outputs.behind_by == '0' || steps.update_branch.outputs.update_result != 'success')
         id: checks
         env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           CHANGED_FILES_B64: ${{ steps.context.outputs.changed_files_b64 }}
         run: |
           set -euo pipefail
@@ -234,27 +235,6 @@ jobs:
           fi
           printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
           echo "Required checks selected:"
-          if [[ ${#required[@]} -eq 0 ]]; then
-            echo "- <none>"
-          else
-            printf -- "- %s\n" "${required[@]}"
-          fi
-
-          echo "Final required checks list:"
-          if [[ ${#required[@]} -eq 0 ]]; then
-            echo "- <none>"
-          else
-            printf -- "- %s\n" "${required[@]}"
-          fi
-
-          echo "Final required checks list:"
-          if [[ ${#required[@]} -eq 0 ]]; then
-            echo "- <none>"
-          else
-            printf -- "- %s\n" "${required[@]}"
-          fi
-
-          echo "Final required checks list:"
           if [[ ${#required[@]} -eq 0 ]]; then
             echo "- <none>"
           else
