@@ -82,6 +82,16 @@ jobs:
           require_backend=0
           require_admin=0
 
+          echo "Changed files detected for PR #${PR_NUMBER}:"
+          if [[ -z "${files}" ]]; then
+            echo "- <none>"
+          else
+            while IFS= read -r changed_file; do
+              [ -z "$changed_file" ] && continue
+              echo "- ${changed_file}"
+            done <<< "$files"
+          fi
+
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
@@ -93,10 +103,23 @@ jobs:
               require_backend=1
             fi
 
-            if [[ "$file" == apps/admin/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/frontend-security/* ]] || [[ "$file" == lib/frontend-observability/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
+            # admin-security-shell-test-and-deploy.yml pull_request paths
+            if [[ "$file" == apps/admin/* ]] || [[ "$file" == lib/api-client-react/* ]] || [[ "$file" == lib/frontend-security/* ]] || [[ "$file" == lib/frontend-observability/* ]] || [[ "$file" == packages/* ]] || [[ "$file" == scripts/* ]] || [[ "$file" == ".github/workflows/admin-security-shell-test-and-deploy.yml" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]]; then
               require_admin=1
             fi
           done <<< "$files"
+
+          if [[ "$require_admin" -eq 1 ]]; then
+            echo "frontend_scope=true"
+          else
+            echo "frontend_scope=false"
+          fi
+
+          if [[ "$require_backend" -eq 1 ]]; then
+            echo "backend_scope=true"
+          else
+            echo "backend_scope=false"
+          fi
 
           required=()
           if [[ "$require_lockfile" -eq 1 ]]; then
