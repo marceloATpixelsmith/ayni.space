@@ -11,6 +11,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/codeql.yml"
+      - ".github/workflows/**"
   push:
     branches:
       - master
@@ -23,6 +24,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - ".github/workflows/codeql.yml"
+      - ".github/workflows/**"
   schedule:
     - cron: "31 4 * * 1"
 
