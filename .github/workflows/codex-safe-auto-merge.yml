@@ -85,11 +85,11 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
 
-            if [[ "$file" == *"/package.json" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == ".github/workflows/lockfile-sync-check.yml" ]]; then
+            if [[ "$file" == *"/package.json" ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_lockfile=1
             fi
 
-            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]]; then
+            if [[ "$file" == apps/api-server/* ]] || [[ "$file" == lib/db/* ]] || [[ "$file" == lib/api-spec/* ]] || [[ "$file" == lib/api-zod/* ]] || [[ "$file" == "pnpm-lock.yaml" ]] || [[ "$file" == "pnpm-workspace.yaml" ]] || [[ "$file" == "package.json" ]] || [[ "$file" == ".github/workflows/backend-regression-gates.yml" ]] || [[ "$file" == .github/workflows/* ]]; then
               require_backend=1
             fi
 
@@ -114,6 +114,12 @@ jobs:
             required_checks_b64=$(printf '%s\n' "${required[@]}" | base64 | tr -d '\n')
           fi
           printf "required_checks_b64=%s\n" "$required_checks_b64" >> "$GITHUB_OUTPUT"
+          echo "Required checks selected:"
+          if [[ ${#required[@]} -eq 0 ]]; then
+            echo "- <none>"
+          else
+            printf -- "- %s\n" "${required[@]}"
+          fi
 
       - name: Wait until required checks for PR head SHA are successful
         if: steps.promotion.outputs.proceed == 'true'
@@ -147,12 +153,14 @@ jobs:
 
               match=$(printf '%s\n' "$runs" | awk -F'\t' -v n="$req" '$1==n {print; exit}')
               if [[ -z "$match" ]]; then
+                echo "Missing check run: $req"
                 missing=1
                 continue
               fi
 
               status=$(printf '%s' "$match" | awk -F'\t' '{print $2}')
               conclusion=$(printf '%s' "$match" | awk -F'\t' '{print $3}')
+              echo "Check '$req' status=${status} conclusion=${conclusion}"
 
               if [[ "$status" != "completed" ]]; then
                 pending=1

@@ -7,6 +7,8 @@ on:
       - "lib/db/**"
       - "lib/api-spec/**"
       - "lib/api-zod/**"
+      - "packages/**"
+      - "scripts/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
@@ -15,28 +17,103 @@ on:
   push:
     branches:
       - master
-    paths:
-      - "apps/api-server/**"
-      - "lib/db/**"
-      - "lib/api-spec/**"
-      - "lib/api-zod/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
-      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Force deploy even when backend scope is unchanged"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: backend-regression-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  detect-backend-scope:
+    name: Detect backend deploy scope
+    runs-on: ubuntu-latest
+    outputs:
+      backend_changed: ${{ steps.filter.outputs.backend }}
+      matched_files: ${{ steps.filter.outputs.backend_files }}
+      force_deploy: ${{ steps.scope.outputs.force_deploy }}
+      deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
+      deploy_reason: ${{ steps.scope.outputs.deploy_reason }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed backend files
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            backend:
+              - 'apps/api-server/**'
+              - 'lib/db/**'
+              - 'lib/api-spec/**'
+              - 'lib/api-zod/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.github/workflows/backend-regression-gates.yml'
+              - '.github/workflows/**'
+
+      - name: Decide deploy intent
+        id: scope
+        env:
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          FORCE_DEPLOY_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy || false }}
+        run: |
+          set -euo pipefail
+
+          deploy_requested=false
+          deploy_reason="No backend-scope changes detected and force_deploy=false"
+
+          if [[ "$BACKEND_CHANGED" == "true" ]]; then
+            deploy_requested=true
+            deploy_reason="Backend-scope files changed"
+          elif [[ "$FORCE_DEPLOY_INPUT" == "true" ]]; then
+            deploy_requested=true
+            deploy_reason="Manual workflow_dispatch with force_deploy=true"
+          fi
+
+          echo "force_deploy=$FORCE_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
+          echo "deploy_requested=$deploy_requested" >> "$GITHUB_OUTPUT"
+          echo "deploy_reason=$deploy_reason" >> "$GITHUB_OUTPUT"
+
+      - name: Log backend scope decision
+        env:
+          MATCHED_FILES: ${{ steps.filter.outputs.backend_files }}
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          FORCE_DEPLOY_INPUT: ${{ steps.scope.outputs.force_deploy }}
+          DEPLOY_REQUESTED: ${{ steps.scope.outputs.deploy_requested }}
+          DEPLOY_REASON: ${{ steps.scope.outputs.deploy_reason }}
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "backend_changed=${BACKEND_CHANGED}"
+          echo "force_deploy=${FORCE_DEPLOY_INPUT}"
+          echo "deploy_requested=${DEPLOY_REQUESTED}"
+          echo "reason=${DEPLOY_REASON}"
+          echo "matched_files=${MATCHED_FILES:-<none>}"
+
   backend-regression:
     name: Backend build/typecheck/test/codegen validation
     runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+    if: needs.detect-backend-scope.outputs.deploy_requested == 'true'
 
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/ayni_test
@@ -68,7 +145,6 @@ jobs:
       - name: Build api-server
         run: pnpm --filter @workspace/api-server run build
 
-
       - name: Run api-server backend tests
         run: pnpm --filter @workspace/api-server run test
 
@@ -78,23 +154,53 @@ jobs:
       - name: Validate generated artifacts are up to date
         run: git diff --exit-code -- lib/api-client-react lib/api-zod
 
+  log-backend-deploy-skip:
+    name: Log backend deploy skip reason
+    runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+    if: needs.detect-backend-scope.outputs.deploy_requested != 'true'
+    steps:
+      - name: Explain skip
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+
   deploy-backend-to-render:
     name: Deploy backend to Render via deploy hook
     runs-on: ubuntu-latest
     needs:
+      - detect-backend-scope
       - backend-regression
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.detect-backend-scope.outputs.deploy_requested == 'true'
 
     steps:
+      - name: Log deploy execution context
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+
+      - name: Validate Render deploy hook secret
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RENDER_DEPLOY_HOOK_URL}" ]]; then
+            echo "::error::Missing required secret: RENDER_DEPLOY_HOOK_URL"
+            echo "Render deployment blocked: RENDER_DEPLOY_HOOK_URL secret is not set."
+            exit 1
+          fi
+
       - name: Trigger Render deploy hook
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL secret is not set."
-            exit 1
-          fi
-
           curl --fail --silent --show-error --location \
             --request POST \
             "$RENDER_DEPLOY_HOOK_URL"
