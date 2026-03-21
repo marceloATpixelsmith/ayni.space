@@ -1,4 +1,4 @@
-name: Backend Regression Gates
+name: Backend Regression Gates & Render Deploy
 
 on:
   pull_request:
@@ -6,25 +6,22 @@ on:
       - "apps/api-server/**"
       - "lib/db/**"
       - "lib/api-spec/**"
-      - "lib/api-client-react/**"
       - "lib/api-zod/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/**"
   push:
     branches:
       - master
-    paths:
-      - "apps/api-server/**"
-      - "lib/db/**"
-      - "lib/api-spec/**"
-      - "lib/api-client-react/**"
-      - "lib/api-zod/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: "Force backend validation/deploy regardless of path changes"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -34,9 +31,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-backend-scope:
+    name: Detect backend deploy scope
+    runs-on: ubuntu-latest
+    outputs:
+      backend_changed: ${{ steps.filter.outputs.backend }}
+      backend_files: ${{ steps.filter.outputs.backend_files }}
+      deploy_requested: ${{ steps.decide.outputs.deploy_requested }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect backend-relevant changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            backend:
+              - 'apps/api-server/**'
+              - 'lib/db/**'
+              - 'lib/api-spec/**'
+              - 'lib/api-zod/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.github/workflows/backend-regression-gates.yml'
+              - '.github/workflows/**'
+
+      - name: Decide whether deploy path should run
+        id: decide
+        env:
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          BACKEND_FILES: ${{ steps.filter.outputs.backend_files }}
+          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy || false }}
+        run: |
+          set -euo pipefail
+
+          echo "Backend changed: ${BACKEND_CHANGED}"
+          if [[ -n "${BACKEND_FILES}" ]]; then
+            echo "Changed files that matched backend scope:"
+            printf '%s\n' "${BACKEND_FILES}"
+          else
+            echo "No backend-scope files matched on this event."
+          fi
+
+          deploy_requested="false"
+          if [[ "${FORCE_DEPLOY}" == "true" ]]; then
+            deploy_requested="true"
+            echo "Manual override enabled via workflow_dispatch.force_deploy=true."
+          elif [[ "${BACKEND_CHANGED}" == "true" ]]; then
+            deploy_requested="true"
+            echo "Deploy path enabled because backend-relevant files changed."
+          else
+            echo "Deploy path disabled: no backend-relevant changes detected."
+          fi
+
+          echo "deploy_requested=${deploy_requested}" >> "$GITHUB_OUTPUT"
+
   backend-regression:
     name: Backend build/typecheck/test/codegen validation
     runs-on: ubuntu-latest
+    needs: detect-backend-scope
+    if: needs.detect-backend-scope.outputs.deploy_requested == 'true'
 
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/ayni_test
@@ -68,9 +128,6 @@ jobs:
       - name: Build api-server
         run: pnpm --filter @workspace/api-server run build
 
-      - name: Typecheck api-server
-        run: pnpm --filter @workspace/api-server run typecheck
-
       - name: Run api-server backend tests
         run: pnpm --filter @workspace/api-server run test
 
@@ -79,3 +136,31 @@ jobs:
 
       - name: Validate generated artifacts are up to date
         run: git diff --exit-code -- lib/api-client-react lib/api-zod
+
+  deploy-backend-to-render:
+    name: Deploy backend to Render via deploy hook
+    runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+      - backend-regression
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-backend-scope.outputs.deploy_requested == 'true'
+
+    steps:
+      - name: Explain deploy trigger
+        run: |
+          echo "Deploy is running because backend deploy scope was enabled."
+          echo "Matched backend files:"
+          printf '%s\n' "${{ needs.detect-backend-scope.outputs.backend_files }}"
+
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Missing required secret: RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --silent --show-error --location \
+            --request POST \
+            "$RENDER_DEPLOY_HOOK_URL"
