@@ -1,52 +1,49 @@
-# 20 — Safe Auto-Merge Governance
+# 20 — Direct-to-Master Deployment Governance
 
 ## Scope
-- Define the approved governance model for flowing Codex changes to `master` automatically with practical safety gates.
-- Establish this repository’s default as solo-builder, low-friction, check-gated automation.
+- Define the approved governance model for solo-developer delivery in this repository.
+- Document that `master` is the deployment source of truth and CI/CD trigger branch.
 
 ## Confirmed
 
 ### Purpose
-- This repository intentionally uses safe automatic merge of Codex PRs to `master` after checks pass.
-- The model is designed to keep delivery fast without destructive promotion behavior.
+- This repository now uses **direct push-to-`master` CI/CD** as the normal delivery path.
+- Codex/automation is expected to work directly on `master` instead of PR promotion branches.
 
 ### Current approved workflow
-- Codex opens a pull request from an in-repo branch matching `codex/*` to `master` (authoritative default branch).
-- CI workflows run for that PR according to workflow path filters.
-- `.github/workflows/codex-safe-auto-merge.yml` determines required checks from changed files and waits for successful completion on the PR head SHA.
-- If all required checks succeed, the workflow force-promotes the PR head SHA onto `master` (`git reset --hard <head_sha>` + `git push --force`) and then closes the PR.
-- No manual approval step is required in the default governance model.
-- Safe auto-merge and promotion flows target `master` only; do not target `main`.
+- Every push to `master` starts both deployment workflows:
+  - `.github/workflows/admin-security-shell-test-and-deploy.yml`
+  - `.github/workflows/backend-regression-gates.yml`
+- Each workflow detects changed files for its scope and logs:
+  - event name
+  - ref
+  - changed files
+  - scope flag (`frontend_changed` or `backend_changed`)
+  - force input
+  - deploy intent and reason
+- Validation jobs run only when that surface is requested (by scope change or manual force input).
+- Deploy jobs run only after validation passes and only on push to `master`.
 
 ### What is explicitly not allowed
-- Manual, ad-hoc conflict-resolution steps in PR UI that block zero-friction promotion flow.
+- No PR-based auto-merge promotion flow for normal deployment.
+- No `update-branch` conflict-resolution automation.
+- No polling for PR-head required checks to decide deployment promotion.
 
-### Required checks before auto-merge
-- Safe auto-merge requires success of relevant checks for the PR head SHA, based on changed-file scope:
-  - `Verify pnpm lockfile is up to date` (lockfile/install integrity scope).
-  - `Backend build/typecheck/test/codegen validation` (backend regression scope).
-  - `Run admin security tests and build` (admin shell + frontend build scope).
-- If any required check is missing, in progress, or failed, auto-merge must not occur.
+### Manual controls
+- `workflow_dispatch` remains enabled in both deploy workflows.
+- `force_deploy` input allows manual validation+deploy intent even without matching changed files.
 
-### Why this model is used in this repo
-- Repository operation is solo-builder and speed-first.
-- CI checks are the safety gate while keeping normal Codex flow automatic.
-
-### Future changes policy
-- This governance model remains default unless the repository owner explicitly requests a change.
-- Any future change must preserve check-gated promotion to `master`; current mode explicitly permits force-updating `master` from validated PR head SHA.
-
-### Instructions to agents/Codex not to suggest more bureaucratic governance by default
-- Treat safe auto-merge after checks as the default approved model.
-- Do not suggest manual-review-heavy or branch-protection-heavy governance unless explicitly requested by the user.
-- Do not propose reintroducing force-reset/force-push promotion patterns.
+### Required deployment secrets
+- Frontend deploy requires: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_PAGES_PROJECT_NAME`.
+- Backend deploy requires: `RENDER_DEPLOY_HOOK_URL`.
 
 ## Inferred
-- Workflow-driven check gating provides enough operational safety for this repository’s current solo-builder mode without adding manual review overhead.
+- The simplified model reduces branch/PR conflict management overhead for a solo maintainer while preserving CI safety gates before deploy.
 
 ## Unclear
-- Whether long-term merge strategy should stay `squash` or move to another non-destructive strategy.
+- Whether future additional app surfaces should be added to deploy scope detection.
 
 ## Do not break
-- Force-reset/force-push promotion to `master` is currently the approved zero-friction mode when required checks pass.
-- Do not replace the default safe auto-merge model with manual-review-heavy governance unless explicitly requested by repository owner direction.
+- Do not reintroduce PR auto-merge governance as the default deploy path.
+- Do not bypass validation gates before deploy jobs.
+- Do not change the deployment source-of-truth away from pushes to `master` without explicit owner direction.
