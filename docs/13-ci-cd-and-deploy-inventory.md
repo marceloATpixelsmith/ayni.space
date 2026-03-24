@@ -7,7 +7,7 @@
 ## Confirmed
 - Workflow: `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install.
 - Workflow: `.github/workflows/admin-security-shell-test-and-deploy.yml` runs admin shell tests, builds prebuilt assets, and deploys to Cloudflare Pages on `master` push.
-- Deployment automation is direct push-to-`master`; no Codex PR auto-merge workflow is part of normal delivery.
+- Deployment automation is direct push-to-`master`; no PR promotion/auto-merge workflow is part of normal delivery.
 
 ## Inferred
 - CI coverage includes lockfile integrity, admin shell + frontend build/deploy, and backend regression gates + Render deploy hook.
