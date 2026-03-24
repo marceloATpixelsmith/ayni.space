@@ -1,5 +1,6 @@
 import { initSentry } from "./middlewares/observability.js";
 
+// Deployment marker: intentionally no-op change to exercise api-server rollout.
 function envPresence(name: string): string {
   return process.env[name] ? "present" : "missing";
 }
