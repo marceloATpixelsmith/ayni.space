@@ -27,7 +27,7 @@ jobs:
       backend_changed: ${{ steps.filter.outputs.backend }}
       all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
       matched_files: ${{ steps.filter.outputs.backend_files }}
-      force_deploy: ${{ steps.scope.outputs.force_deploy }}
+      force_backend_deploy: ${{ steps.scope.outputs.force_backend_deploy }}
       deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
       deploy_reason: ${{ steps.scope.outputs.deploy_reason }}
 
@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
 
           deploy_requested=false
-          deploy_reason="No backend-scope changes detected and force_deploy=false"
+          deploy_reason="No backend-scope changes detected and force_backend_deploy=false"
 
           if [[ "$BACKEND_CHANGED" == "true" ]]; then
             deploy_requested=true
@@ -110,7 +110,7 @@ jobs:
             deploy_reason="Manual workflow_dispatch with force_backend_deploy=true"
           fi
 
-          echo "force_deploy=$FORCE_BACKEND_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
+          echo "force_backend_deploy=$FORCE_BACKEND_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
           echo "deploy_requested=$deploy_requested" >> "$GITHUB_OUTPUT"
           echo "deploy_reason=$deploy_reason" >> "$GITHUB_OUTPUT"
 
@@ -119,18 +119,18 @@ jobs:
           ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
           MATCHED_FILES: ${{ steps.filter.outputs.backend_files }}
           BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
-          FORCE_DEPLOY: ${{ steps.scope.outputs.force_deploy }}
+          FORCE_BACKEND_DEPLOY: ${{ steps.scope.outputs.force_backend_deploy }}
           DEPLOY_REQUESTED: ${{ steps.scope.outputs.deploy_requested }}
           DEPLOY_REASON: ${{ steps.scope.outputs.deploy_reason }}
         run: |
-          echo "all_changed_files:"
-          printf '%s\n' "$ALL_CHANGED_FILES"
-          echo "matched_files:"
-          printf '%s\n' "${MATCHED_FILES:-<none>}"
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
+          echo "matched_files=${MATCHED_FILES:-<none>}"
           echo "backend_changed=${BACKEND_CHANGED}"
-          echo "force_deploy=${FORCE_DEPLOY}"
+          echo "force_backend_deploy=${FORCE_BACKEND_DEPLOY}"
           echo "deploy_requested=${DEPLOY_REQUESTED}"
-          echo "deploy_reason=${DEPLOY_REASON}"
+          echo "reason=${DEPLOY_REASON}"
 
   backend-regression:
     name: Backend build/typecheck/test/codegen validation
@@ -192,8 +192,12 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
-          echo "deploy_reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
 
   log-backend-deploy-not-run:
     name: Log backend deploy job not run context
@@ -207,8 +211,12 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
-          echo "deploy_reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
           echo "deploy_job_result=skipped"
           echo "deploy_job_skip_reason=Deployment only runs on push to refs/heads/master"
 
@@ -225,6 +233,8 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
           echo "deploy_reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
 

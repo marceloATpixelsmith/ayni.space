@@ -27,7 +27,7 @@ jobs:
       frontend_changed: ${{ steps.filter.outputs.frontend }}
       all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
       matched_files: ${{ steps.filter.outputs.frontend_files }}
-      force_deploy: ${{ steps.scope.outputs.force_deploy }}
+      force_frontend_deploy: ${{ steps.scope.outputs.force_frontend_deploy }}
       deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
       deploy_reason: ${{ steps.scope.outputs.deploy_reason }}
 
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
 
           deploy_requested=false
-          deploy_reason="No frontend-scope changes detected and force_deploy=false"
+          deploy_reason="No frontend-scope changes detected and force_frontend_deploy=false"
 
           if [[ "$FRONTEND_CHANGED" == "true" ]]; then
             deploy_requested=true
@@ -111,7 +111,7 @@ jobs:
             deploy_reason="Manual workflow_dispatch with force_frontend_deploy=true"
           fi
 
-          echo "force_deploy=$FORCE_FRONTEND_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
+          echo "force_frontend_deploy=$FORCE_FRONTEND_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
           echo "deploy_requested=$deploy_requested" >> "$GITHUB_OUTPUT"
           echo "deploy_reason=$deploy_reason" >> "$GITHUB_OUTPUT"
 
@@ -120,18 +120,18 @@ jobs:
           ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
           MATCHED_FILES: ${{ steps.filter.outputs.frontend_files }}
           FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
-          FORCE_DEPLOY: ${{ steps.scope.outputs.force_deploy }}
+          FORCE_FRONTEND_DEPLOY: ${{ steps.scope.outputs.force_frontend_deploy }}
           DEPLOY_REQUESTED: ${{ steps.scope.outputs.deploy_requested }}
           DEPLOY_REASON: ${{ steps.scope.outputs.deploy_reason }}
         run: |
-          echo "all_changed_files:"
-          printf '%s\n' "$ALL_CHANGED_FILES"
-          echo "matched_files:"
-          printf '%s\n' "${MATCHED_FILES:-<none>}"
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
+          echo "matched_files=${MATCHED_FILES:-<none>}"
           echo "frontend_changed=${FRONTEND_CHANGED}"
-          echo "force_deploy=${FORCE_DEPLOY}"
+          echo "force_frontend_deploy=${FORCE_FRONTEND_DEPLOY}"
           echo "deploy_requested=${DEPLOY_REQUESTED}"
-          echo "deploy_reason=${DEPLOY_REASON}"
+          echo "reason=${DEPLOY_REASON}"
 
   test-and-build-admin:
     name: Run admin security tests and build
@@ -183,8 +183,12 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "frontend_changed=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
+          echo "force_frontend_deploy=${{ needs.detect-frontend-scope.outputs.force_frontend_deploy }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
-          echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
 
   log-admin-deploy-not-run:
     name: Log admin deploy job not run context
@@ -198,8 +202,12 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "frontend_changed=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
+          echo "force_frontend_deploy=${{ needs.detect-frontend-scope.outputs.force_frontend_deploy }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
-          echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
           echo "deploy_job_result=skipped"
           echo "deploy_job_skip_reason=Deployment only runs on push to refs/heads/master"
 
@@ -216,6 +224,8 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "frontend_changed=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
+          echo "force_frontend_deploy=${{ needs.detect-frontend-scope.outputs.force_frontend_deploy }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
           echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
 
