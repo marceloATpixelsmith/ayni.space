@@ -51,15 +51,26 @@ jobs:
             changed_files=$(git show --pretty="" --name-only "$GITHUB_SHA")
           fi
 
+          if [[ -z "$changed_files" ]]; then
+            changed_files="<none>"
+          fi
+
           {
             echo "all_changed_files<<EOF"
-            if [[ -z "$changed_files" ]]; then
-              echo "<none>"
-            else
-              printf '%s\n' "$changed_files"
-            fi
+            printf '%s\n' "$changed_files"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Debug raw changed files before scope filter
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+        run: |
+          echo "github.event_name=${{ github.event_name }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
+          echo "github.event.before=${{ github.event.before }}"
+          echo "raw_changed_files_from_git_diff:"
+          printf '%s\n' "$ALL_CHANGED_FILES"
 
       - name: Detect changed backend files
         id: filter
@@ -225,9 +236,7 @@ jobs:
           echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
           echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
-          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
-          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
-          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+          echo "deploy_reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
 
       - name: Validate Render deploy hook secret
         env:

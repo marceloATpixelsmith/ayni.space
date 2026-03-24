@@ -51,15 +51,26 @@ jobs:
             changed_files=$(git show --pretty="" --name-only "$GITHUB_SHA")
           fi
 
+          if [[ -z "$changed_files" ]]; then
+            changed_files="<none>"
+          fi
+
           {
             echo "all_changed_files<<EOF"
-            if [[ -z "$changed_files" ]]; then
-              echo "<none>"
-            else
-              printf '%s\n' "$changed_files"
-            fi
+            printf '%s\n' "$changed_files"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Debug raw changed files before scope filter
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+        run: |
+          echo "github.event_name=${{ github.event_name }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.sha=${{ github.sha }}"
+          echo "github.event.before=${{ github.event.before }}"
+          echo "raw_changed_files_from_git_diff:"
+          printf '%s\n' "$ALL_CHANGED_FILES"
 
       - name: Detect changed frontend files
         id: filter
@@ -78,6 +89,8 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'package.json'
               - '.github/workflows/admin-security-shell-test-and-deploy.yml'
+              # Keep scope behavior consistent with backend workflow: workflow file updates can request deploy evaluation.
+              - '.github/workflows/**'
 
       - name: Decide deploy intent
         id: scope
@@ -214,9 +227,7 @@ jobs:
           echo "frontend_changed=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
           echo "force_frontend_deploy=${{ needs.detect-frontend-scope.outputs.force_frontend_deploy }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
-          echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
-          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
-          echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
+          echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
 
       - name: Validate required Cloudflare secrets
         env:
