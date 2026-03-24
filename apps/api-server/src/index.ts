@@ -1,7 +1,6 @@
 import { initSentry } from "./middlewares/observability.js";
 
-const DEPLOYMENT_TOUCHPOINT = "api-server-2026-03-24";
-
+// Deployment marker: intentionally no-op change to exercise api-server rollout.
 function envPresence(name: string): string {
   return process.env[name] ? "present" : "missing";
 }

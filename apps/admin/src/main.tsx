@@ -11,7 +11,5 @@ initFrontendMonitoring({
   ingestEndpoint: "/api/monitoring/events",
 });
 
-const DEPLOYMENT_TOUCHPOINT = "admin-2026-03-24";
-console.info("[admin] deployment touchpoint", DEPLOYMENT_TOUCHPOINT);
-
+// Deployment marker: intentionally no-op change to exercise admin app rollout.
 createRoot(document.getElementById("root")!).render(<App />);
