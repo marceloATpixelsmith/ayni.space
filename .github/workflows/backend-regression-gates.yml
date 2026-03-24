@@ -6,8 +6,8 @@ on:
       - master
   workflow_dispatch:
     inputs:
-      force_deploy:
-        description: "Force deploy even when backend scope is unchanged"
+      force_backend_deploy:
+        description: "Force backend deploy intent even when backend scope is unchanged"
         required: false
         type: boolean
         default: false
@@ -27,7 +27,7 @@ jobs:
       backend_changed: ${{ steps.filter.outputs.backend }}
       all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
       matched_files: ${{ steps.filter.outputs.backend_files }}
-      force_deploy: ${{ steps.scope.outputs.force_deploy }}
+      force_backend_deploy: ${{ steps.scope.outputs.force_backend_deploy }}
       deploy_requested: ${{ steps.scope.outputs.deploy_requested }}
       deploy_reason: ${{ steps.scope.outputs.deploy_reason }}
 
@@ -84,22 +84,22 @@ jobs:
         id: scope
         env:
           BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
-          FORCE_DEPLOY_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.force_deploy || false }}
+          FORCE_BACKEND_DEPLOY_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.force_backend_deploy || false }}
         run: |
           set -euo pipefail
 
           deploy_requested=false
-          deploy_reason="No backend-scope changes detected and force_deploy=false"
+          deploy_reason="No backend-scope changes detected and force_backend_deploy=false"
 
           if [[ "$BACKEND_CHANGED" == "true" ]]; then
             deploy_requested=true
             deploy_reason="Backend-scope files changed"
-          elif [[ "$FORCE_DEPLOY_INPUT" == "true" ]]; then
+          elif [[ "$FORCE_BACKEND_DEPLOY_INPUT" == "true" ]]; then
             deploy_requested=true
-            deploy_reason="Manual workflow_dispatch with force_deploy=true"
+            deploy_reason="Manual workflow_dispatch with force_backend_deploy=true"
           fi
 
-          echo "force_deploy=$FORCE_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
+          echo "force_backend_deploy=$FORCE_BACKEND_DEPLOY_INPUT" >> "$GITHUB_OUTPUT"
           echo "deploy_requested=$deploy_requested" >> "$GITHUB_OUTPUT"
           echo "deploy_reason=$deploy_reason" >> "$GITHUB_OUTPUT"
 
@@ -108,18 +108,18 @@ jobs:
           ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
           MATCHED_FILES: ${{ steps.filter.outputs.backend_files }}
           BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
-          FORCE_DEPLOY_INPUT: ${{ steps.scope.outputs.force_deploy }}
+          FORCE_BACKEND_DEPLOY: ${{ steps.scope.outputs.force_backend_deploy }}
           DEPLOY_REQUESTED: ${{ steps.scope.outputs.deploy_requested }}
           DEPLOY_REASON: ${{ steps.scope.outputs.deploy_reason }}
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
           echo "all_changed_files=${ALL_CHANGED_FILES}"
+          echo "matched_files=${MATCHED_FILES:-<none>}"
           echo "backend_changed=${BACKEND_CHANGED}"
-          echo "force_deploy=${FORCE_DEPLOY_INPUT}"
+          echo "force_backend_deploy=${FORCE_BACKEND_DEPLOY}"
           echo "deploy_requested=${DEPLOY_REQUESTED}"
           echo "reason=${DEPLOY_REASON}"
-          echo "matched_files=${MATCHED_FILES:-<none>}"
 
   backend-regression:
     name: Backend build/typecheck/test/codegen validation
@@ -181,10 +181,33 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
           echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
           echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+
+  log-backend-deploy-not-run:
+    name: Log backend deploy job not run context
+    runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+      - backend-regression
+    if: needs.detect-backend-scope.outputs.deploy_requested == 'true' && !(github.event_name == 'push' && github.ref == 'refs/heads/master')
+    steps:
+      - name: Explain deploy job skip condition
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
+          echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+          echo "deploy_job_result=skipped"
+          echo "deploy_job_skip_reason=Deployment only runs on push to refs/heads/master"
 
   deploy-backend-to-render:
     name: Deploy backend to Render via deploy hook
@@ -199,6 +222,8 @@ jobs:
         run: |
           echo "event_name=${{ github.event_name }}"
           echo "ref=${{ github.ref }}"
+          echo "backend_changed=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "force_backend_deploy=${{ needs.detect-backend-scope.outputs.force_backend_deploy }}"
           echo "deploy_requested=${{ needs.detect-backend-scope.outputs.deploy_requested }}"
           echo "reason=${{ needs.detect-backend-scope.outputs.deploy_reason }}"
           echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
