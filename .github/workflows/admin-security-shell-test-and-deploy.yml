@@ -186,9 +186,24 @@ jobs:
           echo "frontend_changed=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
           echo "force_frontend_deploy=${{ needs.detect-frontend-scope.outputs.force_frontend_deploy }}"
           echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
-          echo "reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
-          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
-          echo "matched_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
+          echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+
+  log-admin-deploy-not-run:
+    name: Log admin deploy job not run context
+    runs-on: ubuntu-latest
+    needs:
+      - detect-frontend-scope
+      - test-and-build-admin
+    if: needs.detect-frontend-scope.outputs.deploy_requested == 'true' && !(github.event_name == 'push' && github.ref == 'refs/heads/master')
+    steps:
+      - name: Explain deploy job skip condition
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "deploy_requested=${{ needs.detect-frontend-scope.outputs.deploy_requested }}"
+          echo "deploy_reason=${{ needs.detect-frontend-scope.outputs.deploy_reason }}"
+          echo "deploy_job_result=skipped"
+          echo "deploy_job_skip_reason=Deployment only runs on push to refs/heads/master"
 
   log-admin-deploy-not-run:
     name: Log admin deploy job not run context
