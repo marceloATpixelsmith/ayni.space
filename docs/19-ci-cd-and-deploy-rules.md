@@ -10,8 +10,9 @@
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
   - builds prebuilt assets (`pnpm --filter @workspace/admin run build`) in CI,
   - deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload only on push to `master`,
-  - uses workflow path filters focused on admin + shared frontend libs + workspace metadata.
-- Codex/automation now works directly on `master`; there is no PR auto-merge promotion workflow in normal deployment.
+  - uses internal changed-file scope detection focused on admin + shared frontend libs + workspace metadata.
+- Normal deployment path is only `push` to `master`; manual path is only `workflow_dispatch` with optional `force_deploy`.
+- No PR auto-merge, PR hygiene promotion, or branch-promotion workflow is part of active CI/CD.
 - `.github/workflows/backend-regression-gates.yml` enforces backend regression gates for API changes:
   - `pnpm install --frozen-lockfile` (install/lockfile integrity),
   - `pnpm --filter @workspace/api-server run build` (backend build),

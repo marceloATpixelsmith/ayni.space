@@ -10,7 +10,7 @@
 
 ## Required reading order
 1. `monorepo-overview.md` (source of truth)
-2. Domain docs (`shared-packages.md` through `ci-cd-and-deploy-rules.md`, plus ownership/codex/governance docs)
+2. Domain docs (`shared-packages.md` through `ci-cd-and-deploy-rules.md`, plus ownership/codex docs)
 3. Supporting inventories (`app-catalog.md`, auth/session and other inventory companions)
 4. `open-questions-and-conflicts.md` for unresolved items
 
@@ -37,11 +37,10 @@
 20. `ci-cd-and-deploy-chart.md`
 21. `file-and-folder-ownership.md`
 22. `codex-working-rules.md`
-23. `safe-auto-merge-governance.md`
-24. `security-backup-and-restore.md`
-25. `security-incident-response.md`
-26. `security-restore-drill-log.md`
-27. `security-baseline-status.md`
+23. `security-backup-and-restore.md`
+24. `security-incident-response.md`
+25. `security-restore-drill-log.md`
+26. `security-baseline-status.md`
 
 ## Consistency policy
 - Every architecture doc must include:
