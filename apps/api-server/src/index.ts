@@ -1,5 +1,7 @@
 import { initSentry } from "./middlewares/observability.js";
 
+const DEPLOYMENT_TOUCHPOINT = "api-server-2026-03-24";
+
 function envPresence(name: string): string {
   return process.env[name] ? "present" : "missing";
 }
@@ -23,6 +25,7 @@ function validateDatabaseUrl(raw: string | undefined) {
 
 async function startServer() {
   console.info("[startup] Booting API server...");
+  console.info("[startup] Deployment touchpoint:", DEPLOYMENT_TOUCHPOINT);
   console.info(
     `[startup] Env presence: PORT=${envPresence("PORT")}, SESSION_SECRET=${envPresence("SESSION_SECRET")}, DATABASE_URL=${envPresence("DATABASE_URL")}, ALLOWED_ORIGINS=${envPresence("ALLOWED_ORIGINS")}`,
   );
