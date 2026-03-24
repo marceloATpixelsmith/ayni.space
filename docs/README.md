@@ -6,7 +6,7 @@
 
 ## Confirmed
 - Architecture docs currently live under `docs/*.md` and are intended to be read with `monorepo-overview.md` as source of truth.
-- Deployment model is direct push-to-`master` with internal scope detection and deploy gating in workflow logic.
+- Deployment model is host-native auto-deploy from `master` (Cloudflare Pages + Render) with GitHub Actions used for validation only.
 - No PR auto-merge/promotion workflow file is part of active deployment automation.
 
 ## Required reading order

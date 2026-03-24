@@ -1,0 +1,167 @@
+name: Admin Frontend Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-frontend-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-frontend-scope:
+    name: Detect frontend validation scope
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_changed: ${{ steps.filter.outputs.frontend }}
+      all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
+      matched_files: ${{ steps.filter.outputs.frontend_files }}
+      validation_requested: ${{ steps.scope.outputs.validation_requested }}
+      validation_reason: ${{ steps.scope.outputs.validation_reason }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files for logging
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]] && [[ -n "$BASE_REF" ]]; then
+            git fetch origin "$BASE_REF" --depth=1
+            changed_files=$(git diff --name-only "origin/$BASE_REF...$GITHUB_SHA")
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$BEFORE_SHA" ]] && [[ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+          else
+            changed_files=$(git diff --name-only HEAD~1 HEAD || true)
+          fi
+
+          if [[ -z "$changed_files" ]]; then
+            changed_files="<none>"
+          fi
+
+          {
+            echo "all_changed_files<<EOF"
+            printf '%s\n' "$changed_files"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed frontend files
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            frontend:
+              - 'apps/admin/**'
+              - 'lib/api-client-react/**'
+              - 'lib/frontend-security/**'
+              - 'lib/frontend-observability/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.github/workflows/admin-frontend-validation.yml'
+              - '.github/workflows/backend-validation.yml'
+
+      - name: Decide validation intent
+        id: scope
+        env:
+          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          validation_requested=false
+          validation_reason="No frontend-scope changes detected"
+
+          if [[ "$FRONTEND_CHANGED" == "true" ]]; then
+            validation_requested=true
+            validation_reason="Frontend-scope files changed"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            validation_requested=true
+            validation_reason="Manual workflow_dispatch validation run"
+          fi
+
+          echo "validation_requested=$validation_requested" >> "$GITHUB_OUTPUT"
+          echo "validation_reason=$validation_reason" >> "$GITHUB_OUTPUT"
+
+      - name: Log frontend scope decision
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+          MATCHED_FILES: ${{ steps.filter.outputs.frontend_files }}
+          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
+          VALIDATION_REQUESTED: ${{ steps.scope.outputs.validation_requested }}
+          VALIDATION_REASON: ${{ steps.scope.outputs.validation_reason }}
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
+          echo "matched_frontend_files=${MATCHED_FILES:-<none>}"
+          echo "frontend_scope=${FRONTEND_CHANGED}"
+          echo "validation_requested=${VALIDATION_REQUESTED}"
+          echo "reason=${VALIDATION_REASON}"
+
+  validate-admin-frontend:
+    name: Validate admin security shell tests and build
+    runs-on: ubuntu-latest
+    needs:
+      - detect-frontend-scope
+    if: needs.detect-frontend-scope.outputs.validation_requested == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security shell contract tests
+        run: pnpm --filter @workspace/admin run test:security-shell
+
+      - name: Build admin frontend
+        run: pnpm --filter @workspace/admin run build
+
+  log-admin-validation-skip:
+    name: Log admin validation skip reason
+    runs-on: ubuntu-latest
+    needs:
+      - detect-frontend-scope
+    if: needs.detect-frontend-scope.outputs.validation_requested != 'true'
+    steps:
+      - name: Explain skip
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${{ needs.detect-frontend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_frontend_files=${{ needs.detect-frontend-scope.outputs.matched_files || '<none>' }}"
+          echo "frontend_scope=${{ needs.detect-frontend-scope.outputs.frontend_changed }}"
+          echo "validation_requested=${{ needs.detect-frontend-scope.outputs.validation_requested }}"
+          echo "reason=${{ needs.detect-frontend-scope.outputs.validation_reason }}"

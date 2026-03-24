@@ -30,7 +30,7 @@
   - Is wired to shared runtime libs via both alias config and imports:
     - aliases in `apps/admin/vite.config.ts`, `apps/admin/tsconfig.json`,
     - runtime imports in `apps/admin/src/main.tsx`, `apps/admin/src/App.tsx`, dashboard/auth pages.
-  - Is explicitly targeted by CI in `.github/workflows/admin-security-shell-test-and-deploy.yml`.
+  - Is explicitly targeted by CI in `.github/workflows/admin-frontend-validation.yml`.
 - `apps/mockup-sandbox` — **partially implemented**:
   - Has runnable Vite scripts and source tree (`apps/mockup-sandbox/package.json`, `src/`).
   - Has alias/dependency wiring only to `@workspace/frontend-observability`.
@@ -116,19 +116,21 @@
   - SQL migration(s): `lib/db/migrations/*.sql`.
 
 ### CI/CD enforcement and deploy assumptions (actual)
-- Vercel is not part of current deployment automation; frontend deployment path is GitHub Actions -> Wrangler -> Cloudflare Pages direct upload.
+- Vercel is not part of current deployment automation.
+- GitHub Actions workflows are validation-only in the standard path.
 - `.github/workflows/lockfile-sync-check.yml`:
   - Enforces lockfile/install consistency by running `pnpm install --frozen-lockfile`.
   - Trigger assumes monorepo dependencies are represented by root lockfile + workspace manifests.
-- `.github/workflows/admin-security-shell-test-and-deploy.yml`:
+- `.github/workflows/admin-frontend-validation.yml`:
   - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
-  - Deploy step only triggers on push to `master` and deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload.
-  - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
-- PR-promotion workflows are retired for normal delivery; deployment automation is direct push-to-`master` plus manual `workflow_dispatch` only.
-- `.github/workflows/backend-regression-gates.yml`:
+  - Uses changed-file scope detection for frontend-relevant paths and logs event/ref/scope reasoning.
+  - Contains no Cloudflare deploy step and no Wrangler deploy call.
+- `.github/workflows/backend-validation.yml`:
   - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
-  - Deploys backend to Render via deploy hook only after backend checks pass on push to `master`.
-  - Produces a stable workflow name suitable for required status checks in branch protection.
+  - Uses changed-file scope detection for backend-relevant paths and logs event/ref/scope reasoning.
+  - Contains no Render deploy hook trigger.
+- PR checks gate merge to `master`; merge to `master` is the normal trigger for host-native deployments.
+- Cloudflare Pages and Render auto-deploy from `master` natively, outside GitHub Actions deploy jobs.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.

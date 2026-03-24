@@ -1,0 +1,185 @@
+name: Backend Validation
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-backend-scope:
+    name: Detect backend validation scope
+    runs-on: ubuntu-latest
+    outputs:
+      backend_changed: ${{ steps.filter.outputs.backend }}
+      all_changed_files: ${{ steps.changed.outputs.all_changed_files }}
+      matched_files: ${{ steps.filter.outputs.backend_files }}
+      validation_requested: ${{ steps.scope.outputs.validation_requested }}
+      validation_reason: ${{ steps.scope.outputs.validation_reason }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files for logging
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]] && [[ -n "$BASE_REF" ]]; then
+            git fetch origin "$BASE_REF" --depth=1
+            changed_files=$(git diff --name-only "origin/$BASE_REF...$GITHUB_SHA")
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$BEFORE_SHA" ]] && [[ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+          else
+            changed_files=$(git diff --name-only HEAD~1 HEAD || true)
+          fi
+
+          if [[ -z "$changed_files" ]]; then
+            changed_files="<none>"
+          fi
+
+          {
+            echo "all_changed_files<<EOF"
+            printf '%s\n' "$changed_files"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed backend files
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            backend:
+              - 'apps/api-server/**'
+              - 'lib/db/**'
+              - 'lib/api-spec/**'
+              - 'lib/api-zod/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.github/workflows/backend-validation.yml'
+              - '.github/workflows/admin-frontend-validation.yml'
+
+      - name: Decide validation intent
+        id: scope
+        env:
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          validation_requested=false
+          validation_reason="No backend-scope changes detected"
+
+          if [[ "$BACKEND_CHANGED" == "true" ]]; then
+            validation_requested=true
+            validation_reason="Backend-scope files changed"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            validation_requested=true
+            validation_reason="Manual workflow_dispatch validation run"
+          fi
+
+          echo "validation_requested=$validation_requested" >> "$GITHUB_OUTPUT"
+          echo "validation_reason=$validation_reason" >> "$GITHUB_OUTPUT"
+
+      - name: Log backend scope decision
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
+          MATCHED_FILES: ${{ steps.filter.outputs.backend_files }}
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          VALIDATION_REQUESTED: ${{ steps.scope.outputs.validation_requested }}
+          VALIDATION_REASON: ${{ steps.scope.outputs.validation_reason }}
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${ALL_CHANGED_FILES}"
+          echo "matched_backend_files=${MATCHED_FILES:-<none>}"
+          echo "backend_scope=${BACKEND_CHANGED}"
+          echo "validation_requested=${VALIDATION_REQUESTED}"
+          echo "reason=${VALIDATION_REASON}"
+
+  backend-regression:
+    name: Backend build/typecheck/test/codegen validation
+    runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+    if: needs.detect-backend-scope.outputs.validation_requested == 'true'
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ayni_test
+      SESSION_SECRET: test-session-secret
+      GOOGLE_CLIENT_ID: test-google-client-id
+      GOOGLE_CLIENT_SECRET: test-google-client-secret
+      GOOGLE_REDIRECT_URI: http://localhost:3000/api/auth/google/callback
+      ALLOWED_ORIGINS: http://localhost:3000
+      STRIPE_WEBHOOK_SECRET: whsec_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Validate lockfile/install integrity
+        run: pnpm install --frozen-lockfile
+
+      - name: Build api-server
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Typecheck api-server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Run api-server backend tests
+        run: pnpm --filter @workspace/api-server run test
+
+      - name: Regenerate API contracts
+        run: pnpm --filter @workspace/api-spec run codegen
+
+      - name: Validate generated artifacts are up to date
+        run: git diff --exit-code -- lib/api-client-react lib/api-zod
+
+  log-backend-validation-skip:
+    name: Log backend validation skip reason
+    runs-on: ubuntu-latest
+    needs:
+      - detect-backend-scope
+    if: needs.detect-backend-scope.outputs.validation_requested != 'true'
+    steps:
+      - name: Explain skip
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "all_changed_files=${{ needs.detect-backend-scope.outputs.all_changed_files || '<none>' }}"
+          echo "matched_backend_files=${{ needs.detect-backend-scope.outputs.matched_files || '<none>' }}"
+          echo "backend_scope=${{ needs.detect-backend-scope.outputs.backend_changed }}"
+          echo "validation_requested=${{ needs.detect-backend-scope.outputs.validation_requested }}"
+          echo "reason=${{ needs.detect-backend-scope.outputs.validation_reason }}"

@@ -1,7 +1,7 @@
 # CI/CD and Deploy Chart
 
 ## Scope
-- Quick-reference chart for CI workflows, triggers, and deployment gates in this monorepo.
+- Quick-reference chart for CI workflows, triggers, and deployment responsibilities in this monorepo.
 - Companion to `docs/ci-cd-and-deploy-rules.md` and `docs/ci-cd-and-deploy-inventory.md`.
 
 ## Confirmed
@@ -9,17 +9,17 @@
 | Workflow file | Primary purpose | Trigger highlights | Deploy behavior |
 |---|---|---|---|
 | `.github/workflows/lockfile-sync-check.yml` | Enforce lockfile/workspace dependency consistency | Runs on pull requests that affect workspace metadata and lockfiles | No deploy step |
-| `.github/workflows/backend-regression-gates.yml` | Enforce backend build/regression and codegen validation, then deploy backend via Render hook | Runs on every push to `master` and manual `workflow_dispatch`; internal scope detection decides whether backend validation/deploy are requested | Render deploy hook call gated behind backend validation success + required secret + push-to-`master` condition |
-| `.github/workflows/admin-security-shell-test-and-deploy.yml` | Validate admin security shell/build and deploy to Cloudflare Pages | Runs on every push to `master` and manual `workflow_dispatch`; internal scope detection decides whether frontend validation/deploy are requested | Wrangler direct upload of prebuilt artifact gated behind frontend validation success + required secrets + push-to-`master` condition |
+| `.github/workflows/backend-validation.yml` | Enforce backend build/regression and codegen validation | Runs on `pull_request` to `master`; may also run on `push` to `master` for post-merge verification and manual `workflow_dispatch`; internal scope detection decides whether backend validation runs | No deploy step |
+| `.github/workflows/admin-frontend-validation.yml` | Validate admin security shell/build readiness | Runs on `pull_request` to `master`; may also run on `push` to `master` for post-merge verification and manual `workflow_dispatch`; internal scope detection decides whether frontend validation runs | No deploy step |
 
 ## Inferred
-- Current delivery strategy prioritizes direct push-to-`master` deployment with scope-aware validation and deploy gates.
-- Explicit deployment paths exist for both admin frontend (Cloudflare Pages) and backend API (Render hook).
+- Current delivery strategy is: validate via GitHub Actions, merge to `master`, let Cloudflare Pages and Render deploy natively from `master`.
+- Explicit deployment paths are host-native and no longer implemented by GitHub Actions jobs.
 
 ## Unclear
-- Whether future app surfaces (`apps/ayni`, `apps/shipibo`, `apps/screening`) will each receive dedicated deployment pipelines.
-- Branch strategy is fixed to `master` as the only default/source-of-truth branch for deploy triggers (future staged environments can be added explicitly later).
+- Whether future app surfaces (`apps/ayni`, `apps/shipibo`, `apps/screening`) will each receive dedicated validation pipelines.
+- Whether post-merge `push` validation should remain long-term or be trimmed to PR-only.
 
 ## Do not break
 - Do not bypass required checks in branch protection by renaming or replacing workflow jobs without updating protection rules.
-- Do not add new deploy paths without corresponding regression gates and secret-management review.
+- Do not add new GitHub-driven production deploy paths without explicit architecture review.

@@ -25,8 +25,8 @@
 
 ### Workflow/operational ownership
 - `.github/workflows/lockfile-sync-check.yml`: lockfile governance.
-- `.github/workflows/admin-security-shell-test-and-deploy.yml`: admin shell test + frontend build + Cloudflare Pages deploy flow.
-- `.github/workflows/backend-regression-gates.yml`: backend hard-gate workflow for build/typecheck/tests/codegen validation + Render deploy hook trigger.
+- `.github/workflows/admin-frontend-validation.yml`: admin shell test + frontend build validation flow (no deploy job).
+- `.github/workflows/backend-validation.yml`: backend hard-gate validation workflow for build/typecheck/tests/codegen checks (no deploy hook trigger).
 - `.github/CODEOWNERS`: path-based ownership map for governance-critical and backend-critical files.
 
 ## Inferred

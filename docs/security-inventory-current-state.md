@@ -90,7 +90,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
   - `lib/frontend-security/src/index.tsx`
 - **Security shell contract tests** for protected routing assumptions in admin.
   - `apps/admin/src/__tests__/security-shell.contract.test.mjs`
-  - `.github/workflows/admin-security-shell-test-and-deploy.yml`
+  - `.github/workflows/admin-frontend-validation.yml`
 - **Turnstile frontend integration hook** for anti-bot challenges.
   - `lib/frontend-security/src/turnstile.tsx`
 
@@ -161,16 +161,15 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 - **Root lockfile integrity check in CI** (`pnpm install --frozen-lockfile`).
   - `.github/workflows/lockfile-sync-check.yml`
 - **Backend regression CI includes build/typecheck/tests and generated contract drift checks**.
-  - `.github/workflows/backend-regression-gates.yml`
+  - `.github/workflows/backend-validation.yml`
 - **Workspace dependency governance knobs in pnpm workspace config** (`minimumReleaseAge`, `onlyBuiltDependencies`, overrides).
   - `pnpm-workspace.yaml`
 
 ### N) Deployment safety and governance
-- **Deploy flow gated by tests and master branch condition for admin pipeline**.
-  - `.github/workflows/admin-security-shell-test-and-deploy.yml`
-- **Deployment governance uses direct push-to-`master` with validation gates and explicit deploy conditions**.
-  - `.github/workflows/admin-security-shell-test-and-deploy.yml`
-  - `.github/workflows/backend-regression-gates.yml`
+- **PR validation gates enforce frontend and backend readiness before merge to `master`**.
+  - `.github/workflows/admin-frontend-validation.yml`
+  - `.github/workflows/backend-validation.yml`
+- **Deployment governance is host-native auto-deploy from `master` after merge**.
   - `docs/ci-cd-and-deploy-rules.md`
 
 ---
