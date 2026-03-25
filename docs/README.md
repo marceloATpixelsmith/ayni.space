@@ -6,8 +6,7 @@
 
 ## Confirmed
 - Architecture docs currently live under `docs/*.md` and are intended to be read with `monorepo-overview.md` as source of truth.
-- Deployment model is direct push-to-`master` with internal scope detection and deploy gating in workflow logic.
-- No PR auto-merge/promotion workflow file is part of active deployment automation.
+- Deployment model is direct push-to-`master`, with Cloudflare Pages (frontend) and Render (backend) handling deployments outside GitHub Actions.
 
 ## Required reading order
 1. `monorepo-overview.md` (source of truth)
@@ -81,5 +80,30 @@
 
 ## Do not break
 - Do not index docs that contradict `monorepo-overview.md`.
-- Do not reference removed PR-promotion docs or workflows.
 - Do not remove required consistency sections from architecture docs.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
