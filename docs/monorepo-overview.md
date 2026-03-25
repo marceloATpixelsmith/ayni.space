@@ -116,19 +116,14 @@
   - SQL migration(s): `lib/db/migrations/*.sql`.
 
 ### CI/CD enforcement and deploy assumptions (actual)
-- Vercel is not part of current deployment automation; frontend deployment path is GitHub Actions -> Wrangler -> Cloudflare Pages direct upload.
 - `.github/workflows/lockfile-sync-check.yml`:
   - Enforces lockfile/install consistency by running `pnpm install --frozen-lockfile`.
   - Trigger assumes monorepo dependencies are represented by root lockfile + workspace manifests.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
   - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
-  - Deploy step only triggers on push to `master` and deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload.
   - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
-- PR-promotion workflows are retired for normal delivery; deployment automation is direct push-to-`master` plus manual `workflow_dispatch` only.
 - `.github/workflows/backend-regression-gates.yml`:
   - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
-  - Deploys backend to Render via deploy hook only after backend checks pass on push to `master`.
-  - Produces a stable workflow name suitable for required status checks in branch protection.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
@@ -237,9 +232,34 @@
 - Should shared runtime code be standardized under `lib/*`, `packages/*`, or a strict split model?
 - Should `lib/integrations/*` be created now or removed from workspace configuration until needed?
 - Should dormant `packages/*` be kept as reserved boundaries or removed to reduce drift and ambiguity?
-- No PR auto-merge promotion path is active; reassess only if a future branch-based release model is intentionally introduced.
 
 ## Do not break
 - Do not contradict the non-negotiable invariants listed in this document when updating architecture docs.
 - Do not promote inferred statements to confirmed statements without direct code evidence.
 - Do not resolve open questions by assumption; keep unresolved items explicit.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
