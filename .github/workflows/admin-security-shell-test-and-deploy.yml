@@ -1,12 +1,7 @@
-name: Admin Frontend Test & Deploy
+name: Admin Frontend Tests
 
 on:
   pull_request:
-    branches: [master]
-    paths:
-      - "apps/admin/**"
-
-  push:
     branches: [master]
     paths:
       - "apps/admin/**"
@@ -16,7 +11,6 @@ permissions:
 
 jobs:
   test:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -32,30 +26,3 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm --filter @workspace/admin run test:security-shell
-
-  deploy:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build admin app
-        run: pnpm --filter @workspace/admin build
-
-      - name: Deploy to Cloudflare Pages (admin)
-        run: |
-          npx wrangler pages deploy apps/admin/dist \
-            --project-name=admin
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
