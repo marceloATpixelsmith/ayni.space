@@ -5,39 +5,23 @@ on:
     types: [opened, synchronize]
     branches: [master]
 
-  push:
-    branches: [master]
-
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
   rebase:
+    if: startsWith(github.head_ref, 'codex/')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Rebase all open codex PRs onto latest master
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr list --state open --json number,headRefName,baseRefName \
-          | jq -c '.[]' \
-          | while read pr; do
-              branch=$(echo $pr | jq -r '.headRefName')
-              base=$(echo $pr | jq -r '.baseRefName')
-              number=$(echo $pr | jq -r '.number')
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
-              if [[ "$branch" == codex/* && "$base" == "master" ]]; then
-                echo "Rebasing PR #$number ($branch)"
+      - run: |
+          git fetch origin master
+          git rebase origin/master
 
-                git clone https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }} repo
-                cd repo
-                git fetch origin master
-                git checkout $branch
-                git rebase origin/master
-                git push --force-with-lease
-                cd ..
-                rm -rf repo
-              fi
-            done
+      - run: git push --force-with-lease
