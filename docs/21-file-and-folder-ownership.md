@@ -26,7 +26,6 @@
 ### Workflow/operational ownership
 - `.github/workflows/lockfile-sync-check.yml`: lockfile governance.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`: admin shell test + frontend build + Cloudflare Pages deploy flow.
-- `.github/workflows/backend-regression-gates.yml`: backend hard-gate workflow for build/typecheck/tests/codegen validation + Render deploy hook trigger.
 - `.github/CODEOWNERS`: path-based ownership map for governance-critical and backend-critical files.
 
 ## Inferred
@@ -42,3 +41,29 @@
 - Do not move active shared modules without updating every known consumer path.
 - Do not blur backend ownership by introducing parallel API runtimes outside `apps/api-server`.
 - Do not assume dormant `packages/*` are maintained as production-critical surfaces.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
