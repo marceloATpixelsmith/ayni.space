@@ -1,0 +1,23 @@
+name: Auto Rebase PRs
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebase PR onto master
+        uses: peter-evans/rebase@v3
