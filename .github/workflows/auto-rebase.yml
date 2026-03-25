@@ -1,10 +1,9 @@
-name: Auto Rebase PRs
+name: Auto Rebase Codex PRs
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     types: [opened, synchronize]
+    branches: [master]
 
 permissions:
   contents: write
@@ -12,12 +11,21 @@ permissions:
 
 jobs:
   rebase:
+    if: startsWith(github.head_ref, 'codex/')
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Rebase PR onto master
-        uses: peter-evans/rebase@v3
+      - run: |
+          git fetch origin master
+          if ! git rebase origin/master; then
+            git rebase --abort || true
+            echo "::warning::Auto-rebase hit conflicts. Please run 'git fetch origin master && git rebase origin/master' locally and push."
+            exit 0
+          fi
+
+      - run: git push --force-with-lease

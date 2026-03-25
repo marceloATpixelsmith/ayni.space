@@ -1,12 +1,22 @@
-name: Admin Frontend CI (Non-blocking)
+name: Admin Security Shell
 
 on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "apps/admin/**"
+
   push:
-    branches: [ master ]
+    branches: [master]
+    paths:
+      - "apps/admin/**"
+
+permissions:
+  contents: read
 
 jobs:
-  test-admin:
-    name: Run admin tests (non-blocking)
+  test:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -19,10 +29,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: pnpm
 
-      - name: Install dependencies (NO frozen lockfile)
-        run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
-      - name: Run tests (do not fail deploy)
-        run: pnpm --filter @workspace/admin run test || echo "Tests failed but continuing"
+      - run: pnpm --filter @workspace/admin run test:security-shell
+
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
