@@ -4,15 +4,13 @@
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
-- Vercel is no longer part of the deployment path; admin frontend deploys only via GitHub Actions prebuild + Wrangler direct upload to Cloudflare Pages.
+- `.github/workflows/linear-history-enforcement.yml` blocks PRs that contain merge commits and enforces rebase-only branch updates.
 - `.github/workflows/lockfile-sync-check.yml` enforces install/lockfile consistency with `pnpm install --frozen-lockfile`.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
   - builds prebuilt assets (`pnpm --filter @workspace/admin run build`) in CI,
-  - deploys prebuilt assets to Cloudflare Pages via Wrangler direct upload only on push to `master`,
   - uses internal changed-file scope detection focused on admin + shared frontend libs + workspace metadata.
 - Normal deployment path is only `push` to `master`; manual path is only `workflow_dispatch` with optional `force_deploy`.
-- No PR auto-merge, PR hygiene promotion, or branch-promotion workflow is part of active CI/CD.
 - `.github/workflows/backend-regression-gates.yml` enforces backend regression gates for API changes:
   - `pnpm install --frozen-lockfile` (install/lockfile integrity),
   - `pnpm --filter @workspace/api-server run build` (backend build),
@@ -27,11 +25,45 @@
 
 ## Unclear
 - Whether additional app surfaces should receive dedicated CI and deploy workflows.
-- Exact merge strategy preference (squash/rebase/merge commit) may change over time.
+- Branch strategy is strict rebase-only for Codex branches: maintain linear history and avoid merge commits.
 
 ## Do not break
 - Do not remove lockfile sync checks; they are current dependency integrity guardrail.
 - Do not broaden deploy triggers without explicit review of `master`-only deployment assumption.
-- Do not reintroduce force-reset/force-push promotion behavior.
 - Do not remove backend regression gates from `.github/workflows/backend-regression-gates.yml` without replacing equivalent auth/authz, tenant-isolation, and session-flow coverage.
-- Do not reintroduce PR promotion/auto-merge automation for normal deployments.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
+
+## BRANCH HYGIENE (MANDATORY)
+
+1. Never sync a feature branch by merging `master` or by using merge-based pull behavior.
+2. Always sync with `git fetch origin` then `git rebase origin/master`.
+3. Keep branch history linear (no merge commits).
+4. Before PR creation/update, rebase on latest `origin/master` and ensure fast-forward mergeability.
+5. Do not use GitHub "Update branch" or any merge-based branch sync flow.
+6. If conflicts occur during rebase, resolve in-branch and continue rebase; do not create a merge commit.
+7. Final PR must merge cleanly without GitHub UI conflict resolution.

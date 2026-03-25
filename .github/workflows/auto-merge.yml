@@ -1,0 +1,22 @@
+name: Enable Auto Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enable auto-merge (rebase)
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --rebase \
+            --auto
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
