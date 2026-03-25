@@ -4,7 +4,6 @@
 - This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
-- `.github/workflows/linear-history-enforcement.yml` blocks PRs that contain merge commits and enforces rebase-only branch updates.
 - `.github/workflows/lockfile-sync-check.yml` enforces install/lockfile consistency with `pnpm install --frozen-lockfile`.
 - `.github/workflows/admin-security-shell-test-and-deploy.yml`:
   - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
@@ -57,13 +56,3 @@
 * No required checks exist
 * No deployment gating exists
 * If tests fail, deployment STILL happens
-
-## BRANCH HYGIENE (MANDATORY)
-
-1. Never sync a feature branch by merging `master` or by using merge-based pull behavior.
-2. Always sync with `git fetch origin` then `git rebase origin/master`.
-3. Keep branch history linear (no merge commits).
-4. Before PR creation/update, rebase on latest `origin/master` and ensure fast-forward mergeability.
-5. Do not use GitHub "Update branch" or any merge-based branch sync flow.
-6. If conflicts occur during rebase, resolve in-branch and continue rebase; do not create a merge commit.
-7. Final PR must merge cleanly without GitHub UI conflict resolution.
