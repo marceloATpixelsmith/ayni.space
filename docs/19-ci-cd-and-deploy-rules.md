@@ -24,7 +24,7 @@
 
 ## Unclear
 - Whether additional app surfaces should receive dedicated CI and deploy workflows.
-- Exact merge strategy preference (squash/rebase/merge commit) may change over time.
+- Branch strategy is strict rebase-only for Codex branches: maintain linear history and avoid merge commits.
 
 ## Do not break
 - Do not remove lockfile sync checks; they are current dependency integrity guardrail.
