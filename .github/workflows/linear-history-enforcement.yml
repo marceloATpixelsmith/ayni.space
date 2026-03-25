@@ -14,10 +14,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - run: |
+      - name: Fetch base branch
+        run: git fetch origin "${{ github.event.pull_request.base.ref }}"
+
+      - name: Ensure PR branch is rebase-only (no merge commits)
+        run: |
           set -euo pipefail
 
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
           base_sha="${{ github.event.pull_request.base.sha }}"
           head_sha="${{ github.event.pull_request.head.sha }}"
           merge_commits=$(git rev-list --merges "${base_sha}..${head_sha}")
@@ -26,10 +29,6 @@ jobs:
             echo "Merge commits detected in this PR branch."
             echo "$merge_commits"
             echo "Use: git fetch origin ${{ github.event.pull_request.base.ref }} && git rebase origin/${{ github.event.pull_request.base.ref }}"
-            if [[ "${{ github.head_ref }}" == codex/* ]]; then
-              echo "::warning::Codex branch has merge commits; check marked warning to avoid blocking automation."
-              exit 0
-            fi
             exit 1
           fi
 
