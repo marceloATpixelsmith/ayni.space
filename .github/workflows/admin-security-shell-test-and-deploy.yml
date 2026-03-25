@@ -25,4 +25,4 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Run tests (do not fail deploy)
-        run: pnpm --filter @workspace/admin run test || echo "non-blocking failure"
+        run: pnpm --filter @workspace/admin run test || echo "Tests failed but continuing"

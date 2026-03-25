@@ -25,4 +25,4 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Run backend validation (do not fail deploy)
-        run: pnpm --filter @workspace/api-server run build || echo "non-blocking failure"
+        run: pnpm --filter @workspace/api-server run build || echo "Build failed but continuing"
