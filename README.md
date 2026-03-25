@@ -215,3 +215,4 @@ Users can belong to multiple organizations. Each organization can subscribe to m
 ## License
 
 MIT
+test: fresh-from-master
