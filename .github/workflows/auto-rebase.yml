@@ -22,10 +22,6 @@ jobs:
 
       - run: |
           git fetch origin master
-          if ! git rebase origin/master; then
-            git rebase --abort || true
-            echo "::warning::Auto-rebase hit conflicts. Please run 'git fetch origin master && git rebase origin/master' locally and push."
-            exit 0
-          fi
+          git rebase origin/master
 
       - run: git push --force-with-lease
