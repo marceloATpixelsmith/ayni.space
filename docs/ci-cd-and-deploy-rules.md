@@ -56,13 +56,3 @@
 * No required checks exist
 * No deployment gating exists
 * If tests fail, deployment STILL happens
-
-## BRANCH HYGIENE (MANDATORY)
-
-1. Never run `git merge master` or `git pull origin master`.
-2. Always sync with `git fetch origin` then `git rebase origin/master`.
-3. Keep branch history linear (no merge commits).
-4. Before PR creation/update, rebase on latest `origin/master` and ensure fast-forward mergeability.
-5. Do not use GitHub "Update branch" or any merge-based branch sync flow.
-6. If conflicts occur during rebase, resolve in-branch and continue rebase; do not create a merge commit.
-7. Final PR must merge cleanly without GitHub UI conflict resolution.
