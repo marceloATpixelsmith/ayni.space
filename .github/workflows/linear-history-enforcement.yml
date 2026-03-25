@@ -1,12 +1,11 @@
-name: Linear History Enforcement
+name: Enforce Linear History
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
-  no-merge-commits:
-    name: Reject merge commits in PR branch
+  check:
     runs-on: ubuntu-latest
 
     steps:

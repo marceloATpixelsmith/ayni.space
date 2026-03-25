@@ -1,10 +1,9 @@
-name: Auto Rebase PRs
+name: Auto Rebase Codex PRs
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     types: [opened, synchronize]
+    branches: [master]
 
 permissions:
   contents: write
@@ -12,6 +11,7 @@ permissions:
 
 jobs:
   rebase:
+    if: startsWith(github.head_ref, 'codex/')
     runs-on: ubuntu-latest
 
     steps:
@@ -19,5 +19,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Rebase PR onto master
-        uses: peter-evans/rebase@v3
+      - run: |
+          git fetch origin master
+          git rebase origin/master
+
+      - run: git push --force-with-lease
