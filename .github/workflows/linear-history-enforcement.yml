@@ -13,21 +13,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Fetch base branch
-        run: git fetch origin master
+        run: git fetch origin "${{ github.event.pull_request.base.ref }}"
 
       - name: Ensure PR branch is rebase-only (no merge commits)
         run: |
           set -euo pipefail
 
-          merge_commits=$(git rev-list --merges origin/master..HEAD)
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          merge_commits=$(git rev-list --merges "${base_sha}..${head_sha}")
 
           if [[ -n "$merge_commits" ]]; then
             echo "Merge commits detected in this PR branch."
             echo "$merge_commits"
-            echo "Use: git fetch origin && git rebase origin/master"
+            echo "Use: git fetch origin ${{ github.event.pull_request.base.ref }} && git rebase origin/${{ github.event.pull_request.base.ref }}"
             exit 1
           fi
 
-          echo "No merge commits detected between origin/master and HEAD."
+          echo "No merge commits detected in PR commits."
