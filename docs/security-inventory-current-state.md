@@ -413,3 +413,29 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
    - Evidence: `PORTABILITY.md`, `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts`.
 4. **Operational claims vs guardrails**: docs state “no secrets in source code”; repo includes seed defaults with privileged demo identity and static emails (not secrets, but operationally sensitive defaults).
    - Evidence: `PORTABILITY.md`, `scripts/src/seed.ts`.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
