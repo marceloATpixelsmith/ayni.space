@@ -19,10 +19,35 @@
 - `apps/api-server` is the single active backend gateway for current app surfaces.
 
 ## Unclear
-- Whether `apps/mockup-sandbox` is intended for promotion, archival, or permanent prototype use.
 - Whether placeholder app directories are near-term delivery targets or namespace reservations.
 
 ## Do not break
 - Do not treat placeholder app directories as implemented products.
 - Do not bypass `apps/api-server` as the backend entry boundary for active app flows.
 - Do not claim CI/deploy coverage for apps not targeted by workflows.
+
+## DEPLOYMENT MODEL (NEW)
+
+* All deployments happen automatically on push to master
+* Cloudflare Pages deploys frontend (apps/admin)
+* Render deploys backend (apps/api-server)
+* GitHub Actions are used ONLY for:
+
+  * running tests
+  * logging results
+* CI does NOT block deploys
+* No pull-request promotion system exists
+
+## DEVELOPER FLOW
+
+1. Make changes
+2. Commit directly to master
+3. Push
+4. Both frontend and backend deploy automatically
+
+## IMPORTANT NOTES
+
+* No auto-merge system exists
+* No required checks exist
+* No deployment gating exists
+* If tests fail, deployment STILL happens
