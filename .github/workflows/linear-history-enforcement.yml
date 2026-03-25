@@ -1,12 +1,11 @@
-name: Linear History Enforcement
+name: Enforce Linear History
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
-  no-merge-commits:
-    name: Reject merge commits in PR branch
+  check:
     runs-on: ubuntu-latest
 
     steps:
@@ -14,20 +13,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch base branch
-        run: git fetch origin master
-
-      - name: Ensure PR branch is rebase-only (no merge commits)
-        run: |
-          set -euo pipefail
-
-          merge_commits=$(git rev-list --merges origin/master..HEAD)
-
-          if [[ -n "$merge_commits" ]]; then
-            echo "Merge commits detected in this PR branch."
-            echo "$merge_commits"
-            echo "Use: git fetch origin && git rebase origin/master"
+      - run: |
+          git fetch origin master
+          if git log origin/master..HEAD --merges | grep .; then
+            echo "Merge commits are not allowed"
             exit 1
           fi
-
-          echo "No merge commits detected between origin/master and HEAD."
