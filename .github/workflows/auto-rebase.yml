@@ -4,8 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize]
     branches: [master]
-    paths-ignore:
-      - ".github/workflows/**"
 
 permissions:
   contents: write
@@ -23,16 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - run: |
-          set +e
           git fetch origin master
           git rebase origin/master
-          status=$?
-          set -e
-
-          if [ $status -ne 0 ]; then
-            git rebase --abort || true
-            echo "::warning::Auto-rebase hit conflicts. Please run 'git fetch origin master && git rebase origin/master' locally and push."
-            exit 0
-          fi
 
       - run: git push --force-with-lease
