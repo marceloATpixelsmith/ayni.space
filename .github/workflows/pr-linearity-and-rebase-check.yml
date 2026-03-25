@@ -1,0 +1,42 @@
+name: PR Linearity and Rebase Check
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  verify-linear-history:
+    name: Verify branch is rebased and linear
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch latest master
+        run: git fetch origin master
+
+      - name: Ensure branch contains latest origin/master
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor origin/master HEAD; then
+            echo "::error::Branch is not rebased on latest origin/master. Rebase onto origin/master before updating this PR."
+            exit 1
+          fi
+
+      - name: Ensure no merge commits exist on branch range
+        run: |
+          set -euo pipefail
+          merge_commits="$(git rev-list --merges origin/master..HEAD)"
+          if [[ -n "${merge_commits}" ]]; then
+            echo "::error::Merge commits found in branch history. Use rebase, not merge."
+            echo "Merge commits:"
+            echo "${merge_commits}"
+            exit 1
+          fi
