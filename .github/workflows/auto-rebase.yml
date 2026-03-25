@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set git identity
         run: |
@@ -31,7 +32,7 @@ jobs:
         run: |
           git fetch origin master
           git rebase origin/master
-          git push --force-with-lease
+          git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
 
   rebase-open-codex-prs-after-master-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -47,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr list --state open --json number,headRefName,baseRefName \
+          gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,baseRefName \
           | jq -c '.[]' \
           | while read -r pr; do
               branch=$(echo "$pr" | jq -r '.headRefName')
@@ -57,10 +58,12 @@ jobs:
                 rm -rf repo
                 git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" repo
                 cd repo
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
                 git fetch origin master
                 git checkout "$branch"
                 git rebase origin/master
-                git push --force-with-lease origin "$branch"
+                git push --force-with-lease origin HEAD:"$branch"
                 cd ..
               fi
             done
