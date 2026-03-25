@@ -5,13 +5,16 @@ on:
     types: [opened, synchronize]
     branches: [master]
 
+  push:
+    branches: [master]
+
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  rebase:
-    if: startsWith(github.head_ref, 'codex/')
+  rebase-pr:
+    if: github.event_name == 'pull_request' && github.base_ref == 'master' && startsWith(github.head_ref, 'codex/')
     runs-on: ubuntu-latest
 
     steps:
@@ -20,8 +23,47 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - run: |
+      - name: Set git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase current codex PR onto latest master
+        run: |
           git fetch origin master
           git rebase origin/master
+          git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
 
-      - run: git push --force-with-lease
+  rebase-open-codex-prs-after-master-push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase all open codex PRs onto latest master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,baseRefName \
+          | jq -c '.[]' \
+          | while read -r pr; do
+              branch=$(echo "$pr" | jq -r '.headRefName')
+              base=$(echo "$pr" | jq -r '.baseRefName')
+
+              if [[ "$branch" == codex/* && "$base" == "master" ]]; then
+                rm -rf repo
+                git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" repo
+                cd repo
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git fetch origin master
+                git checkout "$branch"
+                git rebase origin/master
+                git push --force-with-lease origin HEAD:"$branch"
+                cd ..
+              fi
+            done

@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Enable auto-merge (rebase)
-        run: |
-          gh pr merge ${{ github.event.pull_request.number }} --rebase --auto
+      - name: Enable auto-merge (REBASE)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --repo "${{ github.repository }}" \
+            --rebase \
+            --auto
