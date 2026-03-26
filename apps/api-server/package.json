@@ -7,7 +7,8 @@
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/__tests__/*.test.ts"
+    "test": "tsx --test src/__tests__/*.test.ts",
+    "test:regression": "tsx --test src/__tests__/api-regression-phase-a.test.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

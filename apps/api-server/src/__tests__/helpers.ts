@@ -7,9 +7,14 @@ type SessionShape = {
   destroy?: (cb?: (err?: unknown) => void) => void;
   save?: (cb?: (err?: unknown) => void) => void;
   regenerate?: (cb?: (err?: unknown) => void) => void;
+  [key: string]: unknown;
 };
 
 export function createSessionApp(router: Router, session: SessionShape = {}) {
+  return createMountedSessionApp([{ path: "/api", router }], session);
+}
+
+export function createMountedSessionApp(mounts: Array<{ path: string; router: Router }>, session: SessionShape = {}) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -22,7 +27,11 @@ export function createSessionApp(router: Router, session: SessionShape = {}) {
     };
     next();
   });
-  app.use("/api", router);
+
+  for (const mount of mounts) {
+    app.use(mount.path, mount.router);
+  }
+
   return app;
 }
 
