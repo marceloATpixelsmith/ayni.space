@@ -15,7 +15,7 @@ export default function AppsDirectory() {
   
   const { data: apps, isLoading: appsLoading } = useGetApps();
   const { data: subscriptions, isLoading: subsLoading } = useGetOrgSubscriptions(orgId, {
-    query: { enabled: !!orgId }
+    query: { enabled: !!orgId, queryKey: ["getOrgSubscriptions", orgId] }
   });
 
   const { mutate: createCheckout, isPending: isCheckingOut } = useCreateCheckoutSession({

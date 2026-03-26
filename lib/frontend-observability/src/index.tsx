@@ -499,7 +499,7 @@ type MonitoringErrorBoundaryState = {
   hasError: boolean;
 };
 
-export class MonitoringErrorBoundary extends React.Component<
+class MonitoringErrorBoundaryImpl extends React.Component<
   MonitoringErrorBoundaryProps,
   MonitoringErrorBoundaryState
 > {
@@ -538,4 +538,8 @@ export class MonitoringErrorBoundary extends React.Component<
 
     return this.props.children;
   }
+}
+
+export function MonitoringErrorBoundary(props: MonitoringErrorBoundaryProps) {
+  return <MonitoringErrorBoundaryImpl {...props} />;
 }

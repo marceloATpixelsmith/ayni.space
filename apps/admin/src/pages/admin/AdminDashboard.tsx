@@ -31,7 +31,7 @@ export default function AdminDashboard() {
   const params = useParams<{ section?: string }>();
   const section = params.section ?? "overview";
 
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const logout = useLogout();
   const queryClient = useQueryClient();
 
@@ -41,7 +41,7 @@ export default function AdminDashboard() {
   }, [user, userLoading, setLocation]);
 
   const handleLogout = async () => {
-    await logout.mutateAsync({});
+    await logout.mutateAsync();
     queryClient.clear();
     setLocation("/login");
   };

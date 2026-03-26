@@ -20,11 +20,13 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function Members() {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const queryClient = useQueryClient();
 
   const orgId = user?.activeOrgId ?? "";
-  const { data: members, isLoading } = useGetOrgMembers(orgId, { query: { enabled: !!orgId } });
+  const { data: members, isLoading } = useGetOrgMembers(orgId, {
+    query: { enabled: !!orgId, queryKey: ["getOrgMembers", orgId] },
+  });
   const removeMember = useRemoveOrgMember();
   const updateRole = useUpdateOrgMemberRole();
 
