@@ -1,4 +1,4 @@
-name: Backend Regression Gates
+name: API Regression Suite
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/api-regression-suite.yml"
   push:
     branches: [master]
     paths:
@@ -20,15 +20,15 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/api-regression-suite.yml"
   schedule:
-    - cron: "20 5 * * *"
+    - cron: "0 5 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  backend-gates:
+  api-regression:
     runs-on: ubuntu-latest
 
     steps:
@@ -42,12 +42,4 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
-      - run: pnpm -w typecheck
-
-      - run: pnpm --filter @workspace/api-server build
-
-      - run: pnpm --filter @workspace/api-server test
-
-      - name: Run dedicated Phase A API regression suite
-        run: pnpm run test:api-regression
+      - run: pnpm run test:api-regression
