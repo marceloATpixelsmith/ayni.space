@@ -1,58 +1,41 @@
 # 13 — CI/CD and Deploy Rules
 
 ## Scope
-- This document defines architecture constraints for its domain using `docs/01-monorepo-overview.md` as baseline and concrete repository paths as evidence.
+- Defines CI/CD guardrails for repository automation, using `docs/monorepo-overview.md` as baseline and `.github/workflows/*.yml` as implementation evidence.
 
 ## Confirmed
-- `.github/workflows/lockfile-sync-check.yml` enforces install/lockfile consistency with `pnpm install --frozen-lockfile`.
-- `.github/workflows/admin-security-shell-test-and-deploy.yml`:
-  - runs admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`),
-  - builds prebuilt assets (`pnpm --filter @workspace/admin run build`) in CI,
-  - uses internal changed-file scope detection focused on admin + shared frontend libs + workspace metadata.
-- Normal deployment path is only `push` to `master`; manual path is only `workflow_dispatch` with optional `force_deploy`.
-- `.github/workflows/backend-regression-gates.yml` enforces backend regression gates for API changes:
-  - `pnpm install --frozen-lockfile` (install/lockfile integrity),
-  - `pnpm --filter @workspace/api-server run build` (backend build),
-  - `pnpm --filter @workspace/api-server run typecheck` (backend typecheck),
-  - `pnpm --filter @workspace/api-server run test` (backend auth/authz + tenant/session regression suites),
-  - `pnpm --filter @workspace/api-spec run codegen` + `git diff --exit-code -- lib/api-client-react lib/api-zod` (contract/codegen artifact validation),
-  - deploys to Render via `RENDER_DEPLOY_HOOK_URL` only after backend checks pass on push to `master`.
+- PR validation workflows:
+  - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs `pnpm --filter @workspace/admin run test:security-shell` for admin frontend PR changes.
+  - `.github/workflows/backend-regression-gates.yml` runs backend typecheck/build/test gates on PRs affecting backend/shared package scope.
+  - `.github/workflows/lockfile-sync-check.yml` enforces `pnpm install --frozen-lockfile` for dependency/workflow-affecting PRs.
+  - `.github/workflows/linear-history-enforcement.yml` enforces no-merge-commit (linear/rebase-only) PR history.
+- PR governance workflows:
+  - `.github/workflows/auto-rebase.yml` rebases `codex/*` PR branches onto latest `master`.
+  - `.github/workflows/auto-merge.yml` enables rebase auto-merge for `codex/*` PRs targeting `master`.
+- Repository currently contains **no GitHub Actions deploy workflow for the admin frontend**.
 
 ## Inferred
-- Release governance is intentionally low-friction for a solo-builder path: push to `master` triggers CI/CD directly.
-- Safety is enforced by per-surface CI validation gates before each deploy job executes.
+- GitHub Actions are used for CI validation and branch-policy automation, not frontend deployment.
+- Deploy execution is expected to occur in external platforms connected to Git state.
 
 ## Unclear
-- Whether additional app surfaces should receive dedicated CI and deploy workflows.
-- Branch strategy is strict rebase-only for Codex branches: maintain linear history and avoid merge commits.
+- Backend runtime deploy implementation details are not described by a dedicated deploy workflow in this repository.
+- Whether additional app surfaces will adopt platform-native Git deploys with the same policy boundaries.
 
 ## Do not break
-- Do not remove lockfile sync checks; they are current dependency integrity guardrail.
-- Do not broaden deploy triggers without explicit review of `master`-only deployment assumption.
-- Do not remove backend regression gates from `.github/workflows/backend-regression-gates.yml` without replacing equivalent auth/authz, tenant-isolation, and session-flow coverage.
+- Do not add frontend deploy jobs back into GitHub Actions.
+- Do not weaken PR validation gates for admin, backend, lockfile integrity, or linear history.
+- Do not change Codex auto-rebase/auto-merge branch constraints (`codex/*` → `master`) without explicit approval.
 
-## DEPLOYMENT MODEL (NEW)
+## Admin frontend deploy target state (Vercel Git integration)
+- Root Directory: `apps/admin`
+- Production Branch: `master`
+- Install Command: `pnpm install --frozen-lockfile`
+- Build Command: `pnpm --filter @workspace/admin build`
+- Output Directory: `dist/public`
 
-* All deployments happen automatically on push to master
-* Cloudflare Pages deploys frontend (apps/admin)
-* Render deploys backend (apps/api-server)
-* GitHub Actions are used ONLY for:
-
-  * running tests
-  * logging results
-* CI does NOT block deploys
-* No pull-request promotion system exists
-
-## DEVELOPER FLOW
-
-1. Make changes
-2. Commit directly to master
-3. Push
-4. Both frontend and backend deploy automatically
-
-## IMPORTANT NOTES
-
-* No auto-merge system exists
-* No required checks exist
-* No deployment gating exists
-* If tests fail, deployment STILL happens
+## Operational model
+1. Open PR to `master`.
+2. GitHub Actions run CI/policy checks only.
+3. Merge PR to `master` when checks are acceptable.
+4. External deployment platform (Vercel for admin frontend) deploys from Git.
