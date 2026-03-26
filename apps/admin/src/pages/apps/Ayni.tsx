@@ -23,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AyniApp() {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [selectedCeremonyId, setSelectedCeremonyId] = React.useState<string | null>(null);
@@ -32,11 +32,11 @@ export default function AyniApp() {
   const orgId = user?.activeOrgId ?? "";
   const { data: ceremoniesData, isLoading } = useGetAyniCeremonies(
     { orgId },
-    { query: { enabled: !!orgId } }
+    { query: { enabled: !!orgId, queryKey: ["getAyniCeremonies", orgId] } }
   );
   const { data: participants } = useGetAyniParticipants(
     { ceremonyId: selectedCeremonyId ?? "" },
-    { query: { enabled: !!selectedCeremonyId } }
+    { query: { enabled: !!selectedCeremonyId, queryKey: ["getAyniParticipants", selectedCeremonyId] } }
   );
   const createCeremony = useCreateAyniCeremony();
 

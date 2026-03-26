@@ -71,8 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [csrfReady, setCsrfReady] = React.useState(false);
   const csrfTokenRef = React.useRef<string | null>(null);
 
-  const meQuery = useGetMe({ query: { retry: false } });
-  const googleUrlQuery = useGetGoogleAuthUrl({ query: { retry: false } });
+  const meQuery = useGetMe();
+  const googleUrlQuery = useGetGoogleAuthUrl();
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
 
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [googleUrlQuery.data]);
 
   const logout = React.useCallback(async () => {
-    await logoutMutation.mutateAsync({});
+    await logoutMutation.mutateAsync();
     await refreshSession();
   }, [logoutMutation, refreshSession]);
 

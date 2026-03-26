@@ -65,7 +65,7 @@ export default function Login() {
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
               onClick={handleGoogleLogin}
-              disabled={auth.status === "loading"}
+              disabled={auth.status === "authenticated"}
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               Sign in with Google

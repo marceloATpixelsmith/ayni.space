@@ -11,9 +11,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export default function Settings() {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const orgId = user?.activeOrgId ?? "";
-  const { data: org } = useGetOrganization(orgId, { query: { enabled: !!orgId } });
+  const { data: org } = useGetOrganization(orgId, {
+    query: { enabled: !!orgId, queryKey: ["getOrganization", orgId] },
+  });
   const updateOrg = useUpdateOrganization();
   const queryClient = useQueryClient();
   const [saved, setSaved] = React.useState(false);

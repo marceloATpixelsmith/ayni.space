@@ -11,7 +11,7 @@ import { BookOpen, Users, ArrowRight, ExternalLink, LayoutGrid } from "lucide-re
 export default function DashboardHome() {
   const { data: user } = useGetMe();
   const { data: apps, isLoading } = useGetOrgApps(user?.activeOrgId || "", {
-    query: { enabled: !!user?.activeOrgId }
+    query: { enabled: !!user?.activeOrgId, queryKey: ["getOrgApps", user?.activeOrgId] }
   });
 
   return (

@@ -14,7 +14,7 @@ import { useTurnstileToken } from "@workspace/frontend-security";
 
 export default function Invitations() {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const queryClient = useQueryClient();
   const turnstile = useTurnstileToken();
   const [email, setEmail] = React.useState("");
@@ -22,7 +22,9 @@ export default function Invitations() {
   const [error, setError] = React.useState("");
 
   const orgId = user?.activeOrgId ?? "";
-  const { data: invitations, isLoading } = useGetOrgInvitations(orgId, { query: { enabled: !!orgId } });
+  const { data: invitations, isLoading } = useGetOrgInvitations(orgId, {
+    query: { enabled: !!orgId, queryKey: ["getOrgInvitations", orgId] },
+  });
   const createInvitation = useCreateInvitation();
   const cancelInvitation = useCancelInvitation();
 
@@ -42,9 +44,6 @@ export default function Invitations() {
       await createInvitation.mutateAsync({
         orgId,
         data: { email: email.trim(), role: role as "owner" | "admin" | "member" | "viewer" },
-        request: {
-          headers: turnstile.token ? { "cf-turnstile-response": turnstile.token } : undefined,
-        },
       });
       setEmail("");
       turnstile.reset();

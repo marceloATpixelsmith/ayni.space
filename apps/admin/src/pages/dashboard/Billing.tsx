@@ -17,9 +17,11 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 
 export default function Billing() {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading: userLoading } = useGetMe({ query: { retry: false } });
+  const { data: user, isLoading: userLoading } = useGetMe();
   const orgId = user?.activeOrgId ?? "";
-  const { data: subscriptions, isLoading } = useGetOrgSubscriptions(orgId, { query: { enabled: !!orgId } });
+  const { data: subscriptions, isLoading } = useGetOrgSubscriptions(orgId, {
+    query: { enabled: !!orgId, queryKey: ["getOrgSubscriptions", orgId] },
+  });
   const { data: apps } = useGetApps();
   const createPortal = useCreatePortalSession();
 
