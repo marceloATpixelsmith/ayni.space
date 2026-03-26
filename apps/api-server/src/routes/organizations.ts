@@ -91,7 +91,7 @@ router.post("/", turnstileVerifyMiddleware(), requireAuth, validateBody(createOr
 
 // ── GET /organizations/:orgId ─────────────────────────────────────────────────
 router.get("/:orgId", requireAuth, requireOrgAccess, async (req, res) => {
-  const { orgId } = req.params;
+  const orgId = String(req.params["orgId"]);
 
   const org = await db.query.organizationsTable.findFirst({
     where: eq(organizationsTable.id, orgId),
@@ -112,7 +112,7 @@ router.get("/:orgId", requireAuth, requireOrgAccess, async (req, res) => {
 
 // ── PATCH /organizations/:orgId ───────────────────────────────────────────────
 router.patch("/:orgId", requireAuth, requireOrgAdmin, async (req, res) => {
-  const { orgId } = req.params;
+  const orgId = String(req.params["orgId"]);
   const { name, website, logoUrl } = req.body as {
     name?: string;
     website?: string;
@@ -143,7 +143,7 @@ router.patch("/:orgId", requireAuth, requireOrgAdmin, async (req, res) => {
 
 // ── GET /organizations/:orgId/members ─────────────────────────────────────────
 router.get("/:orgId/members", requireAuth, requireOrgAccess, async (req, res) => {
-  const { orgId } = req.params;
+  const orgId = String(req.params["orgId"]);
 
   const members = await db
     .select({
@@ -164,7 +164,8 @@ router.get("/:orgId/members", requireAuth, requireOrgAccess, async (req, res) =>
 
 // ── PATCH /organizations/:orgId/members/:userId ───────────────────────────────
 router.patch("/:orgId/members/:userId", requireAuth, requireOrgAdmin, async (req, res) => {
-  const { orgId, userId } = req.params;
+  const orgId = String(req.params["orgId"]);
+  const userId = String(req.params["userId"]);
   const { role } = req.body as { role: string };
 
   const validRoles = ["org_owner", "org_admin", "staff"];
@@ -207,7 +208,8 @@ router.patch("/:orgId/members/:userId", requireAuth, requireOrgAdmin, async (req
 
 // ── DELETE /organizations/:orgId/members/:userId ──────────────────────────────
 router.delete("/:orgId/members/:userId", requireAuth, requireOrgAdmin, async (req, res) => {
-  const { orgId, userId } = req.params;
+  const orgId = String(req.params["orgId"]);
+  const userId = String(req.params["userId"]);
   const requesterId = req.session.userId!;
 
   // Cannot remove yourself

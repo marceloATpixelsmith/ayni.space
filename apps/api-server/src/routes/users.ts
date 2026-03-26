@@ -111,7 +111,7 @@ router.post("/me/switch-org", requireAuth, validateBody(switchOrgSchema), async 
 
 // ── PATCH /users/:id/suspend ────────────────────────────────────────────────
 router.patch("/:id/suspend", requireSuperAdmin, async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params["id"]);
   const [user] = await db.update(usersTable).set({ suspended: true }).where(eq(usersTable.id, id)).returning();
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -129,7 +129,7 @@ router.patch("/:id/suspend", requireSuperAdmin, async (req, res) => {
 
 // ── PATCH /users/:id/unsuspend ──────────────────────────────────────────────
 router.patch("/:id/unsuspend", requireSuperAdmin, async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params["id"]);
   const [user] = await db.update(usersTable).set({ suspended: false }).where(eq(usersTable.id, id)).returning();
   if (!user) {
     res.status(404).json({ error: "User not found" });

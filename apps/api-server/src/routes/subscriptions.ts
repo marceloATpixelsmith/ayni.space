@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 // ── GET /organizations/:orgId/subscriptions ───────────────────────────────────
 router.get("/organizations/:orgId/subscriptions", requireAuth, requireOrgAccess, async (req, res) => {
-  const { orgId } = req.params;
+  const orgId = String(req.params["orgId"]);
 
   const subs = await db
     .select({

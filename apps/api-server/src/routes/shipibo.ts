@@ -55,8 +55,9 @@ router.get("/words", requireAuth, requireAppAccess("shipibo"), async (req, res) 
 
 // ── GET /shipibo/words/:wordId ─────────────────────────────────────────────────
 router.get("/words/:wordId", requireAuth, requireAppAccess("shipibo"), async (req, res) => {
+  const wordId = String(req.params["wordId"]);
   const word = await db.query.shipiboWordsTable.findFirst({
-    where: eq(shipiboWordsTable.id, req.params["wordId"]),
+    where: eq(shipiboWordsTable.id, wordId),
   });
 
   if (!word) {
