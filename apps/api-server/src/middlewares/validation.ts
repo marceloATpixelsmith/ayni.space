@@ -1,3 +1,5 @@
+import type { NextFunction, Request, Response } from "express";
+
 type ValidationResult<T> =
   | { success: true; data: T }
   | { success: false; error: { errors: Array<{ path: string; message: string }> } };
@@ -77,7 +79,7 @@ export const updateUserSchema: Schema<{ name?: string }> = {
 };
 
 export function validateBody<T>(schema: Schema<T>) {
-  return (req, res, next) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
       res.status(400).json({ error: "Invalid input", details: result.error.errors });

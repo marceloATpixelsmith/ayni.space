@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
@@ -16,7 +16,7 @@ function getAllowedOrigins() {
     .filter(Boolean);
 }
 
-function getRequestFrontendOrigin(req): string | null {
+function getRequestFrontendOrigin(req: Request): string | null {
   const originHeader = req.headers["origin"];
   const origin = typeof originHeader === "string" ? originHeader.trim() : "";
   if (!origin) return null;
@@ -24,14 +24,14 @@ function getRequestFrontendOrigin(req): string | null {
   return getAllowedOrigins().includes(origin) ? origin : null;
 }
 
-function firstQueryParam(value) {
+function firstQueryParam(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
 }
 
 
-function logAuthFailure(req, reason: string, metadata: Record<string, unknown> = {}) {
+function logAuthFailure(req: Request, reason: string, metadata: Record<string, unknown> = {}) {
   const signal = recordAbuseSignal(`auth:${reason}:${getAbuseClientKey(req)}`);
   writeAuditLog({
     userId: req.session?.userId,
@@ -48,7 +48,7 @@ function logAuthFailure(req, reason: string, metadata: Record<string, unknown> =
   });
 }
 
-async function handleMe(req, res) {
+async function handleMe(req: Request, res: Response) {
   const userId = req.session.userId;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -89,16 +89,16 @@ async function handleMe(req, res) {
   });
 }
 
-function handleLogout(req, res) {
-  req.session.destroy((err) => {
+function handleLogout(req: Request, res: Response) {
+  req.session.destroy((err: unknown) => {
     if (err) console.error("Session destroy error:", err);
     res.clearCookie("saas.sid");
-    req.session = null;
+    (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });
 }
 
-function handleGoogleUrl(req, res) {
+function handleGoogleUrl(req: Request, res: Response) {
   try {
     const state = randomUUID();
     const returnTo = getRequestFrontendOrigin(req);
@@ -110,7 +110,7 @@ function handleGoogleUrl(req, res) {
     req.session.oauthState = state;
     req.session.oauthReturnTo = returnTo;
     const url = buildGoogleAuthUrl(state);
-    req.session.save((err) => {
+    req.session.save((err: unknown) => {
       if (err) {
         logAuthFailure(req, "google-url-session-init-failed");
         res.status(500).json({ error: "Failed to initialize OAuth session" });
@@ -123,7 +123,7 @@ function handleGoogleUrl(req, res) {
   }
 }
 
-async function handleGoogleCallback(req, res) {
+async function handleGoogleCallback(req: Request, res: Response) {
   const code = firstQueryParam(req.query.code);
   const state = firstQueryParam(req.query.state);
 
@@ -147,7 +147,7 @@ async function handleGoogleCallback(req, res) {
     const googleUser = await exchangeCodeForUser(code);
 
     await new Promise((resolve, reject) => {
-      req.session.regenerate((err) => {
+      req.session.regenerate((err: unknown) => {
         if (err) {
           reject(err);
           return;

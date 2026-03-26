@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit.js";
@@ -12,7 +12,7 @@ import { inviteSchema, validateBody } from "../middlewares/validation.js";
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-async function listInvitations(req, res) {
+async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
   const { orgId } = req.params;
 
   const org = await db.query.organizationsTable.findFirst({
@@ -24,7 +24,7 @@ async function listInvitations(req, res) {
   });
 
   res.json(
-    invitations.map((invitation) => ({
+    invitations.map((invitation: (typeof invitations)[number]) => ({
       id: invitation.id,
       email: invitation.email,
       role: invitation.invitedRole,
@@ -37,7 +37,7 @@ async function listInvitations(req, res) {
   );
 }
 
-async function createInvitation(req, res) {
+async function createInvitation(req: Request<{ orgId: string }>, res: Response) {
   const { orgId } = req.params;
   const userId = req.session.userId;
   const { email, role } = req.body;
@@ -104,7 +104,7 @@ async function createInvitation(req, res) {
   });
 }
 
-async function cancelInvitation(req, res) {
+async function cancelInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
 
   await db
@@ -124,7 +124,7 @@ async function cancelInvitation(req, res) {
   res.json({ success: true, message: "Invitation cancelled" });
 }
 
-async function resendInvitation(req, res) {
+async function resendInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
 
   const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
@@ -155,7 +155,7 @@ async function resendInvitation(req, res) {
   res.json({ success: true, invitationId, invitationToken: rawInvitationToken });
 }
 
-async function acceptInvitation(req, res) {
+async function acceptInvitation(req: Request<{ token: string }>, res: Response) {
   const invitationToken = req.params.token;
   const userId = req.session.userId;
 

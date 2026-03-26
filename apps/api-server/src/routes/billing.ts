@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { db, organizationsTable, appPlansTable, subscriptionsTable, stripeWebhookEventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -15,7 +15,7 @@ function getAllowedOrigins() {
     .filter(Boolean);
 }
 
-function resolveFrontendBase(req): string | null {
+function resolveFrontendBase(req: Request): string | null {
   const originHeader = req.headers["origin"];
   const origin = typeof originHeader === "string" ? originHeader.trim() : "";
 
