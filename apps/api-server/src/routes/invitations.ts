@@ -210,7 +210,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
   if (invitation.invitationStatus !== "pending") {
     const signal = recordAbuseSignal(`invitation:accept:status:${getAbuseClientKey(req)}`);
     writeAuditLog({
-      orgId: invitation.orgId,
+      orgId: invitation.orgId ?? undefined,
       userId,
       action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
       resourceType: "invitation",
@@ -231,7 +231,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     await db.update(invitationsTable).set({ invitationStatus: "expired" }).where(eq(invitationsTable.id, invitation.id));
     const signal = recordAbuseSignal(`invitation:accept:expired:${getAbuseClientKey(req)}`);
     writeAuditLog({
-      orgId: invitation.orgId,
+      orgId: invitation.orgId ?? undefined,
       userId,
       action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
       resourceType: "invitation",
@@ -246,7 +246,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
   if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
     const signal = recordAbuseSignal(`invitation:accept:email-mismatch:${getAbuseClientKey(req)}`);
     writeAuditLog({
-      orgId: invitation.orgId,
+      orgId: invitation.orgId ?? undefined,
       userId,
       action: signal.repeated ? "invitation.accept.failed.repeated" : "invitation.accept.failed",
       resourceType: "invitation",
@@ -264,6 +264,19 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
+  if (!invitation.orgId) {
+    writeAuditLog({
+      userId,
+      action: "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: { reason: "missing-org-id" },
+      req,
+    });
+    res.status(500).json({ error: "Invitation is invalid" });
+    return;
+  }
+
   const existingMembership = await db.query.orgMembershipsTable.findFirst({
     where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, invitation.orgId)),
   });
@@ -272,7 +285,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     await db.insert(orgMembershipsTable).values({
       id: randomUUID(),
       userId,
-      orgId: invitation.orgId!,
+      orgId: invitation.orgId,
       role: invitation.invitedRole,
       membershipStatus: "active",
       joinedAt: new Date(),
