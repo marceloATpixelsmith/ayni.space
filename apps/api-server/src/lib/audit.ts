@@ -14,10 +14,21 @@ interface AuditOptions {
 }
 
 // Write an audit log entry — fire and forget (non-blocking)
+const readCorrelationId = (req?: Request): string | undefined => {
+  if (!req) return undefined;
+
+  if (typeof req.correlationId === "string" && req.correlationId.trim()) {
+    return req.correlationId;
+  }
+
+  const headerValue = req.headers["x-correlation-id"];
+  return typeof headerValue === "string" && headerValue.trim() ? headerValue : undefined;
+};
+
 export function writeAuditLog(opts: AuditOptions): void {
   const ipAddress = opts.req?.ip;
   const userAgent = opts.req?.get("user-agent");
-  const correlationId = opts.req?.correlationId || opts.req?.headers["x-correlation-id"];
+  const correlationId = readCorrelationId(opts.req);
 
   db.insert(auditLogsTable)
     .values({
