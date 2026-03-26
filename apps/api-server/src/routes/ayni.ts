@@ -13,11 +13,22 @@ import { userHasActiveOrgMembership } from "../lib/orgMembership.js";
 
 const router: IRouter = Router();
 
+function asSingleString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
+function parsePageNumber(value: unknown, fallback: number): number {
+  const parsed = Number.parseInt(asSingleString(value) ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // ── GET /ayni/ceremonies ──────────────────────────────────────────────────────
 router.get("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, res) => {
-  const { orgId, limit: limitStr, offset: offsetStr } = req.query as Record<string, string>;
-  const limit = Math.min(parseInt(limitStr) || 50, 200);
-  const offset = parseInt(offsetStr) || 0;
+  const orgId = asSingleString(req.query["orgId"]);
+  const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
+  const offset = parsePageNumber(req.query["offset"], 0);
 
   if (!orgId) {
     res.status(400).json({ error: "orgId query param required" });
@@ -56,8 +67,14 @@ router.get("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, res
 
 // ── GET /ayni/ceremonies/:ceremonyId ─────────────────────────────────────────
 router.get("/ceremonies/:ceremonyId", requireAuth, requireAppAccess("ayni"), async (req, res) => {
+  const ceremonyId = asSingleString(req.params["ceremonyId"]);
+  if (!ceremonyId) {
+    res.status(400).json({ error: "ceremonyId route param required" });
+    return;
+  }
+
   const ceremony = await db.query.ayniCeremoniesTable.findFirst({
-    where: eq(ayniCeremoniesTable.id, req.params["ceremonyId"]),
+    where: eq(ayniCeremoniesTable.id, ceremonyId),
   });
 
   if (!ceremony) {
@@ -117,7 +134,7 @@ router.post("/ceremonies", requireAuth, requireAppAccess("ayni"), async (req, re
 
 // ── GET /ayni/participants ────────────────────────────────────────────────────
 router.get("/participants", requireAuth, requireAppAccess("ayni"), async (req, res) => {
-  const { ceremonyId } = req.query as { ceremonyId: string };
+  const ceremonyId = asSingleString(req.query["ceremonyId"]);
 
   if (!ceremonyId) {
     res.status(400).json({ error: "ceremonyId query param required" });
@@ -144,7 +161,7 @@ router.get("/participants", requireAuth, requireAppAccess("ayni"), async (req, r
 
 // ── GET /ayni/staff ───────────────────────────────────────────────────────────
 router.get("/staff", requireAuth, requireAppAccess("ayni"), async (req, res) => {
-  const { orgId } = req.query as { orgId: string };
+  const orgId = asSingleString(req.query["orgId"]);
 
   if (!orgId) {
     res.status(400).json({ error: "orgId query param required" });
