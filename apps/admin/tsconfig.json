@@ -44,9 +44,6 @@
       "path": "../../lib/api-client-react"
     },
     {
-      "path": "../../lib/frontend-security"
-    },
-    {
       "path": "../../lib/frontend-observability"
     }
   ]
