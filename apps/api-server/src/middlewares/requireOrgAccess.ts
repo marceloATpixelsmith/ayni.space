@@ -1,8 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { getUserOrgRole, ORG_ROLES } from "../lib/rbac.js";
 
+function asSingleString(value: string | string[] | undefined): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
 export async function requireOrgAccess(req: Request, res: Response, next: NextFunction) {
-  const orgId = req.params["orgId"];
+  const orgId = asSingleString(req.params["orgId"]);
   const userId = req.session?.userId;
 
   if (!orgId || !userId) {

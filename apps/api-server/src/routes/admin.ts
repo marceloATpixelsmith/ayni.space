@@ -16,6 +16,17 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 
+function asSingleString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
+function parsePageNumber(value: unknown, fallback: number): number {
+  const parsed = Number.parseInt(asSingleString(value) ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // ── GET /admin/stats ──────────────────────────────────────────────────────────
 router.get("/stats", requireSuperAdmin, async (_req, res) => {
   const [[totalUsers], [totalOrgs], [totalSubs], [activeSubs], [totalApps]] = await Promise.all([
@@ -40,8 +51,8 @@ router.get("/stats", requireSuperAdmin, async (_req, res) => {
 
 // ── GET /admin/organizations ──────────────────────────────────────────────────
 router.get("/organizations", requireSuperAdmin, async (req, res) => {
-  const limit = Math.min(parseInt(req.query["limit"] as string) || 50, 200);
-  const offset = parseInt(req.query["offset"] as string) || 0;
+  const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
+  const offset = parsePageNumber(req.query["offset"], 0);
 
   const [orgs, [totalRow]] = await Promise.all([
     db.query.organizationsTable.findMany({ orderBy: desc(organizationsTable.createdAt), limit, offset }),
@@ -58,8 +69,8 @@ router.get("/organizations", requireSuperAdmin, async (req, res) => {
 
 // ── GET /admin/users ──────────────────────────────────────────────────────────
 router.get("/users", requireSuperAdmin, async (req, res) => {
-  const limit = Math.min(parseInt(req.query["limit"] as string) || 50, 200);
-  const offset = parseInt(req.query["offset"] as string) || 0;
+  const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
+  const offset = parsePageNumber(req.query["offset"], 0);
 
   const [users, [totalRow]] = await Promise.all([
     db.query.usersTable.findMany({ orderBy: desc(usersTable.createdAt), limit, offset }),
@@ -83,8 +94,8 @@ router.get("/users", requireSuperAdmin, async (req, res) => {
 
 // ── GET /admin/audit-logs ─────────────────────────────────────────────────────
 router.get("/audit-logs", requireSuperAdmin, async (req, res) => {
-  const limit = Math.min(parseInt(req.query["limit"] as string) || 50, 200);
-  const offset = parseInt(req.query["offset"] as string) || 0;
+  const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
+  const offset = parsePageNumber(req.query["offset"], 0);
 
   const [logs, [totalRow]] = await Promise.all([
     db.query.auditLogsTable.findMany({ orderBy: desc(auditLogsTable.createdAt), limit, offset }),
@@ -143,8 +154,14 @@ router.post("/feature-flags", requireSuperAdmin, async (req, res) => {
 
 // ── PUT /admin/organizations/:orgId/apps/:appId ───────────────────────────────
 router.put("/organizations/:orgId/apps/:appId", requireSuperAdmin, async (req, res) => {
-  const { orgId, appId } = req.params;
+  const orgId = asSingleString(req.params["orgId"]);
+  const appId = asSingleString(req.params["appId"]);
   const { enabled } = req.body as { enabled: boolean };
+
+  if (!orgId || !appId) {
+    res.status(400).json({ error: "orgId and appId route params are required" });
+    return;
+  }
 
   const existing = await db.query.orgAppAccessTable.findFirst({
     where: (t, { and, eq }) => and(eq(t.orgId, orgId), eq(t.appId, appId)),

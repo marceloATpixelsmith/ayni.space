@@ -6,11 +6,27 @@ import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
 
 const router: IRouter = Router();
 
+function asSingleString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
+function parsePageNumber(value: unknown, fallback: number): number {
+  const parsed = Number.parseInt(asSingleString(value) ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // ── GET /organizations/:orgId/audit-logs ──────────────────────────────────────
 router.get("/organizations/:orgId/audit-logs", requireAuth, requireOrgAccess, async (req, res) => {
-  const { orgId } = req.params;
-  const limit = Math.min(parseInt(req.query["limit"] as string) || 50, 200);
-  const offset = parseInt(req.query["offset"] as string) || 0;
+  const orgId = asSingleString(req.params["orgId"]);
+  const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
+  const offset = parsePageNumber(req.query["offset"], 0);
+
+  if (!orgId) {
+    res.status(400).json({ error: "orgId route param required" });
+    return;
+  }
 
   const [logs, [totalRow]] = await Promise.all([
     db.query.auditLogsTable.findMany({

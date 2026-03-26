@@ -13,6 +13,12 @@ import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute } f
 
 const router: IRouter = Router();
 
+function asSingleString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+}
+
 // Helper to format app with plans
 async function formatApp(app: typeof appsTable.$inferSelect) {
   const plans = await db.query.appPlansTable.findMany({
@@ -48,7 +54,13 @@ router.get("/", async (_req, res) => {
 // ── GET /apps/slug/:appSlug/context ─────────────────────────────────────────
 router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
   const userId = req.session.userId!;
-  const appSlug = req.params["appSlug"];
+  const appSlug = asSingleString(req.params["appSlug"]);
+
+  if (!appSlug) {
+    res.status(400).json({ error: "appSlug route param required" });
+    return;
+  }
+
   const context = await getAppContext(userId, appSlug);
 
   if (!context) {
@@ -69,8 +81,14 @@ router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
 
 // ── GET /apps/:appId ──────────────────────────────────────────────────────────
 router.get("/:appId", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  if (!appId) {
+    res.status(400).json({ error: "appId route param required" });
+    return;
+  }
+
   const app = await db.query.appsTable.findFirst({
-    where: eq(appsTable.id, req.params["appId"]),
+    where: eq(appsTable.id, appId),
   });
 
   if (!app) {
@@ -84,7 +102,11 @@ router.get("/:appId", async (req, res) => {
 export default router;
 
 export async function getOrgAppsHandler(req: import("express").Request, res: import("express").Response) {
-  const { orgId } = req.params as { orgId: string };
+  const orgId = asSingleString(req.params["orgId"]);
+  if (!orgId) {
+    res.status(400).json({ error: "orgId route param required" });
+    return;
+  }
 
   // Get all subscriptions for this org
   const subs = await db
