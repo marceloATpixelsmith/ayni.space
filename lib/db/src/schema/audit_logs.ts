@@ -1,6 +1,6 @@
 import { text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import { type infer as ZodInfer } from "zod/v4";
 import { platform } from "./_schemas";
 
 // Audit log for all significant platform actions
@@ -21,5 +21,5 @@ export const auditLogsTable = platform.table("audit_logs", {
 export const insertAuditLogSchema = createInsertSchema(auditLogsTable).omit({
   createdAt: true,
 });
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type InsertAuditLog = ZodInfer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogsTable.$inferSelect;
