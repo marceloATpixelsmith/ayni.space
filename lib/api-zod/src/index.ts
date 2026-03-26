@@ -1,2 +1,2 @@
 export * from "./generated/api";
-export type * as ApiTypes from "./generated/types";
+export type ApiTypes = typeof import("./generated/types");
