@@ -126,7 +126,13 @@ export async function getOrgAppsHandler(req: import("express").Request, res: imp
     where: and(eq(orgAppAccessTable.orgId, orgId), eq(orgAppAccessTable.enabled, true)),
   });
 
-  const result = subs.map((s) => ({
+  const result: Array<{
+    appId: string;
+    appName: string;
+    appSlug: string;
+    status: "active" | "trialing" | "past_due" | "canceled" | "inactive";
+    subscriptionId: string | null;
+  }> = subs.map((s) => ({
     appId: s.appId,
     appName: s.appName,
     appSlug: s.appSlug,
