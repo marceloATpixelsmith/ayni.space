@@ -1,5 +1,6 @@
 import { text, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 import { platform } from "./_schemas";
 
 // Feature flags - platform-wide or per-org feature toggles

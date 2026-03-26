@@ -1,5 +1,6 @@
 import { text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 import { platform } from "./_schemas";
 
 // Audit log for all significant platform actions
