@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx ./src/index.ts",
-    "build": "tsc --noCheck -p tsconfig.json",
+    "build": "tsx build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/__tests__/*.test.ts"
   },
