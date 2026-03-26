@@ -18,11 +18,17 @@ export function createMountedSessionApp(mounts: Array<{ path: string; router: Ro
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as express.Request & { session: SessionShape }).session = {
+    (req as unknown as { session: SessionShape }).session = {
       id: "test-session-id",
-      destroy: (cb) => cb?.(),
-      save: (cb) => cb?.(),
-      regenerate: (cb) => cb?.(),
+      destroy: ((cb?: (err?: unknown) => void) => {
+        cb?.();
+      }) as SessionShape["destroy"],
+      save: ((cb?: (err?: unknown) => void) => {
+        cb?.();
+      }) as SessionShape["save"],
+      regenerate: ((cb?: (err?: unknown) => void) => {
+        cb?.();
+      }) as SessionShape["regenerate"],
       ...session,
     };
     next();
@@ -53,7 +59,7 @@ export async function performJsonRequest(
       headers: body ? { "content-type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    const payload = await response.json().catch(() => null);
+    const payload = (await response.json().catch(() => null)) as any;
     return { status: response.status, body: payload };
   } finally {
     await new Promise<void>((resolve, reject) => {
@@ -64,9 +70,9 @@ export async function performJsonRequest(
 
 type RestoreFn = () => void;
 
-export function patchProperty<T extends object, K extends keyof T>(target: T, key: K, value: T[K]): RestoreFn {
+export function patchProperty<T extends object, K extends keyof T>(target: T, key: K, value: unknown): RestoreFn {
   const original = target[key];
-  target[key] = value;
+  (target as Record<K, unknown>)[key] = value;
   return () => {
     target[key] = original;
   };
