@@ -669,6 +669,10 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.1.0
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.14
 
   lib/frontend-security:
     dependencies:
