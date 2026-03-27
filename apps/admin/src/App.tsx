@@ -64,8 +64,12 @@ function ProtectedSuperAdmin({ children }: { children: React.ReactNode }) {
 
   if (auth.status === "loading") return <AuthLoading />;
 
+  if (auth.status === "unauthenticated") {
+    return <AuthRedirect to="/login" />;
+  }
+
   // Fail closed: if auth is not explicitly super admin, deny route rendering.
-  if (auth.status !== "authenticated" || !auth.user?.isSuperAdmin) {
+  if (!auth.user?.isSuperAdmin) {
     return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
   }
 
