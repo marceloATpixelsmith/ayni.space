@@ -7,6 +7,7 @@ import { getSessionCookieName, getSessionCookieOptions } from "../lib/session.js
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
+import { isTurnstileEnabled, verifyTurnstileToken } from "../middlewares/turnstile.js";
 
 const router = Router();
 
@@ -31,6 +32,12 @@ function firstQueryParam(value: unknown): string | undefined {
   return undefined;
 }
 
+function getTurnstileToken(req: Request): string {
+  const headerValue = req.headers["cf-turnstile-response"];
+  const headerToken = typeof headerValue === "string" ? headerValue : undefined;
+  const bodyToken = typeof req.body?.["cf-turnstile-response"] === "string" ? req.body["cf-turnstile-response"] : undefined;
+  return bodyToken ?? headerToken ?? "";
+}
 
 function logAuthFailure(req: Request, reason: string, metadata: Record<string, unknown> = {}) {
   const signal = recordAbuseSignal(`auth:${reason}:${getAbuseClientKey(req)}`);
@@ -107,8 +114,24 @@ function handleLogout(req: Request, res: Response) {
   });
 }
 
-function handleGoogleUrl(req: Request, res: Response) {
+async function handleGoogleUrl(req: Request, res: Response) {
   try {
+    if (isTurnstileEnabled() && !req.turnstileVerified) {
+      const turnstileToken = getTurnstileToken(req);
+      if (!turnstileToken) {
+        logAuthFailure(req, "google-url-turnstile-missing");
+        res.status(403).json({ error: "Turnstile verification failed" });
+        return;
+      }
+
+      const turnstileOk = await verifyTurnstileToken(turnstileToken, req.ip).catch(() => false);
+      if (!turnstileOk) {
+        logAuthFailure(req, "google-url-turnstile-invalid");
+        res.status(403).json({ error: "Turnstile verification failed" });
+        return;
+      }
+    }
+
     const state = randomUUID();
     const returnTo = getRequestFrontendOrigin(req);
     if (!returnTo) {

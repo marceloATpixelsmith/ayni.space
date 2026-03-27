@@ -43,14 +43,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const user = auth.user;
   const isLoading = auth.status === "loading";
   const isError = auth.status === "unauthenticated";
+  const [logoutInFlight, setLogoutInFlight] = React.useState(false);
 
   React.useEffect(() => {
     if (isError) {
       setLocation("/login");
-    } else if (user && !user.activeOrgId && location !== "/onboarding") {
-      setLocation("/onboarding");
     }
-  }, [user, isError, location, setLocation]);
+  }, [isError, setLocation]);
 
   if (isLoading) {
     return (
@@ -60,7 +59,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || (!user.activeOrgId && location !== "/onboarding")) {
+  if (!user) {
     return null; // Will redirect in useEffect
   }
 
@@ -74,9 +73,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = React.useCallback(async () => {
-    await auth.logout();
-    setLocation("/login");
-  }, [auth, setLocation]);
+    if (logoutInFlight) {
+      return;
+    }
+
+    setLogoutInFlight(true);
+    try {
+      await auth.logout();
+      setLocation("/login");
+    } finally {
+      setLogoutInFlight(false);
+    }
+  }, [auth, logoutInFlight, setLocation]);
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "16rem", "--sidebar-width-icon": "4rem" } as React.CSSProperties}>
@@ -91,8 +99,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <Building2 className="w-4 h-4" />
                     </div>
                     <div className="flex flex-col items-start truncate">
-                      <span className="text-sm font-semibold truncate w-full">{user.activeOrg?.name || "No Organization"}</span>
-                      <span className="text-xs text-muted-foreground">Free Plan</span>
+                      <span className="text-sm font-semibold truncate w-full">{user.activeOrg?.name || "Platform Console"}</span>
+                      <span className="text-xs text-muted-foreground">{user.isSuperAdmin ? "Super Admin" : "Member"}</span>
                     </div>
                   </div>
                   <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -116,13 +124,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href="/onboarding" className="w-full flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    <span>Create New Organization</span>
-                  </Link>
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarHeader>
@@ -187,9 +188,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={handleLogout}>
+                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={handleLogout} disabled={logoutInFlight}>
                   <LogOut className="w-4 h-4 mr-2" />
-                  Log out
+                  {logoutInFlight ? "Logging out..." : "Log out"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

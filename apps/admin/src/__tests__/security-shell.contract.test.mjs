@@ -199,8 +199,20 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     appLayoutSource,
-    "await auth.logout();\n    setLocation(\"/login\");",
-    "Logout flow must navigate to /login after server logout resolves.",
+    "setLogoutInFlight(true);",
+    "Logout flow should lock UI controls while logout is in flight.",
+  );
+
+  expectIncludes(
+    appLayoutSource,
+    "await auth.logout();\n      setLocation(\"/login\");",
+    "Logout flow must navigate to /login only after logout resolves.",
+  );
+
+  expectIncludes(
+    appLayoutSource,
+    "setLogoutInFlight(false);",
+    "Logout flow should release the button state after completion.",
   );
 
   expectIncludes(
@@ -267,6 +279,20 @@ test("login includes turnstile token when requesting oauth url", () => {
     loginSource,
     "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}",
     "Login button should stay disabled until required turnstile token is present.",
+  );
+});
+
+test("admin layout no longer enforces org onboarding as an access prerequisite", () => {
+  expectNotIncludes(
+    appLayoutSource,
+    "setLocation(\"/onboarding\")",
+    "Super-admin layout should not redirect to onboarding based on org state.",
+  );
+
+  expectNotIncludes(
+    appLayoutSource,
+    "!user.activeOrgId",
+    "Super-admin layout should not require activeOrgId for rendering access.",
   );
 });
 
