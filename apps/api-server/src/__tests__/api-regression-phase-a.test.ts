@@ -250,15 +250,13 @@ test("D: members and invitations role/org checks and invitation acceptance state
   }
 });
 
-test("E: super admin endpoints are super-admin only", async () => {
+test("E: super admin endpoints are super-admin only (no app/subscription dependency)", async () => {
   let isSuper = false;
-  let hasAdminApp = false;
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("admin-user", { isSuperAdmin: isSuper })),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-admin", slug: "admin" })),
-    patchProperty(db.query.userAppAccessTable, "findFirst", async () =>
-      hasAdminApp ? { id: "uaa-1", userId: "admin-user", appId: "app-admin", accessStatus: "active" } : null,
-    ),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => {
+      throw new Error("requireSuperAdmin should not query userAppAccessTable");
+    }),
     patchProperty(db, "select", selectCountMock()),
     patchProperty(db.query.organizationsTable, "findMany", async () => []),
     patchProperty(db.query.usersTable, "findMany", async () => []),
@@ -271,7 +269,6 @@ test("E: super admin endpoints are super-admin only", async () => {
     assert.equal((await performJsonRequest(app, "GET", "/api/admin/stats")).status, 403);
 
     isSuper = true;
-    hasAdminApp = true;
     assert.equal((await performJsonRequest(app, "GET", "/api/admin/stats")).status, 200);
     assert.equal((await performJsonRequest(app, "GET", "/api/admin/organizations")).status, 200);
     assert.equal((await performJsonRequest(app, "GET", "/api/admin/users")).status, 200);

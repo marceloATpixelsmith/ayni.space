@@ -3,7 +3,6 @@ import {
   db,
   organizationsTable,
   usersTable,
-  subscriptionsTable,
   appsTable,
   auditLogsTable,
   featureFlagsTable,
@@ -29,22 +28,17 @@ function parsePageNumber(value: unknown, fallback: number): number {
 
 // ── GET /admin/stats ──────────────────────────────────────────────────────────
 router.get("/stats", requireSuperAdmin, async (_req, res) => {
-  const [[totalUsers], [totalOrgs], [totalSubs], [activeSubs], [totalApps]] = await Promise.all([
+  const [[totalUsers], [totalOrgs], [totalApps]] = await Promise.all([
     db.select({ count: count() }).from(usersTable),
     db.select({ count: count() }).from(organizationsTable),
-    db.select({ count: count() }).from(subscriptionsTable),
-    db
-      .select({ count: count() })
-      .from(subscriptionsTable)
-      .where(eq(subscriptionsTable.status, "active")),
     db.select({ count: count() }).from(appsTable),
   ]);
 
   res.json({
     totalUsers: Number(totalUsers?.count ?? 0),
     totalOrgs: Number(totalOrgs?.count ?? 0),
-    totalSubscriptions: Number(totalSubs?.count ?? 0),
-    activeSubscriptions: Number(activeSubs?.count ?? 0),
+    totalSubscriptions: 0,
+    activeSubscriptions: 0,
     totalApps: Number(totalApps?.count ?? 0),
   });
 });

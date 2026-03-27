@@ -70,6 +70,7 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
   const [csrfReady, setCsrfReady] = React.useState(false);
+  const [sessionRevoked, setSessionRevoked] = React.useState(false);
   const csrfTokenRef = React.useRef<string | null>(null);
 
   const meQuery = useGetMe();
@@ -81,6 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
+
+  React.useEffect(() => {
+    if (meQuery.data) {
+      setSessionRevoked(false);
+    }
+  }, [meQuery.data]);
 
   const refreshSession = React.useCallback(async () => {
     await meQuery.refetch();
@@ -134,8 +141,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [googleUrlQuery]);
 
   const logout = React.useCallback(async () => {
-    await logoutMutation.mutateAsync();
-    await refreshSession();
+    setSessionRevoked(true);
+
+    try {
+      await logoutMutation.mutateAsync();
+    } finally {
+      await refreshSession();
+    }
   }, [logoutMutation, refreshSession]);
 
   const switchOrganization = React.useCallback(
@@ -169,16 +181,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshSession],
   );
 
-  const status: AuthStatus = meQuery.isLoading
-    ? "loading"
-    : meQuery.data
-      ? "authenticated"
-      : "unauthenticated";
+  const status: AuthStatus = sessionRevoked
+    ? "unauthenticated"
+    : meQuery.isLoading
+      ? "loading"
+      : meQuery.isError
+        ? "unauthenticated"
+        : meQuery.data
+          ? "authenticated"
+          : "unauthenticated";
 
   const value: AuthContextValue = React.useMemo(
     () => ({
       status,
-      user: meQuery.data ?? null,
+      user: status === "authenticated" ? meQuery.data ?? null : null,
       csrfToken,
       csrfReady,
       refreshSession,
