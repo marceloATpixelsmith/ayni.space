@@ -114,10 +114,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogle = React.useCallback(async () => {
     const url = googleUrlQuery.data?.url;
     if (!url) {
-      throw new Error("Google OAuth URL is not available.");
+      const latest = await googleUrlQuery.refetch();
+      const latestUrl = latest.data?.url;
+
+      if (!latestUrl) {
+        const queryError =
+          latest.error instanceof Error
+            ? latest.error.message
+            : googleUrlQuery.error instanceof Error
+              ? googleUrlQuery.error.message
+              : null;
+        throw new Error(
+          queryError
+            ? `Google OAuth URL is not available: ${queryError}`
+            : "Google OAuth URL is not available.",
+        );
+      }
+
+      window.location.assign(latestUrl);
+      return;
     }
     window.location.assign(url);
-  }, [googleUrlQuery.data]);
+  }, [googleUrlQuery]);
 
   const logout = React.useCallback(async () => {
     await logoutMutation.mutateAsync();

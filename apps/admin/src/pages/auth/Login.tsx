@@ -8,6 +8,7 @@ import { Chrome, ActivitySquare } from "lucide-react";
 
 export default function Login() {
   const [location, setLocation] = useLocation();
+  const [loginError, setLoginError] = React.useState<string | null>(null);
   const auth = useAuth();
 
   React.useEffect(() => {
@@ -26,7 +27,11 @@ export default function Login() {
   }
 
   const handleGoogleLogin = () => {
-    auth.loginWithGoogle().catch(() => {});
+    setLoginError(null);
+    auth.loginWithGoogle().catch((error) => {
+      const message = error instanceof Error ? error.message : "Failed to start Google sign-in.";
+      setLoginError(message);
+    });
   };
 
   return (
@@ -70,6 +75,12 @@ export default function Login() {
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               Sign in with Google
             </Button>
+
+            {loginError ? (
+              <p className="mt-4 text-sm text-destructive text-center" role="alert">
+                {loginError}
+              </p>
+            ) : null}
 
             <div className="mt-8 text-center text-sm text-muted-foreground">
               By signing in, you agree to our{" "}

@@ -9,6 +9,7 @@ export type BodyType<T> = T;
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const API_BASE = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL ?? "";
 
 let csrfTokenProvider: (() => string | null | undefined) | null = null;
 
@@ -38,6 +39,14 @@ function resolveUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (isUrl(input)) return input.toString();
   return input.url;
+}
+
+function toApiUrl(inputUrl: string): string {
+  if (!API_BASE) return inputUrl;
+  if (/^(https?:)?\/\//i.test(inputUrl)) return inputUrl;
+  if (!inputUrl.startsWith("/")) return inputUrl;
+
+  return `${API_BASE.replace(/\/$/, "")}${inputUrl}`;
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
@@ -314,8 +323,9 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
+  const requestUrl = toApiUrl(requestInfo.url);
 
-  const response = await fetch(input, {
+  const response = await fetch(requestUrl, {
     ...init,
     method,
     headers,
