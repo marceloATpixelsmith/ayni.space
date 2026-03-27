@@ -20,6 +20,10 @@ function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
 }
 
+function expectNotIncludes(source, needle, message) {
+  assert.ok(!source.includes(needle), `${message}\nUnexpected snippet: ${needle}`);
+}
+
 test("logged-out users are redirected to /login", () => {
   expectIncludes(
     appSource,
@@ -45,6 +49,18 @@ test("non-super-admin users are blocked from dashboard and deeper routes", () =>
     accessDeniedSource,
     'return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;',
     "Non-super-admin redirects must target /login with the shared access error.",
+  );
+
+  expectNotIncludes(
+    appSource,
+    '/unauthorized',
+    "Admin shell must not route to /unauthorized.",
+  );
+
+  expectNotIncludes(
+    loginSource,
+    'setLocation(next || "/app")',
+    "Login flow must not redirect non-super-admin users to /app.",
   );
 
   const protectedPaths = [
@@ -82,7 +98,30 @@ test("super-admin users are sent to /dashboard after login", () => {
     "const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;",
     "Login page should render stable access-denied feedback from redirect state.",
   );
+
+  expectIncludes(
+    accessDeniedSource,
+    '"You are not authorized to access this application."',
+    "Login-page access error copy should explain the authorization failure.",
+  );
 });
+
+
+
+test("direct protected-route access fail-closes to login with access error", () => {
+  expectIncludes(
+    appSource,
+    "return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    "Protected routes must redirect unauthorized users to /login with the shared auth error.",
+  );
+
+  expectNotIncludes(
+    appSource,
+    "<Route path=\"/unauthorized\"",
+    "Admin router must not define a standalone /unauthorized page.",
+  );
+});
+
 
 test("logout fail-closed behavior clears UI auth immediately", () => {
   expectIncludes(
