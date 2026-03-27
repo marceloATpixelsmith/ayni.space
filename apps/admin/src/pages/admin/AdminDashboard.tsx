@@ -236,7 +236,6 @@ function AdminFeatureFlags() {
 
   const handleToggle = async (key: string, value: boolean) => {
     await setFlag.mutateAsync({ data: { key, value } });
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/feature-flags"] });
   };
 
   return (
