@@ -29,6 +29,7 @@ export default function Login() {
   const handleGoogleLogin = () => {
     setLoginError(null);
     auth.loginWithGoogle().catch((error) => {
+      console.error("Google sign-in failed", error);
       const message = error instanceof Error ? error.message : "Failed to start Google sign-in.";
       setLoginError(message);
     });

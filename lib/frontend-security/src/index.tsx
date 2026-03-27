@@ -72,7 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const csrfTokenRef = React.useRef<string | null>(null);
 
   const meQuery = useGetMe();
-  const googleUrlQuery = useGetGoogleAuthUrl();
+  const googleUrlQuery = useGetGoogleAuthUrl({
+    query: {
+      enabled: false,
+    },
+  });
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
 
@@ -112,29 +116,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithGoogle = React.useCallback(async () => {
-    const url = googleUrlQuery.data?.url;
-    if (!url) {
-      const latest = await googleUrlQuery.refetch();
-      const latestUrl = latest.data?.url;
+    const latest = await googleUrlQuery.refetch();
+    const latestUrl = latest.data?.url;
 
-      if (!latestUrl) {
-        const queryError =
-          latest.error instanceof Error
-            ? latest.error.message
-            : googleUrlQuery.error instanceof Error
-              ? googleUrlQuery.error.message
-              : null;
-        throw new Error(
-          queryError
-            ? `Google OAuth URL is not available: ${queryError}`
-            : "Google OAuth URL is not available.",
-        );
-      }
-
-      window.location.assign(latestUrl);
-      return;
+    if (!latestUrl) {
+      const queryError = latest.error instanceof Error ? latest.error.message : null;
+      throw new Error(
+        queryError
+          ? `Google OAuth URL is not available: ${queryError}`
+          : "Google OAuth URL is not available.",
+      );
     }
-    window.location.assign(url);
+
+    window.location.assign(latestUrl);
   }, [googleUrlQuery]);
 
   const logout = React.useCallback(async () => {
