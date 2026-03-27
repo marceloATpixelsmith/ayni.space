@@ -24,20 +24,27 @@ function getTurnstileSecret(): string {
   return process.env["TURNSTILE_SECRET_KEY"] ?? "";
 }
 
-export async function verifyTurnstileToken(token: string, remoteip?: string): Promise<boolean> {
-  if (!isTurnstileEnabled()) return true;
+export type TurnstileVerificationResult = {
+  ok: boolean;
+  reason?: "missing-token" | "missing-secret" | "verification-failed" | "verification-error";
+  errorCodes?: string[];
+};
+
+export async function verifyTurnstileTokenDetailed(token: string, remoteip?: string): Promise<TurnstileVerificationResult> {
+  if (!isTurnstileEnabled()) return { ok: true };
+
+  const normalizedToken = token.trim();
+  if (!normalizedToken) return { ok: false, reason: "missing-token" };
 
   const secret = getTurnstileSecret();
   if (!secret) {
-    throw new Error("TURNSTILE_SECRET_KEY not set");
+    return { ok: false, reason: "missing-secret" };
   }
-
-  if (!token) return false;
 
   try {
     const body = new URLSearchParams({
       secret,
-      response: token,
+      response: normalizedToken,
       ...(remoteip ? { remoteip } : {}),
     });
 
@@ -47,12 +54,18 @@ export async function verifyTurnstileToken(token: string, remoteip?: string): Pr
       body,
     });
 
-    if (!resp.ok) return false;
-    const data = (await resp.json()) as { success?: boolean };
-    return Boolean(data.success);
+    if (!resp.ok) return { ok: false, reason: "verification-failed" };
+    const data = (await resp.json()) as { success?: boolean; "error-codes"?: string[] };
+    if (data.success) return { ok: true };
+    return { ok: false, reason: "verification-failed", errorCodes: data["error-codes"] };
   } catch {
-    return false;
+    return { ok: false, reason: "verification-error" };
   }
+}
+
+export async function verifyTurnstileToken(token: string, remoteip?: string): Promise<boolean> {
+  const result = await verifyTurnstileTokenDetailed(token, remoteip);
+  return result.ok;
 }
 
 function getTokenFromRequest(req: Request): string {
@@ -62,7 +75,7 @@ function getTokenFromRequest(req: Request): string {
   return bodyToken ?? headerToken ?? "";
 }
 
-function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: typeof writeAuditLog) {
+function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: typeof writeAuditLog, metadata: Record<string, unknown> = {}) {
   const userId = req.session?.userId;
   const key = `${req.path}:${getAbuseClientKey(req)}`;
   const signal = recordAbuseSignal(`turnstile:${key}`);
@@ -78,6 +91,7 @@ function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: type
       threshold: signal.threshold,
       method: req.method,
       path: req.path,
+      ...metadata,
     },
     req,
   });
@@ -96,7 +110,7 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
     const token = getTokenFromRequest(req);
     if (!token) {
       logTurnstileFailure(req, "missing-token", writeAuditLogFn);
-      res.status(403).json({ error: "Turnstile verification failed" });
+      res.status(403).json({ error: "Please complete the verification challenge." });
       return;
     }
 
@@ -104,7 +118,7 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
       .then((ok) => {
         if (!ok) {
           logTurnstileFailure(req, "invalid-token", writeAuditLogFn);
-          res.status(403).json({ error: "Turnstile verification failed" });
+          res.status(403).json({ error: "Security verification failed. Please try again." });
           return;
         }
         (req as Request & { turnstileVerified?: boolean }).turnstileVerified = true;
@@ -112,9 +126,16 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
       })
       .catch(() => {
         logTurnstileFailure(req, "verification-error", writeAuditLogFn);
-        res.status(500).json({ error: "Turnstile verification error" });
+        res.status(403).json({ error: "Security verification failed. Please try again." });
       });
   };
+}
+
+export function logTurnstileVerificationResult(req: Request, result: TurnstileVerificationResult, writeAuditLogFn: typeof writeAuditLog = writeAuditLog) {
+  if (result.ok) return;
+  logTurnstileFailure(req, result.reason ?? "verification-failed", writeAuditLogFn, {
+    errorCodes: result.errorCodes ?? [],
+  });
 }
 
 declare global {

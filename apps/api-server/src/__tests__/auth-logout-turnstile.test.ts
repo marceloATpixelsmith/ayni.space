@@ -103,7 +103,7 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
       { origin: "http://localhost:5173" },
     );
     assert.equal(missingToken.status, 403);
-    assert.equal(missingToken.body?.error, "Turnstile verification failed");
+    assert.equal(missingToken.body?.error, "Please complete the verification challenge.");
 
     const invalidToken = await requestJson(
       app,
@@ -116,7 +116,7 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
       },
     );
     assert.equal(invalidToken.status, 403);
-    assert.equal(invalidToken.body?.error, "Turnstile verification failed");
+    assert.equal(invalidToken.body?.error, "Security verification failed. Please try again.");
   } finally {
     if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevEnabled;

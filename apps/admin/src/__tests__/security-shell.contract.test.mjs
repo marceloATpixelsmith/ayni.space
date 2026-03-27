@@ -259,7 +259,7 @@ test("google oauth url is requested only on explicit login intent", () => {
 test("login includes turnstile token when requesting oauth url", () => {
   expectIncludes(
     loginSource,
-    "const { token: turnstileToken",
+    "token: turnstileToken",
     "Login should source Turnstile token from shared security hook.",
   );
 
@@ -277,8 +277,14 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}",
+    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}",
     "Login button should stay disabled until required turnstile token is present.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "body: JSON.stringify({\n          \"cf-turnstile-response\": normalizedTurnstileToken,\n        })",
+    "OAuth URL request should include Turnstile token in request body for backend verification.",
   );
 });
 
@@ -325,7 +331,7 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}",
+    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}",
     "Login button must be disabled during pending OAuth request and when turnstile is required.",
   );
 
