@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLogout } from "@workspace/api-client-react";
+import { adminAccessDeniedLoginPath } from "../auth/accessDenied";
 
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -35,7 +36,7 @@ export default function AdminDashboard({ section = "overview" }: { section?: str
 
   React.useEffect(() => {
     if (!userLoading && !user) setLocation("/login");
-    if (!userLoading && user && !user.isSuperAdmin) setLocation("/unauthorized");
+    if (!userLoading && user && !user.isSuperAdmin) setLocation(adminAccessDeniedLoginPath());
   }, [user, userLoading, setLocation]);
 
   const handleLogout = async () => {

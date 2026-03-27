@@ -5,11 +5,20 @@ import { useAuth } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chrome, ActivitySquare } from "lucide-react";
+import {
+  ADMIN_ACCESS_DENIED_ERROR,
+  ADMIN_ACCESS_DENIED_MESSAGE,
+  adminAccessDeniedLoginPath,
+} from "./accessDenied";
 
 export default function Login() {
   const [location, setLocation] = useLocation();
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const auth = useAuth();
+
+  const query = React.useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
+  const accessErrorCode = query.get("error");
+  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
 
   React.useEffect(() => {
     if (auth.status === "authenticated") {
@@ -17,7 +26,7 @@ export default function Login() {
       if (auth.user?.isSuperAdmin) {
         setLocation(next || "/dashboard");
       } else {
-        setLocation("/unauthorized");
+        setLocation(adminAccessDeniedLoginPath());
       }
     }
   }, [auth.status, setLocation, location]);
@@ -80,6 +89,12 @@ export default function Login() {
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               Sign in with Google
             </Button>
+
+            {accessError ? (
+              <p className="mt-4 text-sm text-destructive text-center" role="alert">
+                {accessError}
+              </p>
+            ) : null}
 
             {loginError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">

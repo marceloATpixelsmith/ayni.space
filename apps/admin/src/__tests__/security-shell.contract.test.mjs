@@ -8,10 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appPath = path.resolve(__dirname, "../App.tsx");
 const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
+const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
+const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
 
 function expectIncludes(source, needle, message) {
@@ -27,16 +29,22 @@ test("logged-out users are redirected to /login", () => {
 
   expectIncludes(
     appSource,
-    'const target = auth.status === "unauthenticated" ? "/login" : "/unauthorized";',
-    "Protected routes should route logged-out users to /login.",
+    "return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    "Protected routes should fail closed to login with access-denied state.",
   );
 });
 
 test("non-super-admin users are blocked from dashboard and deeper routes", () => {
   expectIncludes(
     appSource,
-    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : "/unauthorized");',
+    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());',
     "Root route must block non-super-admin users.",
+  );
+
+  expectIncludes(
+    accessDeniedSource,
+    'return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;',
+    "Non-super-admin redirects must target /login with the shared access error.",
   );
 
   const protectedPaths = [
@@ -65,8 +73,14 @@ test("super-admin users are sent to /dashboard after login", () => {
 
   expectIncludes(
     loginSource,
-    '} else {\n        setLocation("/unauthorized");',
-    "Login must block non-super-admin users from /dashboard.",
+    '} else {\n        setLocation(adminAccessDeniedLoginPath());',
+    "Login must route non-super admins to /login with an access error.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;",
+    "Login page should render stable access-denied feedback from redirect state.",
   );
 });
 

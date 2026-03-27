@@ -11,7 +11,7 @@ import Onboarding from "./pages/auth/Onboarding";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import InvitationAccept from "./pages/auth/InvitationAccept";
 import NotFound from "./pages/not-found";
-import Unauthorized from "./pages/auth/Unauthorized";
+import { adminAccessDeniedLoginPath } from "./pages/auth/accessDenied";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +42,7 @@ function Home() {
         return;
       }
 
-      setLocation(auth.user?.isSuperAdmin ? "/dashboard" : "/unauthorized");
+      setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
     }
   }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
 
@@ -66,8 +66,7 @@ function ProtectedSuperAdmin({ children }: { children: React.ReactNode }) {
 
   // Fail closed: if auth is not explicitly super admin, deny route rendering.
   if (auth.status !== "authenticated" || !auth.user?.isSuperAdmin) {
-    const target = auth.status === "unauthenticated" ? "/login" : "/unauthorized";
-    return <AuthRedirect to={target} />;
+    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
   }
 
   return <>{children}</>;
@@ -85,7 +84,6 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/unauthorized" component={Unauthorized} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/invitations/:token/accept" component={InvitationAccept} />
 
