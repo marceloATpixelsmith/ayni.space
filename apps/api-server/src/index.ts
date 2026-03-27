@@ -53,9 +53,26 @@ async function startServer() {
   console.info("[startup] App module imported.");
 
   console.info("[startup] Starting HTTP listener...");
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.info(`[startup] Server listening on port ${port}`);
   });
+
+  const shutdown = (signal: NodeJS.Signals) => {
+    console.info(`[shutdown] Received ${signal}. Closing HTTP listener...`);
+    server.close((error) => {
+      if (error) {
+        console.error("[shutdown] Error while closing HTTP listener.");
+        console.error(error);
+        process.exit(1);
+      }
+
+      console.info("[shutdown] HTTP listener closed. Exiting process.");
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch((error) => {
