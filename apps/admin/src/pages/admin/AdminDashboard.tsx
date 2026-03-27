@@ -15,9 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useLogout } from "@workspace/api-client-react";
 import { adminAccessDeniedLoginPath } from "../auth/accessDenied";
+import { useAuth } from "@workspace/frontend-security";
+import { useQueryClient } from "@tanstack/react-query";
 
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -29,10 +29,10 @@ const NAV = [
 
 export default function AdminDashboard({ section = "overview" }: { section?: string }) {
   const [, setLocation] = useLocation();
+  const auth = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: user, isLoading: userLoading } = useGetMe();
-  const logout = useLogout();
-  const queryClient = useQueryClient();
 
   React.useEffect(() => {
     if (!userLoading && !user) setLocation("/login");
@@ -40,9 +40,12 @@ export default function AdminDashboard({ section = "overview" }: { section?: str
   }, [user, userLoading, setLocation]);
 
   const handleLogout = async () => {
-    await logout.mutateAsync();
-    queryClient.clear();
-    setLocation("/login");
+    try {
+      queryClient.clear();
+      await auth.logout();
+    } finally {
+      setLocation("/login");
+    }
   };
 
   return (
