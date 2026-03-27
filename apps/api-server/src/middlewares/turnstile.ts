@@ -117,8 +117,12 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
   };
 }
 
-declare module "express-serve-static-core" {
-  interface Request {
-    turnstileVerified?: boolean;
+declare global {
+  namespace Express {
+    interface Request {
+      turnstileVerified?: boolean;
+    }
   }
 }
+
+export {};
