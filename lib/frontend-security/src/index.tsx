@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  getGetGoogleAuthUrlQueryKey,
   useGetGoogleAuthUrl,
   useGetMe,
   useLogout,
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const googleUrlQuery = useGetGoogleAuthUrl({
     query: {
       enabled: false,
+      queryKey: getGetGoogleAuthUrlQueryKey(),
     },
   });
   const logoutMutation = useLogout();
