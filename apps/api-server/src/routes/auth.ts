@@ -6,6 +6,7 @@ import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
+import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 
 const router = Router();
 
@@ -243,7 +244,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     const frontendBase = oauthReturnTo;
-    const destination = user.isSuperAdmin ? "/dashboard" : "/unauthorized";
+    const destination = getPostAuthRedirectPath(user.isSuperAdmin);
     res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
     console.error("Google callback failed:", error);

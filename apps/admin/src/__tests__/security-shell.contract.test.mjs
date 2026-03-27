@@ -33,8 +33,8 @@ test("logged-out users are redirected to /login", () => {
 
   expectIncludes(
     appSource,
-    "return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
-    "Protected routes should fail closed to login with access-denied state.",
+    'if (auth.status === "unauthenticated") {\n    return <AuthRedirect to="/login" />;',
+    "Protected routes should route logged-out users to /login.",
   );
 });
 
@@ -106,6 +106,19 @@ test("super-admin users are sent to /dashboard after login", () => {
   );
 });
 
+test("protected authenticated non-super-admin users are routed to login with access error", () => {
+  expectIncludes(
+    appSource,
+    "if (!auth.user?.isSuperAdmin) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    "Protected routes must route authenticated non-super-admin users to /login with access error.",
+  );
+
+  expectIncludes(
+    appSource,
+    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());',
+    "Root route should route authenticated non-super-admin users to /login with access error.",
+  );
+});
 
 
 test("direct protected-route access fail-closes to login with access error", () => {
@@ -119,6 +132,20 @@ test("direct protected-route access fail-closes to login with access error", () 
     appSource,
     "<Route path=\"/unauthorized\"",
     "Admin router must not define a standalone /unauthorized page.",
+  );
+});
+
+test("login screen has stable inline access-denied message state", () => {
+  expectIncludes(
+    accessDeniedSource,
+    'export const ADMIN_ACCESS_DENIED_ERROR = "access_denied";',
+    "Login access-denied error code should be stable.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "role=\"alert\"",
+    "Login page should render inline alert text for access errors.",
   );
 });
 
