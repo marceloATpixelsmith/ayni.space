@@ -91,6 +91,9 @@ async function handleMe(req: Request, res: Response) {
 }
 
 function handleLogout(req: Request, res: Response) {
+  const sessionCookieName = getSessionCookieName();
+  const sessionCookieOptions = getSessionCookieOptions();
+
   req.session.destroy((err: unknown) => {
     if (err) {
       console.error("Session destroy error:", err);
@@ -98,7 +101,7 @@ function handleLogout(req: Request, res: Response) {
       return;
     }
 
-    res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
+    res.clearCookie(sessionCookieName, sessionCookieOptions);
     (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });

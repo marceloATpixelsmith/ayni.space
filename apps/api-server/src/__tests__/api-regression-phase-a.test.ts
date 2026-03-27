@@ -104,6 +104,8 @@ test("A: auth/session protections and logout flow", async () => {
     assert.match(clearedCookies, /saas\.sid=;/);
     assert.match(clearedCookies, /Domain=admin\.test\.local/i);
     assert.match(clearedCookies, /Path=\//i);
+    assert.match(clearedCookies, /HttpOnly/i);
+    assert.match(clearedCookies, /SameSite=Lax/i);
 
     const after = await performJsonRequest(createMountedSessionApp([{ path: "/api/users", router: usersRouter }], {}), "GET", "/api/users/me");
     assert.equal(after.status, 401);

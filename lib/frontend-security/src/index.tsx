@@ -187,6 +187,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+
+  const clearAuthState = React.useCallback(async () => {
+    const meQueryKey = getGetMeQueryKey();
+
+    await queryClient.cancelQueries({ queryKey: meQueryKey });
+    queryClient.setQueryData(meQueryKey, null);
+    queryClient.removeQueries({ queryKey: meQueryKey });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const [scope] = query.queryKey;
+        return typeof scope === "string" && scope.toLowerCase().includes("auth");
+      },
+    });
+  }, [queryClient]);
+
   const logout = React.useCallback(async () => {
     setSessionRevoked(true);
     setCsrfToken(null);
@@ -198,10 +213,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
     } finally {
+      await clearAuthState();
       queryClient.clear();
-      queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
     }
-  }, [logoutMutation, queryClient]);
+  }, [clearAuthState, logoutMutation, queryClient]);
 
   const switchOrganization = React.useCallback(
     async (orgId: string) => {
