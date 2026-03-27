@@ -98,11 +98,13 @@ function handleLogout(req: Request, res: Response) {
       return;
     }
 
+    const sessionCookieDomain = process.env["SESSION_COOKIE_DOMAIN"];
     res.clearCookie("saas.sid", {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       secure: process.env["NODE_ENV"] === "production",
+      ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
     });
     (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });

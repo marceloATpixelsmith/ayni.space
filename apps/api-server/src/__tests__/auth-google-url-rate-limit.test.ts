@@ -22,7 +22,7 @@ function createRateLimitedApp(max: number, clientIp: string) {
   return app;
 }
 
-async function requestJson(app: express.Express) {
+async function requestJson(app: express.Express, path = "/api/auth/google/url") {
   const server = app.listen(0);
   const address = server.address();
   if (!address || typeof address === "string") {
@@ -30,7 +30,7 @@ async function requestJson(app: express.Express) {
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/auth/google/url`);
+    const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
     const body = (await response.json()) as Record<string, unknown>;
     return {
       status: response.status,
@@ -64,4 +64,38 @@ test("google auth url limiter returns 429 after configured threshold", async () 
   assert.equal(limited.status, 429);
   assert.equal(limited.body.error, "Too many requests, please try again later.");
   assert.equal(typeof limited.retryAfter, "string");
+});
+
+test("google auth url limiter does not consume generic auth limiter budget", async () => {
+  const app = express();
+  app.use(
+    "/api/auth/google/url",
+    (req, _res, next) => {
+      req.headers["x-forwarded-for"] = "203.0.113.12";
+      next();
+    },
+    authRateLimiter({ max: 2, keyPrefix: "test-auth-google-url-isolated" }),
+  );
+  app.use(
+    "/api/auth",
+    authRateLimiter({
+      max: 2,
+      keyPrefix: "test-auth-generic",
+      skip: (req) => req.path === "/google/url" || req.path === "/google/callback",
+    }),
+  );
+  app.get("/api/auth/google/url", (_req, res) => {
+    res.status(200).json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=test" });
+  });
+  app.get("/api/auth/me", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  assert.equal((await requestJson(app)).status, 200);
+  assert.equal((await requestJson(app)).status, 200);
+
+  assert.equal((await requestJson(app, "/api/auth/me")).status, 200);
+  assert.equal((await requestJson(app, "/api/auth/me")).status, 200);
+  const genericLimited = await requestJson(app, "/api/auth/me");
+  assert.equal(genericLimited.status, 429);
 });

@@ -174,6 +174,18 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
   );
 
   expectIncludes(
+    authProviderSource,
+    "queryClient.removeQueries({ queryKey: getGetMeQueryKey() });",
+    "Logout should clear current-user query cache inside auth provider.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "queryClient.removeQueries({ queryKey: getGetGoogleAuthUrlQueryKey() });",
+    "Logout should clear pending OAuth URL cache state.",
+  );
+
+  expectIncludes(
     appLayoutSource,
     "await auth.logout();\n    } finally {\n      setLocation(\"/login\");",
     "Logout flow must navigate to /login immediately even if backend logout is partially failed.",
@@ -221,6 +233,32 @@ test("google oauth url is requested only on explicit login intent", () => {
     authProviderSource,
     "loginRequestRef.current = request;",
     "Auth provider must track in-flight login requests.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "retry: false,",
+    "Google OAuth URL fetch should not auto-retry and consume additional rate-limit budget.",
+  );
+});
+
+test("session revalidates on browser restore/navigation visibility", () => {
+  expectIncludes(
+    authProviderSource,
+    "window.addEventListener(\"pageshow\", handlePageShow);",
+    "Auth provider should revalidate session when a page is restored via back/forward cache.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "document.addEventListener(\"visibilitychange\", handleVisibilityChange);",
+    "Auth provider should revalidate session when the tab becomes visible again.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "void meQuery.refetch();",
+    "Session revalidation must refetch server-auth state before allowing protected content.",
   );
 });
 
