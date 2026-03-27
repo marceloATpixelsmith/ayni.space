@@ -11,7 +11,7 @@
     "test:regression": "tsx --test src/__tests__/api-regression-phase-a.test.ts"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/instrumentation-http": "workspace:*",
     "@sentry/node": "^10.10.0",
     "@workspace/api-zod": "workspace:*",
