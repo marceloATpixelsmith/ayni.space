@@ -1,0 +1,45 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/onboarding",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/:section",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/apps/shipibo",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/apps/ayni",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/invitations/:token/accept",
+      "destination": "/index.html"
+    }
+  ]
+}
