@@ -7,82 +7,85 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appPath = path.resolve(__dirname, "../App.tsx");
-const layoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
+const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
+const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
-const layoutSource = fs.readFileSync(layoutPath, "utf8");
+const loginSource = fs.readFileSync(loginPath, "utf8");
+const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
 
 function expectIncludes(source, needle, message) {
-  assert.ok(source.includes(needle), message + `\nExpected snippet: ${needle}`);
+  assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
 }
 
-test("Home route redirects authenticated users to /dashboard", () => {
+test("logged-out users are redirected to /login", () => {
   expectIncludes(
     appSource,
-    'if (auth.status === "authenticated") {\n        setLocation("/dashboard");',
-    "Home should navigate authenticated users to /dashboard.",
+    'if (auth.status === "unauthenticated") {\n        setLocation("/login");',
+    "Home should route logged-out users to /login.",
+  );
+
+  expectIncludes(
+    appSource,
+    'const target = auth.status === "unauthenticated" ? "/login" : "/unauthorized";',
+    "Protected routes should route logged-out users to /login.",
   );
 });
 
-test("Home route redirects non-authenticated users to /login", () => {
+test("non-super-admin users are blocked from dashboard and deeper routes", () => {
   expectIncludes(
     appSource,
-    '} else {\n        setLocation("/login");',
-    "Home should navigate non-authenticated users to /login.",
+    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : "/unauthorized");',
+    "Root route must block non-super-admin users.",
   );
-});
 
-test("Protected shell routes unauthenticated fallback to login redirect", () => {
-  expectIncludes(
-    appSource,
-    'unauthenticatedFallback={\n        <AuthRedirect onRedirect={() => setLocation("/login")} />',
-    "Protected routes must redirect unauthenticated users to /login.",
-  );
-});
-
-test("All dashboard and admin paths are wrapped in Protected", () => {
   const protectedPaths = [
     "/dashboard",
-    "/dashboard/apps",
-    "/dashboard/members",
-    "/dashboard/invitations",
-    "/dashboard/billing",
-    "/dashboard/settings",
-    "/apps/shipibo",
-    "/apps/ayni",
+    "/dashboard/:section",
     "/admin",
     "/admin/:section",
+    "/apps/:slug",
   ];
 
   for (const routePath of protectedPaths) {
     expectIncludes(
       appSource,
-      `<Route path="${routePath}">{() => <Protected>`,
-      `Route ${routePath} should be wrapped in the Protected shell.`,
+      `<Route path="${routePath}">{() => <ProtectedSuperAdmin>`,
+      `Route ${routePath} should require super-admin access.`,
     );
   }
 });
 
-test("AppLayout sends unauthenticated users to /login", () => {
+test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
-    layoutSource,
-    'if (isError) {\n      setLocation("/login");',
-    "AppLayout should redirect unauthenticated users to /login.",
+    loginSource,
+    'if (auth.user?.isSuperAdmin) {\n        setLocation(next || "/dashboard");',
+    "Login must redirect super admins to /dashboard.",
+  );
+
+  expectIncludes(
+    loginSource,
+    '} else {\n        setLocation("/unauthorized");',
+    "Login must block non-super-admin users from /dashboard.",
   );
 });
 
-test("AppLayout sends users without an active org to /onboarding", () => {
+test("logout fail-closed behavior clears UI auth immediately", () => {
   expectIncludes(
-    layoutSource,
-    '} else if (user && !user.activeOrgId && location !== "/onboarding") {\n      setLocation("/onboarding");',
-    "AppLayout should redirect users without activeOrgId to /onboarding.",
+    authProviderSource,
+    'setSessionRevoked(true);',
+    "Logout should immediately revoke client auth state.",
   );
-});
 
-test("AppLayout avoids rendering protected shell content while redirecting", () => {
   expectIncludes(
-    layoutSource,
-    'if (!user || (!user.activeOrgId && location !== "/onboarding")) {\n    return null; // Will redirect in useEffect\n  }',
-    "AppLayout should withhold shell rendering while redirect logic runs.",
+    authProviderSource,
+    'const status: AuthStatus = sessionRevoked',
+    "Auth status should fail closed after logout.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    ': meQuery.isError\n        ? "unauthenticated"',
+    "Bootstrap/query errors must fail closed to unauthenticated.",
   );
 });

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, usersTable, userAppAccessTable, appsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
@@ -32,23 +32,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
   await requireAuth(req, res, async () => {
-    const user = (req as Request & { user: { isSuperAdmin: boolean; id: string } }).user;
+    const user = (req as Request & { user: { isSuperAdmin: boolean } }).user;
 
-    const adminApp = await db.query.appsTable.findFirst({ where: eq(appsTable.slug, "admin") });
-    const appAccess = adminApp
-      ? await db.query.userAppAccessTable.findFirst({
-          where: and(
-            eq(userAppAccessTable.userId, user.id),
-            eq(userAppAccessTable.appId, adminApp.id),
-            eq(userAppAccessTable.accessStatus, "active")
-          ),
-        })
-      : null;
-
-    if (!user?.isSuperAdmin || !appAccess) {
-      res.status(403).json({ error: "Forbidden. Super admin + admin app access required." });
+    if (!user?.isSuperAdmin) {
+      res.status(403).json({ error: "Forbidden. Super admin required." });
       return;
     }
+
     next();
   });
 }

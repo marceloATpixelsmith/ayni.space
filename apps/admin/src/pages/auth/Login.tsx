@@ -14,7 +14,11 @@ export default function Login() {
   React.useEffect(() => {
     if (auth.status === "authenticated") {
       const next = new URLSearchParams(location.split("?")[1] ?? "").get("next");
-      setLocation(next || "/dashboard");
+      if (auth.user?.isSuperAdmin) {
+        setLocation(next || "/dashboard");
+      } else {
+        setLocation("/unauthorized");
+      }
     }
   }, [auth.status, setLocation, location]);
 
@@ -64,7 +68,7 @@ export default function Login() {
           <Card className="p-8 backdrop-blur-xl bg-card/90 border-white/20 shadow-2xl shadow-primary/5">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Welcome Back</h1>
-              <p className="text-muted-foreground">Sign in to access your tenant dashboard and applications.</p>
+              <p className="text-muted-foreground">Sign in to access the restricted super-admin console.</p>
             </div>
 
             <Button 

@@ -91,8 +91,18 @@ async function handleMe(req: Request, res: Response) {
 
 function handleLogout(req: Request, res: Response) {
   req.session.destroy((err: unknown) => {
-    if (err) console.error("Session destroy error:", err);
-    res.clearCookie("saas.sid");
+    if (err) {
+      console.error("Session destroy error:", err);
+      res.status(500).json({ error: "Failed to destroy session" });
+      return;
+    }
+
+    res.clearCookie("saas.sid", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env["NODE_ENV"] === "production",
+    });
     (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });
@@ -216,7 +226,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.activeOrgId = user.activeOrgId ?? undefined;
     req.session.sessionAuthenticatedAt = Date.now();
 
-    const memberships = await db.query.orgMembershipsTable.findMany({ where: eq(orgMembershipsTable.userId, user.id) });
 
     writeAuditLog({
       userId: user.id,
@@ -234,7 +243,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     const frontendBase = oauthReturnTo;
-    res.redirect(`${frontendBase}/app`);
+    const destination = user.isSuperAdmin ? "/dashboard" : "/unauthorized";
+    res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
     console.error("Google callback failed:", error);
     logAuthFailure(req, "google-callback-exception");

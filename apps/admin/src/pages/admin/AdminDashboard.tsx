@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation } from "wouter";
 import {
   useGetMe,
   useAdminGetStats,
@@ -26,10 +26,8 @@ const NAV = [
   { id: "feature-flags", label: "Feature Flags", icon: Flag },
 ];
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ section = "overview" }: { section?: string }) {
   const [, setLocation] = useLocation();
-  const params = useParams<{ section?: string }>();
-  const section = params.section ?? "overview";
 
   const { data: user, isLoading: userLoading } = useGetMe();
   const logout = useLogout();
@@ -37,7 +35,7 @@ export default function AdminDashboard() {
 
   React.useEffect(() => {
     if (!userLoading && !user) setLocation("/login");
-    if (!userLoading && user && !user.isSuperAdmin) setLocation("/dashboard");
+    if (!userLoading && user && !user.isSuperAdmin) setLocation("/unauthorized");
   }, [user, userLoading, setLocation]);
 
   const handleLogout = async () => {
@@ -76,7 +74,7 @@ export default function AdminDashboard() {
             Logout
           </Button>
           <Button variant="ghost" size="sm" className="w-full justify-start mt-1" onClick={() => setLocation("/dashboard")}>
-            Back to Dashboard
+            Back to Overview
           </Button>
         </div>
       </aside>
