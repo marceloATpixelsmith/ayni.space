@@ -58,6 +58,10 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
   };
 }
 
-export function authRateLimiter(): RequestHandler {
-  return rateLimiter({ max: DEFAULT_AUTH_MAX, keyPrefix: "auth" });
+export function authRateLimiter(options: RateLimitOptions = {}): RequestHandler {
+  return rateLimiter({
+    max: options.max ?? DEFAULT_AUTH_MAX,
+    windowMs: options.windowMs ?? DEFAULT_WINDOW_MS,
+    keyPrefix: options.keyPrefix ?? "auth",
+  });
 }
