@@ -147,14 +147,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const request = (async () => {
-      const headers: HeadersInit = {};
-      if (turnstileToken) {
-        headers["cf-turnstile-response"] = turnstileToken;
+      const normalizedTurnstileToken = turnstileToken?.trim() ?? "";
+      if (!normalizedTurnstileToken) {
+        throw new Error("Please complete the verification challenge.");
       }
 
       const response = await secureApiFetch("/api/auth/google/url", {
         method: "POST",
-        headers,
+        headers: {
+          "content-type": "application/json",
+          "cf-turnstile-response": normalizedTurnstileToken,
+        },
+        body: JSON.stringify({
+          "cf-turnstile-response": normalizedTurnstileToken,
+        }),
       }, csrfTokenRef.current);
 
       const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
@@ -168,7 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error(`Sign-in is temporarily rate-limited.${retryHint}`);
         }
 
-        throw new Error(payload?.error ?? "Google OAuth URL is not available.");
+        if (response.status === 403) {
+          throw new Error(payload?.error ?? "Security verification failed. Please try again.");
+        }
+        throw new Error(payload?.error ?? "Unable to start Google sign-in right now. Please try again.");
       }
 
       window.location.assign(payload.url);

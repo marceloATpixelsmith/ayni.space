@@ -15,7 +15,14 @@ export default function Login() {
   const [location, setLocation] = useLocation();
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const auth = useAuth();
-  const { token: turnstileToken, error: turnstileError, enabled: turnstileEnabled, TurnstileWidget } = useTurnstileToken();
+  const {
+    token: turnstileToken,
+    error: turnstileError,
+    enabled: turnstileEnabled,
+    ready: turnstileReady,
+    reset: resetTurnstile,
+    TurnstileWidget,
+  } = useTurnstileToken();
 
   const query = React.useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
   const accessErrorCode = query.get("error");
@@ -45,11 +52,19 @@ export default function Login() {
       return;
     }
 
+    if (turnstileEnabled && !turnstileToken) {
+      setLoginError("Please complete the verification challenge.");
+      return;
+    }
+
     setLoginError(null);
     auth.loginWithGoogle(turnstileToken).catch((error) => {
       console.error("Google sign-in failed", error);
-      const message = error instanceof Error ? error.message : "Failed to start Google sign-in.";
+      const message = error instanceof Error ? error.message : "Unable to start Google sign-in right now. Please try again.";
       setLoginError(message);
+      if (turnstileEnabled) {
+        resetTurnstile();
+      }
     });
   };
 
@@ -91,7 +106,7 @@ export default function Login() {
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
               onClick={handleGoogleLogin}
-              disabled={auth.status === "authenticated" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}
+              disabled={auth.status === "authenticated" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}

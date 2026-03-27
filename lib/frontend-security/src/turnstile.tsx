@@ -56,7 +56,10 @@ export function useTurnstileToken() {
             setToken(value);
             setError(null);
           },
-          "expired-callback": () => setToken(null),
+          "expired-callback": () => {
+            setToken(null);
+            setError("Verification expired. Please complete the challenge again.");
+          },
           "error-callback": () => {
             setToken(null);
             setError("Turnstile verification failed. Please retry.");
@@ -79,6 +82,7 @@ export function useTurnstileToken() {
 
   const reset = React.useCallback(() => {
     setToken(null);
+    setError(null);
     if (window.turnstile && widgetIdRef.current) {
       window.turnstile.reset(widgetIdRef.current);
     }

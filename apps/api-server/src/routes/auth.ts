@@ -7,7 +7,7 @@ import { getSessionCookieName, getSessionCookieOptions } from "../lib/session.js
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
-import { isTurnstileEnabled, verifyTurnstileToken } from "../middlewares/turnstile.js";
+import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
 
 const router = Router();
 
@@ -120,14 +120,19 @@ async function handleGoogleUrl(req: Request, res: Response) {
       const turnstileToken = getTurnstileToken(req);
       if (!turnstileToken) {
         logAuthFailure(req, "google-url-turnstile-missing");
-        res.status(403).json({ error: "Turnstile verification failed" });
+        res.status(403).json({ error: "Please complete the verification challenge." });
         return;
       }
 
-      const turnstileOk = await verifyTurnstileToken(turnstileToken, req.ip).catch(() => false);
-      if (!turnstileOk) {
+      const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
+      if (!turnstileResult.ok) {
         logAuthFailure(req, "google-url-turnstile-invalid");
-        res.status(403).json({ error: "Turnstile verification failed" });
+        logTurnstileVerificationResult(req, turnstileResult);
+        if (turnstileResult.reason === "missing-token") {
+          res.status(403).json({ error: "Please complete the verification challenge." });
+          return;
+        }
+        res.status(403).json({ error: "Security verification failed. Please try again." });
         return;
       }
     }

@@ -81,6 +81,18 @@ test("PUBLIC login endpoint requires turnstile via central enforcement", async (
   assert.notEqual(allowed.status, 403);
 });
 
+test("PUBLIC login endpoint accepts turnstile token from request body", async () => {
+  process.env["TURNSTILE_ENABLED"] = "true";
+
+  const allowed = await requestJson(
+    createApp({}, true),
+    "POST",
+    "/api/auth/google/url",
+    { "cf-turnstile-response": "valid-token" },
+  );
+  assert.notEqual(allowed.status, 403);
+});
+
 test("AUTHENTICATED routes require valid session by default", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-auth")),
