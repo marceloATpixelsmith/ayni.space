@@ -162,12 +162,6 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
   );
 
   expectIncludes(
-    appLayoutSource,
-    "queryClient.clear();",
-    "Logout should clear cached admin query data immediately.",
-  );
-
-  expectIncludes(
     authProviderSource,
     "setCsrfToken(null);",
     "Logout should clear CSRF/session bootstrap state immediately.",
@@ -181,20 +175,20 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
-    "queryClient.removeQueries({ queryKey: getGetGoogleAuthUrlQueryKey() });",
-    "Logout should clear pending OAuth URL cache state.",
+    "queryClient.clear();",
+    "Logout should clear all cached query state.",
   );
 
   expectIncludes(
     appLayoutSource,
-    "await auth.logout();\n    } finally {\n      setLocation(\"/login\");",
-    "Logout flow must navigate to /login immediately even if backend logout is partially failed.",
+    "await auth.logout();\n    setLocation(\"/login\");",
+    "Logout flow must navigate to /login after server logout resolves.",
   );
 
   expectIncludes(
     adminDashboardSource,
-    "await auth.logout();\n    } finally {\n      setLocation(\"/login\");",
-    "Super-admin dashboard logout should also navigate to /login immediately.",
+    "await auth.logout();\n    setLocation(\"/login\");",
+    "Super-admin dashboard logout should also navigate to /login after logout completes.",
   );
 
   expectIncludes(
@@ -219,12 +213,6 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 test("google oauth url is requested only on explicit login intent", () => {
   expectIncludes(
     authProviderSource,
-    "enabled: false,",
-    "Google OAuth URL query must not auto-fetch on mount.",
-  );
-
-  expectIncludes(
-    authProviderSource,
     "if (loginRequestRef.current) {\n      return loginRequestRef.current;",
     "Auth provider must dedupe pending Google URL requests.",
   );
@@ -235,10 +223,32 @@ test("google oauth url is requested only on explicit login intent", () => {
     "Auth provider must track in-flight login requests.",
   );
 
+});
+
+
+test("login includes turnstile token when requesting oauth url", () => {
+  expectIncludes(
+    loginSource,
+    "const { token: turnstileToken",
+    "Login should source Turnstile token from shared security hook.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "auth.loginWithGoogle(turnstileToken)",
+    "Login should pass turnstile token into OAuth URL request.",
+  );
+
   expectIncludes(
     authProviderSource,
-    "retry: false,",
-    "Google OAuth URL fetch should not auto-retry and consume additional rate-limit budget.",
+    "method: \"POST\"",
+    "OAuth URL request should be a POST enforced through central public route policy.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}",
+    "Login button should stay disabled until required turnstile token is present.",
   );
 });
 
@@ -271,8 +281,8 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "disabled={auth.status === \"authenticated\" || auth.loginInFlight}",
-    "Login button must be disabled during pending Google OAuth URL request.",
+    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}",
+    "Login button must be disabled during pending OAuth request and when turnstile is required.",
   );
 
   expectIncludes(

@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { requireAuth } from "../middlewares/requireAuth.js";
+import { getSessionCookieName, getSessionCookieOptions } from "../lib/session.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -98,14 +98,7 @@ function handleLogout(req: Request, res: Response) {
       return;
     }
 
-    const sessionCookieDomain = process.env["SESSION_COOKIE_DOMAIN"];
-    res.clearCookie("saas.sid", {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env["NODE_ENV"] === "production",
-      ...(sessionCookieDomain ? { domain: sessionCookieDomain } : {}),
-    });
+    res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
     (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });
@@ -255,9 +248,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
-router.get("/me", requireAuth, handleMe);
-router.post("/logout", requireAuth, handleLogout);
-router.get("/google/url", handleGoogleUrl);
+router.get("/me", handleMe);
+router.post("/logout", handleLogout);
+router.post("/google/url", handleGoogleUrl);
 router.get("/google/callback", handleGoogleCallback);
 
 export default router;

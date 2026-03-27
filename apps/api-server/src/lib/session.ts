@@ -29,6 +29,22 @@ export function getSessionPolicy() {
   };
 }
 
+
+export function getSessionCookieOptions() {
+  const policy = getSessionPolicy();
+  return {
+    httpOnly: true,
+    secure: process.env["NODE_ENV"] === "production",
+    sameSite: policy.cookieSameSite,
+    path: "/",
+    ...(process.env["SESSION_COOKIE_DOMAIN"] ? { domain: process.env["SESSION_COOKIE_DOMAIN"] } : {}),
+  } as const;
+}
+
+export function getSessionCookieName() {
+  return "saas.sid";
+}
+
 export function buildSessionOptions(secret: string): session.SessionOptions {
   const policy = getSessionPolicy();
 
@@ -44,15 +60,10 @@ export function buildSessionOptions(secret: string): session.SessionOptions {
     saveUninitialized: false,
     rolling: true, // reset cookie idle maxAge on every response
     cookie: {
-      httpOnly: true,
-      secure: process.env["NODE_ENV"] === "production",
-      // Keep lax: strict is not safe with OAuth cross-site callback flow.
-      sameSite: policy.cookieSameSite,
+      ...getSessionCookieOptions(),
       maxAge: policy.idleTimeoutMs,
-      path: "/",
-      ...(process.env["SESSION_COOKIE_DOMAIN"] ? { domain: process.env["SESSION_COOKIE_DOMAIN"] } : {}),
     },
-    name: "saas.sid",
+    name: getSessionCookieName(),
   };
 }
 
@@ -83,7 +94,7 @@ export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof write
     const absoluteStart = req.session.sessionAuthenticatedAt ?? req.session.sessionCreatedAt;
     if (absoluteStart && now - absoluteStart > policy.absoluteTimeoutMs) {
       req.session.destroy(() => {
-        res.clearCookie("saas.sid");
+        res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
         res.status(401).json({ error: "Session expired. Please sign in again." });
       });
       return;

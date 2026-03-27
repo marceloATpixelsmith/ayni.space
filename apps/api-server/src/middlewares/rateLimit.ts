@@ -20,7 +20,7 @@ function getClientKey(req: Parameters<RequestHandler>[0]): string {
   return req.ip || "unknown";
 }
 
-type RateLimitOptions = {
+export type RateLimitOptions = {
   windowMs?: number;
   max?: number;
   keyPrefix?: string;

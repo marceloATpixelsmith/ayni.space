@@ -10,7 +10,6 @@ import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { validateBody } from "../middlewares/validation.js";
 import { createOrgSchema } from "../middlewares/validation.js";
-import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getOrgAppsHandler } from "./apps.js";
@@ -39,7 +38,7 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /organizations ────────────────────────────────────────────────────────
-router.post("/", turnstileVerifyMiddleware(), requireAuth, validateBody(createOrgSchema), async (req, res) => {
+router.post("/", requireAuth, validateBody(createOrgSchema), async (req, res) => {
   const userId = req.session.userId!;
   const { name, slug, website } = req.body as { name: string; slug: string; website?: string };
 

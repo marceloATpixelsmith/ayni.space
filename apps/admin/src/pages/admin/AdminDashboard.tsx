@@ -17,7 +17,6 @@ import { Switch } from "@/components/ui/switch";
 import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut } from "lucide-react";
 import { adminAccessDeniedLoginPath } from "../auth/accessDenied";
 import { useAuth } from "@workspace/frontend-security";
-import { useQueryClient } from "@tanstack/react-query";
 
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -30,7 +29,6 @@ const NAV = [
 export default function AdminDashboard({ section = "overview" }: { section?: string }) {
   const [, setLocation] = useLocation();
   const auth = useAuth();
-  const queryClient = useQueryClient();
 
   const { data: user, isLoading: userLoading } = useGetMe();
 
@@ -40,12 +38,8 @@ export default function AdminDashboard({ section = "overview" }: { section?: str
   }, [user, userLoading, setLocation]);
 
   const handleLogout = async () => {
-    try {
-      queryClient.clear();
-      await auth.logout();
-    } finally {
-      setLocation("/login");
-    }
+    await auth.logout();
+    setLocation("/login");
   };
 
   return (
@@ -239,7 +233,6 @@ function AdminAuditLogs() {
 function AdminFeatureFlags() {
   const { data: flags, isLoading } = useAdminGetFeatureFlags();
   const setFlag = useAdminSetFeatureFlag();
-  const queryClient = useQueryClient();
 
   const handleToggle = async (key: string, value: boolean) => {
     await setFlag.mutateAsync({ data: { key, value } });
