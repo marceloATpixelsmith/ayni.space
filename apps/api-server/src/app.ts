@@ -73,6 +73,10 @@ try {
 
 // ── CSRF PROTECTION (all state-changing routes) ─────────────────────────────
 // ── RATE LIMITING (public/auth/invitation/org/profile/billing) ──────────────
+const googleAuthUrlRateLimitMax = Number.parseInt(process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] ?? "20", 10);
+const googleAuthCallbackRateLimitMax = Number.parseInt(process.env["AUTH_GOOGLE_CALLBACK_RATE_LIMIT_MAX"] ?? "20", 10);
+app.use("/api/auth/google/url", authRateLimiter({ max: googleAuthUrlRateLimitMax, keyPrefix: "auth-google-url" }));
+app.use("/api/auth/google/callback", authRateLimiter({ max: googleAuthCallbackRateLimitMax, keyPrefix: "auth-google-callback" }));
 app.use("/api/auth", authRateLimiter());
 app.use("/api/invitations", authRateLimiter());
 app.use("/api/organizations", authRateLimiter());

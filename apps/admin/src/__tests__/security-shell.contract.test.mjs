@@ -169,3 +169,43 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
     "Bootstrap/query errors must fail closed to unauthenticated.",
   );
 });
+
+test("google oauth url is requested only on explicit login intent", () => {
+  expectIncludes(
+    authProviderSource,
+    "enabled: false,",
+    "Google OAuth URL query must not auto-fetch on mount.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (loginRequestRef.current) {\n      return loginRequestRef.current;",
+    "Auth provider must dedupe pending Google URL requests.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "loginRequestRef.current = request;",
+    "Auth provider must track in-flight login requests.",
+  );
+});
+
+test("login button disables while google oauth url request is pending", () => {
+  expectIncludes(
+    loginSource,
+    "if (auth.loginInFlight) {\n      return;\n    }",
+    "Login click handler should ignore duplicate clicks while request is pending.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "disabled={auth.status === \"authenticated\" || auth.loginInFlight}",
+    "Login button must be disabled during pending Google OAuth URL request.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}",
+    "Login button copy should reflect pending OAuth URL request state.",
+  );
+});

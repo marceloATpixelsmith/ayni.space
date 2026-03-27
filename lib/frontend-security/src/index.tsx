@@ -17,6 +17,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   csrfToken: string | null;
   csrfReady: boolean;
+  loginInFlight: boolean;
   refreshSession: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -70,8 +71,10 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
   const [csrfReady, setCsrfReady] = React.useState(false);
+  const [loginInFlight, setLoginInFlight] = React.useState(false);
   const [sessionRevoked, setSessionRevoked] = React.useState(false);
   const csrfTokenRef = React.useRef<string | null>(null);
+  const loginRequestRef = React.useRef<Promise<void> | null>(null);
 
   const meQuery = useGetMe();
   const googleUrlQuery = useGetGoogleAuthUrl({
@@ -125,19 +128,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithGoogle = React.useCallback(async () => {
-    const latest = await googleUrlQuery.refetch();
-    const latestUrl = latest.data?.url;
-
-    if (!latestUrl) {
-      const queryError = latest.error instanceof Error ? latest.error.message : null;
-      throw new Error(
-        queryError
-          ? `Google OAuth URL is not available: ${queryError}`
-          : "Google OAuth URL is not available.",
-      );
+    if (loginRequestRef.current) {
+      return loginRequestRef.current;
     }
 
-    window.location.assign(latestUrl);
+    const request = (async () => {
+      const latest = await googleUrlQuery.refetch();
+      const latestUrl = latest.data?.url;
+
+      if (!latestUrl) {
+        const queryError = latest.error instanceof Error ? latest.error.message : null;
+        const status = typeof latest.error === "object" && latest.error && "status" in latest.error
+          ? Number((latest.error as { status?: unknown }).status)
+          : null;
+        const retryAfterHeader = typeof latest.error === "object" && latest.error && "headers" in latest.error
+          ? (latest.error as { headers?: Headers | null }).headers?.get("retry-after")
+          : null;
+        const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+        const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
+          ? ` Please wait about ${retrySeconds} second${retrySeconds === 1 ? "" : "s"} and retry.`
+          : " Please wait a moment and retry.";
+
+        if (status === 429) {
+          throw new Error(`Sign-in is temporarily rate-limited.${retryHint}`);
+        }
+
+        throw new Error(
+          queryError
+            ? `Google OAuth URL is not available: ${queryError}`
+            : "Google OAuth URL is not available.",
+        );
+      }
+
+      window.location.assign(latestUrl);
+    })();
+
+    loginRequestRef.current = request;
+    setLoginInFlight(true);
+
+    try {
+      await request;
+    } finally {
+      if (loginRequestRef.current === request) {
+        loginRequestRef.current = null;
+        setLoginInFlight(false);
+      }
+    }
   }, [googleUrlQuery]);
 
   const logout = React.useCallback(async () => {
@@ -197,13 +233,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: status === "authenticated" ? meQuery.data ?? null : null,
       csrfToken,
       csrfReady,
+      loginInFlight,
       refreshSession,
       loginWithGoogle,
       logout,
       switchOrganization,
       acceptInvitation,
     }),
-    [status, meQuery.data, csrfToken, csrfReady, refreshSession, loginWithGoogle, logout, switchOrganization, acceptInvitation],
+    [status, meQuery.data, csrfToken, csrfReady, loginInFlight, refreshSession, loginWithGoogle, logout, switchOrganization, acceptInvitation],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
