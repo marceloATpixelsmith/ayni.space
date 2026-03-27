@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@workspace/api-client-react": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "react": "catalog:"
   },
   "devDependencies": {
