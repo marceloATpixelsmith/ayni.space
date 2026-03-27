@@ -107,6 +107,7 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
           res.status(403).json({ error: "Turnstile verification failed" });
           return;
         }
+        (req as Request & { turnstileVerified?: boolean }).turnstileVerified = true;
         next();
       })
       .catch(() => {
@@ -114,4 +115,10 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
         res.status(500).json({ error: "Turnstile verification error" });
       });
   };
+}
+
+declare module "express-serve-static-core" {
+  interface Request {
+    turnstileVerified?: boolean;
+  }
 }
