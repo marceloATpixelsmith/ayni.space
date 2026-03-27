@@ -169,8 +169,26 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
-    "queryClient.removeQueries({ queryKey: getGetMeQueryKey() });",
-    "Logout should clear current-user query cache inside auth provider.",
+    "await queryClient.cancelQueries({ queryKey: meQueryKey });",
+    "Logout should cancel in-flight current-user requests before cache cleanup.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "queryClient.setQueryData(meQueryKey, null);",
+    "Logout should force-clear current-user data before any redirect logic runs.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "queryClient.removeQueries({ queryKey: meQueryKey });",
+    "Logout should remove current-user query cache inside auth provider.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "queryClient.invalidateQueries({",
+    "Logout should invalidate auth-scoped queries to prevent stale session reuse.",
   );
 
   expectIncludes(
