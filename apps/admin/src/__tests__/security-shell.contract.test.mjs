@@ -10,11 +10,15 @@ const appPath = path.resolve(__dirname, "../App.tsx");
 const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
 const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
+const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
 const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
+const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
+const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
+const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -155,6 +159,36 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
     authProviderSource,
     'setSessionRevoked(true);',
     "Logout should immediately revoke client auth state.",
+  );
+
+  expectIncludes(
+    appLayoutSource,
+    "queryClient.clear();",
+    "Logout should clear cached admin query data immediately.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "setCsrfToken(null);",
+    "Logout should clear CSRF/session bootstrap state immediately.",
+  );
+
+  expectIncludes(
+    appLayoutSource,
+    "await auth.logout();\n    } finally {\n      setLocation(\"/login\");",
+    "Logout flow must navigate to /login immediately even if backend logout is partially failed.",
+  );
+
+  expectIncludes(
+    adminDashboardSource,
+    "await auth.logout();\n    } finally {\n      setLocation(\"/login\");",
+    "Super-admin dashboard logout should also navigate to /login immediately.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "catch {\n      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.\n    }",
+    "Logout flow should stay fail-closed when logout response handling throws.",
   );
 
   expectIncludes(

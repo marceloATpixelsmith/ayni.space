@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { 
   Building2, 
   Settings, 
@@ -39,6 +40,7 @@ import { Button } from "@/components/ui/button";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const auth = useAuth();
   const user = auth.user;
   const isLoading = auth.status === "loading";
@@ -72,6 +74,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { title: "Billing", url: "/dashboard/billing", icon: CreditCard },
     { title: "Settings", url: "/dashboard/settings", icon: Settings },
   ];
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      queryClient.clear();
+      await auth.logout();
+    } finally {
+      setLocation("/login");
+    }
+  }, [auth, queryClient, setLocation]);
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "16rem", "--sidebar-width-icon": "4rem" } as React.CSSProperties}>
@@ -182,7 +193,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => auth.logout().then(() => setLocation("/login"))}>
+                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Log out
                 </DropdownMenuItem>

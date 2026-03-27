@@ -86,12 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
 
-  React.useEffect(() => {
-    if (meQuery.data) {
-      setSessionRevoked(false);
-    }
-  }, [meQuery.data]);
-
   const refreshSession = React.useCallback(async () => {
     await meQuery.refetch();
   }, [meQuery]);
@@ -178,13 +172,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     setSessionRevoked(true);
-
+    setCsrfToken(null);
     try {
       await logoutMutation.mutateAsync();
-    } finally {
-      await refreshSession();
+    } catch {
+      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
     }
-  }, [logoutMutation, refreshSession]);
+  }, [logoutMutation]);
 
   const switchOrganization = React.useCallback(
     async (orgId: string) => {
