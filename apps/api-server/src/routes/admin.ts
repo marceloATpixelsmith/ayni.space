@@ -10,7 +10,6 @@ import {
 } from "@workspace/db";
 import { eq, count, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
@@ -27,7 +26,7 @@ function parsePageNumber(value: unknown, fallback: number): number {
 }
 
 // ── GET /admin/stats ──────────────────────────────────────────────────────────
-router.get("/stats", requireSuperAdmin, async (_req, res) => {
+router.get("/stats", async (_req, res) => {
   const [[totalUsers], [totalOrgs], [totalApps]] = await Promise.all([
     db.select({ count: count() }).from(usersTable),
     db.select({ count: count() }).from(organizationsTable),
@@ -44,7 +43,7 @@ router.get("/stats", requireSuperAdmin, async (_req, res) => {
 });
 
 // ── GET /admin/organizations ──────────────────────────────────────────────────
-router.get("/organizations", requireSuperAdmin, async (req, res) => {
+router.get("/organizations", async (req, res) => {
   const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
   const offset = parsePageNumber(req.query["offset"], 0);
 
@@ -62,7 +61,7 @@ router.get("/organizations", requireSuperAdmin, async (req, res) => {
 });
 
 // ── GET /admin/users ──────────────────────────────────────────────────────────
-router.get("/users", requireSuperAdmin, async (req, res) => {
+router.get("/users", async (req, res) => {
   const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
   const offset = parsePageNumber(req.query["offset"], 0);
 
@@ -87,7 +86,7 @@ router.get("/users", requireSuperAdmin, async (req, res) => {
 });
 
 // ── GET /admin/audit-logs ─────────────────────────────────────────────────────
-router.get("/audit-logs", requireSuperAdmin, async (req, res) => {
+router.get("/audit-logs", async (req, res) => {
   const limit = Math.min(parsePageNumber(req.query["limit"], 50), 200);
   const offset = parsePageNumber(req.query["offset"], 0);
 
@@ -100,13 +99,13 @@ router.get("/audit-logs", requireSuperAdmin, async (req, res) => {
 });
 
 // ── GET /admin/feature-flags ──────────────────────────────────────────────────
-router.get("/feature-flags", requireSuperAdmin, async (_req, res) => {
+router.get("/feature-flags", async (_req, res) => {
   const flags = await db.query.featureFlagsTable.findMany();
   res.json(flags);
 });
 
 // ── POST /admin/feature-flags ─────────────────────────────────────────────────
-router.post("/feature-flags", requireSuperAdmin, async (req, res) => {
+router.post("/feature-flags", async (req, res) => {
   const { key, value, orgId, description } = req.body as {
     key: string;
     value: boolean;
@@ -147,7 +146,7 @@ router.post("/feature-flags", requireSuperAdmin, async (req, res) => {
 });
 
 // ── PUT /admin/organizations/:orgId/apps/:appId ───────────────────────────────
-router.put("/organizations/:orgId/apps/:appId", requireSuperAdmin, async (req, res) => {
+router.put("/organizations/:orgId/apps/:appId", async (req, res) => {
   const orgId = asSingleString(req.params["orgId"]);
   const appId = asSingleString(req.params["appId"]);
   const { enabled } = req.body as { enabled: boolean };

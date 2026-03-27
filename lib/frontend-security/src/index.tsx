@@ -1,8 +1,6 @@
 import React from "react";
 import {
-  getGetGoogleAuthUrlQueryKey,
   getGetMeQueryKey,
-  useGetGoogleAuthUrl,
   useGetMe,
   useLogout,
   setCsrfTokenProvider,
@@ -21,7 +19,7 @@ type AuthContextValue = {
   csrfReady: boolean;
   loginInFlight: boolean;
   refreshSession: () => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (turnstileToken?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
   acceptInvitation: (token: string, turnstileToken?: string | null) => Promise<void>;
@@ -80,13 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginRequestRef = React.useRef<Promise<void> | null>(null);
 
   const meQuery = useGetMe();
-  const googleUrlQuery = useGetGoogleAuthUrl({
-    query: {
-      enabled: false,
-      queryKey: getGetGoogleAuthUrlQueryKey(),
-      retry: false,
-    },
-  });
   const logoutMutation = useLogout();
   const switchOrgMutation = useSwitchOrganization();
 
@@ -150,40 +141,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [meQuery, sessionRevoked]);
 
-  const loginWithGoogle = React.useCallback(async () => {
+  const loginWithGoogle = React.useCallback(async (turnstileToken?: string | null) => {
     if (loginRequestRef.current) {
       return loginRequestRef.current;
     }
 
     const request = (async () => {
-      const latest = await googleUrlQuery.refetch();
-      const latestUrl = latest.data?.url;
+      const headers: HeadersInit = {};
+      if (turnstileToken) {
+        headers["cf-turnstile-response"] = turnstileToken;
+      }
 
-      if (!latestUrl) {
-        const queryError = latest.error instanceof Error ? latest.error.message : null;
-        const status = typeof latest.error === "object" && latest.error && "status" in latest.error
-          ? Number((latest.error as { status?: unknown }).status)
-          : null;
-        const retryAfterHeader = typeof latest.error === "object" && latest.error && "headers" in latest.error
-          ? (latest.error as { headers?: Headers | null }).headers?.get("retry-after")
-          : null;
-        const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
-        const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
-          ? ` Please wait about ${retrySeconds} second${retrySeconds === 1 ? "" : "s"} and retry.`
-          : " Please wait a moment and retry.";
+      const response = await secureApiFetch("/api/auth/google/url", {
+        method: "POST",
+        headers,
+      }, csrfTokenRef.current);
 
-        if (status === 429) {
+      const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!response.ok || !payload?.url) {
+        if (response.status === 429) {
+          const retryAfterHeader = response.headers.get("retry-after");
+          const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+          const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
+            ? ` Please wait about ${retrySeconds} second${retrySeconds === 1 ? "" : "s"} and retry.`
+            : " Please wait a moment and retry.";
           throw new Error(`Sign-in is temporarily rate-limited.${retryHint}`);
         }
 
-        throw new Error(
-          queryError
-            ? `Google OAuth URL is not available: ${queryError}`
-            : "Google OAuth URL is not available.",
-        );
+        throw new Error(payload?.error ?? "Google OAuth URL is not available.");
       }
 
-      window.location.assign(latestUrl);
+      window.location.assign(payload.url);
     })();
 
     loginRequestRef.current = request;
@@ -197,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoginInFlight(false);
       }
     }
-  }, [googleUrlQuery]);
+  }, []);
 
   const logout = React.useCallback(async () => {
     setSessionRevoked(true);
@@ -210,8 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
     } finally {
+      queryClient.clear();
       queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
-      queryClient.removeQueries({ queryKey: getGetGoogleAuthUrlQueryKey() });
     }
   }, [logoutMutation, queryClient]);
 

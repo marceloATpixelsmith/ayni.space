@@ -6,7 +6,6 @@ import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
-import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
 
 const router = Router();
@@ -313,7 +312,6 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
 router.post(
   "/organizations/:orgId/invitations",
-  turnstileVerifyMiddleware(),
   requireAuth,
   requireOrgAdmin,
   validateBody(inviteSchema),
@@ -326,6 +324,6 @@ router.post(
   requireOrgAdmin,
   resendInvitation
 );
-router.post("/invitations/:token/accept", turnstileVerifyMiddleware(), requireAuth, acceptInvitation);
+router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
 
 export default router;

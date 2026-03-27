@@ -15,7 +15,7 @@ function createRateLimitedApp(max: number, clientIp: string) {
     },
     authRateLimiter({ max, keyPrefix: "test-auth-google-url" }),
   );
-  app.get("/api/auth/google/url", (_req, res) => {
+  app.post("/api/auth/google/url", (_req, res) => {
     res.status(200).json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=test" });
   });
 
@@ -30,7 +30,7 @@ async function requestJson(app: express.Express, path = "/api/auth/google/url") 
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
+    const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method: "POST" });
     const body = (await response.json()) as Record<string, unknown>;
     return {
       status: response.status,
@@ -84,10 +84,10 @@ test("google auth url limiter does not consume generic auth limiter budget", asy
       skip: (req) => req.path === "/google/url" || req.path === "/google/callback",
     }),
   );
-  app.get("/api/auth/google/url", (_req, res) => {
+  app.post("/api/auth/google/url", (_req, res) => {
     res.status(200).json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=test" });
   });
-  app.get("/api/auth/me", (_req, res) => {
+  app.post("/api/auth/me", (_req, res) => {
     res.status(200).json({ ok: true });
   });
 

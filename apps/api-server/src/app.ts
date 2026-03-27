@@ -7,7 +7,7 @@ import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandle
 import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
-import { authRateLimiter, rateLimiter } from "./middlewares/rateLimit.js";
+import { createSecurityEnforcementMiddleware, getSecurityConfig } from "./lib/securityPolicy.js";
 
 
 console.info("[startup] app.ts: validating environment...");
@@ -30,7 +30,8 @@ if (process.env["NODE_ENV"] === "production") {
 app.use(securityHeaders());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-const allowedOrigins = process.env["ALLOWED_ORIGINS"]?.split(",").map(o => o.trim()).filter(Boolean) || [];
+const securityConfig = getSecurityConfig();
+const allowedOrigins = securityConfig.allowedOrigins;
 if (allowedOrigins.length === 0) {
   throw new Error("ALLOWED_ORIGINS environment variable must be set with at least one origin");
 }
@@ -71,24 +72,8 @@ try {
   throw new Error("Session middleware initialization failed. Check DATABASE_URL, session table permissions, and connect-pg-simple setup.");
 }
 
-// ── CSRF PROTECTION (all state-changing routes) ─────────────────────────────
-// ── RATE LIMITING (public/auth/invitation/org/profile/billing) ──────────────
-const googleAuthUrlRateLimitMax = Number.parseInt(process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] ?? "20", 10);
-const googleAuthCallbackRateLimitMax = Number.parseInt(process.env["AUTH_GOOGLE_CALLBACK_RATE_LIMIT_MAX"] ?? "20", 10);
-app.use("/api/auth/google/url", authRateLimiter({ max: googleAuthUrlRateLimitMax, keyPrefix: "auth-google-url" }));
-app.use("/api/auth/google/callback", authRateLimiter({ max: googleAuthCallbackRateLimitMax, keyPrefix: "auth-google-callback" }));
-app.use(
-  "/api/auth",
-  authRateLimiter({
-    keyPrefix: "auth",
-    skip: (req) => req.path === "/google/url" || req.path === "/google/callback",
-  }),
-);
-app.use("/api/invitations", authRateLimiter());
-app.use("/api/organizations", authRateLimiter());
-app.use("/api/users", rateLimiter());
-app.use("/api/billing", rateLimiter());
-
+// ── CENTRAL SECURITY ENFORCEMENT (fail-closed by classification) ───────────
+app.use(createSecurityEnforcementMiddleware());
 
 // ── FRONTEND MONITORING INGEST (handled frontend errors) ───────────────────
 app.post("/api/monitoring/events", (req, res) => {
@@ -100,8 +85,7 @@ app.use(csrfProtection);
 app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // ── ORIGIN/REFERER PROTECTION (for sensitive routes) ───────────────────────
-const allowedOriginsForOriginCheck = process.env["ALLOWED_ORIGINS"]?.split(",").map(o => o.trim()).filter(Boolean) || [];
-app.use(originRefererProtection(allowedOriginsForOriginCheck));
+app.use(originRefererProtection(allowedOrigins));
 
 
 // TEMPORARY: Backend-only Sentry verification endpoint.

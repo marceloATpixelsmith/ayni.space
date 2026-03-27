@@ -14,6 +14,7 @@ const { default: invitationsRouter } = await import("../routes/invitations.js");
 const { default: adminRouter } = await import("../routes/admin.js");
 const { default: shipiboRouter } = await import("../routes/shipibo.js");
 const { default: ayniRouter } = await import("../routes/ayni.js");
+const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
 
 function user(id: string, extras: Record<string, unknown> = {}) {
   return {
@@ -284,7 +285,10 @@ test("E: super admin endpoints are super-admin only (no app/subscription depende
   ];
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/admin", router: adminRouter }], { userId: "admin-user" });
+    const app = createMountedSessionApp([], { userId: "admin-user" });
+    app.use(createSecurityEnforcementMiddleware());
+    app.use("/api/admin", adminRouter);
+
     assert.equal((await performJsonRequest(app, "GET", "/api/admin/stats")).status, 403);
 
     isSuper = true;

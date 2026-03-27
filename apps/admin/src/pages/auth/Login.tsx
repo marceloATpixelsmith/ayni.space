@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { useAuth } from "@workspace/frontend-security";
+import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chrome, ActivitySquare } from "lucide-react";
@@ -15,6 +15,7 @@ export default function Login() {
   const [location, setLocation] = useLocation();
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const auth = useAuth();
+  const { token: turnstileToken, error: turnstileError, enabled: turnstileEnabled, TurnstileWidget } = useTurnstileToken();
 
   const query = React.useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
   const accessErrorCode = query.get("error");
@@ -45,7 +46,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithGoogle().catch((error) => {
+    auth.loginWithGoogle(turnstileToken).catch((error) => {
       console.error("Google sign-in failed", error);
       const message = error instanceof Error ? error.message : "Failed to start Google sign-in.";
       setLoginError(message);
@@ -84,11 +85,13 @@ export default function Login() {
               <p className="text-muted-foreground">Sign in to access the restricted super-admin console.</p>
             </div>
 
+            {turnstileEnabled ? <TurnstileWidget /> : null}
+
             <Button 
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
               onClick={handleGoogleLogin}
-              disabled={auth.status === "authenticated" || auth.loginInFlight}
+              disabled={auth.status === "authenticated" || auth.loginInFlight || (turnstileEnabled && !turnstileToken)}
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
@@ -103,6 +106,12 @@ export default function Login() {
             {loginError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">
                 {loginError}
+              </p>
+            ) : null}
+
+            {turnstileError ? (
+              <p className="mt-4 text-sm text-destructive text-center" role="alert">
+                {turnstileError}
               </p>
             ) : null}
 

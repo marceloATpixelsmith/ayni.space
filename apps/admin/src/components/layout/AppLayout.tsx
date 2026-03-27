@@ -1,6 +1,5 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
 import { 
   Building2, 
   Settings, 
@@ -40,7 +39,6 @@ import { Button } from "@/components/ui/button";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const queryClient = useQueryClient();
   const auth = useAuth();
   const user = auth.user;
   const isLoading = auth.status === "loading";
@@ -76,13 +74,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const handleLogout = React.useCallback(async () => {
-    try {
-      queryClient.clear();
-      await auth.logout();
-    } finally {
-      setLocation("/login");
-    }
-  }, [auth, queryClient, setLocation]);
+    await auth.logout();
+    setLocation("/login");
+  }, [auth, setLocation]);
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "16rem", "--sidebar-width-icon": "4rem" } as React.CSSProperties}>
