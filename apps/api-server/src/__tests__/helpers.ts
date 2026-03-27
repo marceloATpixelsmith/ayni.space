@@ -60,7 +60,7 @@ export async function performJsonRequest(
       body: body ? JSON.stringify(body) : undefined,
     });
     const payload = (await response.json().catch(() => null)) as any;
-    return { status: response.status, body: payload };
+    return { status: response.status, body: payload, headers: response.headers };
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));

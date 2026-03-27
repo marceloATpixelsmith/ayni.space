@@ -64,6 +64,9 @@ function teardown(restores: Array<() => void>) {
 }
 
 test("A: auth/session protections and logout flow", async () => {
+  let destroyed = false;
+  const priorSessionCookieDomain = process.env["SESSION_COOKIE_DOMAIN"];
+  process.env["SESSION_COOKIE_DOMAIN"] = "admin.test.local";
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-auth")),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
@@ -78,7 +81,13 @@ test("A: auth/session protections and logout flow", async () => {
         { path: "/api/auth", router: authRouter },
         { path: "/api/users", router: usersRouter },
       ],
-      { userId: "user-auth", destroy: (cb) => cb?.() },
+      {
+        userId: "user-auth",
+        destroy: (cb) => {
+          destroyed = true;
+          cb?.();
+        },
+      },
     );
 
     const unauth = await performJsonRequest(createMountedSessionApp([{ path: "/api/users", router: usersRouter }], {}), "GET", "/api/users/me");
@@ -89,10 +98,20 @@ test("A: auth/session protections and logout flow", async () => {
 
     const logout = await performJsonRequest(loggedIn, "POST", "/api/auth/logout");
     assert.equal(logout.status, 200);
+    assert.equal(destroyed, true);
+    const clearedCookies = logout.headers.get("set-cookie") ?? "";
+    assert.match(clearedCookies, /saas\.sid=;/);
+    assert.match(clearedCookies, /Domain=admin\.test\.local/i);
+    assert.match(clearedCookies, /Path=\//i);
 
     const after = await performJsonRequest(createMountedSessionApp([{ path: "/api/users", router: usersRouter }], {}), "GET", "/api/users/me");
     assert.equal(after.status, 401);
   } finally {
+    if (priorSessionCookieDomain === undefined) {
+      delete process.env["SESSION_COOKIE_DOMAIN"];
+    } else {
+      process.env["SESSION_COOKIE_DOMAIN"] = priorSessionCookieDomain;
+    }
     teardown(restores);
   }
 });

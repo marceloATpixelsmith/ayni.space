@@ -1,6 +1,7 @@
 import React from "react";
 import {
   getGetGoogleAuthUrlQueryKey,
+  getGetMeQueryKey,
   useGetGoogleAuthUrl,
   useGetMe,
   useLogout,
@@ -9,6 +10,7 @@ import {
   type AuthUser,
   type SwitchOrgRequest,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -69,6 +71,7 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
   const [csrfReady, setCsrfReady] = React.useState(false);
   const [loginInFlight, setLoginInFlight] = React.useState(false);
@@ -81,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     query: {
       enabled: false,
       queryKey: getGetGoogleAuthUrlQueryKey(),
+      retry: false,
     },
   });
   const logoutMutation = useLogout();
@@ -120,6 +124,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    const revalidateSession = () => {
+      if (sessionRevoked) return;
+      void meQuery.refetch();
+    };
+
+    const handlePageShow = () => {
+      revalidateSession();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        revalidateSession();
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [meQuery, sessionRevoked]);
 
   const loginWithGoogle = React.useCallback(async () => {
     if (loginRequestRef.current) {
@@ -173,12 +202,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = React.useCallback(async () => {
     setSessionRevoked(true);
     setCsrfToken(null);
+    csrfTokenRef.current = null;
+    loginRequestRef.current = null;
+    setLoginInFlight(false);
     try {
       await logoutMutation.mutateAsync();
     } catch {
       // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
+    } finally {
+      queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
+      queryClient.removeQueries({ queryKey: getGetGoogleAuthUrlQueryKey() });
     }
-  }, [logoutMutation]);
+  }, [logoutMutation, queryClient]);
 
   const switchOrganization = React.useCallback(
     async (orgId: string) => {

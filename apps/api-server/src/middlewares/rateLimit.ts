@@ -24,6 +24,7 @@ type RateLimitOptions = {
   windowMs?: number;
   max?: number;
   keyPrefix?: string;
+  skip?: (req: Parameters<RequestHandler>[0]) => boolean;
 };
 
 export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
@@ -34,8 +35,14 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
   const max = options.max ?? DEFAULT_MAX;
   const keyPrefix = options.keyPrefix ?? "default";
+  const skip = options.skip;
 
   return (req, res, next) => {
+    if (skip?.(req)) {
+      next();
+      return;
+    }
+
     const now = Date.now();
     const key = `${keyPrefix}:${getClientKey(req)}`;
     const current = buckets.get(key);
