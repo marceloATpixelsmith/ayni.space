@@ -45,6 +45,11 @@ async function startServer() {
   validateDatabaseUrl(process.env["DATABASE_URL"]);
   console.info("[startup] DATABASE_URL format check passed.");
 
+  console.info("[startup] Ensuring session store infrastructure...");
+  const { ensureSessionStoreInfrastructure } = await import("./lib/session.js");
+  await ensureSessionStoreInfrastructure();
+  console.info("[startup] Session store infrastructure is ready.");
+
   console.info("[startup] Initializing Sentry (if configured)...");
   initSentry();
 

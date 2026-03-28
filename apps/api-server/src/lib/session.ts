@@ -14,6 +14,14 @@ const DEFAULT_PRUNE_INTERVAL_SECONDS = 15 * 60; // every 15 minutes
 export const SESSION_STORE_SCHEMA_NAME = "platform";
 export const SESSION_STORE_TABLE_NAME = "sessions";
 export const SESSION_STORE_CREATE_TABLE_IF_MISSING = false;
+const SESSION_TABLE_FQN = `${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME}`;
+const ENSURE_SESSION_SCHEMA_SQL = `CREATE SCHEMA IF NOT EXISTS ${SESSION_STORE_SCHEMA_NAME}`;
+const ENSURE_SESSION_TABLE_SQL = `CREATE TABLE IF NOT EXISTS ${SESSION_TABLE_FQN} (
+  sid varchar NOT NULL PRIMARY KEY,
+  sess json NOT NULL,
+  expire timestamp(6) NOT NULL
+)`;
+const ENSURE_SESSION_EXPIRE_INDEX_SQL = `CREATE INDEX IF NOT EXISTS sessions_expire_idx ON ${SESSION_TABLE_FQN}(expire)`;
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -58,6 +66,12 @@ export function getSessionStoreConfig() {
     createTableIfMissing: SESSION_STORE_CREATE_TABLE_IF_MISSING,
     pruneSessionInterval: policy.pruneIntervalSeconds,
   } as const;
+}
+
+export async function ensureSessionStoreInfrastructure() {
+  await pool.query(ENSURE_SESSION_SCHEMA_SQL);
+  await pool.query(ENSURE_SESSION_TABLE_SQL);
+  await pool.query(ENSURE_SESSION_EXPIRE_INDEX_SQL);
 }
 
 export function getDeleteOtherSessionsSql() {

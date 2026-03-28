@@ -41,6 +41,28 @@ test("logout-others query targets platform.sessions via shared helper", () => {
   assert.match(sessionLib.getDeleteOtherSessionsSql(), /sessionGroup/);
 });
 
+test("session store infrastructure bootstrap creates schema/table/index if missing", async () => {
+  const { pool } = await import("@workspace/db");
+  const capturedSql: string[] = [];
+  const originalQuery = pool.query.bind(pool);
+
+  (pool as unknown as { query: (sql: string) => Promise<unknown> }).query = async (sql: string) => {
+    capturedSql.push(sql);
+    return { rows: [] };
+  };
+
+  try {
+    await sessionLib.ensureSessionStoreInfrastructure();
+  } finally {
+    (pool as unknown as { query: typeof pool.query }).query = originalQuery;
+  }
+
+  assert.equal(capturedSql.length, 3);
+  assert.match(capturedSql[0]!, /CREATE SCHEMA IF NOT EXISTS platform/);
+  assert.match(capturedSql[1]!, /CREATE TABLE IF NOT EXISTS platform\.sessions/);
+  assert.match(capturedSql[2]!, /CREATE INDEX IF NOT EXISTS sessions_expire_idx/);
+});
+
 test("session lifecycle uses shared destroy helper instead of ad hoc req.session.destroy", () => {
   const runtimeFiles = collectFiles(resolve(process.cwd(), "src")).filter((file) =>
     file.includes("/routes/") || file.includes("/middlewares/") || file.includes("/lib/")
