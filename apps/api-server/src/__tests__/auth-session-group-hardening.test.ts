@@ -16,13 +16,24 @@ const { authRouteDeps } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 
-async function request(app: ReturnType<typeof createMountedSessionApp>, path: string, headers: Record<string, string> = {}) {
+async function request(
+  app: ReturnType<typeof createMountedSessionApp>,
+  path: string,
+  options: {
+    method?: "GET" | "POST";
+    headers?: Record<string, string>;
+  } = {},
+) {
   const server = app.listen(0);
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Failed to bind server");
 
   try {
-    return await fetch(`http://127.0.0.1:${address.port}${path}`, { headers, redirect: "manual" });
+    return await fetch(`http://127.0.0.1:${address.port}${path}`, {
+      method: options.method ?? "GET",
+      headers: options.headers,
+      redirect: "manual",
+    });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
@@ -53,6 +64,8 @@ test("session-group resolver maps admin and default origins", () => {
   assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("http://workspace.local"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
   assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.ADMIN), "saas.admin.sid");
   assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.DEFAULT), "saas.workspace.sid");
+  assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.ADMIN).name, "saas.admin.sid");
+  assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.DEFAULT).name, "saas.workspace.sid");
 });
 
 test("super admin oauth callback in admin group lands on /dashboard", async () => {
@@ -128,25 +141,73 @@ test("logout clears only the current request session-group cookie (admin)", asyn
     },
   });
 
-  const server = app.listen(0);
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Failed to bind server");
+  const response = await request(app, "/api/auth/logout", {
+    method: "POST",
+    headers: {
+      origin: "http://admin.local",
+      cookie: "saas.admin.sid=admin-cookie; saas.workspace.sid=workspace-cookie",
+    },
+  });
 
-  try {
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/auth/logout`, {
-      method: "POST",
-      headers: {
-        origin: "http://admin.local",
-      },
-    });
+  assert.equal(response.status, 200);
+  assert.equal(destroyed, true);
 
-    assert.equal(response.status, 200);
-    assert.equal(destroyed, true);
+  const setCookie = response.headers.get("set-cookie") ?? "";
+  assert.match(setCookie, /saas\.admin\.sid=;/i);
+  assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
+});
 
-    const setCookie = response.headers.get("set-cookie") ?? "";
-    assert.match(setCookie, /saas\.admin\.sid=;/i);
-    assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+test("logout fails closed for ambiguous multi-group cookies when origin context is missing", async () => {
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    userId: "mixed-user",
+    sessionGroup: "admin",
+  });
+
+  const response = await request(app, "/api/auth/logout", {
+    method: "POST",
+    headers: {
+      cookie: "saas.admin.sid=admin-cookie; saas.workspace.sid=workspace-cookie",
+    },
+  });
+
+  assert.equal(response.status, 400);
+  const body = await response.json() as { error?: string };
+  assert.equal(body.error, "Unable to resolve session group for logout");
+});
+
+test("request group resolution prefers trusted origin over spoofable cookie order", () => {
+  const req = {
+    path: "/api/auth/logout",
+    headers: {
+      origin: "http://admin.local",
+      cookie: "saas.workspace.sid=workspace-cookie; saas.admin.sid=admin-cookie",
+    },
+    query: {},
+  };
+
+  const resolution = sessionGroupLib.resolveSessionGroupForRequest(req as any, { failOnAmbiguous: true });
+  assert.equal(resolution.ok, true);
+  if (resolution.ok) {
+    assert.equal(resolution.sessionGroup, sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(resolution.source, "origin");
+  }
+});
+
+test("oauth callback can resolve group from state when multiple group cookies coexist", () => {
+  const req = {
+    path: "/api/auth/google/callback",
+    headers: {
+      cookie: "saas.workspace.sid=workspace-cookie; saas.admin.sid=admin-cookie",
+    },
+    query: {
+      state: "admin.callback-state",
+    },
+  };
+
+  const resolution = sessionGroupLib.resolveSessionGroupForRequest(req as any, { failOnAmbiguous: true });
+  assert.equal(resolution.ok, true);
+  if (resolution.ok) {
+    assert.equal(resolution.sessionGroup, sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(resolution.source, "state");
   }
 });

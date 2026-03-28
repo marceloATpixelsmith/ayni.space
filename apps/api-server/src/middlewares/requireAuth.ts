@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { destroySessionAndClearCookie } from "../lib/session.js";
+import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
@@ -15,13 +16,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   });
 
   if (!user) {
-    await destroySessionAndClearCookie(req, res);
+    await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(401).json({ error: "User not found. Please sign in again." });
     return;
   }
 
   if (user.suspended || user.deletedAt || !user.active) {
-    await destroySessionAndClearCookie(req, res);
+    await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(403).json({ error: "Account suspended or deleted. Contact support." });
     return;
   }
