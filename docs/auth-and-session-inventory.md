@@ -8,6 +8,8 @@
 - Backend auth implementation location: `apps/api-server/src/lib/auth.ts`.
 - Backend auth/session route wiring: `apps/api-server/src/routes/auth.ts`.
 - Session lifecycle/rotation helpers and canonical session destruction/cookie clearing/logout-others helpers: `apps/api-server/src/lib/session.ts`.
+- Session-group resolver/cookie mapping helpers: `apps/api-server/src/lib/sessionGroup.ts`.
+- OAuth denial and logout are group-scoped in `apps/api-server/src/routes/auth.ts` (admin denial destroys/clears admin-group session state only).
 - Session persistence table is `platform.sessions` and is owned by DB migrations.
 - Frontend auth provider/route gate: `lib/frontend-security/src/index.tsx`.
 - CSRF-aware API fetch path: `lib/api-client-react/src/custom-fetch.ts`.

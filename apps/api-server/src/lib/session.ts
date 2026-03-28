@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 import { writeAuditLog } from "./audit.js";
+import { getSessionCookieNameForGroup, SESSION_GROUPS } from "./sessionGroup.js";
 
 const PgStore = connectPgSimple(session);
 
@@ -43,8 +44,8 @@ export function getSessionCookieOptions() {
   } as const;
 }
 
-export function getSessionCookieName() {
-  return "saas.sid";
+export function getSessionCookieName(sessionGroup: string = SESSION_GROUPS.DEFAULT) {
+  return getSessionCookieNameForGroup(sessionGroup);
 }
 
 export function getSessionStoreConfig() {
@@ -66,22 +67,22 @@ export async function revokeOtherSessionsForUser(userId: string, currentSid: str
   await pool.query(getDeleteOtherSessionsSql(), [userId, currentSid]);
 }
 
-export function clearSessionCookie(res: Response) {
-  res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
+export function clearSessionCookie(res: Response, sessionGroup: string = SESSION_GROUPS.DEFAULT) {
+  res.clearCookie(getSessionCookieName(sessionGroup), getSessionCookieOptions());
 }
 
-export function destroySessionAndClearCookie(req: Request, res: Response): Promise<void> {
+export function destroySessionAndClearCookie(req: Request, res: Response, sessionGroup: string = SESSION_GROUPS.DEFAULT): Promise<void> {
   return new Promise((resolve, reject) => {
     const currentSession = req.session;
     if (!currentSession) {
-      clearSessionCookie(res);
+      clearSessionCookie(res, sessionGroup);
       (req as { session: unknown }).session = null;
       resolve();
       return;
     }
 
     currentSession.destroy((err?: unknown) => {
-      clearSessionCookie(res);
+      clearSessionCookie(res, sessionGroup);
       (req as { session: unknown }).session = null;
       if (err) {
         reject(err);
@@ -106,7 +107,7 @@ export function buildSessionOptions(secret: string): session.SessionOptions {
       ...getSessionCookieOptions(),
       maxAge: policy.idleTimeoutMs,
     },
-    name: getSessionCookieName(),
+    name: getSessionCookieName(process.env["SESSION_GROUP"] ?? SESSION_GROUPS.DEFAULT),
   };
 }
 
@@ -199,6 +200,8 @@ declare module "express-session" {
     activeOrgId?: string;
     oauthState?: string;
     oauthReturnTo?: string;
+    oauthSessionGroup?: string;
+    sessionGroup?: string;
     sessionCreatedAt?: number;
     sessionAuthenticatedAt?: number;
     lastSeenAt?: number;
