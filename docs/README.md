@@ -45,6 +45,7 @@
 26. `file-and-folder-ownership.md`
 27. `codex-working-rules.md`
 28. `open-questions-and-conflicts.md`
+29. `auth-security-regression-suite.md`
 
 ### Numbered compatibility copies
 - `06-authorization-and-access-model-inventory.md`

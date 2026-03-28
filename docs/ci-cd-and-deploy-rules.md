@@ -12,6 +12,9 @@
 - PR governance workflows:
   - `.github/workflows/auto-rebase.yml` rebases `codex/*` PR branches onto latest `master`.
   - `.github/workflows/auto-merge.yml` enables rebase auto-merge for `codex/*` PRs targeting `master`.
+- Auth security regression workflow:
+  - `.github/workflows/auth-security-regression-suite.yml` runs the dedicated auth/session/security integration suite on every PR to `master` and every push to `master` (no path filters).
+  - Enforced command: `pnpm run test:auth-security-regression`.
 - Repository currently contains **no GitHub Actions deploy workflow for the admin frontend**.
 
 ## Inferred
@@ -24,7 +27,7 @@
 
 ## Do not break
 - Do not add frontend deploy jobs back into GitHub Actions.
-- Do not weaken PR validation gates for admin, backend, lockfile integrity, or linear history.
+- Do not weaken PR validation gates for admin, backend, lockfile integrity, linear history, or auth-security regression suite.
 - Do not change Codex auto-rebase/auto-merge branch constraints (`codex/*` → `master`) without explicit approval.
 
 ## Admin frontend deploy target state (Vercel Git integration)
@@ -39,3 +42,7 @@
 2. GitHub Actions run CI/policy checks only.
 3. Merge PR to `master` when checks are acceptable.
 4. External deployment platform (Vercel for admin frontend) deploys from Git.
+
+
+## Required branch protection check
+- Mark `auth-security-regression-suite` as a required status check in GitHub branch protection for `master`.
