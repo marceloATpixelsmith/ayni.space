@@ -114,7 +114,7 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
       return;
     }
 
-    const verificationPromise = verifyFn === verifyTurnstileToken
+    const verificationPromise: Promise<TurnstileVerificationResult> = verifyFn === verifyTurnstileToken
       ? verifyTurnstileTokenDetailed(token, req.ip)
       : verifyFn(token, req.ip).then((ok) => ({ ok, reason: ok ? undefined : "verification-failed" as const }));
 
