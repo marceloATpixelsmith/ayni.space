@@ -213,8 +213,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     setSessionRevoked(true);
-    setCsrfToken(null);
-    csrfTokenRef.current = null;
     loginRequestRef.current = null;
     setLoginInFlight(false);
     try {
@@ -222,6 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
     } finally {
+      setCsrfToken(null);
+      csrfTokenRef.current = null;
       await clearAuthState();
       queryClient.clear();
     }

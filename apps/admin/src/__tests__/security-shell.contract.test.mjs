@@ -163,8 +163,20 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
+    "await logoutMutation.mutateAsync();",
+    "Logout should execute the backend logout mutation.",
+  );
+
+  expectIncludes(
+    authProviderSource,
     "setCsrfToken(null);",
-    "Logout should clear CSRF/session bootstrap state immediately.",
+    "Logout should clear CSRF/session bootstrap state after logout cleanup.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "await logoutMutation.mutateAsync();\n    } catch {\n      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.\n    } finally {\n      setCsrfToken(null);",
+    "Logout must not clear CSRF token before sending the logout API request.",
   );
 
   expectIncludes(

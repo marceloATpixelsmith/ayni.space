@@ -45,6 +45,10 @@ export function getSessionCookieName() {
   return "saas.sid";
 }
 
+export function clearSessionCookie(res: Response) {
+  res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
+}
+
 export function buildSessionOptions(secret: string): session.SessionOptions {
   const policy = getSessionPolicy();
 
@@ -94,7 +98,7 @@ export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof write
     const absoluteStart = req.session.sessionAuthenticatedAt ?? req.session.sessionCreatedAt;
     if (absoluteStart && now - absoluteStart > policy.absoluteTimeoutMs) {
       req.session.destroy(() => {
-        res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
+        clearSessionCookie(res);
         res.status(401).json({ error: "Session expired. Please sign in again." });
       });
       return;
