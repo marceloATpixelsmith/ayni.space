@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import express from "express";
+import type { RequestHandler } from "express";
 
 import { createMountedSessionApp, ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
 
@@ -10,6 +12,7 @@ const { db } = await import("@workspace/db");
 process.env["ALLOWED_ORIGINS"] = "http://admin.local,http://workspace.local";
 process.env["ADMIN_FRONTEND_ORIGINS"] = "http://admin.local";
 process.env["SESSION_GROUP_COOKIE_NAMES"] = "admin=saas.admin.sid,default=saas.workspace.sid";
+process.env["SESSION_SECRET"] ??= "test-secret";
 
 const { default: authRouter } = await import("../routes/auth.js");
 const { authRouteDeps } = await import("../routes/auth.js");
@@ -209,5 +212,69 @@ test("oauth callback can resolve group from state when multiple group cookies co
   if (resolution.ok) {
     assert.equal(resolution.sessionGroup, sessionGroupLib.SESSION_GROUPS.ADMIN);
     assert.equal(resolution.source, "state");
+  }
+});
+
+test("session middleware selects the correct group handler per request and preserves multi-cookie coexistence", async () => {
+  const selectedGroups: string[] = [];
+  const handlers = new Map<string, RequestHandler>([
+    ["admin", (req, _res, next) => {
+      selectedGroups.push("admin");
+      (req as any).session = { id: "admin.sid", destroy: (cb?: (err?: unknown) => void) => cb?.() };
+      next();
+    }],
+    ["default", (req, _res, next) => {
+      selectedGroups.push("default");
+      (req as any).session = { id: "default.sid", destroy: (cb?: (err?: unknown) => void) => cb?.() };
+      next();
+    }],
+  ]);
+
+  const app = express();
+  app.use(sessionLib.createSessionMiddleware(handlers));
+  app.post("/echo", (req, res) => {
+    res.json({
+      resolved: req.resolvedSessionGroup,
+      sessionGroup: req.session.sessionGroup,
+      source: req.sessionGroupResolutionSource,
+    });
+  });
+
+  const server = app.listen(0);
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Failed to bind server");
+
+  try {
+    const adminResp = await fetch(`http://127.0.0.1:${address.port}/echo`, {
+      method: "POST",
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie; saas.workspace.sid=workspace-cookie",
+      },
+    });
+    assert.equal(adminResp.status, 200);
+    assert.deepEqual(await adminResp.json(), {
+      resolved: "admin",
+      sessionGroup: "admin",
+      source: "origin",
+    });
+
+    const workspaceResp = await fetch(`http://127.0.0.1:${address.port}/echo`, {
+      method: "POST",
+      headers: {
+        origin: "http://workspace.local",
+        cookie: "saas.admin.sid=admin-cookie; saas.workspace.sid=workspace-cookie",
+      },
+    });
+    assert.equal(workspaceResp.status, 200);
+    assert.deepEqual(await workspaceResp.json(), {
+      resolved: "default",
+      sessionGroup: "default",
+      source: "origin",
+    });
+
+    assert.deepEqual(selectedGroups, ["admin", "default"]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 });
