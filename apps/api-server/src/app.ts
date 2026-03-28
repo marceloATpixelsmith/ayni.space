@@ -112,6 +112,14 @@ app.get("/api/monitoring/config", (_req, res) => {
   });
 });
 
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use("/api", router);
 
