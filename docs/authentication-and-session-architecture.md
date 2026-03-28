@@ -7,6 +7,7 @@
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.
 - Authentication routes/session binding are implemented in `apps/api-server/src/routes/auth.ts`.
 - Session lifecycle helpers are implemented in `apps/api-server/src/lib/session.ts`.
+- Session persistence is a shared platform concern and is stored in `platform.sessions` (migration-managed), not `public.sessions`.
 - Frontend auth state, bootstrap, and route gating are implemented in `lib/frontend-security/src/index.tsx`.
 - CSRF-aware shared fetch path is implemented in `lib/api-client-react/src/custom-fetch.ts`.
 - Backend app middleware composition runs through `apps/api-server/src/app.ts`, where session and security middleware ordering is centralized.
@@ -20,6 +21,7 @@
 - Whether any additional frontend shells (beyond admin) will share the same auth provider behavior.
 
 ## Do not break
+- Do not move shared session storage out of `platform.sessions`; shared cross-app tables belong in `platform`, app-specific tables belong in app schemas.
 - Do not bypass `lib/frontend-security` for auth gating in the admin frontend.
 - Do not move auth/session logic outside the API server auth/session modules without updating route/middleware integration.
 - Do not break CSRF/session coupling between `lib/frontend-security` and `lib/api-client-react/src/custom-fetch.ts`.

@@ -50,6 +50,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 
 ### C) Session management
 - **PostgreSQL-backed sessions** (`connect-pg-simple`) with cookie controls and rolling inactivity expiration.
+  - Owned as migration-managed shared table `platform.sessions` (not runtime auto-created in `public`).
   - `apps/api-server/src/lib/session.ts`
   - `lib/db/src/schema/sessions.ts`
 - **Cookie security posture**: `httpOnly=true`, `secure=true` in production, `sameSite=lax` (kept for OAuth callback compatibility), explicit `maxAge` idle timeout.
@@ -305,7 +306,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | CSRF token validation | Implemented | `apps/api-server/src/middlewares/csrf.ts`, `lib/api-client-react/src/custom-fetch.ts` | Solid session-bound token pattern. |
 | Origin/Referer protection | Implemented | `apps/api-server/src/middlewares/csrf.ts` | Defense-in-depth; allows auth callback exception. |
 | Backend auth | Implemented | `apps/api-server/src/lib/auth.ts`, `apps/api-server/src/routes/auth.ts` | OAuth state validated; optional hosted domain check. |
-| Session storage/cookies | Implemented | `apps/api-server/src/lib/session.ts`, `lib/db/src/schema/sessions.ts` | Postgres persistence; secure cookie in production. |
+| Session storage/cookies | Implemented | `apps/api-server/src/lib/session.ts`, `lib/db/src/schema/sessions.ts` | Postgres persistence in `platform.sessions`; secure cookie in production. |
 | Session rotation | Implemented | `apps/api-server/src/routes/users.ts` | Rotation on org switch reduces fixation risk. |
 | RBAC middleware | Implemented | `apps/api-server/src/middlewares/require*.ts` | Clear layered model. |
 | Super-admin enforcement | Implemented | `apps/api-server/src/middlewares/requireAuth.ts`, `apps/api-server/src/routes/admin.ts` | Requires both super-admin flag and admin app entitlement. |
