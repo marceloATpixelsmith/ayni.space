@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie } from "../lib/session.js";
-import { isRestrictedSessionGroup, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
+import { getAllowedOrigins, isRestrictedSessionGroup, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -16,13 +16,6 @@ export const authRouteDeps = {
   exchangeCodeForUserFn: exchangeCodeForUser,
 };
 
-function getAllowedOrigins() {
-  return (process.env["ALLOWED_ORIGINS"] ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
 function getRequestFrontendOrigin(req: Request): string | null {
   const originHeader = req.headers["origin"];
   const origin = typeof originHeader === "string" ? originHeader.trim() : "";
@@ -31,23 +24,18 @@ function getRequestFrontendOrigin(req: Request): string | null {
   return getAllowedOrigins().includes(origin) ? origin : null;
 }
 
-
 function getCurrentRequestSessionGroup(req: Request): string {
-  const originHeader = typeof req.headers["origin"] === "string" ? req.headers["origin"] : null;
-  const refererHeader = typeof req.headers["referer"] === "string" ? req.headers["referer"] : null;
-
-  if (originHeader) return resolveSessionGroupFromOrigin(originHeader);
-
-  if (refererHeader) {
-    try {
-      const refererOrigin = new URL(refererHeader).origin;
-      return resolveSessionGroupFromOrigin(refererOrigin);
-    } catch {
-      return req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT;
-    }
+  const resolution = resolveSessionGroupForRequest(req, { failOnAmbiguous: true });
+  if (!resolution.ok) {
+    throw new Error(`session_group_resolution_failed:${resolution.reason}`);
   }
 
-  return req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT;
+  return resolution.sessionGroup;
+}
+
+function parseGroupFromOAuthState(state: string): string | null {
+  const [sessionGroup] = state.split(".", 1);
+  return sessionGroup || null;
 }
 
 function firstQueryParam(value: unknown): string | undefined {
@@ -126,6 +114,10 @@ async function handleLogout(req: Request, res: Response) {
     await destroySessionAndClearCookie(req, res, getCurrentRequestSessionGroup(req));
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith("session_group_resolution_failed:")) {
+      res.status(400).json({ error: "Unable to resolve session group for logout" });
+      return;
+    }
     console.error("Session destroy error:", err);
     res.status(500).json({ error: "Failed to destroy session" });
   }
@@ -154,16 +146,17 @@ async function handleGoogleUrl(req: Request, res: Response) {
       }
     }
 
-    const state = randomUUID();
     const returnTo = getRequestFrontendOrigin(req);
     if (!returnTo) {
       logAuthFailure(req, "google-url-origin-invalid");
       res.status(400).json({ error: "Request origin is missing or not allowed" });
       return;
     }
+    const oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+    const state = `${oauthSessionGroup}.${randomUUID()}`;
     req.session.oauthState = state;
     req.session.oauthReturnTo = returnTo;
-    req.session.oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+    req.session.oauthSessionGroup = oauthSessionGroup;
     const url = buildGoogleAuthUrl(state);
     req.session.save((err: unknown) => {
       if (err) {
@@ -196,7 +189,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
   delete req.session.oauthState;
   const oauthReturnTo = req.session.oauthReturnTo;
-  const oauthSessionGroup = req.session.oauthSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const stateSessionGroup = parseGroupFromOAuthState(state);
+  const oauthSessionGroup = req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
   delete req.session.oauthReturnTo;
   delete req.session.oauthSessionGroup;
 

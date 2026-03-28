@@ -1,9 +1,9 @@
 import session from "express-session";
-import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "@workspace/db";
 import { writeAuditLog } from "./audit.js";
-import { getSessionCookieNameForGroup, SESSION_GROUPS } from "./sessionGroup.js";
+import { getKnownSessionGroups, getSessionCookieNameForGroup, resolveSessionGroupForRequest, SESSION_GROUPS } from "./sessionGroup.js";
 
 const PgStore = connectPgSimple(session);
 
@@ -60,11 +60,11 @@ export function getSessionStoreConfig() {
 }
 
 export function getDeleteOtherSessionsSql() {
-  return `DELETE FROM ${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME} WHERE sess::jsonb->>'userId' = $1 AND sid != $2`;
+  return `DELETE FROM ${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME} WHERE sess::jsonb->>'userId' = $1 AND sid != $2 AND COALESCE(sess::jsonb->>'sessionGroup', '${SESSION_GROUPS.DEFAULT}') = $3`;
 }
 
-export async function revokeOtherSessionsForUser(userId: string, currentSid: string) {
-  await pool.query(getDeleteOtherSessionsSql(), [userId, currentSid]);
+export async function revokeOtherSessionsForUser(userId: string, currentSid: string, sessionGroup: string) {
+  await pool.query(getDeleteOtherSessionsSql(), [userId, currentSid, sessionGroup]);
 }
 
 export function clearSessionCookie(res: Response, sessionGroup: string = SESSION_GROUPS.DEFAULT) {
@@ -93,7 +93,7 @@ export function destroySessionAndClearCookie(req: Request, res: Response, sessio
   });
 }
 
-export function buildSessionOptions(secret: string): session.SessionOptions {
+export function buildSessionOptions(secret: string, sessionGroup: string = SESSION_GROUPS.DEFAULT): session.SessionOptions {
   const policy = getSessionPolicy();
   const sessionStoreConfig = getSessionStoreConfig();
 
@@ -107,18 +107,61 @@ export function buildSessionOptions(secret: string): session.SessionOptions {
       ...getSessionCookieOptions(),
       maxAge: policy.idleTimeoutMs,
     },
-    name: getSessionCookieName(process.env["SESSION_GROUP"] ?? SESSION_GROUPS.DEFAULT),
+    name: getSessionCookieName(sessionGroup),
   };
 }
 
-// Session middleware configured with PostgreSQL store for persistence
+function buildPerGroupSessionHandlers(secret: string): Map<string, RequestHandler> {
+  const middlewareByGroup = new Map<string, RequestHandler>();
+  for (const sessionGroup of getKnownSessionGroups()) {
+    middlewareByGroup.set(sessionGroup, session(buildSessionOptions(secret, sessionGroup)));
+  }
+
+  if (!middlewareByGroup.has(SESSION_GROUPS.DEFAULT)) {
+    middlewareByGroup.set(SESSION_GROUPS.DEFAULT, session(buildSessionOptions(secret, SESSION_GROUPS.DEFAULT)));
+  }
+
+  return middlewareByGroup;
+}
+
+// Session middleware configured with PostgreSQL store for persistence.
+// Session-group selection is request-scoped (origin/cookie/state aware), not process-scoped.
 export function createSessionMiddleware() {
   const secret = process.env["SESSION_SECRET"];
   if (!secret) {
     throw new Error("SESSION_SECRET environment variable is required");
   }
 
-  return session(buildSessionOptions(secret));
+  const middlewareByGroup = buildPerGroupSessionHandlers(secret);
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const resolution = resolveSessionGroupForRequest(req, { failOnAmbiguous: true });
+
+    if (!resolution.ok) {
+      res.status(400).json({ error: "Unable to resolve session group for request" });
+      return;
+    }
+
+    const sessionGroup = resolution.sessionGroup;
+    const middleware = middlewareByGroup.get(sessionGroup) ?? middlewareByGroup.get(SESSION_GROUPS.DEFAULT);
+
+    if (!middleware) {
+      next(new Error("Session middleware is not configured for resolved session group"));
+      return;
+    }
+
+    middleware(req, res, (err?: unknown) => {
+      if (err) {
+        next(err as Error);
+        return;
+      }
+
+      req.session.sessionGroup = sessionGroup;
+      req.resolvedSessionGroup = sessionGroup;
+      req.sessionGroupResolutionSource = resolution.source;
+      next();
+    });
+  };
 }
 
 export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof writeAuditLog } = {}) {
@@ -137,7 +180,7 @@ export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof write
 
     const absoluteStart = req.session.sessionAuthenticatedAt ?? req.session.sessionCreatedAt;
     if (absoluteStart && now - absoluteStart > policy.absoluteTimeoutMs) {
-      void destroySessionAndClearCookie(req, res)
+      void destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT)
         .catch(() => {
           // Fail closed even if backing store destroy fails.
         })
@@ -207,5 +250,14 @@ declare module "express-session" {
     lastSeenAt?: number;
     lastIp?: string;
     lastUserAgent?: string;
+  }
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      resolvedSessionGroup?: string;
+      sessionGroupResolutionSource?: "origin" | "cookie" | "state" | "default";
+    }
   }
 }

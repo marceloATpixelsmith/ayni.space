@@ -20,11 +20,11 @@ test("revokeOtherSessionsForUser executes explicit platform.sessions query", asy
   });
 
   try {
-    await sessionLib.revokeOtherSessionsForUser("user-123", "sid-abc");
+    await sessionLib.revokeOtherSessionsForUser("user-123", "sid-abc", "admin");
 
     assert.equal(capturedSql, sessionLib.getDeleteOtherSessionsSql());
     assert.match(capturedSql, /^DELETE FROM platform\.sessions/);
-    assert.deepEqual(capturedParams, ["user-123", "sid-abc"]);
+    assert.deepEqual(capturedParams, ["user-123", "sid-abc", "admin"]);
   } finally {
     restore();
   }

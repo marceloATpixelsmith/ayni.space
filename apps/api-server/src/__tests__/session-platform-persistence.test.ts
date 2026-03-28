@@ -38,6 +38,7 @@ test("session store config is pinned to platform.sessions and migration-managed 
 
 test("logout-others query targets platform.sessions via shared helper", () => {
   assert.match(sessionLib.getDeleteOtherSessionsSql(), /DELETE FROM platform\.sessions/);
+  assert.match(sessionLib.getDeleteOtherSessionsSql(), /sessionGroup/);
 });
 
 test("session lifecycle uses shared destroy helper instead of ad hoc req.session.destroy", () => {
@@ -65,4 +66,9 @@ test("runtime-critical source has no stale public.sessions assumptions", () => {
     const source = readFileSync(file, "utf8");
     assert.equal(source.includes("public.sessions"), false, `Found stale public.sessions in ${file}`);
   }
+});
+
+test("session runtime no longer depends on startup-time SESSION_GROUP env cookie selection", () => {
+  const sessionSource = readFileSync(resolve(process.cwd(), "src/lib/session.ts"), "utf8");
+  assert.equal(sessionSource.includes("process.env[\"SESSION_GROUP\"]"), false);
 });

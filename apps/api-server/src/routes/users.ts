@@ -5,6 +5,7 @@ import { requireAuth, requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { validateBody, updateUserSchema, switchOrgSchema } from "../middlewares/validation.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { destroySessionAndClearCookie, revokeOtherSessionsForUser } from "../lib/session.js";
+import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 const router: IRouter = Router();
 
@@ -162,7 +163,7 @@ router.delete("/me", requireAuth, async (req, res) => {
     req,
   });
 
-  await destroySessionAndClearCookie(req, res);
+  await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
   res.json({ success: true, message: "Account deleted", user });
 });
 
@@ -171,7 +172,8 @@ router.post("/logout-others", requireAuth, async (req, res) => {
   const userId = req.session.userId!;
   const sid = req.session.id;
 
-  await revokeOtherSessionsForUser(userId, sid);
+  const sessionGroup = req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT;
+  await revokeOtherSessionsForUser(userId, sid, sessionGroup);
   writeAuditLog({
     userId,
     action: "user.sessions.revoked_others",
