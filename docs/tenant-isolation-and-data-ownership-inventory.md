@@ -5,6 +5,7 @@
 - Canonical companion: `docs/tenant-isolation-and-data-ownership.md`.
 
 ## Confirmed
+- DB schema ownership convention: shared cross-app tables belong in `platform`, while app-specific tables belong in app schemas.
 - Tenant/org routes:
   - `apps/api-server/src/routes/organizations.ts`
   - `apps/api-server/src/routes/invitations.ts`

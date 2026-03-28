@@ -6,9 +6,9 @@
 - Uses free/low-cost operational practices only.
 
 ## Confirmed
-- Primary runtime state is in PostgreSQL via `@workspace/db` (`users`, `organizations`, `org_memberships`, `sessions`, `subscriptions`, `invitations`, `audit_logs`, app-module tables).  
+- Primary runtime state is in PostgreSQL via `@workspace/db` (`platform.users`, `platform.organizations`, `platform.org_memberships`, `platform.sessions`, `platform.subscriptions`, `platform.invitations`, `platform.audit_logs`, app-module tables).  
   - Evidence: `lib/db/src/schema/*.ts`.
-- Sessions are persisted in Postgres (`sessions` table), so DB loss impacts authentication continuity.  
+- Sessions are persisted in Postgres (`platform.sessions` table), so DB loss impacts authentication continuity.  
   - Evidence: `apps/api-server/src/lib/session.ts`, `lib/db/src/schema/sessions.ts`.
 - Security/audit history is persisted in Postgres (`audit_logs`).  
   - Evidence: `apps/api-server/src/lib/audit.ts`, `lib/db/src/schema/audit_logs.ts`.

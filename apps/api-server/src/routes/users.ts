@@ -171,7 +171,7 @@ router.post("/logout-others", requireAuth, async (req, res) => {
   const sid = req.session.id;
 
   await pool.query(
-    `DELETE FROM sessions WHERE sess::jsonb->>'userId' = $1 AND sid != $2`,
+    `DELETE FROM platform.sessions WHERE sess::jsonb->>'userId' = $1 AND sid != $2`,
     [userId, sid],
   );
   writeAuditLog({

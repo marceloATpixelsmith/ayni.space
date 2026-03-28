@@ -9,6 +9,9 @@ const PgStore = connectPgSimple(session);
 const DEFAULT_IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour inactivity timeout
 const DEFAULT_ABSOLUTE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hour absolute cap
 const DEFAULT_PRUNE_INTERVAL_SECONDS = 15 * 60; // every 15 minutes
+export const SESSION_STORE_SCHEMA_NAME = "platform";
+export const SESSION_STORE_TABLE_NAME = "sessions";
+export const SESSION_STORE_CREATE_TABLE_IF_MISSING = false;
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -45,20 +48,27 @@ export function getSessionCookieName() {
   return "saas.sid";
 }
 
+export function getSessionStoreConfig() {
+  const policy = getSessionPolicy();
+  return {
+    pool,
+    schemaName: SESSION_STORE_SCHEMA_NAME,
+    tableName: SESSION_STORE_TABLE_NAME,
+    createTableIfMissing: SESSION_STORE_CREATE_TABLE_IF_MISSING,
+    pruneSessionInterval: policy.pruneIntervalSeconds,
+  } as const;
+}
+
 export function clearSessionCookie(res: Response) {
   res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
 }
 
 export function buildSessionOptions(secret: string): session.SessionOptions {
   const policy = getSessionPolicy();
+  const sessionStoreConfig = getSessionStoreConfig();
 
   return {
-    store: new PgStore({
-      pool,
-      tableName: "sessions",
-      createTableIfMissing: true,
-      pruneSessionInterval: policy.pruneIntervalSeconds,
-    }),
+    store: new PgStore(sessionStoreConfig),
     secret,
     resave: false,
     saveUninitialized: false,

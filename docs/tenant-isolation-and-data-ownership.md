@@ -4,6 +4,7 @@
 - This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
+- Schema ownership convention is: shared cross-app tables live in `platform`; app-specific tables live in their app schemas (for example `ayni.*`, `shipibo.*`).
 - Tenant/org domain routes are implemented in:
   - `apps/api-server/src/routes/organizations.ts`
   - `apps/api-server/src/routes/invitations.ts`

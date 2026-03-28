@@ -1,9 +1,10 @@
-import { pgTable, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { platform } from "./_schemas";
 
 // Persistent session store for express-session
-export const sessionsTable = pgTable("sessions", {
+export const sessionsTable = platform.table("sessions", {
   sid: text("sid").primaryKey(),
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire", { withTimezone: true, mode: "date" }).notNull(),
