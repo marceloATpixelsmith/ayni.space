@@ -15,6 +15,7 @@ const { default: adminRouter } = await import("../routes/admin.js");
 const { default: shipiboRouter } = await import("../routes/shipibo.js");
 const { default: ayniRouter } = await import("../routes/ayni.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const { getSessionCookieName } = await import("../lib/session.js");
 
 function user(id: string, extras: Record<string, unknown> = {}) {
   return {
@@ -64,6 +65,10 @@ function teardown(restores: Array<() => void>) {
   restores.reverse().forEach((restore) => restore());
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 test("A: auth/session protections and logout flow", async () => {
   let destroyed = false;
   const priorSessionCookieDomain = process.env["SESSION_COOKIE_DOMAIN"];
@@ -101,7 +106,8 @@ test("A: auth/session protections and logout flow", async () => {
     assert.equal(logout.status, 200);
     assert.equal(destroyed, true);
     const clearedCookies = logout.headers.get("set-cookie") ?? "";
-    assert.match(clearedCookies, /saas\.sid=;/);
+    const expectedCookieName = getSessionCookieName();
+    assert.match(clearedCookies, new RegExp(`${escapeRegExp(expectedCookieName)}=;`));
     assert.match(clearedCookies, /Domain=admin\.test\.local/i);
     assert.match(clearedCookies, /Path=\//i);
     assert.match(clearedCookies, /HttpOnly/i);
