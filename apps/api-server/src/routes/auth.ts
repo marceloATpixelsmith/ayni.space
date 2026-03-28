@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { getSessionCookieName, getSessionCookieOptions } from "../lib/session.js";
+import { clearSessionCookie } from "../lib/session.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -98,9 +98,6 @@ async function handleMe(req: Request, res: Response) {
 }
 
 function handleLogout(req: Request, res: Response) {
-  const sessionCookieName = getSessionCookieName();
-  const sessionCookieOptions = getSessionCookieOptions();
-
   req.session.destroy((err: unknown) => {
     if (err) {
       console.error("Session destroy error:", err);
@@ -108,7 +105,7 @@ function handleLogout(req: Request, res: Response) {
       return;
     }
 
-    res.clearCookie(sessionCookieName, sessionCookieOptions);
+    clearSessionCookie(res);
     (req as { session: unknown }).session = null;
     res.json({ success: true, message: "Logged out successfully" });
   });

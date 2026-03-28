@@ -86,6 +86,7 @@ test("ayni tenant routes deny cross-org reads even with app access", async () =>
       active: true,
       suspended: false,
       deletedAt: null,
+      isSuperAdmin: true,
       activeOrgId: "org-a",
     })),
     patchProperty(db.query.appsTable, "findFirst", async () => ({

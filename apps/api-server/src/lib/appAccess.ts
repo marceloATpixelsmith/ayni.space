@@ -48,7 +48,8 @@ export async function getAppContext(userId: string, appSlug: string) {
   let canAccess = false;
 
   if (app.accessMode === "restricted") {
-    canAccess = hasActiveAppAccess;
+    // Config-driven super-admin boundary for restricted apps (e.g. admin console).
+    canAccess = Boolean(user.isSuperAdmin);
   } else if (app.tenancyMode === "organization") {
     canAccess = hasActiveMembership || hasActiveAppAccess;
     if (!canAccess) {
