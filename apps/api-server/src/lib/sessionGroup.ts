@@ -2,6 +2,8 @@ import type { Request } from "express";
 
 const DEFAULT_SESSION_GROUP = "default";
 const ADMIN_SESSION_GROUP = "admin";
+const DEFAULT_SESSION_COOKIE_NAME = "saas.workspace.sid";
+const ADMIN_SESSION_COOKIE_NAME = "saas.admin.sid";
 
 function parseCsv(value: string | undefined): string[] {
   return (value ?? "")
@@ -53,11 +55,11 @@ export function getSessionGroupCookieNameMap(): Map<string, string> {
   const configuredCookieNames = parseSessionGroupCookieNames(process.env["SESSION_GROUP_COOKIE_NAMES"]);
 
   if (!configuredCookieNames.has(DEFAULT_SESSION_GROUP)) {
-    configuredCookieNames.set(DEFAULT_SESSION_GROUP, "saas.sid");
+    configuredCookieNames.set(DEFAULT_SESSION_GROUP, DEFAULT_SESSION_COOKIE_NAME);
   }
 
   if (!configuredCookieNames.has(ADMIN_SESSION_GROUP)) {
-    configuredCookieNames.set(ADMIN_SESSION_GROUP, "saas.admin.sid");
+    configuredCookieNames.set(ADMIN_SESSION_GROUP, ADMIN_SESSION_COOKIE_NAME);
   }
 
   return configuredCookieNames;
@@ -70,7 +72,7 @@ export function getKnownSessionGroups(): string[] {
 export function getSessionCookieNameForGroup(sessionGroup: string): string {
   const configuredCookieName = getSessionGroupCookieNameMap().get(sessionGroup);
   if (configuredCookieName) return configuredCookieName;
-  return "saas.sid";
+  return getSessionGroupCookieNameMap().get(DEFAULT_SESSION_GROUP) ?? DEFAULT_SESSION_COOKIE_NAME;
 }
 
 function getCookieNamesPresent(req: Request): Set<string> {

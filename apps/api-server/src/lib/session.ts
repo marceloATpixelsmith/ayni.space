@@ -1,6 +1,7 @@
 import session from "express-session";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import connectPgSimple from "connect-pg-simple";
+import { randomUUID } from "crypto";
 import { pool } from "@workspace/db";
 import { writeAuditLog } from "./audit.js";
 import { getKnownSessionGroups, getSessionCookieNameForGroup, resolveSessionGroupForRequest, SESSION_GROUPS } from "./sessionGroup.js";
@@ -108,6 +109,7 @@ export function buildSessionOptions(secret: string, sessionGroup: string = SESSI
       maxAge: policy.idleTimeoutMs,
     },
     name: getSessionCookieName(sessionGroup),
+    genid: () => `${sessionGroup}.${randomUUID()}`,
   };
 }
 
@@ -126,13 +128,13 @@ function buildPerGroupSessionHandlers(secret: string): Map<string, RequestHandle
 
 // Session middleware configured with PostgreSQL store for persistence.
 // Session-group selection is request-scoped (origin/cookie/state aware), not process-scoped.
-export function createSessionMiddleware() {
+export function createSessionMiddleware(overrideHandlers?: Map<string, RequestHandler>) {
   const secret = process.env["SESSION_SECRET"];
   if (!secret) {
     throw new Error("SESSION_SECRET environment variable is required");
   }
 
-  const middlewareByGroup = buildPerGroupSessionHandlers(secret);
+  const middlewareByGroup = overrideHandlers ?? buildPerGroupSessionHandlers(secret);
 
   return (req: Request, res: Response, next: NextFunction) => {
     const resolution = resolveSessionGroupForRequest(req, { failOnAmbiguous: true });

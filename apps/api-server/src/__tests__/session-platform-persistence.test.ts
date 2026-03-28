@@ -72,3 +72,8 @@ test("session runtime no longer depends on startup-time SESSION_GROUP env cookie
   const sessionSource = readFileSync(resolve(process.cwd(), "src/lib/session.ts"), "utf8");
   assert.equal(sessionSource.includes("process.env[\"SESSION_GROUP\"]"), false);
 });
+
+test("session group cookie defaults no longer hardcode legacy saas.sid singleton", () => {
+  const sessionGroupSource = readFileSync(resolve(process.cwd(), "src/lib/sessionGroup.ts"), "utf8");
+  assert.equal(sessionGroupSource.includes("\"saas.sid\""), false);
+});
