@@ -86,6 +86,42 @@ test("logout clears cookie with shared session cookie options", async () => {
   }
 });
 
+
+test("logout fail-closes protected auth/me route in subsequent request", async () => {
+  const state: { session: Record<string, unknown> | null } = {
+    session: {
+      id: "session-after-logout",
+      userId: "logout-user",
+      destroy: (cb?: (err?: unknown) => void) => {
+        state.session = null;
+        cb?.();
+      },
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+    },
+  };
+
+  const expressMod = await import("express");
+  const app = expressMod.default();
+  app.use(expressMod.default.json());
+  app.use((req, _res, next) => {
+    (req as unknown as { session: Record<string, unknown> }).session =
+      state.session ?? {
+        id: "session-after-logout",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save: (cb?: (err?: unknown) => void) => cb?.(),
+        regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+      };
+    next();
+  });
+  app.use("/api/auth", authRouter);
+
+  const logout = await requestJson(app, "POST", "/api/auth/logout");
+  assert.equal(logout.status, 200);
+  const me = await requestJson(app, "GET", "/api/auth/me");
+  assert.equal(me.status, 401);
+});
+
 test("google oauth url endpoint fails closed without valid turnstile token", async () => {
   const prevEnabled = process.env["TURNSTILE_ENABLED"];
   const prevSecret = process.env["TURNSTILE_SECRET_KEY"];

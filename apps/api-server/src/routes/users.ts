@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, orgMembershipsTable, organizationsTable, pool } from "@workspace/db";
+import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { requireAuth, requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { validateBody, updateUserSchema, switchOrgSchema } from "../middlewares/validation.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { destroySessionAndClearCookie, revokeOtherSessionsForUser } from "../lib/session.js";
 
 const router: IRouter = Router();
 
@@ -161,7 +162,7 @@ router.delete("/me", requireAuth, async (req, res) => {
     req,
   });
 
-  req.session.destroy(() => {});
+  await destroySessionAndClearCookie(req, res);
   res.json({ success: true, message: "Account deleted", user });
 });
 
@@ -170,10 +171,7 @@ router.post("/logout-others", requireAuth, async (req, res) => {
   const userId = req.session.userId!;
   const sid = req.session.id;
 
-  await pool.query(
-    `DELETE FROM platform.sessions WHERE sess::jsonb->>'userId' = $1 AND sid != $2`,
-    [userId, sid],
-  );
+  await revokeOtherSessionsForUser(userId, sid);
   writeAuditLog({
     userId,
     action: "user.sessions.revoked_others",
