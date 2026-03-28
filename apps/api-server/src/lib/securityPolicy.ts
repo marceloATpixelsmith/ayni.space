@@ -39,7 +39,7 @@ export function getSecurityConfig(): SecurityConfig {
         rateLimit: {
           type: "auth",
           options: {
-            max: Number.parseInt(process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] ?? "20", 10),
+            max: Number.parseInt(process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] ?? "60", 10),
             keyPrefix: "auth-google-url",
           },
         },

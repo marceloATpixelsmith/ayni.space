@@ -4,7 +4,7 @@ import { createSessionApp, performJsonRequest, patchProperty, ensureTestDatabase
 
 ensureTestDatabaseEnv();
 
-const { turnstileVerifyMiddleware, isTurnstileEnabled } = await import("../middlewares/turnstile.js");
+const { turnstileVerifyMiddleware, isTurnstileEnabled, verifyTurnstileTokenDetailed } = await import("../middlewares/turnstile.js");
 const { recordAbuseSignal } = await import("../lib/authAbuse.js");
 const { db } = await import("@workspace/db");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
@@ -83,6 +83,32 @@ test("turnstile middleware logs repeated failures when verification fails", asyn
   else process.env["ABUSE_REPEATED_THRESHOLD"] = prevThreshold;
   if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
   else process.env["TURNSTILE_ENABLED"] = prevEnabled;
+});
+
+test("turnstile detailed verification marks stale tokens as token-expired", async () => {
+  const previousEnabled = process.env["TURNSTILE_ENABLED"];
+  const previousSecret = process.env["TURNSTILE_SECRET_KEY"];
+  const previousFetch = globalThis.fetch;
+  process.env["TURNSTILE_ENABLED"] = "true";
+  process.env["TURNSTILE_SECRET_KEY"] = "test-turnstile-secret";
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ success: false, "error-codes": ["timeout-or-duplicate"] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    const result = await verifyTurnstileTokenDetailed("stale-token", "127.0.0.1");
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "token-expired");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = previousEnabled;
+    if (previousSecret === undefined) delete process.env["TURNSTILE_SECRET_KEY"];
+    else process.env["TURNSTILE_SECRET_KEY"] = previousSecret;
+  }
 });
 
 test("invitation accept rejects expired invitations", async () => {
