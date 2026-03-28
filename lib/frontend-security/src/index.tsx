@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const payload = (await response.json().catch(() => null)) as { url?: string; error?: string; code?: string } | null;
       if (!response.ok || !payload?.url) {
-        if (response.status === 429) {
+        if (response.status === 429 || payload?.code === "RATE_LIMITED") {
           const retryAfterHeader = response.headers.get("retry-after");
           const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
           const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
@@ -174,9 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error(`Sign-in is temporarily rate-limited.${retryHint}`);
         }
 
-        if (response.status === 403) {
-          throw new Error(payload?.error ?? "Security verification failed. Please try again.");
-        }
+        if (payload?.code === "TURNSTILE_MISSING_TOKEN") throw new Error("Please complete the verification challenge.");
+        if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") throw new Error("Verification expired. Please complete the challenge again.");
+        if (payload?.code === "TURNSTILE_INVALID_TOKEN") throw new Error("Security verification failed. Please try again.");
+        if (response.status === 403) throw new Error(payload?.error ?? "Security verification failed. Please try again.");
         if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
           throw new Error("Google OAuth is not configured correctly. Please contact support.");
         }

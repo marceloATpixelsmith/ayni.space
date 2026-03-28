@@ -26,7 +26,7 @@ function getTurnstileSecret(): string {
 
 export type TurnstileVerificationResult = {
   ok: boolean;
-  reason?: "missing-token" | "missing-secret" | "verification-failed" | "verification-error";
+  reason?: "missing-token" | "missing-secret" | "verification-failed" | "verification-error" | "token-expired";
   errorCodes?: string[];
 };
 
@@ -57,7 +57,11 @@ export async function verifyTurnstileTokenDetailed(token: string, remoteip?: str
     if (!resp.ok) return { ok: false, reason: "verification-failed" };
     const data = (await resp.json()) as { success?: boolean; "error-codes"?: string[] };
     if (data.success) return { ok: true };
-    return { ok: false, reason: "verification-failed", errorCodes: data["error-codes"] };
+    const errorCodes = data["error-codes"] ?? [];
+    if (errorCodes.includes("timeout-or-duplicate")) {
+      return { ok: false, reason: "token-expired", errorCodes };
+    }
+    return { ok: false, reason: "verification-failed", errorCodes };
   } catch {
     return { ok: false, reason: "verification-error" };
   }
@@ -138,6 +142,13 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
             res.status(503).json({
               error: "Verification service is temporarily unavailable. Please try again.",
               code: "TURNSTILE_UNAVAILABLE",
+            });
+            return;
+          }
+          if (reason === "token-expired") {
+            res.status(403).json({
+              error: "Verification expired. Please complete the challenge again.",
+              code: "TURNSTILE_TOKEN_EXPIRED",
             });
             return;
           }

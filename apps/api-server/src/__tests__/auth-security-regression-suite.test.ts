@@ -234,61 +234,68 @@ test("PART 6: cookie naming + attributes + clearing contract are group-correct",
 });
 
 test("PART 7+8+10: turnstile, rate limit, and fail-closed behavior on auth endpoints", async () => {
+  const prevGoogleUrlRateLimitMax = process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"];
   process.env["TURNSTILE_ENABLED"] = "true";
+  process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] = "20";
 
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => {
-    (req as any).session = {
-      id: "auth-flow-session",
-      destroy: (cb?: (err?: unknown) => void) => cb?.(),
-      save: (cb?: (err?: unknown) => void) => cb?.(),
-      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
-    };
-    next();
-  });
-  app.use(createSecurityEnforcementMiddleware({ verifyFn: async (token) => token === "valid-token" }));
-  app.use("/api/auth", authRouter);
+  try {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as any).session = {
+        id: "auth-flow-session",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save: (cb?: (err?: unknown) => void) => cb?.(),
+        regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+      };
+      next();
+    });
+    app.use(createSecurityEnforcementMiddleware({ verifyFn: async (token) => token === "valid-token" }));
+    app.use("/api/auth", authRouter);
 
-  const missingToken = await request(app, "/api/auth/google/url", "POST", {
-    origin: "http://workspace.local",
-    "x-forwarded-for": "203.0.113.90",
-  });
-  assert.equal(missingToken.status, 403);
+    const missingToken = await request(app, "/api/auth/google/url", "POST", {
+      origin: "http://workspace.local",
+      "x-forwarded-for": "203.0.113.90",
+    });
+    assert.equal(missingToken.status, 403);
 
-  const invalidToken = await request(app, "/api/auth/google/url", "POST", {
-    origin: "http://workspace.local",
-    "cf-turnstile-response": "invalid-token",
-    "x-forwarded-for": "203.0.113.91",
-  });
-  assert.equal(invalidToken.status, 403);
+    const invalidToken = await request(app, "/api/auth/google/url", "POST", {
+      origin: "http://workspace.local",
+      "cf-turnstile-response": "invalid-token",
+      "x-forwarded-for": "203.0.113.91",
+    });
+    assert.equal(invalidToken.status, 403);
 
-  const validToken = await request(app, "/api/auth/google/url", "POST", {
-    origin: "http://workspace.local",
-    "cf-turnstile-response": "valid-token",
-    "x-forwarded-for": "203.0.113.92",
-  });
-  assert.equal(validToken.status, 200);
+    const validToken = await request(app, "/api/auth/google/url", "POST", {
+      origin: "http://workspace.local",
+      "cf-turnstile-response": "valid-token",
+      "x-forwarded-for": "203.0.113.92",
+    });
+    assert.equal(validToken.status, 200);
 
-  for (let i = 0; i < 20; i += 1) {
-    const ok = await request(app, "/api/auth/google/url", "POST", {
+    for (let i = 0; i < 20; i += 1) {
+      const ok = await request(app, "/api/auth/google/url", "POST", {
+        origin: "http://workspace.local",
+        "cf-turnstile-response": "valid-token",
+        "x-forwarded-for": "203.0.113.93",
+      });
+      assert.equal(ok.status, 200);
+    }
+    const limited = await request(app, "/api/auth/google/url", "POST", {
       origin: "http://workspace.local",
       "cf-turnstile-response": "valid-token",
       "x-forwarded-for": "203.0.113.93",
     });
-    assert.equal(ok.status, 200);
-  }
-  const limited = await request(app, "/api/auth/google/url", "POST", {
-    origin: "http://workspace.local",
-    "cf-turnstile-response": "valid-token",
-    "x-forwarded-for": "203.0.113.93",
-  });
-  assert.equal(limited.status, 429);
+    assert.equal(limited.status, 429);
 
-  const deniedMissingSession = await request(app, "/api/auth/me", "GET", {
-    origin: "http://workspace.local",
-  });
-  assert.equal(deniedMissingSession.status, 401);
+    const deniedMissingSession = await request(app, "/api/auth/me", "GET", {
+      origin: "http://workspace.local",
+    });
+    assert.equal(deniedMissingSession.status, 401);
+  } finally {
+    if (prevGoogleUrlRateLimitMax === undefined) delete process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"];
+    else process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] = prevGoogleUrlRateLimitMax;
+  }
 });
 
 test("PART 9+10: CORS and ambiguous session-group resolution fail closed", async () => {

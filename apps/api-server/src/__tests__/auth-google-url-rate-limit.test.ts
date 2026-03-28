@@ -63,6 +63,7 @@ test("google auth url limiter returns 429 after configured threshold", async () 
   const limited = await requestJson(app);
   assert.equal(limited.status, 429);
   assert.equal(limited.body.error, "Too many requests, please try again later.");
+  assert.equal(limited.body.code, "RATE_LIMITED");
   assert.equal(typeof limited.retryAfter, "string");
 });
 

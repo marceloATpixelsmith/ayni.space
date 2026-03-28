@@ -56,7 +56,16 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
     if (current.count >= max) {
       const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSeconds));
-      res.status(429).json({ error: "Too many requests, please try again later." });
+      if (keyPrefix === "auth-google-url" || keyPrefix.startsWith("test-auth-google-url")) {
+        console.info("[auth/google/url]", {
+          branch: "rate_limited",
+          method: req.method,
+          path: req.path,
+          keyPrefix,
+          retryAfterSeconds,
+        });
+      }
+      res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
       return;
     }
 
