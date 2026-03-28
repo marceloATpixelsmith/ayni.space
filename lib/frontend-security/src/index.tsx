@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       }, csrfTokenRef.current);
 
-      const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { url?: string; error?: string; code?: string } | null;
       if (!response.ok || !payload?.url) {
         if (response.status === 429) {
           const retryAfterHeader = response.headers.get("retry-after");
@@ -176,6 +176,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (response.status === 403) {
           throw new Error(payload?.error ?? "Security verification failed. Please try again.");
+        }
+        if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
+          throw new Error("Google OAuth is not configured correctly. Please contact support.");
+        }
+        if (payload?.code === "ORIGIN_NOT_ALLOWED") {
+          throw new Error("This app origin is not allowed for sign-in. Please contact support.");
+        }
+        if (payload?.code === "TURNSTILE_MISCONFIGURED") {
+          throw new Error("Verification is currently misconfigured. Please contact support.");
+        }
+        if (payload?.code === "TURNSTILE_UNAVAILABLE") {
+          throw new Error("Verification service is temporarily unavailable. Please try again.");
         }
         throw new Error(payload?.error ?? "Unable to start Google sign-in right now. Please try again.");
       }

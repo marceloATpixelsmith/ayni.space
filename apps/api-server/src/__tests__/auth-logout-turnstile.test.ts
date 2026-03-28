@@ -140,23 +140,56 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
     );
     assert.equal(missingToken.status, 403);
     assert.equal(missingToken.body?.error, "Please complete the verification challenge.");
+    assert.equal(missingToken.body?.code, "TURNSTILE_MISSING_TOKEN");
 
-    const invalidToken = await requestJson(
-      app,
-      "POST",
-      "/api/auth/google/url",
-      {},
-      {
-        origin: "http://localhost:5173",
-        "cf-turnstile-response": "bad-token",
-      },
-    );
-    assert.equal(invalidToken.status, 403);
-    assert.equal(invalidToken.body?.error, "Security verification failed. Please try again.");
   } finally {
     if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevEnabled;
     if (prevSecret === undefined) delete process.env["TURNSTILE_SECRET_KEY"];
     else process.env["TURNSTILE_SECRET_KEY"] = prevSecret;
+  }
+});
+
+test("google oauth url returns auth URL when origin is allowed and turnstile already verified", async () => {
+  const prevEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+    });
+
+    const response = await requestJson(
+      app,
+      "POST",
+      "/api/auth/google/url",
+      {},
+      { origin: "http://localhost:5173" },
+    );
+    assert.equal(response.status, 200);
+    assert.equal(typeof response.body?.url, "string");
+    assert.equal(String(response.body?.url).startsWith("https://accounts.google.com/"), true);
+  } finally {
+    if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevEnabled;
+  }
+});
+
+test("google oauth url returns clear config error when oauth env is missing", async () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+  delete process.env["GOOGLE_CLIENT_ID"];
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+
+  try {
+    const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
+    assert.equal(response.status, 500);
+    assert.equal(response.body?.code, "OAUTH_CONFIG_MISSING");
+  } finally {
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });

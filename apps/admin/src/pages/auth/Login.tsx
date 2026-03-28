@@ -60,7 +60,11 @@ export default function Login() {
     setLoginError(null);
     auth.loginWithGoogle(turnstileToken).catch((error) => {
       console.error("Google sign-in failed", error);
-      const message = error instanceof Error ? error.message : "Unable to start Google sign-in right now. Please try again.";
+      const message = error instanceof Error
+        ? (error.message.includes("Failed to fetch")
+            ? "Unable to reach the sign-in service. Please verify network/CORS configuration and try again."
+            : error.message)
+        : "Unable to start Google sign-in right now. Please try again.";
       setLoginError(message);
       if (turnstileEnabled) {
         resetTurnstile();

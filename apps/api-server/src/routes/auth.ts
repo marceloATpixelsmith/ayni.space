@@ -20,8 +20,12 @@ function getRequestFrontendOrigin(req: Request): string | null {
   const originHeader = req.headers["origin"];
   const origin = typeof originHeader === "string" ? originHeader.trim() : "";
   if (!origin) return null;
-
-  return getAllowedOrigins().includes(origin) ? origin : null;
+  try {
+    const normalizedOrigin = new URL(origin).origin;
+    return getAllowedOrigins().includes(normalizedOrigin) ? normalizedOrigin : null;
+  } catch {
+    return null;
+  }
 }
 
 function getCurrentRequestSessionGroup(req: Request): string {
@@ -65,6 +69,16 @@ function logAuthFailure(req: Request, reason: string, metadata: Record<string, u
       ...metadata,
     },
     req,
+  });
+}
+
+function logGoogleUrlBranch(req: Request, branch: string, metadata: Record<string, unknown> = {}) {
+  console.info("[auth/google/url]", {
+    branch,
+    method: req.method,
+    path: req.path,
+    origin: typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
+    ...metadata,
   });
 }
 
@@ -128,28 +142,57 @@ async function handleGoogleUrl(req: Request, res: Response) {
     if (isTurnstileEnabled() && !req.turnstileVerified) {
       const turnstileToken = getTurnstileToken(req);
       if (!turnstileToken) {
+        logGoogleUrlBranch(req, "turnstile_missing_token");
         logAuthFailure(req, "google-url-turnstile-missing");
-        res.status(403).json({ error: "Please complete the verification challenge." });
+        res.status(403).json({
+          error: "Please complete the verification challenge.",
+          code: "TURNSTILE_MISSING_TOKEN",
+        });
         return;
       }
 
       const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
       if (!turnstileResult.ok) {
+        logGoogleUrlBranch(req, "turnstile_verification_failed", { reason: turnstileResult.reason });
         logAuthFailure(req, "google-url-turnstile-invalid");
         logTurnstileVerificationResult(req, turnstileResult);
         if (turnstileResult.reason === "missing-token") {
-          res.status(403).json({ error: "Please complete the verification challenge." });
+          res.status(403).json({
+            error: "Please complete the verification challenge.",
+            code: "TURNSTILE_MISSING_TOKEN",
+          });
           return;
         }
-        res.status(403).json({ error: "Security verification failed. Please try again." });
+        if (turnstileResult.reason === "missing-secret") {
+          res.status(500).json({
+            error: "Turnstile verification is misconfigured. Please contact support.",
+            code: "TURNSTILE_MISCONFIGURED",
+          });
+          return;
+        }
+        if (turnstileResult.reason === "verification-error") {
+          res.status(503).json({
+            error: "Verification service is temporarily unavailable. Please try again.",
+            code: "TURNSTILE_UNAVAILABLE",
+          });
+          return;
+        }
+        res.status(403).json({
+          error: "Security verification failed. Please try again.",
+          code: "TURNSTILE_INVALID_TOKEN",
+        });
         return;
       }
     }
 
     const returnTo = getRequestFrontendOrigin(req);
     if (!returnTo) {
+      logGoogleUrlBranch(req, "origin_invalid");
       logAuthFailure(req, "google-url-origin-invalid");
-      res.status(400).json({ error: "Request origin is missing or not allowed" });
+      res.status(400).json({
+        error: "Request origin is missing or not allowed.",
+        code: "ORIGIN_NOT_ALLOWED",
+      });
       return;
     }
     const oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
@@ -158,16 +201,27 @@ async function handleGoogleUrl(req: Request, res: Response) {
     req.session.oauthReturnTo = returnTo;
     req.session.oauthSessionGroup = oauthSessionGroup;
     const url = buildGoogleAuthUrl(state);
+    if (!url || typeof url !== "string") {
+      logGoogleUrlBranch(req, "oauth_url_generation_failed");
+      res.status(500).json({ error: "Google OAuth URL generation failed.", code: "OAUTH_URL_INVALID" });
+      return;
+    }
     req.session.save((err: unknown) => {
       if (err) {
+        logGoogleUrlBranch(req, "session_init_failed");
         logAuthFailure(req, "google-url-session-init-failed");
-        res.status(500).json({ error: "Failed to initialize OAuth session" });
+        res.status(500).json({ error: "Failed to initialize OAuth session.", code: "OAUTH_SESSION_INIT_FAILED" });
         return;
       }
+      logGoogleUrlBranch(req, "success", { sessionGroup: oauthSessionGroup });
       res.json({ url });
     });
   } catch {
-    res.status(501).json({ error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI." });
+    logGoogleUrlBranch(req, "oauth_config_missing");
+    res.status(500).json({
+      error: "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
+      code: "OAUTH_CONFIG_MISSING",
+    });
   }
 }
 

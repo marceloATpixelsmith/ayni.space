@@ -5,7 +5,7 @@ import express from "express";
 process.env["RATE_LIMIT_ENABLED"] = "true";
 const { authRateLimiter } = await import("../middlewares/rateLimit.js");
 
-function createRateLimitedApp(max: number, clientIp: string) {
+function createRateLimitedApp(max: number, clientIp: string, windowMs?: number) {
   const app = express();
   app.use(
     "/api/auth/google/url",
@@ -13,7 +13,7 @@ function createRateLimitedApp(max: number, clientIp: string) {
       req.headers["x-forwarded-for"] = clientIp;
       next();
     },
-    authRateLimiter({ max, keyPrefix: "test-auth-google-url" }),
+    authRateLimiter({ max, keyPrefix: "test-auth-google-url", windowMs }),
   );
   app.post("/api/auth/google/url", (_req, res) => {
     res.status(200).json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=test" });
@@ -64,6 +64,14 @@ test("google auth url limiter returns 429 after configured threshold", async () 
   assert.equal(limited.status, 429);
   assert.equal(limited.body.error, "Too many requests, please try again later.");
   assert.equal(typeof limited.retryAfter, "string");
+});
+
+test("google auth url limiter unlocks after rate limit window resets", async () => {
+  const app = createRateLimitedApp(1, "203.0.113.111", 100);
+  assert.equal((await requestJson(app)).status, 200);
+  assert.equal((await requestJson(app)).status, 429);
+  await new Promise((resolve) => setTimeout(resolve, 140));
+  assert.equal((await requestJson(app)).status, 200);
 });
 
 test("google auth url limiter does not consume generic auth limiter budget", async () => {

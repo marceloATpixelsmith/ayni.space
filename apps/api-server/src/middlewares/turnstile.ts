@@ -114,19 +114,46 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
       return;
     }
 
-    verifyFn(token, req.ip)
-      .then((ok) => {
-        if (!ok) {
-          logTurnstileFailure(req, "invalid-token", writeAuditLogFn);
-          res.status(403).json({ error: "Security verification failed. Please try again." });
+    const verificationPromise = verifyFn === verifyTurnstileToken
+      ? verifyTurnstileTokenDetailed(token, req.ip)
+      : verifyFn(token, req.ip).then((ok) => ({ ok, reason: ok ? undefined : "verification-failed" as const }));
+
+    verificationPromise
+      .then((result) => {
+        if (!result.ok) {
+          const reason = result.reason ?? "verification-failed";
+          logTurnstileFailure(req, reason, writeAuditLogFn, { errorCodes: result.errorCodes ?? [] });
+          if (reason === "missing-token") {
+            res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
+            return;
+          }
+          if (reason === "missing-secret") {
+            res.status(500).json({
+              error: "Turnstile verification is misconfigured. Please contact support.",
+              code: "TURNSTILE_MISCONFIGURED",
+            });
+            return;
+          }
+          if (reason === "verification-error") {
+            res.status(503).json({
+              error: "Verification service is temporarily unavailable. Please try again.",
+              code: "TURNSTILE_UNAVAILABLE",
+            });
+            return;
+          }
+          res.status(403).json({ error: "Security verification failed. Please try again.", code: "TURNSTILE_INVALID_TOKEN" });
           return;
         }
+
         (req as Request & { turnstileVerified?: boolean }).turnstileVerified = true;
         next();
       })
       .catch(() => {
         logTurnstileFailure(req, "verification-error", writeAuditLogFn);
-        res.status(403).json({ error: "Security verification failed. Please try again." });
+        res.status(503).json({
+          error: "Verification service is temporarily unavailable. Please try again.",
+          code: "TURNSTILE_UNAVAILABLE",
+        });
       });
   };
 }
