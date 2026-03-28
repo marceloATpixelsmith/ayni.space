@@ -2,7 +2,7 @@
 
 ## Current baseline protections implemented
 - Centralized API security middleware stack: security headers, CORS allowlist, CSRF token checks, and origin/referer checks.
-- Session hardening baseline: Postgres-backed sessions, secure/httpOnly cookie posture, idle + absolute timeout controls, and session rotation on org switch.
+- Session hardening baseline: Postgres-backed sessions (`platform.sessions`), secure/httpOnly cookie posture, idle + absolute timeout controls, canonical cookie-clearing/session-destruction helpers, and session rotation on org switch.
 - Middleware-driven authorization and tenant checks (`requireAuth`, org/app access middleware) across protected routes.
 - Turnstile on targeted high-risk public POST flows (org creation, invitation creation, invitation acceptance) with production-safe defaults.
 - Rate limiting on auth/org/invitation/user/billing route groups with production-safe defaults.

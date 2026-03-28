@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { clearSessionCookie } from "../lib/session.js";
+import { destroySessionAndClearCookie } from "../lib/session.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -97,18 +97,14 @@ async function handleMe(req: Request, res: Response) {
   });
 }
 
-function handleLogout(req: Request, res: Response) {
-  req.session.destroy((err: unknown) => {
-    if (err) {
-      console.error("Session destroy error:", err);
-      res.status(500).json({ error: "Failed to destroy session" });
-      return;
-    }
-
-    clearSessionCookie(res);
-    (req as { session: unknown }).session = null;
+async function handleLogout(req: Request, res: Response) {
+  try {
+    await destroySessionAndClearCookie(req, res);
     res.json({ success: true, message: "Logged out successfully" });
-  });
+  } catch (err) {
+    console.error("Session destroy error:", err);
+    res.status(500).json({ error: "Failed to destroy session" });
+  }
 }
 
 async function handleGoogleUrl(req: Request, res: Response) {

@@ -6,11 +6,12 @@
 ## Confirmed
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.
 - Authentication routes/session binding are implemented in `apps/api-server/src/routes/auth.ts`.
-- Session lifecycle helpers are implemented in `apps/api-server/src/lib/session.ts`.
+- Session lifecycle helpers are implemented in `apps/api-server/src/lib/session.ts` (canonicalized for store config, cookie options/clearing, session destruction, and logout-other-sessions cleanup).
 - Session persistence is a shared platform concern and is stored in `platform.sessions` (migration-managed), not `public.sessions`.
 - Frontend auth state, bootstrap, and route gating are implemented in `lib/frontend-security/src/index.tsx`.
 - CSRF-aware shared fetch path is implemented in `lib/api-client-react/src/custom-fetch.ts`.
 - Backend app middleware composition runs through `apps/api-server/src/app.ts`, where session and security middleware ordering is centralized.
+- Session middleware runtime provisioning is explicitly migration-managed (`createTableIfMissing=false`) and pinned to schema-qualified persistence (`platform.sessions`).
 
 ## Inferred
 - Auth/session is designed as backend-authoritative with frontend providers/guards consuming backend session state.
@@ -19,6 +20,11 @@
 ## Unclear
 - Full login method matrix and provider roadmap beyond current backend auth implementation.
 - Whether any additional frontend shells (beyond admin) will share the same auth provider behavior.
+
+## Intentional remaining gaps
+- Session anomaly handling is currently observational (audit signal) and does not enforce adaptive/risk-based re-authentication.
+- Rate limiting is currently in-process memory (production-safe defaults are in place, but no distributed/session-store-backed limiter yet).
+- Turnstile remains intentionally targeted to public/high-risk auth entry points instead of blanket enforcement across every route.
 
 ## Do not break
 - Do not move shared session storage out of `platform.sessions`; shared cross-app tables belong in `platform`, app-specific tables belong in app schemas.

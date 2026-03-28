@@ -32,7 +32,6 @@ export function getSessionPolicy() {
   };
 }
 
-
 export function getSessionCookieOptions() {
   const policy = getSessionPolicy();
   return {
@@ -59,8 +58,38 @@ export function getSessionStoreConfig() {
   } as const;
 }
 
+export function getDeleteOtherSessionsSql() {
+  return `DELETE FROM ${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME} WHERE sess::jsonb->>'userId' = $1 AND sid != $2`;
+}
+
+export async function revokeOtherSessionsForUser(userId: string, currentSid: string) {
+  await pool.query(getDeleteOtherSessionsSql(), [userId, currentSid]);
+}
+
 export function clearSessionCookie(res: Response) {
   res.clearCookie(getSessionCookieName(), getSessionCookieOptions());
+}
+
+export function destroySessionAndClearCookie(req: Request, res: Response): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const currentSession = req.session;
+    if (!currentSession) {
+      clearSessionCookie(res);
+      (req as { session: unknown }).session = null;
+      resolve();
+      return;
+    }
+
+    currentSession.destroy((err?: unknown) => {
+      clearSessionCookie(res);
+      (req as { session: unknown }).session = null;
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 export function buildSessionOptions(secret: string): session.SessionOptions {
@@ -107,10 +136,13 @@ export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof write
 
     const absoluteStart = req.session.sessionAuthenticatedAt ?? req.session.sessionCreatedAt;
     if (absoluteStart && now - absoluteStart > policy.absoluteTimeoutMs) {
-      req.session.destroy(() => {
-        clearSessionCookie(res);
-        res.status(401).json({ error: "Session expired. Please sign in again." });
-      });
+      void destroySessionAndClearCookie(req, res)
+        .catch(() => {
+          // Fail closed even if backing store destroy fails.
+        })
+        .finally(() => {
+          res.status(401).json({ error: "Session expired. Please sign in again." });
+        });
       return;
     }
 
