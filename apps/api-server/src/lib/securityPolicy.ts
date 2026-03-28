@@ -69,7 +69,17 @@ export function getSecurityConfig(): SecurityConfig {
       },
       {
         method: "GET",
-        pattern: /^\/api\/health\/?$/,
+        pattern: /^\/api\/healthz?\/?$/,
+        category: "PUBLIC",
+      },
+      {
+        method: "GET",
+        pattern: /^\/healthz?\/?$/,
+        category: "PUBLIC",
+      },
+      {
+        method: "GET",
+        pattern: /^\/$/,
         category: "PUBLIC",
       },
       {
