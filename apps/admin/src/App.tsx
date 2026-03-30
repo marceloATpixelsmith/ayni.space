@@ -3,7 +3,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import React from "react";
-import { AuthProvider, useAuth } from "@workspace/frontend-security";
+import {
+  AuthProvider,
+  useAuth,
+  fetchPlatformAppMetadataBySlug,
+  getDisallowedAuthRouteRedirect,
+  isAuthRouteAllowed,
+  type AuthRouteKind,
+  type PlatformAppMetadata,
+} from "@workspace/frontend-security";
 import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
 
 import Login from "./pages/auth/Login";
@@ -21,6 +29,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const CURRENT_APP_SLUG = import.meta.env.VITE_APP_SLUG ?? "admin";
 
 function AuthLoading() {
   return (
@@ -59,6 +69,63 @@ function AuthRedirect({ to }: { to: string }) {
   return <AuthLoading />;
 }
 
+function useCurrentAppMetadata() {
+  const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
+      .then((result) => {
+        if (cancelled) return;
+        setMetadata(result);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { metadata, loading };
+}
+
+function ConfigDrivenAuthRoute({
+  routeKind,
+  children,
+}: {
+  routeKind: AuthRouteKind;
+  children: React.ReactNode;
+}) {
+  const auth = useAuth();
+  const { metadata, loading } = useCurrentAppMetadata();
+
+  if (loading || auth.status === "loading") return <AuthLoading />;
+
+  if (!isAuthRouteAllowed(metadata, routeKind)) {
+    return (
+      <AuthRedirect
+        to={getDisallowedAuthRouteRedirect({
+          app: metadata,
+          authStatus: auth.status,
+          isSuperAdmin: auth.user?.isSuperAdmin,
+          deniedLoginPath: adminAccessDeniedLoginPath(),
+        })}
+      />
+    );
+  }
+
+  if (auth.status === "unauthenticated") {
+    return <AuthRedirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
 function ProtectedSuperAdmin({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
 
@@ -88,8 +155,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/onboarding" component={Onboarding} />
-      <Route path="/invitations/:token/accept" component={InvitationAccept} />
+      <Route path="/onboarding">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
 
       {/* Restricted super-admin routes */}
       <Route path="/dashboard">{() => <ProtectedSuperAdmin><AdminDashboard /></ProtectedSuperAdmin>}</Route>
