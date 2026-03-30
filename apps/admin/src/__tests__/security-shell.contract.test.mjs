@@ -303,19 +303,19 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "|| !auth.csrfReady",
+    "if (!input.csrfReady) reasons.push(\"!auth.csrfReady\");",
     "Login button should stay disabled until CSRF bootstrap is complete.",
   );
 
   expectIncludes(
     loginSource,
-    "|| !auth.csrfToken",
+    "if (!input.csrfTokenPresent) reasons.push(\"!auth.csrfToken\");",
     "Login button should stay disabled until a CSRF token is available.",
   );
 
   expectIncludes(
     loginSource,
-    "|| (turnstileEnabled && (!turnstileToken || !turnstileReady))",
+    "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
     "Login button should stay disabled until required turnstile token is present.",
   );
 
@@ -389,20 +389,38 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "|| !auth.csrfReady",
-    "Login button must remain disabled while CSRF bootstrap is pending.",
+    "if (!input.csrfReady) reasons.push(\"!auth.csrfReady\");",
+    "Login disabled-state reasons must include CSRF bootstrap readiness.",
   );
 
   expectIncludes(
     loginSource,
-    "|| !auth.csrfToken",
-    "Login button must remain disabled until a CSRF token is available.",
+    "if (!input.csrfTokenPresent) reasons.push(\"!auth.csrfToken\");",
+    "Login disabled-state reasons must include CSRF token presence.",
   );
 
   expectIncludes(
     loginSource,
-    "|| (turnstileEnabled && (!turnstileToken || !turnstileReady))",
-    "Login button must be disabled during pending OAuth request and when turnstile is required.",
+    "if (input.turnstileEnabled && !input.turnstileReady) reasons.push(\"turnstileEnabled&&!turnstileReady\");",
+    "Login disabled-state reasons must include turnstile readiness after refresh.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
+    "Login disabled-state reasons must include missing turnstile token.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "disabled={disabledReasons.length > 0}",
+    "Login button disabled state must be driven by explicit computed blocking reasons.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "console.info(\"[login] render state\", {",
+    "Login should emit runtime state logs to prove exact stuck refresh conditions.",
   );
 
   expectIncludes(
@@ -441,5 +459,29 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
     turnstileSource,
     "setReady(false);\n    setError(null);\n    setToken(null);",
     "Turnstile mount should clear stale state before rendering a fresh widget instance.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "if (!siteKey || !containerNode) {",
+    "Turnstile init should wait for a real container node before attempting widget render.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "}, [siteKey, containerNode]);",
+    "Turnstile render effect must rerun when widget container appears after loading state resolves.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "() => <div ref={setContainerNode} className=\"min-h-16\" />",
+    "Turnstile widget should use callback ref state so container mount triggers render flow.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "console.info(\"[turnstile] state\", {",
+    "Turnstile hook should log runtime readiness and callback transitions for refresh diagnostics.",
   );
 });
