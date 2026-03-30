@@ -312,6 +312,16 @@ test("PART 9+10: CORS and ambiguous session-group resolution fail closed", async
       credentials: true,
     }),
   );
+  corsApp.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err instanceof Error && err.message === "Not allowed by CORS") {
+      res.status(403).json({
+        error: "Request origin is missing or not allowed.",
+        code: "ORIGIN_NOT_ALLOWED",
+      });
+      return;
+    }
+    next(err);
+  });
   corsApp.options("/api/auth/google/url", (_req, res) => {
     res.sendStatus(204);
   });
@@ -327,7 +337,9 @@ test("PART 9+10: CORS and ambiguous session-group resolution fail closed", async
     origin: "http://evil.local",
     "access-control-request-method": "POST",
   });
-  assert.ok(preflightDenied.status >= 400);
+  assert.equal(preflightDenied.status, 403);
+  const deniedPayload = (await preflightDenied.json()) as { code?: string };
+  assert.equal(deniedPayload.code, "ORIGIN_NOT_ALLOWED");
 
   const handlers = new Map<string, RequestHandler>([
     ["admin", (req, _res, next) => {

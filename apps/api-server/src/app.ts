@@ -8,6 +8,7 @@ import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
 import { createSecurityEnforcementMiddleware, getSecurityConfig } from "./lib/securityPolicy.js";
+import { resolveSessionGroupFromOrigin } from "./lib/sessionGroup.js";
 
 
 console.info("[startup] app.ts: validating environment...");
@@ -15,6 +16,20 @@ validateEnv();
 console.info("[startup] app.ts: running critical assertions...");
 runCriticalAssertions();
 const app: Express = express();
+app.use((req, _res, next) => {
+  if (req.method === "POST" && req.path === "/api/auth/google/url") {
+    const requestOrigin = req.get("origin") ?? null;
+    console.info("[auth/google/url]", {
+      branch: "app_request_received",
+      method: req.method,
+      path: req.path,
+      requestOrigin,
+      resolvedSessionGroup: requestOrigin ? resolveSessionGroupFromOrigin(requestOrigin) : null,
+      turnstileTokenPresent: Boolean(req.get("cf-turnstile-response")),
+    });
+  }
+  next();
+});
 // ── CORRELATION ID ──────────────────────────────────────────────────────────
 app.use(correlationIdMiddleware);
 
@@ -48,6 +63,25 @@ app.use(
     credentials: true, // Required for cookies
   })
 );
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof Error && err.message === "Not allowed by CORS") {
+    const requestOrigin = req.get("origin") ?? null;
+    console.info("[auth/google/url]", {
+      branch: "cors_origin_rejected",
+      method: req.method,
+      path: req.path,
+      requestOrigin,
+      resolvedSessionGroup: requestOrigin ? resolveSessionGroupFromOrigin(requestOrigin) : null,
+      responseStatus: 403,
+    });
+    res.status(403).json({
+      error: "Request origin is missing or not allowed.",
+      code: "ORIGIN_NOT_ALLOWED",
+    });
+    return;
+  }
+  next(err);
+});
 
 // ── RAW BODY for Stripe webhook (must come before json middleware) ─────────────
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));

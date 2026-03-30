@@ -267,6 +267,38 @@ test("google oauth url is requested only on explicit login intent", () => {
 
 });
 
+test("google sign-in error handling maps known backend failures to specific messages", () => {
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"TURNSTILE_MISSING_TOKEN\") return new Error(\"Please complete the verification challenge.\");",
+    "Missing Turnstile token must map to a verification-required message.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"TURNSTILE_INVALID_TOKEN\") return new Error(\"Security verification failed. Please try again.\");",
+    "Invalid Turnstile token must map to a verification-failed message.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (response.status === 429 || payload?.code === \"RATE_LIMITED\") {",
+    "Rate-limited google-url responses must map to a specific retry message.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"OAUTH_CONFIG_MISSING\" || payload?.code === \"OAUTH_URL_INVALID\") {",
+    "OAuth configuration failures must map to a specific misconfiguration message.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"ORIGIN_NOT_ALLOWED\") {",
+    "Origin rejection must map to a specific origin-not-allowed message.",
+  );
+});
+
 
 test("login includes turnstile token when requesting oauth url", () => {
   expectIncludes(
