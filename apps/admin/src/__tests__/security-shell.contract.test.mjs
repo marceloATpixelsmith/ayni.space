@@ -10,12 +10,14 @@ const appPath = path.resolve(__dirname, "../App.tsx");
 const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
 const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
+const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
 const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
 const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
+const turnstileSource = fs.readFileSync(turnstilePath, "utf8");
 const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
 const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
 const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
@@ -407,5 +409,37 @@ test("login button disables while google oauth url request is pending", () => {
     loginSource,
     "{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}",
     "Login button copy should reflect pending OAuth URL request state.",
+  );
+});
+
+test("turnstile script loader is idempotent and recovers widget mount after refresh", () => {
+  expectIncludes(
+    turnstileSource,
+    "let turnstileScriptPromise: Promise<void> | null = null;",
+    "Turnstile loader should keep a shared script-loading promise to avoid unresolved parallel loads.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "if (turnstileScriptPromise) {\n    return turnstileScriptPromise;\n  }",
+    "Turnstile loader should dedupe concurrent script-load attempts.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "if (existing.getAttribute(SCRIPT_LOADED_ATTR) === \"true\") {\n      return Promise.resolve();\n    }",
+    "Turnstile loader should resolve immediately when script tag already finished loading.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "if (window.turnstile) {\n        complete();\n      }",
+    "Turnstile loader should recover if script loaded before load-listener registration.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    "setReady(false);\n    setError(null);\n    setToken(null);",
+    "Turnstile mount should clear stale state before rendering a fresh widget instance.",
   );
 });

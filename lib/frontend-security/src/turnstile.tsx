@@ -12,26 +12,62 @@ declare global {
 
 const SCRIPT_ID = "cf-turnstile-script";
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
+let turnstileScriptPromise: Promise<void> | null = null;
 
 function ensureScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
-  const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-  if (existing) {
-    return new Promise((resolve) => {
-      existing.addEventListener("load", () => resolve(), { once: true });
-    });
+
+  if (turnstileScriptPromise) {
+    return turnstileScriptPromise;
   }
 
-  return new Promise((resolve, reject) => {
+  const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+  if (existing) {
+    if (existing.getAttribute(SCRIPT_LOADED_ATTR) === "true") {
+      return Promise.resolve();
+    }
+
+    turnstileScriptPromise = new Promise((resolve, reject) => {
+      const complete = () => {
+        existing.setAttribute(SCRIPT_LOADED_ATTR, "true");
+        turnstileScriptPromise = null;
+        resolve();
+      };
+
+      existing.addEventListener("load", complete, { once: true });
+      existing.addEventListener("error", () => {
+        turnstileScriptPromise = null;
+        reject(new Error("Failed to load Turnstile script."));
+      }, { once: true });
+
+      if (window.turnstile) {
+        complete();
+      }
+    });
+
+    return turnstileScriptPromise;
+  }
+
+  turnstileScriptPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.src = SCRIPT_SRC;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Turnstile script."));
+    script.onload = () => {
+      script.setAttribute(SCRIPT_LOADED_ATTR, "true");
+      turnstileScriptPromise = null;
+      resolve();
+    };
+    script.onerror = () => {
+      turnstileScriptPromise = null;
+      reject(new Error("Failed to load Turnstile script."));
+    };
     document.head.appendChild(script);
   });
+
+  return turnstileScriptPromise;
 }
 
 export function useTurnstileToken() {
@@ -47,6 +83,10 @@ export function useTurnstileToken() {
     if (!siteKey || !containerRef.current) return;
 
     let cancelled = false;
+    setReady(false);
+    setError(null);
+    setToken(null);
+
     ensureScript()
       .then(() => {
         if (cancelled || !window.turnstile || !containerRef.current) return;
@@ -68,6 +108,7 @@ export function useTurnstileToken() {
         setReady(true);
       })
       .catch((err) => {
+        setReady(false);
         setError(err instanceof Error ? err.message : "Turnstile script error.");
       });
 
@@ -77,6 +118,7 @@ export function useTurnstileToken() {
         window.turnstile.remove(widgetIdRef.current);
       }
       widgetIdRef.current = null;
+      setReady(false);
     };
   }, [siteKey]);
 
