@@ -19,7 +19,7 @@ type AuthContextValue = {
   csrfReady: boolean;
   loginInFlight: boolean;
   refreshSession: () => Promise<void>;
-  loginWithGoogle: (turnstileToken?: string | null) => Promise<void>;
+  loginWithGoogle: (turnstileToken?: string | null, intent?: "sign_in" | "create_account") => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
   acceptInvitation: (token: string, turnstileToken?: string | null) => Promise<void>;
@@ -99,16 +99,12 @@ export function mapGoogleSignInError(
   return payload?.error ?? "Unable to start Google sign-in right now. Please try again.";
 }
 
-export type AppAccessMode = "restricted" | "public_signup";
-export type AppTenancyMode = "none" | "organization" | "solo";
-export type AppOnboardingMode = "disabled" | "required" | "light";
+export type NormalizedAccessProfile = "superadmin" | "solo_no_onboarding" | "solo_with_onboarding" | "organization";
 export type AuthRouteKind = "onboarding" | "invitation";
 
 export type PlatformAppMetadata = {
   slug: string;
-  accessMode: AppAccessMode;
-  tenancyMode: AppTenancyMode;
-  onboardingMode: AppOnboardingMode;
+  normalizedAccessProfile: NormalizedAccessProfile;
 };
 
 export type AppAuthRoutePolicy = {
@@ -121,15 +117,11 @@ export function deriveAppAuthRoutePolicy(app: PlatformAppMetadata | null | undef
     return { allowOnboarding: false, allowInvitations: false };
   }
 
-  if (app.accessMode === "restricted") {
-    return { allowOnboarding: false, allowInvitations: false };
-  }
-
-  if (app.tenancyMode === "organization") {
+  if (app.normalizedAccessProfile === "organization") {
     return { allowOnboarding: true, allowInvitations: true };
   }
 
-  if (app.tenancyMode === "solo") {
+  if (app.normalizedAccessProfile === "solo_with_onboarding") {
     return { allowOnboarding: true, allowInvitations: false };
   }
 
@@ -155,7 +147,7 @@ export function getDisallowedAuthRouteRedirect({
   isSuperAdmin?: boolean;
   deniedLoginPath?: string;
 }): string {
-  if (app?.accessMode === "restricted") {
+  if (app?.normalizedAccessProfile === "superadmin") {
     if (authStatus === "authenticated") {
       return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
     }
@@ -173,15 +165,16 @@ function normalizePlatformAppMetadata(raw: unknown): PlatformAppMetadata | null 
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as Record<string, unknown>;
   if (typeof candidate["slug"] !== "string") return null;
-  if (candidate["accessMode"] !== "restricted" && candidate["accessMode"] !== "public_signup") return null;
-  if (candidate["tenancyMode"] !== "none" && candidate["tenancyMode"] !== "organization" && candidate["tenancyMode"] !== "solo") return null;
-  if (candidate["onboardingMode"] !== "disabled" && candidate["onboardingMode"] !== "required" && candidate["onboardingMode"] !== "light") return null;
+  if (
+    candidate["normalizedAccessProfile"] !== "superadmin"
+    && candidate["normalizedAccessProfile"] !== "solo_no_onboarding"
+    && candidate["normalizedAccessProfile"] !== "solo_with_onboarding"
+    && candidate["normalizedAccessProfile"] !== "organization"
+  ) return null;
 
   return {
     slug: candidate["slug"],
-    accessMode: candidate["accessMode"],
-    tenancyMode: candidate["tenancyMode"],
-    onboardingMode: candidate["onboardingMode"],
+    normalizedAccessProfile: candidate["normalizedAccessProfile"],
   };
 }
 
@@ -286,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [meQuery, refreshCsrfState, sessionRevoked]);
 
-  const loginWithGoogle = React.useCallback(async (turnstileToken?: string | null) => {
+  const loginWithGoogle = React.useCallback(async (turnstileToken?: string | null, intent: "sign_in" | "create_account" = "sign_in") => {
     if (loginRequestRef.current) {
       return loginRequestRef.current;
     }
@@ -309,6 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
         body: JSON.stringify({
           "cf-turnstile-response": normalizedTurnstileToken,
+          intent,
         }),
       }, token);
 

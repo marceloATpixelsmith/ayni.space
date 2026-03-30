@@ -141,7 +141,7 @@ export default function Login() {
     );
   }
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = (intent: "sign_in" | "create_account") => {
     if (auth.loginInFlight) {
       return;
     }
@@ -152,7 +152,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithGoogle(turnstileToken).catch((error) => {
+    auth.loginWithGoogle(turnstileToken, intent).catch((error) => {
       console.error("Google sign-in failed", error);
       const message = error instanceof Error
         ? ((error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message))
@@ -194,18 +194,29 @@ export default function Login() {
 
           <Card className="p-8 backdrop-blur-xl bg-card/90 border-white/20 shadow-2xl shadow-primary/5">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Welcome Back</h1>
-              <p className="text-muted-foreground">Sign in to access the restricted super-admin console.</p>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Welcome</h1>
+              <p className="text-muted-foreground">Sign in or create your account to continue.</p>
             </div>
 
             <Button 
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
-              onClick={handleGoogleLogin}
+              onClick={() => handleGoogleLogin("sign_in")}
               disabled={disabledReasons.length > 0}
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
+            </Button>
+
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full h-12 text-base font-medium mt-3"
+              onClick={() => handleGoogleLogin("create_account")}
+              disabled={disabledReasons.length > 0}
+            >
+              <Chrome className="w-5 h-5 mr-3" />
+              {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
             </Button>
 
             {turnstileEnabled ? <TurnstileWidget /> : null}

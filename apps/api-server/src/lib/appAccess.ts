@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db, appsTable, orgMembershipsTable, organizationsTable, userAppAccessTable, usersTable } from "@workspace/db";
+import { getAuthRoutePolicyForProfile, resolveNormalizedAccessProfile } from "./appAccessProfile.js";
 
 export async function getAppBySlug(appSlug: string) {
   return db.query.appsTable.findFirst({ where: and(eq(appsTable.slug, appSlug), eq(appsTable.isActive, true)) });
@@ -24,6 +25,14 @@ export async function getAppContext(userId: string, appSlug: string) {
   const app = await getAppBySlug(appSlug);
   if (!app) return null;
 
+  const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
+  if (!normalizedAccessProfile) {
+    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode, tenancyMode: app.tenancyMode });
+    return null;
+  }
+
+  console.debug("[auth/access] normalized app profile", { appSlug, appId: app.id, normalizedAccessProfile });
+
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user || !user.active || user.suspended || user.deletedAt) return null;
 
@@ -47,21 +56,16 @@ export async function getAppContext(userId: string, appSlug: string) {
   let requiredOnboarding: "none" | "organization" | "solo" = "none";
   let canAccess = false;
 
-  if (app.accessMode === "restricted") {
-    // Config-driven super-admin boundary for restricted apps (e.g. admin console).
+  if (normalizedAccessProfile === "superadmin") {
     canAccess = Boolean(user.isSuperAdmin);
-  } else if (app.tenancyMode === "organization") {
+  } else if (normalizedAccessProfile === "organization") {
     canAccess = hasActiveMembership || hasActiveAppAccess;
-    if (!canAccess) {
-      requiredOnboarding = app.onboardingMode === "disabled" ? "none" : "organization";
-    }
-  } else if (app.tenancyMode === "solo") {
+    if (!canAccess) requiredOnboarding = "organization";
+  } else if (normalizedAccessProfile === "solo_with_onboarding") {
     canAccess = hasActiveAppAccess;
-    if (!canAccess) {
-      requiredOnboarding = app.onboardingMode === "disabled" ? "none" : "solo";
-    }
+    if (!canAccess) requiredOnboarding = "solo";
   } else {
-    canAccess = app.accessMode === "public_signup" || hasActiveAppAccess;
+    canAccess = hasActiveAppAccess;
   }
 
   const defaultRoute = requiredOnboarding === "organization"
@@ -76,6 +80,8 @@ export async function getAppContext(userId: string, appSlug: string) {
     appAccess,
     activeOrg,
     orgMembership,
+    normalizedAccessProfile,
+    authRoutePolicy: getAuthRoutePolicyForProfile(normalizedAccessProfile),
     requiredOnboarding,
     canAccess,
     defaultRoute,

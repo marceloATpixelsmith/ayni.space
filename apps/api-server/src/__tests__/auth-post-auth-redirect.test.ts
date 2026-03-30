@@ -3,14 +3,36 @@ import assert from "node:assert/strict";
 
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 
-test("non-super-admin OAuth callback destination is login with access-denied error", () => {
-  const destination = getPostAuthRedirectPath(false);
+test("superadmin profile denies non-super-admin callback destination", () => {
+  const destination = getPostAuthRedirectPath({
+    isSuperAdmin: false,
+    normalizedAccessProfile: "superadmin",
+    requiredOnboarding: "none",
+  });
 
   assert.equal(destination, "/login?error=access_denied");
-  assert.notEqual(destination, "/unauthorized");
-  assert.notEqual(destination, "/app");
 });
 
-test("super admin OAuth callback destination remains dashboard", () => {
-  assert.equal(getPostAuthRedirectPath(true), "/dashboard");
+test("organization profile routes post-auth users to onboarding when required", () => {
+  const destination = getPostAuthRedirectPath({
+    isSuperAdmin: false,
+    normalizedAccessProfile: "organization",
+    requiredOnboarding: "organization",
+  });
+
+  assert.equal(destination, "/onboarding");
+});
+
+test("authorized callback destination remains dashboard when onboarding not required", () => {
+  assert.equal(getPostAuthRedirectPath({
+    isSuperAdmin: true,
+    normalizedAccessProfile: "superadmin",
+    requiredOnboarding: "none",
+  }), "/dashboard");
+
+  assert.equal(getPostAuthRedirectPath({
+    isSuperAdmin: false,
+    normalizedAccessProfile: "solo_no_onboarding",
+    requiredOnboarding: "none",
+  }), "/dashboard");
 });

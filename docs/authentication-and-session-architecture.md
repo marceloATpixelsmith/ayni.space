@@ -4,6 +4,9 @@
 - This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
+- OAuth callback authorization now resolves active app context and normalized access profile before redirecting, then performs group-scoped denial cleanup on `access_denied` (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/appAccess.ts`).
+- OAuth initiation now preserves explicit auth intent (`sign_in` vs `create_account`) in session state for callback-time routing decisions (`apps/api-server/src/routes/auth.ts`).
+
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.
 - Authentication routes/session binding are implemented in `apps/api-server/src/routes/auth.ts`.
 - Session lifecycle helpers are implemented in `apps/api-server/src/lib/session.ts` (canonicalized for store config, cookie options/clearing, session destruction, and logout-other-sessions cleanup).
