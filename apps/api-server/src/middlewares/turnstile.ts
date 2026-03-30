@@ -114,7 +114,7 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
     const token = getTokenFromRequest(req);
     if (!token) {
       logTurnstileFailure(req, "missing-token", writeAuditLogFn);
-      res.status(403).json({ error: "Please complete the verification challenge." });
+      res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
       return;
     }
 

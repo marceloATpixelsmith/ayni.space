@@ -30,6 +30,8 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const API_BASE = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL ?? "";
 
+type GoogleUrlErrorPayload = { url?: string; error?: string; code?: string } | null;
+
 function toApiUrl(path: string): string {
   if (!API_BASE) return path;
   return `${API_BASE.replace(/\/$/, "")}${path}`;
@@ -66,6 +68,35 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
     headers,
     credentials: "include",
   });
+}
+
+export function mapGoogleSignInError(
+  response: Response | null,
+  payload: GoogleUrlErrorPayload,
+): string {
+  const status = response?.status ?? 0;
+
+  if (status === 429 || payload?.code === "RATE_LIMITED") {
+    const retryAfterHeader = response?.headers.get("retry-after");
+    const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+    const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
+      ? ` Please wait about ${retrySeconds} second${retrySeconds === 1 ? "" : "s"} and retry.`
+      : " Please wait a moment and retry.";
+    return `Too many attempts. Please wait and retry.${retryHint}`;
+  }
+
+  if (payload?.code === "TURNSTILE_MISSING_TOKEN") return "Verification required. Please complete the challenge.";
+  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") return "Verification expired. Please complete the challenge again.";
+  if (payload?.code === "TURNSTILE_INVALID_TOKEN") return "Verification failed. Please try again.";
+  if (payload?.code === "TURNSTILE_MISCONFIGURED") return "Verification is temporarily unavailable due to configuration. Please contact support.";
+  if (payload?.code === "TURNSTILE_UNAVAILABLE") return "Verification service is temporarily unavailable. Please try again.";
+  if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
+    return "Sign-in is temporarily unavailable due to configuration. Please contact support.";
+  }
+  if (payload?.code === "ORIGIN_NOT_ALLOWED") return "Access origin is not allowed for sign-in.";
+
+  if (status === 403) return payload?.error ?? "Verification failed. Please try again.";
+  return payload?.error ?? "Unable to start Google sign-in right now. Please try again.";
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -163,34 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       }, csrfTokenRef.current);
 
-      const payload = (await response.json().catch(() => null)) as { url?: string; error?: string; code?: string } | null;
+      const payload = (await response.json().catch(() => null)) as GoogleUrlErrorPayload;
       if (!response.ok || !payload?.url) {
-        if (response.status === 429 || payload?.code === "RATE_LIMITED") {
-          const retryAfterHeader = response.headers.get("retry-after");
-          const retrySeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
-          const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
-            ? ` Please wait about ${retrySeconds} second${retrySeconds === 1 ? "" : "s"} and retry.`
-            : " Please wait a moment and retry.";
-          throw new Error(`Sign-in is temporarily rate-limited.${retryHint}`);
-        }
-
-        if (payload?.code === "TURNSTILE_MISSING_TOKEN") throw new Error("Please complete the verification challenge.");
-        if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") throw new Error("Verification expired. Please complete the challenge again.");
-        if (payload?.code === "TURNSTILE_INVALID_TOKEN") throw new Error("Security verification failed. Please try again.");
-        if (response.status === 403) throw new Error(payload?.error ?? "Security verification failed. Please try again.");
-        if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
-          throw new Error("Google OAuth is not configured correctly. Please contact support.");
-        }
-        if (payload?.code === "ORIGIN_NOT_ALLOWED") {
-          throw new Error("This app origin is not allowed for sign-in. Please contact support.");
-        }
-        if (payload?.code === "TURNSTILE_MISCONFIGURED") {
-          throw new Error("Verification is currently misconfigured. Please contact support.");
-        }
-        if (payload?.code === "TURNSTILE_UNAVAILABLE") {
-          throw new Error("Verification service is temporarily unavailable. Please try again.");
-        }
-        throw new Error(payload?.error ?? "Unable to start Google sign-in right now. Please try again.");
+        throw new Error(mapGoogleSignInError(response, payload));
       }
 
       window.location.assign(payload.url);
