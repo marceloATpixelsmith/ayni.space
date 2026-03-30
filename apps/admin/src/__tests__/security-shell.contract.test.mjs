@@ -231,6 +231,44 @@ test("login screen has stable inline access-denied message state", () => {
     "role=\"alert\"",
     "Login page should render inline alert text for access errors.",
   );
+
+  expectIncludes(
+    loginSource,
+    "const search = useSearch();",
+    "Login should read URL query params from router search state so access_denied is visible.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "const query = React.useMemo(() => new URLSearchParams(search), [search]);",
+    "Login should parse query params from current search string.",
+  );
+});
+
+test("restricted access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
+  expectIncludes(
+    loginSource,
+    "if (auth.status !== \"authenticated\") return;",
+    "Denied-login cleanup should only run when stale authenticated state is detected.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "void auth.logout();",
+    "Denied-login cleanup should force logout to reset stale auth/session bootstrap state.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "loginRequestRef.current = null;\n      setLoginInFlight(false);",
+    "Auth provider should clear pending login state when the browser page is restored.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (sessionRevoked) {\n        setSessionRevoked(false);\n      }",
+    "Auth provider should recover from fail-closed revoked state on page restore so login can be retried.",
+  );
 });
 
 
@@ -395,6 +433,14 @@ test("login includes turnstile token when requesting oauth url", () => {
     loginSource,
     "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
     "Login button should stay disabled until required turnstile token is present.",
+  );
+
+  const signInButtonPosition = loginSource.indexOf("{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}");
+  const turnstileWidgetPosition = loginSource.indexOf("{turnstileEnabled ? <TurnstileWidget /> : null}");
+  assert.ok(signInButtonPosition >= 0 && turnstileWidgetPosition >= 0, "Login source should render both sign-in button and Turnstile widget.");
+  assert.ok(
+    signInButtonPosition < turnstileWidgetPosition,
+    "Login page should render the sign-in button before the Turnstile widget.",
   );
 
   expectIncludes(
