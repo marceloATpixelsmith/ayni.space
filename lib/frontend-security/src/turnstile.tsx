@@ -14,6 +14,7 @@ const SCRIPT_ID = "cf-turnstile-script";
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
 let turnstileScriptPromise: Promise<void> | null = null;
+const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
 
 function ensureScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
@@ -74,35 +75,84 @@ export function useTurnstileToken() {
   const [token, setToken] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [ready, setReady] = React.useState(false);
+  const [widgetRenderAttempted, setWidgetRenderAttempted] = React.useState(false);
+  const [callbackState, setCallbackState] = React.useState<{ success: boolean; error: boolean; expired: boolean }>({
+    success: false,
+    error: false,
+    expired: false,
+  });
   const widgetIdRef = React.useRef<string | null>(null);
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = React.useState<HTMLDivElement | null>(null);
 
   const siteKey = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_TURNSTILE_SITE_KEY;
+  const scriptPresent = typeof document !== "undefined" && Boolean(document.getElementById(SCRIPT_ID));
 
   React.useEffect(() => {
-    if (!siteKey || !containerRef.current) return;
+    if (!AUTH_DEBUG) return;
+    console.info("[turnstile] mount", {
+      enabled: Boolean(siteKey),
+      windowTurnstileExists: Boolean(window.turnstile),
+      scriptPresent,
+      containerPresent: Boolean(containerNode),
+    });
+    return () => {
+      console.info("[turnstile] cleanup", {
+        widgetIdPresent: Boolean(widgetIdRef.current),
+        windowTurnstileExists: Boolean(window.turnstile),
+      });
+    };
+  }, [siteKey, scriptPresent, containerNode]);
+
+  React.useEffect(() => {
+    if (!siteKey || !containerNode) {
+      if (AUTH_DEBUG) {
+        console.info("[turnstile] init skipped", {
+          hasSiteKey: Boolean(siteKey),
+          containerPresent: Boolean(containerNode),
+          windowTurnstileExists: Boolean(window.turnstile),
+          scriptPresent: Boolean(document.getElementById(SCRIPT_ID)),
+        });
+      }
+      return;
+    }
 
     let cancelled = false;
     setReady(false);
     setError(null);
     setToken(null);
+    setWidgetRenderAttempted(false);
+    setCallbackState({ success: false, error: false, expired: false });
 
     ensureScript()
       .then(() => {
-        if (cancelled || !window.turnstile || !containerRef.current) return;
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        if (cancelled || !window.turnstile || !containerNode) return;
+        setWidgetRenderAttempted(true);
+        if (AUTH_DEBUG) {
+          console.info("[turnstile] rendering widget", {
+            containerPresent: Boolean(containerNode),
+            windowTurnstileExists: Boolean(window.turnstile),
+            scriptPresent: Boolean(document.getElementById(SCRIPT_ID)),
+          });
+        }
+        widgetIdRef.current = window.turnstile.render(containerNode, {
           sitekey: siteKey,
           callback: (value: string) => {
             setToken(value);
             setError(null);
+            setCallbackState((previous) => ({ ...previous, success: true }));
+            if (AUTH_DEBUG) console.info("[turnstile] callback success", { tokenPresent: Boolean(value) });
           },
           "expired-callback": () => {
             setToken(null);
             setError("Verification expired. Please complete the challenge again.");
+            setCallbackState((previous) => ({ ...previous, expired: true }));
+            if (AUTH_DEBUG) console.info("[turnstile] callback expired");
           },
           "error-callback": () => {
             setToken(null);
             setError("Turnstile verification failed. Please retry.");
+            setCallbackState((previous) => ({ ...previous, error: true }));
+            if (AUTH_DEBUG) console.info("[turnstile] callback error");
           },
         });
         setReady(true);
@@ -120,7 +170,7 @@ export function useTurnstileToken() {
       widgetIdRef.current = null;
       setReady(false);
     };
-  }, [siteKey]);
+  }, [siteKey, containerNode]);
 
   const reset = React.useCallback(() => {
     setToken(null);
@@ -131,9 +181,24 @@ export function useTurnstileToken() {
   }, []);
 
   const TurnstileWidget = React.useCallback(
-    () => <div ref={containerRef} className="min-h-16" />,
+    () => <div ref={setContainerNode} className="min-h-16" />,
     [],
   );
+
+  React.useEffect(() => {
+    if (!AUTH_DEBUG) return;
+    console.info("[turnstile] state", {
+      enabled: Boolean(siteKey),
+      ready,
+      tokenPresent: Boolean(token),
+      error,
+      widgetRenderAttempted,
+      callbackState,
+      windowTurnstileExists: Boolean(window.turnstile),
+      scriptPresent: Boolean(document.getElementById(SCRIPT_ID)),
+      containerPresent: Boolean(containerNode),
+    });
+  }, [siteKey, ready, token, error, widgetRenderAttempted, callbackState, containerNode]);
 
   return { token, error, ready, reset, TurnstileWidget, enabled: Boolean(siteKey) };
 }

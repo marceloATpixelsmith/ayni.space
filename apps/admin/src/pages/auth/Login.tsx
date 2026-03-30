@@ -11,6 +11,27 @@ import {
   adminAccessDeniedLoginPath,
 } from "./accessDenied";
 
+const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
+
+export function getLoginDisabledReasons(input: {
+  authStatus: string;
+  loginInFlight: boolean;
+  csrfReady: boolean;
+  csrfTokenPresent: boolean;
+  turnstileEnabled: boolean;
+  turnstileReady: boolean;
+  turnstileTokenPresent: boolean;
+}) {
+  const reasons: string[] = [];
+  if (input.authStatus === "authenticated") reasons.push("auth.status===authenticated");
+  if (input.loginInFlight) reasons.push("auth.loginInFlight");
+  if (!input.csrfReady) reasons.push("!auth.csrfReady");
+  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
+  return reasons;
+}
+
 export default function Login() {
   const [location, setLocation] = useLocation();
   const [loginError, setLoginError] = React.useState<string | null>(null);
@@ -29,6 +50,14 @@ export default function Login() {
   const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
 
   React.useEffect(() => {
+    if (AUTH_DEBUG) {
+      console.info("[login] mount");
+      return () => console.info("[login] cleanup");
+    }
+    return undefined;
+  }, []);
+
+  React.useEffect(() => {
     if (auth.status === "authenticated") {
       const next = new URLSearchParams(location.split("?")[1] ?? "").get("next");
       if (auth.user?.isSuperAdmin) {
@@ -38,6 +67,57 @@ export default function Login() {
       }
     }
   }, [auth.status, setLocation, location]);
+
+  const disabledReasons = React.useMemo(
+    () =>
+      getLoginDisabledReasons({
+        authStatus: auth.status,
+        loginInFlight: auth.loginInFlight,
+        csrfReady: auth.csrfReady,
+        csrfTokenPresent: Boolean(auth.csrfToken),
+        turnstileEnabled,
+        turnstileReady,
+        turnstileTokenPresent: Boolean(turnstileToken),
+      }),
+    [
+      auth.status,
+      auth.loginInFlight,
+      auth.csrfReady,
+      auth.csrfToken,
+      turnstileEnabled,
+      turnstileReady,
+      turnstileToken,
+    ],
+  );
+
+  React.useEffect(() => {
+    if (!AUTH_DEBUG) return;
+    const script = document.getElementById("cf-turnstile-script");
+    console.info("[login] render state", {
+      authStatus: auth.status,
+      csrfReady: auth.csrfReady,
+      csrfTokenPresent: Boolean(auth.csrfToken),
+      turnstileEnabled,
+      turnstileReady,
+      turnstileTokenPresent: Boolean(turnstileToken),
+      turnstileError,
+      loginInFlight: auth.loginInFlight,
+      windowTurnstileExists: Boolean(window.turnstile),
+      turnstileScriptExists: Boolean(script),
+      turnstileContainerExists: Boolean(document.querySelector(".min-h-16")),
+      disabledReasons,
+    });
+  }, [
+    auth.status,
+    auth.csrfReady,
+    auth.csrfToken,
+    turnstileEnabled,
+    turnstileReady,
+    turnstileToken,
+    turnstileError,
+    auth.loginInFlight,
+    disabledReasons,
+  ]);
 
   if (auth.status === "loading") {
     return (
@@ -110,13 +190,7 @@ export default function Login() {
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
               onClick={handleGoogleLogin}
-              disabled={
-                auth.status === "authenticated"
-                || auth.loginInFlight
-                || !auth.csrfReady
-                || !auth.csrfToken
-                || (turnstileEnabled && (!turnstileToken || !turnstileReady))
-              }
+              disabled={disabledReasons.length > 0}
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
