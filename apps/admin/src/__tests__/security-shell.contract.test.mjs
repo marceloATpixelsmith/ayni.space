@@ -70,23 +70,17 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
   );
 });
 
-test("shared route policy enforces restricted/public-signup onboarding and invitation rules", () => {
+test("shared route policy enforces normalized access-profile onboarding and invitation rules", () => {
   expectIncludes(
     authProviderSource,
-    "if (app.accessMode === \"restricted\") {\n    return { allowOnboarding: false, allowInvitations: false };",
-    "Restricted apps should deny onboarding and invitation routes.",
+    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true };",
+    "Organization profile should allow onboarding and invitation routes.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (app.tenancyMode === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true };",
-    "Public-signup organization apps should allow onboarding and invitations.",
-  );
-
-  expectIncludes(
-    authProviderSource,
-    "if (app.tenancyMode === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false };",
-    "Public-signup solo apps should allow onboarding and deny invitations.",
+    "if (app.normalizedAccessProfile === \"solo_with_onboarding\") {\n    return { allowOnboarding: true, allowInvitations: false };",
+    "Solo onboarding profile should allow onboarding and deny invitation routes.",
   );
 
   expectIncludes(
@@ -99,14 +93,14 @@ test("shared route policy enforces restricted/public-signup onboarding and invit
 test("disallowed route redirects are explicit and avoid blank fallthrough states", () => {
   expectIncludes(
     authProviderSource,
-    "if (app?.accessMode === \"restricted\") {",
+    "if (app?.normalizedAccessProfile === \"superadmin\") {",
     "Disallowed-route redirect helper should branch explicitly for restricted apps.",
   );
 
   expectIncludes(
     authProviderSource,
     "return isSuperAdmin ? \"/dashboard\" : (deniedLoginPath ?? \"/login\");",
-    "Restricted authenticated route denials should redirect super admins to /dashboard and others to login-denied behavior.",
+    "Superadmin-profile authenticated route denials should redirect super admins to /dashboard and others to login-denied behavior.",
   );
 
   expectIncludes(
@@ -407,7 +401,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken)",
+    "auth.loginWithGoogle(turnstileToken, intent)",
     "Login should pass turnstile token into OAuth URL request.",
   );
 
@@ -445,7 +439,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     authProviderSource,
-    "body: JSON.stringify({\n          \"cf-turnstile-response\": normalizedTurnstileToken,\n        })",
+    "\"cf-turnstile-response\": normalizedTurnstileToken",
     "OAuth URL request should include Turnstile token in request body for backend verification.",
   );
 });

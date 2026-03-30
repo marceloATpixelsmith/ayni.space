@@ -10,6 +10,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
 import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute } from "../lib/appAccess.js";
+import { resolveNormalizedAccessProfile, getAuthRoutePolicyForProfile } from "../lib/appAccessProfile.js";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,8 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
     accessMode: app.accessMode,
     tenancyMode: app.tenancyMode,
     onboardingMode: app.onboardingMode,
+    normalizedAccessProfile: resolveNormalizedAccessProfile(app),
+    authRoutePolicy: resolveNormalizedAccessProfile(app) ? getAuthRoutePolicyForProfile(resolveNormalizedAccessProfile(app)!) : null,
     description: app.description,
     iconUrl: app.iconUrl,
     isActive: app.isActive,
@@ -75,6 +78,8 @@ router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
     canAccess: await canAccessApp(userId, appSlug),
     requiredOnboarding: await getRequiredOnboarding(userId, appSlug),
     defaultRoute: await getDefaultRoute(userId, appSlug),
+    normalizedAccessProfile: context.normalizedAccessProfile,
+    authRoutePolicy: context.authRoutePolicy,
     app: context.app,
     appAccess: context.appAccess,
     activeOrg: context.activeOrg,

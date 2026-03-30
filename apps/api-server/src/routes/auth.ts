@@ -2,9 +2,10 @@ import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
+import { getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie } from "../lib/session.js";
-import { getAllowedOrigins, isRestrictedSessionGroup, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
+import { getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -42,10 +43,40 @@ function parseGroupFromOAuthState(state: string): string | null {
   return sessionGroup || null;
 }
 
+
+function parseAppSlugByOriginEnv(): Map<string, string> {
+  const raw = process.env["APP_SLUG_BY_ORIGIN"] ?? "";
+  const mappings = new Map<string, string>();
+  for (const entry of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
+    const [origin, slug] = entry.split("=").map((value) => value.trim());
+    if (!origin || !slug) continue;
+    try {
+      mappings.set(new URL(origin).origin, slug);
+    } catch {
+      continue;
+    }
+  }
+  return mappings;
+}
+
+function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string): string | null {
+  const explicitMap = parseAppSlugByOriginEnv();
+  const explicit = explicitMap.get(frontendBase);
+  if (explicit) return explicit;
+  if (sessionGroup === SESSION_GROUPS.ADMIN) return "admin";
+  return null;
+}
+
 function firstQueryParam(value: unknown): string | undefined {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
   return undefined;
+}
+
+
+function normalizeAuthIntent(value: unknown): "sign_in" | "create_account" | null {
+  if (value === "sign_in" || value === "create_account") return value;
+  return null;
 }
 
 function getTurnstileToken(req: Request): string {
@@ -216,6 +247,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const returnTo = getRequestFrontendOrigin(req);
+  const authIntent = normalizeAuthIntent(req.body?.intent);
   if (!returnTo) {
     logGoogleUrlBranch(req, "origin_invalid", { turnstileVerificationPassed: Boolean(req.turnstileVerified) });
     logAuthFailure(req, "google-url-origin-invalid");
@@ -228,6 +260,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   req.session.oauthState = state;
   req.session.oauthReturnTo = returnTo;
   req.session.oauthSessionGroup = oauthSessionGroup;
+  req.session.oauthIntent = authIntent ?? undefined;
 
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
@@ -296,8 +329,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
   const oauthReturnTo = req.session.oauthReturnTo;
   const stateSessionGroup = parseGroupFromOAuthState(state);
   const oauthSessionGroup = req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
   delete req.session.oauthReturnTo;
   delete req.session.oauthSessionGroup;
+  delete req.session.oauthIntent;
 
   try {
     const googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
@@ -389,14 +424,52 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     const frontendBase = oauthReturnTo;
+    const activeAppSlug = resolveActiveAppSlugForAuth(frontendBase, oauthSessionGroup);
 
-    if (isRestrictedSessionGroup(oauthSessionGroup) && !user.isSuperAdmin) {
+    if (!activeAppSlug) {
+      console.warn("[auth/google/callback] active app slug resolution failed", { frontendBase, oauthSessionGroup });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(`${frontendBase}/login?error=access_denied`);
       return;
     }
 
-    const destination = getPostAuthRedirectPath(user.isSuperAdmin);
+    let appContext = null as Awaited<ReturnType<typeof getAppContext>>;
+    try {
+      appContext = await getAppContext(user.id, activeAppSlug);
+    } catch (error) {
+      if (activeAppSlug === "admin") {
+        console.warn("[auth/google/callback] app-context lookup failed; using fail-closed admin fallback", { oauthSessionGroup, frontendBase, error });
+      } else {
+        throw error;
+      }
+    }
+
+    const effectiveContext = appContext ?? (activeAppSlug === "admin"
+      ? {
+          canAccess: Boolean(user.isSuperAdmin),
+          normalizedAccessProfile: "superadmin" as const,
+          requiredOnboarding: "none" as const,
+        }
+      : null);
+
+    if (!effectiveContext?.canAccess) {
+      console.info("[auth/google/callback] access denied by normalized app policy", {
+        userId: user.id,
+        appSlug: activeAppSlug,
+        normalizedAccessProfile: effectiveContext?.normalizedAccessProfile ?? null,
+        oauthSessionGroup,
+      });
+      await destroySessionAndClearCookie(req, res, oauthSessionGroup);
+      res.redirect(`${frontendBase}/login?error=access_denied`);
+      return;
+    }
+
+    const destination = getPostAuthRedirectPath({
+      isSuperAdmin: user.isSuperAdmin,
+      normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
+      requiredOnboarding: effectiveContext.requiredOnboarding,
+      authIntent: oauthIntent,
+    });
     res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
     console.error("Google callback failed:", error);

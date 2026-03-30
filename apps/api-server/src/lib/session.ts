@@ -260,6 +260,7 @@ declare module "express-session" {
     oauthState?: string;
     oauthReturnTo?: string;
     oauthSessionGroup?: string;
+    oauthIntent?: "sign_in" | "create_account";
     sessionGroup?: string;
     sessionCreatedAt?: number;
     sessionAuthenticatedAt?: number;
