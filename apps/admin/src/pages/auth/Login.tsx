@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,9 @@ export function getLoginDisabledReasons(input: {
 
 export default function Login() {
   const [location, setLocation] = useLocation();
+  const search = useSearch();
   const [loginError, setLoginError] = React.useState<string | null>(null);
+  const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
     token: turnstileToken,
@@ -45,9 +47,21 @@ export default function Login() {
     TurnstileWidget,
   } = useTurnstileToken();
 
-  const query = React.useMemo(() => new URLSearchParams(location.split("?")[1] ?? ""), [location]);
+  const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const accessErrorCode = query.get("error");
   const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
+
+  React.useEffect(() => {
+    if (!accessError) {
+      deniedCleanupAttemptedRef.current = false;
+      return;
+    }
+    if (auth.status !== "authenticated") return;
+    if (deniedCleanupAttemptedRef.current) return;
+
+    deniedCleanupAttemptedRef.current = true;
+    void auth.logout();
+  }, [accessError, auth.status, auth.logout]);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -184,8 +198,6 @@ export default function Login() {
               <p className="text-muted-foreground">Sign in to access the restricted super-admin console.</p>
             </div>
 
-            {turnstileEnabled ? <TurnstileWidget /> : null}
-
             <Button 
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
@@ -195,6 +207,8 @@ export default function Login() {
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
             </Button>
+
+            {turnstileEnabled ? <TurnstileWidget /> : null}
 
             {accessError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">

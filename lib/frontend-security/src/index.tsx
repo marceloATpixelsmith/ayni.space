@@ -256,8 +256,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const revalidateSession = () => {
-      if (sessionRevoked) return;
+      loginRequestRef.current = null;
+      setLoginInFlight(false);
+      if (sessionRevoked) {
+        setSessionRevoked(false);
+      }
       void meQuery.refetch();
+      if (!csrfTokenRef.current) {
+        void refreshCsrfState();
+      }
     };
 
     const handlePageShow = () => {
@@ -277,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pageshow", handlePageShow);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [meQuery, sessionRevoked]);
+  }, [meQuery, refreshCsrfState, sessionRevoked]);
 
   const loginWithGoogle = React.useCallback(async (turnstileToken?: string | null) => {
     if (loginRequestRef.current) {
