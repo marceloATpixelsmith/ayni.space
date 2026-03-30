@@ -261,6 +261,12 @@ test("google oauth url is requested only on explicit login intent", () => {
 
   expectIncludes(
     authProviderSource,
+    "mapGoogleSignInError(response, payload)",
+    "Auth provider should map backend oauth-url failures to specific UI messages.",
+  );
+
+  expectIncludes(
+    authProviderSource,
     "loginRequestRef.current = request;",
     "Auth provider must track in-flight login requests.",
   );
@@ -297,6 +303,26 @@ test("login includes turnstile token when requesting oauth url", () => {
     authProviderSource,
     "body: JSON.stringify({\n          \"cf-turnstile-response\": normalizedTurnstileToken,\n        })",
     "OAuth URL request should include Turnstile token in request body for backend verification.",
+  );
+});
+
+test("frontend maps known google sign-in failure categories to specific user guidance", () => {
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"TURNSTILE_MISSING_TOKEN\") return \"Verification required. Please complete the challenge.\";",
+    "Frontend should map missing turnstile token to verification required message.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"ORIGIN_NOT_ALLOWED\") return \"Access origin is not allowed for sign-in.\";",
+    "Frontend should map disallowed origin responses to explicit origin guidance.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (payload?.code === \"OAUTH_CONFIG_MISSING\" || payload?.code === \"OAUTH_URL_INVALID\")",
+    "Frontend should map oauth configuration failures to configuration-specific guidance.",
   );
 });
 

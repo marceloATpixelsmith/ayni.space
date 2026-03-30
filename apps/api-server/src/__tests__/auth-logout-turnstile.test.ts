@@ -193,3 +193,18 @@ test("google oauth url returns clear config error when oauth env is missing", as
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
+
+test("google oauth url rejects disallowed origins with explicit error code", async () => {
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+
+  try {
+    const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://evil.example" });
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.code, "ORIGIN_NOT_ALLOWED");
+  } finally {
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});

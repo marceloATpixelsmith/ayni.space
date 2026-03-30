@@ -61,8 +61,12 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
           branch: "rate_limited",
           method: req.method,
           path: req.path,
+          origin: typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
+          resolvedSessionGroup: req.resolvedSessionGroup ?? null,
           keyPrefix,
           retryAfterSeconds,
+          status: 429,
+          code: "RATE_LIMITED",
         });
       }
       res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
