@@ -127,25 +127,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  React.useEffect(() => {
-    let mounted = true;
-
-    fetchCsrfToken()
-      .then((token) => {
-        if (!mounted) return;
-        setCsrfToken(token);
-        setCsrfReady(true);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setCsrfToken(null);
-        setCsrfReady(true);
-      });
-
-    return () => {
-      mounted = false;
-    };
+  const refreshCsrfState = React.useCallback(async (): Promise<string | null> => {
+    setCsrfReady(false);
+    try {
+      const token = await fetchCsrfToken();
+      setCsrfToken(token);
+      csrfTokenRef.current = token;
+      return token;
+    } catch {
+      setCsrfToken(null);
+      csrfTokenRef.current = null;
+      return null;
+    } finally {
+      setCsrfReady(true);
+    }
   }, []);
+
+  React.useEffect(() => {
+    void refreshCsrfState();
+  }, [refreshCsrfState]);
 
   React.useEffect(() => {
     const revalidateSession = () => {
@@ -182,6 +182,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!normalizedTurnstileToken) {
         throw new Error("Please complete the verification challenge.");
       }
+      const token = csrfTokenRef.current ?? await refreshCsrfState();
+      if (!token) {
+        throw new Error("Security token is not ready. Please try again.");
+      }
 
       const response = await secureApiFetch("/api/auth/google/url", {
         method: "POST",
@@ -192,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           "cf-turnstile-response": normalizedTurnstileToken,
         }),
-      }, csrfTokenRef.current);
+      }, token);
 
       const payload = (await response.json().catch(() => null)) as GoogleUrlErrorPayload;
       if (!response.ok || !payload?.url) {
@@ -213,7 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoginInFlight(false);
       }
     }
-  }, []);
+  }, [refreshCsrfState]);
 
 
   const clearAuthState = React.useCallback(async () => {
@@ -224,8 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.removeQueries({ queryKey: meQueryKey });
     queryClient.invalidateQueries({
       predicate: (query) => {
-        const [scope] = query.queryKey;
-        return typeof scope === "string" && scope.toLowerCase().includes("auth");
+        return query.queryKey.some(
+          (part) => typeof part === "string" && /(auth|csrf|session|bootstrap|security)/i.test(part),
+        );
       },
     });
   }, [queryClient]);
@@ -240,11 +245,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
     } finally {
       setCsrfToken(null);
+      setCsrfReady(false);
       csrfTokenRef.current = null;
       await clearAuthState();
       queryClient.clear();
+      await refreshCsrfState();
     }
-  }, [clearAuthState, logoutMutation, queryClient]);
+  }, [clearAuthState, logoutMutation, queryClient, refreshCsrfState]);
 
   const switchOrganization = React.useCallback(
     async (orgId: string) => {

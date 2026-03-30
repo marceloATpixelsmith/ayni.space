@@ -110,7 +110,13 @@ export default function Login() {
               size="lg" 
               className="w-full h-12 text-base font-medium shadow-md transition-all group"
               onClick={handleGoogleLogin}
-              disabled={auth.status === "authenticated" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}
+              disabled={
+                auth.status === "authenticated"
+                || auth.loginInFlight
+                || !auth.csrfReady
+                || !auth.csrfToken
+                || (turnstileEnabled && (!turnstileToken || !turnstileReady))
+              }
             >
               <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
               {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
