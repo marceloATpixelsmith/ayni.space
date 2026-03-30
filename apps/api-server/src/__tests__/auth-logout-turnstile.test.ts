@@ -12,6 +12,7 @@ process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/call
 
 const { default: authRouter } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
+const { csrfProtection, csrfTokenEndpoint } = await import("../middlewares/csrf.js");
 
 async function requestJson(
   app: ReturnType<typeof createMountedSessionApp>,
@@ -203,6 +204,91 @@ test("google oauth url rejects disallowed origins with explicit error code", asy
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://evil.example" });
     assert.equal(response.status, 400);
     assert.equal(response.body?.code, "ORIGIN_NOT_ALLOWED");
+  } finally {
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+test("csrf lifecycle after logout requires a fresh token for immediate login", async () => {
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+
+  type MutableSession = {
+    id: string;
+    userId?: string;
+    csrfToken?: string;
+    destroy: (cb?: (err?: unknown) => void) => void;
+    save: (cb?: (err?: unknown) => void) => void;
+    regenerate: (cb?: (err?: unknown) => void) => void;
+    [key: string]: unknown;
+  };
+
+  const createAnonymousSession = (): MutableSession => ({
+    id: "anon-session",
+    destroy: (cb?: (err?: unknown) => void) => cb?.(),
+    save: (cb?: (err?: unknown) => void) => cb?.(),
+    regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+  });
+
+  const state: { session: MutableSession } = {
+    session: {
+      id: "auth-session",
+      userId: "csrf-user",
+      destroy: (cb?: (err?: unknown) => void) => {
+        state.session = createAnonymousSession();
+        cb?.();
+      },
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+    },
+  };
+
+  try {
+    const expressMod = await import("express");
+    const app = expressMod.default();
+    app.use(expressMod.default.json());
+    app.use((req, _res, next) => {
+      (req as unknown as { session: MutableSession }).session = state.session;
+      next();
+    });
+    app.use(csrfProtection);
+    app.get("/api/csrf-token", csrfTokenEndpoint);
+    app.use("/api/auth", authRouter);
+
+    const firstBootstrap = await requestJson(app, "GET", "/api/csrf-token");
+    assert.equal(firstBootstrap.status, 200);
+    const authenticatedCsrf = String(firstBootstrap.body?.csrfToken ?? "");
+    assert.ok(authenticatedCsrf.length > 0, "authenticated session should have csrf token");
+
+    const logout = await requestJson(app, "POST", "/api/auth/logout", {}, { "x-csrf-token": authenticatedCsrf });
+    assert.equal(logout.status, 200);
+
+    const staleLoginAttempt = await requestJson(
+      app,
+      "POST",
+      "/api/auth/google/url",
+      {},
+      { origin: "http://localhost:5173", "x-csrf-token": authenticatedCsrf },
+    );
+    assert.equal(staleLoginAttempt.status, 403);
+    assert.equal(staleLoginAttempt.body?.error, "Invalid CSRF token");
+
+    const secondBootstrap = await requestJson(app, "GET", "/api/csrf-token");
+    assert.equal(secondBootstrap.status, 200);
+    const anonymousCsrf = String(secondBootstrap.body?.csrfToken ?? "");
+    assert.ok(anonymousCsrf.length > 0, "anonymous session should have csrf token after logout");
+    assert.notEqual(anonymousCsrf, authenticatedCsrf, "logout should require a new csrf token");
+
+    const freshLoginAttempt = await requestJson(
+      app,
+      "POST",
+      "/api/auth/google/url",
+      {},
+      { origin: "http://localhost:5173", "x-csrf-token": anonymousCsrf },
+    );
+    assert.equal(freshLoginAttempt.status, 200);
+    assert.equal(typeof freshLoginAttempt.body?.url, "string");
   } finally {
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;

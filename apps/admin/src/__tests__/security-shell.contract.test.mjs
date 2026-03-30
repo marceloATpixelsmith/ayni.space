@@ -175,7 +175,7 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
-    "await logoutMutation.mutateAsync();\n    } catch {\n      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.\n    } finally {\n      setCsrfToken(null);",
+    "await logoutMutation.mutateAsync();\n    } catch {\n      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.\n    } finally {\n      setCsrfToken(null);\n      setCsrfReady(false);",
     "Logout must not clear CSRF token before sending the logout API request.",
   );
 
@@ -207,6 +207,12 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
     authProviderSource,
     "queryClient.clear();",
     "Logout should clear all cached query state.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "await refreshCsrfState();",
+    "Logout should immediately bootstrap a fresh anonymous CSRF token for the login screen.",
   );
 
   expectIncludes(
@@ -295,7 +301,19 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}",
+    "|| !auth.csrfReady",
+    "Login button should stay disabled until CSRF bootstrap is complete.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "|| !auth.csrfToken",
+    "Login button should stay disabled until a CSRF token is available.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "|| (turnstileEnabled && (!turnstileToken || !turnstileReady))",
     "Login button should stay disabled until required turnstile token is present.",
   );
 
@@ -369,7 +387,19 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "disabled={auth.status === \"authenticated\" || auth.loginInFlight || (turnstileEnabled && (!turnstileToken || !turnstileReady))}",
+    "|| !auth.csrfReady",
+    "Login button must remain disabled while CSRF bootstrap is pending.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "|| !auth.csrfToken",
+    "Login button must remain disabled until a CSRF token is available.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "|| (turnstileEnabled && (!turnstileToken || !turnstileReady))",
     "Login button must be disabled during pending OAuth request and when turnstile is required.",
   );
 
