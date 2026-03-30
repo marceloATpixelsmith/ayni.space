@@ -99,6 +99,113 @@ export function mapGoogleSignInError(
   return payload?.error ?? "Unable to start Google sign-in right now. Please try again.";
 }
 
+export type AppAccessMode = "restricted" | "public_signup";
+export type AppTenancyMode = "none" | "organization" | "solo";
+export type AppOnboardingMode = "disabled" | "required" | "light";
+export type AuthRouteKind = "onboarding" | "invitation";
+
+export type PlatformAppMetadata = {
+  slug: string;
+  accessMode: AppAccessMode;
+  tenancyMode: AppTenancyMode;
+  onboardingMode: AppOnboardingMode;
+};
+
+export type AppAuthRoutePolicy = {
+  allowOnboarding: boolean;
+  allowInvitations: boolean;
+};
+
+export function deriveAppAuthRoutePolicy(app: PlatformAppMetadata | null | undefined): AppAuthRoutePolicy {
+  if (!app) {
+    return { allowOnboarding: false, allowInvitations: false };
+  }
+
+  if (app.accessMode === "restricted") {
+    return { allowOnboarding: false, allowInvitations: false };
+  }
+
+  if (app.tenancyMode === "organization") {
+    return { allowOnboarding: true, allowInvitations: true };
+  }
+
+  if (app.tenancyMode === "solo") {
+    return { allowOnboarding: true, allowInvitations: false };
+  }
+
+  return { allowOnboarding: false, allowInvitations: false };
+}
+
+export function isAuthRouteAllowed(
+  app: PlatformAppMetadata | null | undefined,
+  routeKind: AuthRouteKind,
+): boolean {
+  const policy = deriveAppAuthRoutePolicy(app);
+  return routeKind === "onboarding" ? policy.allowOnboarding : policy.allowInvitations;
+}
+
+export function getDisallowedAuthRouteRedirect({
+  app,
+  authStatus,
+  isSuperAdmin,
+  deniedLoginPath,
+}: {
+  app: PlatformAppMetadata | null | undefined;
+  authStatus: AuthStatus;
+  isSuperAdmin?: boolean;
+  deniedLoginPath?: string;
+}): string {
+  if (app?.accessMode === "restricted") {
+    if (authStatus === "authenticated") {
+      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
+    }
+    return "/login";
+  }
+
+  if (authStatus === "authenticated") {
+    return "/dashboard";
+  }
+
+  return "/login";
+}
+
+function normalizePlatformAppMetadata(raw: unknown): PlatformAppMetadata | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as Record<string, unknown>;
+  if (typeof candidate["slug"] !== "string") return null;
+  if (candidate["accessMode"] !== "restricted" && candidate["accessMode"] !== "public_signup") return null;
+  if (candidate["tenancyMode"] !== "none" && candidate["tenancyMode"] !== "organization" && candidate["tenancyMode"] !== "solo") return null;
+  if (candidate["onboardingMode"] !== "disabled" && candidate["onboardingMode"] !== "required" && candidate["onboardingMode"] !== "light") return null;
+
+  return {
+    slug: candidate["slug"],
+    accessMode: candidate["accessMode"],
+    tenancyMode: candidate["tenancyMode"],
+    onboardingMode: candidate["onboardingMode"],
+  };
+}
+
+export async function fetchPlatformAppMetadataBySlug(appSlug: string): Promise<PlatformAppMetadata | null> {
+  const response = await secureApiFetch("/api/apps", { method: "GET" });
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!Array.isArray(payload)) {
+    return null;
+  }
+
+  for (const appCandidate of payload) {
+    const normalized = normalizePlatformAppMetadata(appCandidate);
+    if (normalized?.slug === appSlug) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);

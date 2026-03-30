@@ -44,6 +44,84 @@ test("logged-out users are redirected to /login", () => {
   );
 });
 
+test("onboarding and invitation auth routes are centrally gated by app metadata", () => {
+  expectIncludes(
+    appSource,
+    '<Route path="/onboarding">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>',
+    "Onboarding route should be wrapped by config-driven gating.",
+  );
+
+  expectIncludes(
+    appSource,
+    '<Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>',
+    "Invitation route should be wrapped by config-driven gating.",
+  );
+
+  expectIncludes(
+    appSource,
+    "if (!isAuthRouteAllowed(metadata, routeKind)) {",
+    "Config-driven auth route wrapper should deny disallowed routes.",
+  );
+
+  expectIncludes(
+    appSource,
+    "if (auth.status === \"unauthenticated\") {\n    return <AuthRedirect to=\"/login\" />;",
+    "Allowed onboarding/invitation routes should still route logged-out users to /login.",
+  );
+});
+
+test("shared route policy enforces restricted/public-signup onboarding and invitation rules", () => {
+  expectIncludes(
+    authProviderSource,
+    "if (app.accessMode === \"restricted\") {\n    return { allowOnboarding: false, allowInvitations: false };",
+    "Restricted apps should deny onboarding and invitation routes.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (app.tenancyMode === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true };",
+    "Public-signup organization apps should allow onboarding and invitations.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (app.tenancyMode === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false };",
+    "Public-signup solo apps should allow onboarding and deny invitations.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (!app) {\n    return { allowOnboarding: false, allowInvitations: false };",
+    "Missing app metadata should fail closed and deny onboarding/invitations.",
+  );
+});
+
+test("disallowed route redirects are explicit and avoid blank fallthrough states", () => {
+  expectIncludes(
+    authProviderSource,
+    "if (app?.accessMode === \"restricted\") {",
+    "Disallowed-route redirect helper should branch explicitly for restricted apps.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "return isSuperAdmin ? \"/dashboard\" : (deniedLoginPath ?? \"/login\");",
+    "Restricted authenticated route denials should redirect super admins to /dashboard and others to login-denied behavior.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "return \"/login\";",
+    "Disallowed unauthenticated routes should redirect to /login.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "if (authStatus === \"authenticated\") {\n    return \"/dashboard\";",
+    "Non-restricted disallowed routes should redirect authenticated users to /dashboard.",
+  );
+});
+
 test("non-super-admin users are blocked from dashboard and deeper routes", () => {
   expectIncludes(
     appSource,
