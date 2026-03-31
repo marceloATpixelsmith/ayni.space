@@ -5,7 +5,7 @@ import { db, usersTable, orgMembershipsTable, organizationsTable } from "@worksp
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie } from "../lib/session.js";
-import { getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
+import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
@@ -81,6 +81,31 @@ function normalizeEmail(value: string | null | undefined): string {
 
 function normalizeAuthIntent(value: unknown): "sign_in" | "create_account" | null {
   if (value === "sign_in" || value === "create_account") return value;
+  return null;
+}
+
+function getAccessDeniedRedirect(frontendBase: string | null): string {
+  if (!frontendBase) return "/login?error=access_denied";
+  return `${frontendBase}/login?error=access_denied`;
+}
+
+function getFrontendBaseForDeny(req: Request, oauthSessionGroup: string): string | null {
+  const oauthReturnTo = req.session.oauthReturnTo;
+  if (typeof oauthReturnTo === "string") {
+    try {
+      const normalized = new URL(oauthReturnTo).origin;
+      if (getAllowedOrigins().includes(normalized)) {
+        return normalized;
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  if (oauthSessionGroup === SESSION_GROUPS.ADMIN) {
+    return getAdminSessionGroupOrigins()[0] ?? null;
+  }
+
   return null;
 }
 
@@ -315,12 +340,16 @@ async function handleGoogleUrl(req: Request, res: Response) {
 }
 
 async function handleGoogleCallback(req: Request, res: Response) {
+  let callbackFrontendBase: string | null = null;
+  let callbackSessionGroup: string | null = null;
+
   const denyWithAccessDenied = async () => {
     const state = firstQueryParam(req.query.state);
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const oauthSessionGroup = req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const frontendBase = callbackFrontendBase ?? getFrontendBaseForDeny(req, oauthSessionGroup);
     await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-    res.redirect("/login?error=access_denied");
+    res.redirect(getAccessDeniedRedirect(frontendBase));
   };
 
   try {
@@ -342,7 +371,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthState;
     const oauthReturnTo = req.session.oauthReturnTo;
     const stateSessionGroup = parseGroupFromOAuthState(state);
-    const oauthSessionGroup = req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    callbackSessionGroup = oauthSessionGroup;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
     delete req.session.oauthReturnTo;
     delete req.session.oauthSessionGroup;
@@ -355,6 +385,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     const frontendBase = oauthReturnTo;
+    callbackFrontendBase = frontendBase;
     const activeAppSlug = resolveActiveAppSlugForAuth(frontendBase, oauthSessionGroup);
     if (!activeAppSlug) {
       await denyWithAccessDenied();
@@ -492,7 +523,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (!effectiveContext?.canAccess) {
       console.log("[auth/google/callback] decision:", { decision: "deny" });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect("/login?error=access_denied");
+      res.redirect(getAccessDeniedRedirect(frontendBase));
       return;
     }
 
