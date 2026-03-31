@@ -311,7 +311,7 @@ test("E: super admin endpoints are super-admin only (no app/subscription depende
 test("Optional: starter tenant/app access checks for ayni + shipibo", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("apps-user")),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "restricted", tenancyMode: "organization", onboardingMode: "enabled" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization", onboardingMode: "required" })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),

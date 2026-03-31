@@ -99,7 +99,7 @@ export function mapGoogleSignInError(
   return payload?.error ?? "Unable to start Google sign-in right now. Please try again.";
 }
 
-export type NormalizedAccessProfile = "superadmin" | "solo_no_onboarding" | "solo_with_onboarding" | "organization";
+export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
 export type AuthRouteKind = "onboarding" | "invitation";
 
 export type PlatformAppMetadata = {
@@ -121,7 +121,7 @@ export function deriveAppAuthRoutePolicy(app: PlatformAppMetadata | null | undef
     return { allowOnboarding: true, allowInvitations: true };
   }
 
-  if (app.normalizedAccessProfile === "solo_with_onboarding") {
+  if (app.normalizedAccessProfile === "solo") {
     return { allowOnboarding: true, allowInvitations: false };
   }
 
@@ -167,8 +167,7 @@ function normalizePlatformAppMetadata(raw: unknown): PlatformAppMetadata | null 
   if (typeof candidate["slug"] !== "string") return null;
   if (
     candidate["normalizedAccessProfile"] !== "superadmin"
-    && candidate["normalizedAccessProfile"] !== "solo_no_onboarding"
-    && candidate["normalizedAccessProfile"] !== "solo_with_onboarding"
+    && candidate["normalizedAccessProfile"] !== "solo"
     && candidate["normalizedAccessProfile"] !== "organization"
   ) return null;
 

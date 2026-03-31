@@ -19,8 +19,7 @@ test("superadmin apps require super-admin even when app entitlement exists", asy
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      tenancyMode: "organization",
-      onboardingMode: "required",
+            onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-non-super",
@@ -64,8 +63,7 @@ test("superadmin apps allow super-admin without org membership/app entitlement",
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      tenancyMode: "organization",
-      onboardingMode: "required",
+            onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-super",
@@ -100,8 +98,7 @@ test("solo mode without onboarding denies invite/onboarding requirement when ent
       slug: "shipibo",
       isActive: true,
       accessMode: "solo",
-      tenancyMode: "solo",
-      onboardingMode: "disabled",
+            onboardingMode: "disabled",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-solo",
@@ -120,7 +117,7 @@ test("solo mode without onboarding denies invite/onboarding requirement when ent
   try {
     const context = await getAppContext("user-solo", "shipibo");
     assert.ok(context);
-    assert.equal(context?.normalizedAccessProfile, "solo_no_onboarding");
+    assert.equal(context?.normalizedAccessProfile, "solo");
     assert.equal(context?.requiredOnboarding, "none");
     assert.equal(context?.canAccess, false);
   } finally {
@@ -135,8 +132,7 @@ test("organization mode requires organization onboarding for non-member user", a
       slug: "ayni",
       isActive: true,
       accessMode: "organization",
-      tenancyMode: "organization",
-      onboardingMode: "required",
+            onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-org",

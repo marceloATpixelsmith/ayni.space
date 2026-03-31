@@ -3,8 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { platform } from "./_schemas";
 
-export const appAccessModeEnum = pgEnum("app_access_mode", ["restricted", "public_signup"]);
-export const appTenancyModeEnum = pgEnum("app_tenancy_mode", ["none", "organization", "solo"]);
+export const appAccessModeEnum = pgEnum("app_access_mode", ["superadmin", "solo", "organization"]);
 export const appOnboardingModeEnum = pgEnum("app_onboarding_mode", ["disabled", "required", "light"]);
 export const accessStatusEnum = pgEnum("access_status", ["pending", "active", "revoked", "suspended"]);
 
@@ -17,10 +16,8 @@ export const appsTable = platform.table(
     slug: text("slug").notNull().unique(),
     description: text("description"),
     iconUrl: text("icon_url"),
-    accessMode: appAccessModeEnum("access_mode").notNull().default("public_signup"),
-    tenancyMode: appTenancyModeEnum("tenancy_mode").notNull().default("organization"),
+    accessMode: appAccessModeEnum("access_mode").notNull().default("organization"),
     onboardingMode: appOnboardingModeEnum("onboarding_mode").notNull().default("required"),
-    invitesAllowed: boolean("invites_allowed").notNull().default(false),
     isActive: boolean("is_active").notNull().default(true),
     metadata: jsonb("metadata").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

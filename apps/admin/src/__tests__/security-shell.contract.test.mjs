@@ -79,7 +79,7 @@ test("shared route policy enforces normalized access-profile onboarding and invi
 
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"solo_with_onboarding\") {\n    return { allowOnboarding: true, allowInvitations: false };",
+    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false };",
     "Solo onboarding profile should allow onboarding and deny invitation routes.",
   );
 
@@ -94,7 +94,7 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
   expectIncludes(
     authProviderSource,
     "if (app?.normalizedAccessProfile === \"superadmin\") {",
-    "Disallowed-route redirect helper should branch explicitly for restricted apps.",
+    "Disallowed-route redirect helper should branch explicitly for superadmin-only apps.",
   );
 
   expectIncludes(
@@ -112,7 +112,7 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
   expectIncludes(
     authProviderSource,
     "if (authStatus === \"authenticated\") {\n    return \"/dashboard\";",
-    "Non-restricted disallowed routes should redirect authenticated users to /dashboard.",
+    "Non-superadmin-profile disallowed routes should redirect authenticated users to /dashboard.",
   );
 });
 
@@ -239,7 +239,7 @@ test("login screen has stable inline access-denied message state", () => {
   );
 });
 
-test("restricted access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
+test("superadmin access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
   expectIncludes(
     loginSource,
     "if (auth.status !== \"authenticated\") return;",

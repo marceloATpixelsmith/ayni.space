@@ -4,7 +4,7 @@
 - This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
-- App authorization and auth-route gating now use one normalized profile resolver derived from `platform.apps` (`superadmin`, `solo_no_onboarding`, `solo_with_onboarding`, `organization`) in `apps/api-server/src/lib/appAccessProfile.ts` and backend context assembly in `apps/api-server/src/lib/appAccess.ts`.
+- App authorization and auth-route gating now use one normalized profile resolver derived from `platform.apps` (`superadmin`, `solo`, `organization`) in `apps/api-server/src/lib/appAccessProfile.ts` and backend context assembly in `apps/api-server/src/lib/appAccess.ts`.
 - Frontend auth route gating now consumes backend-derived `normalizedAccessProfile` metadata via `lib/frontend-security/src/index.tsx` instead of reinterpreting legacy raw fields.
 
 - Authorization is middleware-driven in API routes:
