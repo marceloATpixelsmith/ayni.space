@@ -377,7 +377,21 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    const app = await getAppBySlug(activeAppSlug);
+    let app = null as Awaited<ReturnType<typeof getAppBySlug>>;
+    try {
+      app = await getAppBySlug(activeAppSlug);
+    } catch (error) {
+      if (activeAppSlug === "admin") {
+        console.warn("[auth/google/callback] app lookup failed; using fail-closed admin fallback", {
+          oauthSessionGroup,
+          frontendBase,
+          error,
+        });
+      } else {
+        throw error;
+      }
+    }
+
     const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : (activeAppSlug === "admin" ? "superadmin" : null);
     const isSuperadminAccessMode = normalizedAccessProfile === "superadmin";
 
