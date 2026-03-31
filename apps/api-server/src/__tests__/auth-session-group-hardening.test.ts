@@ -53,6 +53,13 @@ function stubDbForCallback(isSuperAdmin: boolean) {
   };
 
   return [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      onboardingMode: "disabled",
+    })),
     patchProperty(db.query.usersTable, "findFirst", async () => user),
     patchProperty(db, "update", () => ({
       set: () => ({
@@ -60,6 +67,70 @@ function stubDbForCallback(isSuperAdmin: boolean) {
       })
     }) as never),
   ];
+}
+
+function stubDbForCallbackSequence(options: {
+  bySubjectUser: any | null;
+  byEmailUser: any | null;
+  updateReturnsUser?: any | null;
+  isSuperadminApp?: boolean;
+}) {
+  const lookupCalls: string[] = [];
+  const insertedRows: Array<Record<string, unknown>> = [];
+  const updatedSets: Array<Record<string, unknown>> = [];
+  const updatedWhereIds: Array<string> = [];
+  let userLookupCount = 0;
+
+  const restore = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: options.isSuperadminApp === false ? "organization" : "superadmin",
+      onboardingMode: "disabled",
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async (query: any) => {
+      userLookupCount += 1;
+      if (userLookupCount === 1) {
+        lookupCalls.push("subject");
+        return options.bySubjectUser;
+      }
+      if (userLookupCount === 2) {
+        lookupCalls.push("email");
+        return options.byEmailUser;
+      }
+      return options.bySubjectUser ?? options.byEmailUser;
+    }),
+    patchProperty(db, "update", () => ({
+      set: (values: Record<string, unknown>) => {
+        updatedSets.push(values);
+        return {
+          where: (clause: any) => ({
+            returning: async () => {
+              updatedWhereIds.push(String(clause));
+              return options.updateReturnsUser ? [options.updateReturnsUser] : [];
+            },
+            then: async (resolve: (value: unknown) => unknown) => resolve({}),
+          }),
+        };
+      },
+    }) as never),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (row: Record<string, unknown>) => {
+        if ("email" in row && "isSuperAdmin" in row) {
+          insertedRows.push(row);
+          return {
+            returning: async () => [{ id: "created-user", ...row }],
+          };
+        }
+        return {
+          catch: () => undefined,
+        };
+      },
+    }) as never),
+  ];
+
+  return { restore, lookupCalls, insertedRows, updatedSets, updatedWhereIds };
 }
 
 test("session-group resolver maps admin and default origins", () => {
@@ -127,6 +198,122 @@ test("non-super-admin oauth callback in admin group is denied and only admin coo
     const setCookie = response.headers.get("set-cookie") ?? "";
     assert.match(setCookie, new RegExp(`${sessionLib.getSessionCookieName("admin")}=;`, "i"));
     assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("pre-provisioned superadmin with null google_subject binds successfully on first login", async () => {
+  const existingUser = {
+    id: "super-user",
+    email: "super@example.com",
+    name: "Super User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: true,
+    googleSubject: null,
+  };
+  const boundUser = { ...existingUser, googleSubject: "google-super-sub" };
+
+  const { restore, lookupCalls, insertedRows, updatedSets } = stubDbForCallbackSequence({
+    bySubjectUser: null,
+    byEmailUser: existingUser,
+    updateReturnsUser: boundUser,
+  });
+  restore.unshift(
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-super-sub",
+      email: "SUPER@example.com",
+      name: "Super",
+    })),
+  );
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
+    assert.deepEqual(lookupCalls, ["subject", "email"]);
+    assert.equal(insertedRows.length, 0);
+    assert.equal(updatedSets.some((values) => values.googleSubject === "google-super-sub"), true);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("pre-provisioned non-superadmin is denied in superadmin mode", async () => {
+  const existingUser = {
+    id: "non-super-user",
+    email: "user@example.com",
+    name: "User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: null,
+  };
+  const boundUser = { ...existingUser, googleSubject: "google-user-sub" };
+  const { restore, lookupCalls, insertedRows } = stubDbForCallbackSequence({
+    bySubjectUser: null,
+    byEmailUser: existingUser,
+    updateReturnsUser: boundUser,
+  });
+  restore.unshift(
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-user-sub",
+      email: "user@example.com",
+      name: "User",
+    })),
+  );
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+      destroy: (cb?: (err?: unknown) => void) => cb?.(),
+    });
+
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
+    assert.deepEqual(lookupCalls, ["subject", "email"]);
+    assert.equal(insertedRows.length, 0);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("unknown user in superadmin mode is denied without creating a user row", async () => {
+  const { restore, lookupCalls, insertedRows } = stubDbForCallbackSequence({
+    bySubjectUser: null,
+    byEmailUser: null,
+  });
+  restore.unshift(
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "unknown-sub",
+      email: "unknown@example.com",
+      name: "Unknown",
+    })),
+  );
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+      destroy: (cb?: (err?: unknown) => void) => cb?.(),
+    });
+
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
+    assert.deepEqual(lookupCalls, ["subject", "email"]);
+    assert.equal(insertedRows.length, 0);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
