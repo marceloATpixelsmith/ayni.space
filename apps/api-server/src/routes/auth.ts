@@ -431,7 +431,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       appFound: Boolean(app),
       appId: app?.id ?? null,
       accessMode: app?.accessMode ?? null,
-      tenancyMode: app?.tenancyMode ?? null,
+      onboardingMode: app?.onboardingMode ?? null,
     });
 
     await new Promise((resolve, reject) => {
