@@ -203,6 +203,41 @@ test("non-super-admin oauth callback in admin group is denied and only admin coo
   }
 });
 
+test("non-super-admin admin callback fails closed when admin app lookup is unavailable", async () => {
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "user@example.com", name: "User" })),
+    ...stubDbForCallback(false),
+    patchProperty(db.query.appsTable, "findFirst", async () => {
+      throw new Error("ECONNREFUSED");
+    }),
+  ];
+
+  let destroyedAdminSession = false;
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+      destroy: (cb?: (err?: unknown) => void) => {
+        destroyedAdminSession = true;
+        cb?.();
+      },
+    });
+
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
+    assert.equal(destroyedAdminSession, true);
+
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    assert.match(setCookie, new RegExp(`${sessionLib.getSessionCookieName("admin")}=;`, "i"));
+    assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
 test("pre-provisioned superadmin with null google_subject binds successfully on first login", async () => {
   const existingUser = {
     id: "super-user",
