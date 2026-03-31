@@ -13,6 +13,7 @@
 
 import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable } from "@workspace/db";
 import { randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
 import { addDays } from "./seedHelpers.js";
 
 async function seed() {
@@ -36,9 +37,9 @@ async function seed() {
   const adminAppId = "admin";
 
   await db.insert(appsTable).values([
-    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "restricted", tenancyMode: "none", onboardingMode: "disabled", invitesAllowed: false, isActive: true },
-    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "public_signup", tenancyMode: "solo", onboardingMode: "light", invitesAllowed: false, isActive: true },
-    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "public_signup", tenancyMode: "organization", onboardingMode: "required", invitesAllowed: true, isActive: true },
+    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "superadmin", onboardingMode: "disabled", isActive: true },
+    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "solo", onboardingMode: "light", isActive: true },
+    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "organization", onboardingMode: "required", isActive: true },
   ]).onConflictDoNothing();
 
   // ── APP PLANS ──────────────────────────────────────────────────────────────
@@ -261,9 +262,6 @@ async function seed() {
   console.log("  Invited user:  invited@example.com (pending)");
   process.exit(0);
 }
-
-// Import eq here (needed for update)
-import { eq } from "drizzle-orm";
 
 seed().catch((err) => {
   console.error("❌ Seed failed:", err);
