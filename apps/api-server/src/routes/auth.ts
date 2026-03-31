@@ -400,26 +400,35 @@ async function handleGoogleCallback(req: Request, res: Response) {
       : null;
     const userMatchedBySubject = user?.id ?? null;
     console.info("[auth/google/callback] user matched by google_subject", {
+      matchedBySubject: Boolean(userMatchedBySubject),
       callbackGoogleSubject,
       userId: userMatchedBySubject,
     });
 
     let userMatchedByEmailId: string | null = null;
     let googleSubjectUpdateExecuted = false;
+    let googleSubjectUpdateRowsAffected = 0;
+    let existingGoogleSubjectBeforeUpdate: string | null = null;
+    let googleSubjectAfterReread: string | null = null;
+    let finalAuthorizationUserId: string | null = null;
     if (!user) {
       const existingByEmail = callbackEmail
         ? await db.query.usersTable.findFirst({ where: eq(usersTable.email, callbackEmail) })
         : null;
       userMatchedByEmailId = existingByEmail?.id ?? null;
+      existingGoogleSubjectBeforeUpdate = existingByEmail?.googleSubject ?? null;
 
       console.info("[auth/google/callback] user matched by email", {
+        matchedByEmail: Boolean(userMatchedByEmailId),
         callbackEmail,
         userId: userMatchedByEmailId,
+        existingGoogleSubjectBeforeUpdate,
       });
 
       if (existingByEmail) {
         if (!existingByEmail.googleSubject && callbackGoogleSubject) {
-          const [updated] = await db
+          googleSubjectUpdateExecuted = true;
+          const updatedRows = await db
             .update(usersTable)
             .set({
               googleSubject: callbackGoogleSubject,
@@ -428,10 +437,25 @@ async function handleGoogleCallback(req: Request, res: Response) {
             })
             .where(eq(usersTable.id, existingByEmail.id))
             .returning();
-          user = updated;
-          googleSubjectUpdateExecuted = true;
+          googleSubjectUpdateRowsAffected = updatedRows.length;
+          console.info("[auth/google/callback] google_subject bind update result", {
+            callbackEmail,
+            callbackGoogleSubject,
+            targetUserId: existingByEmail.id,
+            rowsAffected: googleSubjectUpdateRowsAffected,
+          });
+
+          user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, existingByEmail.id) }) ?? null;
+          googleSubjectAfterReread = user?.googleSubject ?? null;
+          console.info("[auth/google/callback] google_subject after bind re-read", {
+            callbackEmail,
+            callbackGoogleSubject,
+            userId: user?.id ?? null,
+            googleSubjectAfterReread,
+          });
         } else {
           user = existingByEmail;
+          googleSubjectAfterReread = user.googleSubject ?? null;
         }
       } else {
         if (isSuperadminAccessMode) {
@@ -457,6 +481,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
           })
           .returning();
         user = created;
+        googleSubjectAfterReread = user.googleSubject ?? null;
 
         writeAuditLog({
           userId: user.id,
@@ -468,6 +493,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         });
       }
     } else {
+      googleSubjectAfterReread = user.googleSubject ?? null;
       await db
         .update(usersTable)
         .set({
@@ -479,6 +505,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     console.info("[auth/google/callback] google_subject update executed", {
       executed: googleSubjectUpdateExecuted,
+      rowsAffected: googleSubjectUpdateRowsAffected,
       callbackGoogleSubject,
       callbackEmail,
     });
@@ -488,10 +515,12 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
+    finalAuthorizationUserId = user.id;
     console.info("[auth/google/callback] final row selected for authorization", {
-      finalUserId: user.id,
+      finalUserId: finalAuthorizationUserId,
       matchedBySubjectUserId: userMatchedBySubject,
       matchedByEmailUserId: userMatchedByEmailId,
+      googleSubjectAfterReread,
     });
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
@@ -537,7 +566,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         oauthSessionGroup,
       });
       console.info("[auth/google/callback] final access decision", {
-        finalUserId: user.id,
+        finalUserId: finalAuthorizationUserId,
         decision: "deny",
         reason: "policy_denied",
       });
@@ -547,7 +576,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     console.info("[auth/google/callback] final access decision", {
-      finalUserId: user.id,
+      finalUserId: finalAuthorizationUserId,
       decision: "allow",
       appSlug: activeAppSlug,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
