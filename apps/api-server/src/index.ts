@@ -1,3 +1,4 @@
+import { runMigrations } from "@workspace/db";
 import { initSentry } from "./middlewares/observability.js";
 
 // Deployment marker: intentionally no-op change to exercise api-server rollout.
@@ -44,6 +45,10 @@ async function startServer() {
 
   validateDatabaseUrl(process.env["DATABASE_URL"]);
   console.info("[startup] DATABASE_URL format check passed.");
+
+  console.info("[startup] Running database migrations...");
+  await runMigrations();
+  console.info("[startup] Database migrations are up to date.");
 
   console.info("[startup] Ensuring session store infrastructure...");
   const { ensureSessionStoreInfrastructure } = await import("./lib/session.js");
