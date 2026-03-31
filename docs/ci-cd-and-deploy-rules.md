@@ -48,7 +48,7 @@
 - Mark `auth-security-regression-suite` as a required status check in GitHub branch protection for `master`.
 
 ## Backend deploy migration flow (Render)
-- Backend runtime startup in `apps/api-server/src/index.ts` now runs Drizzle migrations before session-store checks and before the HTTP listener starts.
-- Migration execution is centralized in `@workspace/db` (`lib/db/src/migrate.ts`) and uses Drizzle's migration table tracking (`drizzle-orm/node-postgres/migrator`) against `lib/db/migrations`.
-- `@workspace/db` exposes `pnpm --filter @workspace/db run migrate` for explicit automation hooks, but Render deploys do not require manual terminal execution because startup performs this automatically.
+- Render pre-deploy is the primary migration mechanism and should run `pnpm --filter @workspace/db run migrate` before API startup.
+- API startup in `apps/api-server/src/index.ts` intentionally does **not** execute database migrations; it logs that migration execution is handled by Render pre-deploy, then proceeds with startup validation and session-store infrastructure checks.
+- Migration execution remains centralized in `@workspace/db` (`lib/db/src/migrate.ts`) and uses Drizzle's migration table tracking (`drizzle-orm/node-postgres/migrator`) against `lib/db/migrations`.
 - Because Drizzle tracks applied files in the database, each migration is applied once per database and skipped on subsequent deploys.
