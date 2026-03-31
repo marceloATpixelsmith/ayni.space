@@ -377,7 +377,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    let app = null as Awaited<ReturnType<typeof getAppBySlug>>;
+    let app: Awaited<ReturnType<typeof getAppBySlug>> = undefined;
     try {
       app = await getAppBySlug(activeAppSlug);
     } catch (error) {
