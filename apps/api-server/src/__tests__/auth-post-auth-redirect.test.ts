@@ -32,7 +32,7 @@ test("authorized callback destination remains dashboard when onboarding not requ
 
   assert.equal(getPostAuthRedirectPath({
     isSuperAdmin: false,
-    normalizedAccessProfile: "solo_no_onboarding",
+    normalizedAccessProfile: "solo",
     requiredOnboarding: "none",
   }), "/dashboard");
 });

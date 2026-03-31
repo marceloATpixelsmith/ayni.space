@@ -27,7 +27,7 @@ export async function getAppContext(userId: string, appSlug: string) {
 
   const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
   if (!normalizedAccessProfile) {
-    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode, tenancyMode: app.tenancyMode });
+    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode });
     return null;
   }
 
@@ -61,11 +61,11 @@ export async function getAppContext(userId: string, appSlug: string) {
   } else if (normalizedAccessProfile === "organization") {
     canAccess = hasActiveMembership || hasActiveAppAccess;
     if (!canAccess) requiredOnboarding = "organization";
-  } else if (normalizedAccessProfile === "solo_with_onboarding") {
+  } else if (normalizedAccessProfile === "solo") {
     canAccess = hasActiveAppAccess;
-    if (!canAccess) requiredOnboarding = "solo";
+    if (!canAccess && app.onboardingMode !== "disabled") requiredOnboarding = "solo";
   } else {
-    canAccess = hasActiveAppAccess;
+    return null;
   }
 
   const defaultRoute = requiredOnboarding === "organization"
@@ -81,7 +81,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     activeOrg,
     orgMembership,
     normalizedAccessProfile,
-    authRoutePolicy: getAuthRoutePolicyForProfile(normalizedAccessProfile),
+    authRoutePolicy: getAuthRoutePolicyForProfile(normalizedAccessProfile, app.onboardingMode),
     requiredOnboarding,
     canAccess,
     defaultRoute,
