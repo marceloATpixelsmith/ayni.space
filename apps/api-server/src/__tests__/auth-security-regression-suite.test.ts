@@ -152,6 +152,53 @@ test("PART 3: non-super-admin admin login denial redirects and only clears admin
   }
 });
 
+test("PART 3B: admin callback app-context outage fails closed with redirect (no 500) and admin-only cookie clear", async () => {
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "user@example.com", name: "User" })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "regular-user",
+      email: "user@example.com",
+      name: "User",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      googleSubject: "sub",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => {
+      throw new Error("ECONNREFUSED");
+    }),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  let adminDestroyed = false;
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "admin.valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+      destroy: (cb?: (err?: unknown) => void) => {
+        adminDestroyed = true;
+        cb?.();
+      },
+    });
+
+    const resp = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state");
+    assert.equal(resp.status, 302);
+    assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
+    assert.equal(adminDestroyed, true);
+
+    const setCookie = resp.headers.get("set-cookie") ?? "";
+    assert.match(setCookie, /saas\.admin\.sid=;/i);
+    assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
+  } finally {
+    restore.reverse().forEach((undo) => undo());
+  }
+});
+
 test("PART 4+5: group-scoped logout clears only target cookie and invalidates session", async () => {
   const state: { session: any | null } = {
     session: {

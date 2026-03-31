@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
@@ -343,6 +343,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
     const callbackEmail = normalizeEmail(googleUser.email);
     const callbackGoogleSubject = googleUser.sub?.trim() ?? "";
+    const callbackDiagnostics = {
+      callbackEmail,
+      callbackGoogleSubject,
+      matchedBySubject: false,
+      matchedByEmail: false,
+      matchedRowId: null as string | null,
+      matchedRowGoogleSubjectBeforeUpdate: null as string | null,
+      bindUpdateExecuted: false,
+      bindUpdateRowsAffected: 0,
+      googleSubjectAfterResolvedBind: null as string | null,
+      finalAuthorizationRowId: null as string | null,
+      finalAccessDecision: "pending" as "pending" | "allow" | "deny",
+      adminFailClosedFallbackUsed: false,
+    };
 
     console.info("[auth/google/callback] identity received", {
       callbackEmail,
@@ -371,7 +385,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const activeAppSlug = resolveActiveAppSlugForAuth(frontendBase, oauthSessionGroup);
 
     if (!activeAppSlug) {
+      callbackDiagnostics.finalAccessDecision = "deny";
       console.warn("[auth/google/callback] active app slug resolution failed", { frontendBase, oauthSessionGroup });
+      console.info("[auth/google/callback] diagnostics", callbackDiagnostics);
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(`${frontendBase}/login?error=access_denied`);
       return;
@@ -382,6 +398,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       app = await getAppBySlug(activeAppSlug);
     } catch (error) {
       if (activeAppSlug === "admin") {
+        callbackDiagnostics.adminFailClosedFallbackUsed = true;
         console.warn("[auth/google/callback] app lookup failed; using fail-closed admin fallback", {
           oauthSessionGroup,
           frontendBase,
@@ -399,6 +416,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
       ? await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, callbackGoogleSubject) })
       : null;
     const userMatchedBySubject = user?.id ?? null;
+    callbackDiagnostics.matchedBySubject = Boolean(userMatchedBySubject);
+    callbackDiagnostics.matchedRowId = userMatchedBySubject;
+    callbackDiagnostics.matchedRowGoogleSubjectBeforeUpdate = user?.googleSubject ?? null;
     console.info("[auth/google/callback] user matched by google_subject", {
       matchedBySubject: Boolean(userMatchedBySubject),
       callbackGoogleSubject,
@@ -417,6 +437,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
         : null;
       userMatchedByEmailId = existingByEmail?.id ?? null;
       existingGoogleSubjectBeforeUpdate = existingByEmail?.googleSubject ?? null;
+      callbackDiagnostics.matchedByEmail = Boolean(userMatchedByEmailId);
+      if (!callbackDiagnostics.matchedRowId) {
+        callbackDiagnostics.matchedRowId = userMatchedByEmailId;
+        callbackDiagnostics.matchedRowGoogleSubjectBeforeUpdate = existingGoogleSubjectBeforeUpdate;
+      }
 
       console.info("[auth/google/callback] user matched by email", {
         matchedByEmail: Boolean(userMatchedByEmailId),
@@ -428,6 +453,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       if (existingByEmail) {
         if (!existingByEmail.googleSubject && callbackGoogleSubject) {
           googleSubjectUpdateExecuted = true;
+          callbackDiagnostics.bindUpdateExecuted = true;
           const updatedRows = await db
             .update(usersTable)
             .set({
@@ -435,9 +461,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
               avatarUrl: googleUser.picture ?? existingByEmail.avatarUrl,
               name: existingByEmail.name ?? googleUser.name ?? null,
             })
-            .where(eq(usersTable.id, existingByEmail.id))
+            .where(and(eq(usersTable.id, existingByEmail.id), isNull(usersTable.googleSubject)))
             .returning();
           googleSubjectUpdateRowsAffected = updatedRows.length;
+          callbackDiagnostics.bindUpdateRowsAffected = googleSubjectUpdateRowsAffected;
           console.info("[auth/google/callback] google_subject bind update result", {
             callbackEmail,
             callbackGoogleSubject,
@@ -445,8 +472,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
             rowsAffected: googleSubjectUpdateRowsAffected,
           });
 
-          user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, existingByEmail.id) }) ?? null;
+          user = updatedRows[0] ?? await db.query.usersTable.findFirst({ where: eq(usersTable.id, existingByEmail.id) }) ?? null;
           googleSubjectAfterReread = user?.googleSubject ?? null;
+          callbackDiagnostics.googleSubjectAfterResolvedBind = googleSubjectAfterReread;
           console.info("[auth/google/callback] google_subject after bind re-read", {
             callbackEmail,
             callbackGoogleSubject,
@@ -456,14 +484,17 @@ async function handleGoogleCallback(req: Request, res: Response) {
         } else {
           user = existingByEmail;
           googleSubjectAfterReread = user.googleSubject ?? null;
+          callbackDiagnostics.googleSubjectAfterResolvedBind = googleSubjectAfterReread;
         }
       } else {
         if (isSuperadminAccessMode) {
+          callbackDiagnostics.finalAccessDecision = "deny";
           console.info("[auth/google/callback] superadmin mode denied unknown identity", {
             callbackEmail,
             callbackGoogleSubject,
             oauthSessionGroup,
           });
+          console.info("[auth/google/callback] diagnostics", callbackDiagnostics);
           await destroySessionAndClearCookie(req, res, oauthSessionGroup);
           res.redirect(`${frontendBase}/login?error=access_denied`);
           return;
@@ -482,6 +513,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
           .returning();
         user = created;
         googleSubjectAfterReread = user.googleSubject ?? null;
+        callbackDiagnostics.googleSubjectAfterResolvedBind = googleSubjectAfterReread;
 
         writeAuditLog({
           userId: user.id,
@@ -494,6 +526,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       }
     } else {
       googleSubjectAfterReread = user.googleSubject ?? null;
+      callbackDiagnostics.googleSubjectAfterResolvedBind = googleSubjectAfterReread;
       await db
         .update(usersTable)
         .set({
@@ -516,6 +549,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     finalAuthorizationUserId = user.id;
+    callbackDiagnostics.finalAuthorizationRowId = finalAuthorizationUserId;
+    callbackDiagnostics.googleSubjectAfterResolvedBind = user.googleSubject ?? null;
     console.info("[auth/google/callback] final row selected for authorization", {
       finalUserId: finalAuthorizationUserId,
       matchedBySubjectUserId: userMatchedBySubject,
@@ -544,6 +579,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       appContext = await getAppContext(user.id, activeAppSlug);
     } catch (error) {
       if (activeAppSlug === "admin") {
+        callbackDiagnostics.adminFailClosedFallbackUsed = true;
         console.warn("[auth/google/callback] app-context lookup failed; using fail-closed admin fallback", { oauthSessionGroup, frontendBase, error });
       } else {
         throw error;
@@ -559,6 +595,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       : null);
 
     if (!effectiveContext?.canAccess) {
+      callbackDiagnostics.finalAccessDecision = "deny";
       console.info("[auth/google/callback] access denied by normalized app policy", {
         userId: user.id,
         appSlug: activeAppSlug,
@@ -570,17 +607,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
         decision: "deny",
         reason: "policy_denied",
       });
+      console.info("[auth/google/callback] diagnostics", callbackDiagnostics);
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(`${frontendBase}/login?error=access_denied`);
       return;
     }
 
+    callbackDiagnostics.finalAccessDecision = "allow";
     console.info("[auth/google/callback] final access decision", {
       finalUserId: finalAuthorizationUserId,
       decision: "allow",
       appSlug: activeAppSlug,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
     });
+    console.info("[auth/google/callback] diagnostics", callbackDiagnostics);
 
     const destination = getPostAuthRedirectPath({
       isSuperAdmin: user.isSuperAdmin,
