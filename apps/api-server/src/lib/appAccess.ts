@@ -27,7 +27,7 @@ export async function getAppContext(userId: string, appSlug: string) {
 
   const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
   if (!normalizedAccessProfile) {
-    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode, tenancyMode: app.tenancyMode });
+    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode });
     return null;
   }
 

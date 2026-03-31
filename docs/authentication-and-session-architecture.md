@@ -32,7 +32,7 @@
 ## Unclear
 - Full login method matrix and provider roadmap beyond current backend auth implementation.
 - Whether any additional frontend shells (beyond admin) will share the same auth provider behavior.
-- Whether future apps will require additional restricted session groups beyond `admin`.
+- Whether future apps will require additional session groups beyond `admin`.
 
 ## Intentional remaining gaps
 - Session anomaly handling is currently observational (audit signal) and does not enforce adaptive/risk-based re-authentication.

@@ -36,9 +36,9 @@ async function seed() {
   const adminAppId = "admin";
 
   await db.insert(appsTable).values([
-    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "restricted", tenancyMode: "none", onboardingMode: "disabled", invitesAllowed: false, isActive: true },
-    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "public_signup", tenancyMode: "solo", onboardingMode: "light", invitesAllowed: false, isActive: true },
-    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "public_signup", tenancyMode: "organization", onboardingMode: "required", invitesAllowed: true, isActive: true },
+    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "superadmin", onboardingMode: "disabled", isActive: true },
+    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "solo", onboardingMode: "light", isActive: true },
+    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "organization", onboardingMode: "required", isActive: true },
   ]).onConflictDoNothing();
 
   // ── APP PLANS ──────────────────────────────────────────────────────────────

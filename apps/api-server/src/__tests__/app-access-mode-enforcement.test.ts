@@ -19,7 +19,6 @@ test("superadmin apps require super-admin even when app entitlement exists", asy
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      tenancyMode: "organization",
       onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
@@ -64,7 +63,6 @@ test("superadmin apps allow super-admin without org membership/app entitlement",
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      tenancyMode: "organization",
       onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
@@ -100,7 +98,6 @@ test("solo mode without onboarding denies invite/onboarding requirement when ent
       slug: "shipibo",
       isActive: true,
       accessMode: "solo",
-      tenancyMode: "solo",
       onboardingMode: "disabled",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
@@ -135,7 +132,6 @@ test("organization mode requires organization onboarding for non-member user", a
       slug: "ayni",
       isActive: true,
       accessMode: "organization",
-      tenancyMode: "organization",
       onboardingMode: "required",
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({

@@ -94,7 +94,7 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
   expectIncludes(
     authProviderSource,
     "if (app?.normalizedAccessProfile === \"superadmin\") {",
-    "Disallowed-route redirect helper should branch explicitly for restricted apps.",
+    "Disallowed-route redirect helper should branch explicitly for superadmin apps.",
   );
 
   expectIncludes(
@@ -112,7 +112,7 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
   expectIncludes(
     authProviderSource,
     "if (authStatus === \"authenticated\") {\n    return \"/dashboard\";",
-    "Non-restricted disallowed routes should redirect authenticated users to /dashboard.",
+    "Non-superadmin disallowed routes should redirect authenticated users to /dashboard.",
   );
 });
 
@@ -239,7 +239,7 @@ test("login screen has stable inline access-denied message state", () => {
   );
 });
 
-test("restricted access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
+test("superadmin access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
   expectIncludes(
     loginSource,
     "if (auth.status !== \"authenticated\") return;",

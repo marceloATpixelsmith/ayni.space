@@ -3,16 +3,15 @@ import type { App } from "@workspace/db";
 export type NormalizedAccessProfile = "superadmin" | "solo_no_onboarding" | "solo_with_onboarding" | "organization";
 
 function asBooleanish(value: unknown): boolean | null {
-  if (typeof value === "boolean") return value;
-  if (value === "required" || value === "light" || value === "enabled" || value === "true") return true;
-  if (value === "disabled" || value === "false") return false;
+  if (value === "required" || value === "light") return true;
+  if (value === "disabled") return false;
   return null;
 }
 
-export function resolveNormalizedAccessProfile(app: Pick<App, "slug" | "accessMode" | "onboardingMode" | "tenancyMode">): NormalizedAccessProfile | null {
+export function resolveNormalizedAccessProfile(app: Pick<App, "slug" | "accessMode" | "onboardingMode">): NormalizedAccessProfile | null {
   const accessMode = String(app.accessMode);
 
-  if (accessMode === "superadmin" || accessMode === "restricted") {
+  if (accessMode === "superadmin") {
     return "superadmin";
   }
 
@@ -24,16 +23,6 @@ export function resolveNormalizedAccessProfile(app: Pick<App, "slug" | "accessMo
     const onboardingEnabled = asBooleanish(app.onboardingMode);
     if (onboardingEnabled === null) return null;
     return onboardingEnabled ? "solo_with_onboarding" : "solo_no_onboarding";
-  }
-
-  if (accessMode === "public_signup") {
-    if (app.tenancyMode === "organization") return "organization";
-    if (app.tenancyMode === "solo") {
-      const onboardingEnabled = asBooleanish(app.onboardingMode);
-      if (onboardingEnabled === null) return null;
-      return onboardingEnabled ? "solo_with_onboarding" : "solo_no_onboarding";
-    }
-    return null;
   }
 
   return null;
