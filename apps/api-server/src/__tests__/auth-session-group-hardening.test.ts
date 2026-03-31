@@ -18,6 +18,8 @@ const { default: authRouter } = await import("../routes/auth.js");
 const { authRouteDeps } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
+const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const { default: adminRouter } = await import("../routes/admin.js");
 
 async function request(
   app: ReturnType<typeof createMountedSessionApp>,
@@ -351,6 +353,123 @@ test("unknown user in superadmin mode is denied without creating a user row", as
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("second login matches by subject directly for pre-provisioned superadmin", async () => {
+  const subjectUser = {
+    id: "super-user",
+    email: "super@example.com",
+    name: "Super User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: true,
+    googleSubject: "google-super-sub",
+    active: true,
+    suspended: false,
+  };
+
+  const { restore, lookupCalls, insertedRows, updatedSets } = stubDbForCallbackSequence({
+    bySubjectUser: subjectUser,
+    byEmailUser: null,
+    updateReturnsUser: null,
+  });
+  restore.unshift(
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-super-sub",
+      email: "super@example.com",
+      name: "Super",
+    })),
+  );
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
+    assert.equal(lookupCalls[0], "subject");
+    assert.equal(insertedRows.length, 0);
+    assert.equal(updatedSets.some((values) => values.googleSubject === "google-super-sub"), false);
+    assert.equal(updatedSets.some((values) => values.lastLoginAt instanceof Date), true);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("superadmin callback + downstream admin check emit trace checkpoints and allow protected route", async () => {
+  const logs: unknown[][] = [];
+  const superUser = {
+    id: "super-user",
+    email: "super@example.com",
+    name: "Super User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: true,
+    googleSubject: "sub",
+    active: true,
+    suspended: false,
+  };
+  const restore: Array<() => void> = [
+    patchProperty(console, "log", (...args: unknown[]) => {
+      logs.push(args);
+    }),
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "super@example.com", name: "Super" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      onboardingMode: "disabled",
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => superUser),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      })
+    }) as never),
+    patchProperty(db, "select", () => ({
+      from: async () => [{ count: 1 }],
+    }) as never),
+  ];
+
+  try {
+    const authApp = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: "valid-state",
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+    });
+
+    const callbackResponse = await request(authApp, "/api/auth/google/callback?code=ok&state=valid-state");
+    assert.equal(callbackResponse.status, 302);
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/dashboard");
+
+    const adminApp = createMountedSessionApp([], {
+      userId: "super-user",
+      sessionGroup: "admin",
+    });
+    adminApp.use(createSecurityEnforcementMiddleware());
+    adminApp.use("/api/admin", adminRouter);
+    const adminResponse = await request(adminApp, "/api/admin/stats");
+    assert.equal(adminResponse.status, 200);
+
+    const traceLogs = logs
+      .filter((entry) => typeof entry[0] === "string" && entry[0].includes("[SUPERADMIN-AUTH-TRACE]"))
+      .map((entry) => String(entry[0]));
+    assert.equal(traceLogs.some((line) => line.includes("A. CALLBACK ENTRY")), true);
+    assert.equal(traceLogs.some((line) => line.includes("B. APP LOOKUP RESULT")), true);
+    assert.equal(traceLogs.some((line) => line.includes("C. SUBJECT LOOKUP RESULT")), true);
+    assert.equal(traceLogs.some((line) => line.includes("G. FINAL USER CHOSEN FOR AUTH")), true);
+    assert.equal(traceLogs.some((line) => line.includes("H. ACCESS PROFILE DECISION")), true);
+    assert.equal(traceLogs.some((line) => line.includes("I. SESSION WRITE")), true);
+    assert.equal(traceLogs.some((line) => line.includes("J. CALLBACK EXIT")), true);
+    assert.equal(traceLogs.some((line) => line.includes("K. FIRST AUTHENTICATED ADMIN CHECK")), true);
   } finally {
     for (const undo of restore.reverse()) undo();
   }

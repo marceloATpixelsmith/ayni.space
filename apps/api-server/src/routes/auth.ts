@@ -13,6 +13,7 @@ import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificat
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 
 const router = Router();
+const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
 
 export const authRouteDeps = {
   exchangeCodeForUserFn: exchangeCodeForUser,
@@ -76,6 +77,10 @@ function firstQueryParam(value: unknown): string | undefined {
 
 function normalizeEmail(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
+}
+
+function logSuperadminTrace(checkpoint: string, payload: Record<string, unknown>) {
+  console.log(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
 }
 
 
@@ -348,8 +353,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
     const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const frontendBase = callbackFrontendBase ?? getFrontendBaseForDeny(req, oauthSessionGroup);
+    const redirectTo = getAccessDeniedRedirect(frontendBase);
+    logSuperadminTrace("J. CALLBACK EXIT", {
+      redirectTo,
+      outcome: "deny",
+    });
     await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-    res.redirect(getAccessDeniedRedirect(frontendBase));
+    res.redirect(redirectTo);
   };
 
   try {
@@ -410,7 +420,19 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
     const email = normalizeEmail(googleUser.email);
     const subject = googleUser.sub;
-    console.log("[auth/google/callback] identity:", { email, subject });
+    logSuperadminTrace("A. CALLBACK ENTRY", {
+      appSlug: activeAppSlug,
+      returnTo: frontendBase,
+      email,
+      subject,
+    });
+    logSuperadminTrace("B. APP LOOKUP RESULT", {
+      appSlug: activeAppSlug,
+      appFound: Boolean(app),
+      appId: app?.id ?? null,
+      accessMode: app?.accessMode ?? null,
+      tenancyMode: app?.tenancyMode ?? null,
+    });
 
     await new Promise((resolve, reject) => {
       req.session.regenerate((err: unknown) => {
@@ -425,23 +447,30 @@ async function handleGoogleCallback(req: Request, res: Response) {
     let user = subject
       ? await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, subject) })
       : null;
-    console.log("[auth/google/callback] subject match:", { found: Boolean(user), userId: user?.id ?? null });
+    logSuperadminTrace("C. SUBJECT LOOKUP RESULT", {
+      found: Boolean(user),
+      userId: user?.id ?? null,
+    });
 
     if (!user) {
       const byEmail = email
         ? await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` })
         : null;
-      console.log("[auth/google/callback] email match:", {
+      logSuperadminTrace("D. EMAIL LOOKUP RESULT", {
         found: Boolean(byEmail),
         userId: byEmail?.id ?? null,
+        email: byEmail?.email ?? email ?? null,
         googleSubjectBefore: byEmail?.googleSubject ?? null,
+        isSuperAdmin: byEmail?.isSuperAdmin ?? null,
+        active: byEmail?.active ?? null,
+        suspended: byEmail?.suspended ?? null,
       });
 
       if (byEmail && !byEmail.googleSubject && subject) {
-        console.log("[auth/google/callback] before update:", {
+        logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
           userId: byEmail.id,
-          googleSubjectBefore: byEmail.googleSubject ?? null,
           incomingSubject: subject,
+          googleSubjectBefore: byEmail.googleSubject ?? null,
         });
         const updatedRows = await db
           .update(usersTable)
@@ -452,35 +481,97 @@ async function handleGoogleCallback(req: Request, res: Response) {
           })
           .where(eq(usersTable.id, byEmail.id))
           .returning();
-        console.log("[auth/google/callback] after update:", {
+        logSuperadminTrace("F. SUBJECT BIND RESULT", {
           rowsAffected: updatedRows.length,
+          returnedUserId: updatedRows[0]?.id ?? null,
           googleSubjectAfter: updatedRows[0]?.googleSubject ?? null,
         });
         user = updatedRows[0] ?? null;
       } else {
+        logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
+          userId: byEmail?.id ?? null,
+          incomingSubject: subject ?? null,
+          googleSubjectBefore: byEmail?.googleSubject ?? null,
+        });
+        logSuperadminTrace("F. SUBJECT BIND RESULT", {
+          rowsAffected: 0,
+          returnedUserId: byEmail?.id ?? null,
+          googleSubjectAfter: byEmail?.googleSubject ?? null,
+        });
         user = byEmail;
       }
+    } else {
+      logSuperadminTrace("D. EMAIL LOOKUP RESULT", {
+        found: false,
+        userId: null,
+        email,
+        googleSubjectBefore: null,
+        isSuperAdmin: null,
+        active: null,
+        suspended: null,
+      });
+      logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
+        userId: null,
+        incomingSubject: subject ?? null,
+        googleSubjectBefore: null,
+      });
+      logSuperadminTrace("F. SUBJECT BIND RESULT", {
+        rowsAffected: 0,
+        returnedUserId: null,
+        googleSubjectAfter: user.googleSubject ?? null,
+      });
     }
 
     if (!user) {
+      logSuperadminTrace("G. FINAL USER CHOSEN FOR AUTH", {
+        userId: null,
+        email: email ?? null,
+        googleSubject: subject ?? null,
+        isSuperAdmin: null,
+        active: null,
+        suspended: null,
+        activeOrgId: null,
+      });
       if (isSuperadminAccessMode) {
-        console.log("[auth/google/callback] decision:", { decision: "deny" });
+        logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+          appSlug: activeAppSlug,
+          accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+          normalizedAccessProfile,
+          allow: false,
+          denyReason: "user_not_found_in_superadmin_mode",
+        });
         await denyWithAccessDenied();
         return;
       }
-      console.log("[auth/google/callback] decision:", { decision: "deny" });
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? null,
+        normalizedAccessProfile,
+        allow: false,
+        denyReason: "user_not_found",
+      });
       await denyWithAccessDenied();
       return;
     }
 
-    console.log("[auth/google/callback] final user:", {
+    logSuperadminTrace("G. FINAL USER CHOSEN FOR AUTH", {
       userId: user.id,
+      email: user.email,
       googleSubject: user.googleSubject ?? null,
       isSuperAdmin: user.isSuperAdmin,
+      active: user.active,
+      suspended: user.suspended,
+      activeOrgId: user.activeOrgId ?? null,
     });
 
     if (isSuperadminAccessMode && user.isSuperAdmin !== true) {
-      console.log("[auth/google/callback] decision:", { decision: "deny" });
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        normalizedAccessProfile,
+        allow: false,
+        denyReason: "not_superadmin",
+      });
       await denyWithAccessDenied();
       return;
     }
@@ -521,19 +612,44 @@ async function handleGoogleCallback(req: Request, res: Response) {
       : null);
 
     if (!effectiveContext?.canAccess) {
-      console.log("[auth/google/callback] decision:", { decision: "deny" });
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        normalizedAccessProfile: effectiveContext?.normalizedAccessProfile ?? normalizedAccessProfile,
+        allow: false,
+        denyReason: "app_context_denied",
+      });
+      logSuperadminTrace("J. CALLBACK EXIT", {
+        redirectTo: getAccessDeniedRedirect(frontendBase),
+        outcome: "deny",
+      });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(getAccessDeniedRedirect(frontendBase));
       return;
     }
-
-    console.log("[auth/google/callback] decision:", { decision: "allow" });
+    logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+      appSlug: activeAppSlug,
+      accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+      normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
+      allow: true,
+      denyReason: null,
+    });
+    logSuperadminTrace("I. SESSION WRITE", {
+      sessionGroup: req.session.sessionGroup ?? null,
+      sessionUserId: req.session.userId ?? null,
+      sessionAppSlug: activeAppSlug,
+      sessionIsSuperAdmin: user.isSuperAdmin,
+    });
 
     const destination = getPostAuthRedirectPath({
       isSuperAdmin: user.isSuperAdmin,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       requiredOnboarding: effectiveContext.requiredOnboarding,
       authIntent: oauthIntent,
+    });
+    logSuperadminTrace("J. CALLBACK EXIT", {
+      redirectTo: `${frontendBase}${destination}`,
+      outcome: "allow",
     });
     res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
