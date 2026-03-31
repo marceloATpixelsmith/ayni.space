@@ -4,6 +4,8 @@ import { db, usersTable } from "@workspace/db";
 import { destroySessionAndClearCookie } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
+const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
   if (!userId) {
@@ -35,12 +37,31 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
   await requireAuth(req, res, async () => {
     const user = (req as Request & { user: { isSuperAdmin: boolean } }).user;
+    const sessionGroup = req.session?.sessionGroup ?? null;
+    const sessionUserId = req.session?.userId ?? null;
+    const sessionIsSuperAdmin = Boolean(user?.isSuperAdmin);
 
     if (!user?.isSuperAdmin) {
+      console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
+        sessionExists: Boolean(req.session),
+        sessionGroup,
+        sessionUserId,
+        sessionIsSuperAdmin,
+        allow: false,
+        denyReason: "not_superadmin",
+      });
       res.status(403).json({ error: "Forbidden. Super admin required." });
       return;
     }
 
+    console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
+      sessionExists: Boolean(req.session),
+      sessionGroup,
+      sessionUserId,
+      sessionIsSuperAdmin,
+      allow: true,
+      denyReason: null,
+    });
     next();
   });
 }
