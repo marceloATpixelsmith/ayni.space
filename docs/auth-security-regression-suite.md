@@ -8,6 +8,7 @@
 - Multi-session-group behavior with one browser cookie jar (`admin` + `default` cookies coexist and remain independently valid).
 - Cross-group isolation (auth in one group does not authenticate another group).
 - Admin denial flow for non-super-admin users (`/login?error=access_denied`, admin-group session destroyed/cleared, other group cookie left intact).
+- Admin callback outage fallback remains fail-closed (when admin app/app-context lookup is unavailable, callback redirects to `/login?error=access_denied` and clears only the admin-group session/cookie instead of returning `500`).
 - Group-scoped logout behavior (only targeted group session/cookie is invalidated).
 - Session lifecycle safeguards (`platform.sessions` configuration, logout invalidation behavior, non-reusability after destruction).
 - Cookie correctness (per-group cookie names, secure/httpOnly/sameSite handling, clearing uses matching config).

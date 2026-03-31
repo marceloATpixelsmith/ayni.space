@@ -276,6 +276,7 @@ test("pre-provisioned superadmin with null google_subject binds successfully on 
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
     assert.equal(updatedSets.some((values) => values.googleSubject === "google-super-sub"), true);
+    assert.equal(updatedSets.some((values) => values.lastLoginAt instanceof Date), true);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -292,7 +293,7 @@ test("pre-provisioned non-superadmin is denied in superadmin mode", async () => 
     googleSubject: null,
   };
   const boundUser = { ...existingUser, googleSubject: "google-user-sub" };
-  const { restore, lookupCalls, insertedRows } = stubDbForCallbackSequence({
+  const { restore, lookupCalls, insertedRows, updatedSets } = stubDbForCallbackSequence({
     bySubjectUser: null,
     byEmailUser: existingUser,
     updateReturnsUser: boundUser,
@@ -318,6 +319,7 @@ test("pre-provisioned non-superadmin is denied in superadmin mode", async () => 
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
+    assert.equal(updatedSets.some((values) => values.googleSubject === "google-user-sub"), true);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
