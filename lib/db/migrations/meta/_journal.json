@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1742256000000,
+      "tag": "20260318_platform_schema_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1742342400000,
+      "tag": "20260319_platform_multi_app_refactor",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1742428800000,
+      "tag": "20260320_stripe_webhook_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1743120000000,
+      "tag": "20260328_platform_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1743379200000,
+      "tag": "20260331_auth_model_cleanup",
+      "breakpoints": true
+    }
+  ]
+}
