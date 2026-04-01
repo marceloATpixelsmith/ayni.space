@@ -850,11 +850,23 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
+    console.log("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE", {
+      appSlug: activeAppSlug,
+      sessionGroup: oauthSessionGroup,
+      userId: user.id,
+      isSuperAdmin: user.isSuperAdmin,
+      cookieName: getSessionCookieName(oauthSessionGroup),
+      cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookiePath: getSessionCookieOptions().path,
+      cookieSameSite: getSessionCookieOptions().sameSite,
+      cookieSecure: getSessionCookieOptions().secure,
+    });
     logSuperadminTrace("G0. SESSION WRITE BEFORE", {
       sessionGroup: oauthSessionGroup,
       userId: user.id,
       cookieName: getSessionCookieName(oauthSessionGroup),
       cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookiePath: getSessionCookieOptions().path,
       cookieSameSite: getSessionCookieOptions().sameSite,
       cookieSecure: getSessionCookieOptions().secure,
     });
@@ -862,13 +874,23 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.activeOrgId = user.activeOrgId ?? undefined;
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
+    console.log("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER", {
+      sessionExists: Boolean(req.session),
+      sessionId: req.session?.id ?? null,
+      sessionGroup: req.session.sessionGroup ?? null,
+      userId: req.session.userId ?? null,
+      isSuperAdmin: user.isSuperAdmin,
+    });
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
+      sessionExists: Boolean(req.session),
+      sessionId: req.session?.id ?? null,
       sessionGroup: req.session.sessionGroup ?? null,
       sessionUserId: req.session.userId ?? null,
       sessionAppSlug: activeAppSlug,
       sessionIsSuperAdmin: user.isSuperAdmin,
       cookieName: getSessionCookieName(oauthSessionGroup),
       cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookiePath: getSessionCookieOptions().path,
       cookieSameSite: getSessionCookieOptions().sameSite,
       cookieSecure: getSessionCookieOptions().secure,
     });
