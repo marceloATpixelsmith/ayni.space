@@ -45,6 +45,51 @@ function parseGroupFromOAuthState(state: string): string | null {
   return sessionGroup || null;
 }
 
+type OAuthStatePayload = {
+  nonce: string;
+  appSlug: string;
+  returnTo: string;
+  sessionGroup: string;
+};
+
+function encodeOAuthStatePayload(payload: OAuthStatePayload): string {
+  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+}
+
+function decodeOAuthStatePayload(encodedPayload: string): OAuthStatePayload | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Record<string, unknown>;
+    if (typeof parsed["nonce"] !== "string") return null;
+    if (typeof parsed["appSlug"] !== "string" || parsed["appSlug"].trim().length === 0) return null;
+    if (typeof parsed["returnTo"] !== "string" || parsed["returnTo"].trim().length === 0) return null;
+    if (typeof parsed["sessionGroup"] !== "string" || parsed["sessionGroup"].trim().length === 0) return null;
+    return {
+      nonce: parsed["nonce"],
+      appSlug: parsed["appSlug"],
+      returnTo: parsed["returnTo"],
+      sessionGroup: parsed["sessionGroup"],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildOAuthState(payload: OAuthStatePayload): string {
+  return `${payload.sessionGroup}.${payload.nonce}.${encodeOAuthStatePayload(payload)}`;
+}
+
+function parseOAuthState(state: string | null | undefined): OAuthStatePayload | null {
+  if (!state) return null;
+  const segments = state.split(".");
+  if (segments.length < 3) return null;
+  const encodedPayload = segments.slice(2).join(".");
+  const payload = decodeOAuthStatePayload(encodedPayload);
+  if (!payload) return null;
+  if (payload.sessionGroup !== segments[0]) return null;
+  if (payload.nonce !== segments[1]) return null;
+  return payload;
+}
+
 
 function parseAppSlugByOriginEnv(): Map<string, string> {
   const raw = process.env["APP_SLUG_BY_ORIGIN"] ?? "";
@@ -291,11 +336,34 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
-  const state = `${oauthSessionGroup}.${randomUUID()}`;
+  const appSlug = resolveActiveAppSlugForAuth(returnTo, oauthSessionGroup);
+  const statePayload = appSlug
+    ? {
+        nonce: randomUUID(),
+        appSlug,
+        returnTo,
+        sessionGroup: oauthSessionGroup,
+      }
+    : null;
+  const state = statePayload ? buildOAuthState(statePayload) : `${oauthSessionGroup}.${randomUUID()}`;
   req.session.oauthState = state;
   req.session.oauthReturnTo = returnTo;
   req.session.oauthSessionGroup = oauthSessionGroup;
+  req.session.oauthAppSlug = appSlug ?? undefined;
   req.session.oauthIntent = authIntent ?? undefined;
+  logSuperadminTrace("OAUTH START", {
+    appSlug: appSlug ?? null,
+    returnTo,
+    sessionGroup: oauthSessionGroup,
+    generatedStateHasAppSlug: Boolean(statePayload?.appSlug),
+  });
+  if (statePayload) {
+    logSuperadminTrace("STATE PAYLOAD BEFORE REDIRECT", {
+      appSlug: statePayload.appSlug,
+      returnTo: statePayload.returnTo,
+      sessionGroup: statePayload.sessionGroup,
+    });
+  }
 
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
@@ -406,20 +474,23 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    const stateValid = Boolean(req.session.oauthState && state === req.session.oauthState);
+    const parsedState = parseOAuthState(state);
+    const stateValid = Boolean(req.session.oauthState && state === req.session.oauthState && parsedState?.appSlug);
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const stateReturnTo = typeof req.session.oauthReturnTo === "string" ? req.session.oauthReturnTo : null;
-    const stateAppSlug = stateReturnTo
-      ? resolveActiveAppSlugForAuth(
-          stateReturnTo,
-          req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT,
-        )
-      : null;
+    const stateReturnTo = parsedState?.returnTo ?? (typeof req.session.oauthReturnTo === "string" ? req.session.oauthReturnTo : null);
+    const stateAppSlug = parsedState?.appSlug ?? (typeof req.session.oauthAppSlug === "string" ? req.session.oauthAppSlug : null);
+    const resolvedStateSessionGroup = parsedState?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     logSuperadminTrace("A4. STATE VALIDATION RESULT", {
       valid: stateValid,
       appSlug: stateAppSlug,
       returnTo: stateReturnTo,
-      sessionGroup: req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT,
+      sessionGroup: resolvedStateSessionGroup,
+    });
+    logSuperadminTrace("CALLBACK STATE VALIDATION RESULT", {
+      valid: stateValid,
+      appSlug: stateAppSlug,
+      returnTo: stateReturnTo,
+      sessionGroup: resolvedStateSessionGroup,
     });
     lastCompletedStep = "A4";
     if (!stateValid) {
@@ -433,11 +504,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     delete req.session.oauthState;
-    const oauthReturnTo = req.session.oauthReturnTo;
-    const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const oauthReturnTo = parsedState?.returnTo ?? req.session.oauthReturnTo;
+    const oauthSessionGroup = callbackSessionGroup ?? parsedState?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     callbackSessionGroup = oauthSessionGroup;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
-    const appSlug = oauthReturnTo ? resolveActiveAppSlugForAuth(oauthReturnTo, oauthSessionGroup) : null;
+    const appSlug = parsedState?.appSlug ?? (typeof req.session.oauthAppSlug === "string" ? req.session.oauthAppSlug : null);
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
       returnTo: oauthReturnTo ?? null,
@@ -454,6 +525,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     lastCompletedStep = "A2";
     delete req.session.oauthReturnTo;
     delete req.session.oauthSessionGroup;
+    delete req.session.oauthAppSlug;
     delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
