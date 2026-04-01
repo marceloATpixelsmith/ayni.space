@@ -464,10 +464,11 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
       .map((entry) => String(entry[0]));
     assert.equal(traceLogs.some((line) => line.includes("A. CALLBACK ENTRY")), true);
     assert.equal(traceLogs.some((line) => line.includes("B. APP LOOKUP RESULT")), true);
-    assert.equal(traceLogs.some((line) => line.includes("C. SUBJECT LOOKUP RESULT")), true);
+    assert.equal(traceLogs.some((line) => line.includes("D1. SUBJECT LOOKUP AFTER")), true);
     assert.equal(traceLogs.some((line) => line.includes("G. FINAL USER CHOSEN FOR AUTH")), true);
     assert.equal(traceLogs.some((line) => line.includes("H. ACCESS PROFILE DECISION")), true);
-    assert.equal(traceLogs.some((line) => line.includes("I. SESSION WRITE")), true);
+    assert.equal(traceLogs.some((line) => line.includes("G0. SESSION WRITE BEFORE")), true);
+    assert.equal(traceLogs.some((line) => line.includes("G1. SESSION WRITE AFTER")), true);
     assert.equal(traceLogs.some((line) => line.includes("J. CALLBACK EXIT")), true);
     assert.equal(traceLogs.some((line) => line.includes("K. FIRST AUTHENTICATED ADMIN CHECK")), true);
   } finally {
