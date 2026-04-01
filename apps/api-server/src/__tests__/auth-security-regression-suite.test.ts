@@ -20,6 +20,7 @@ const { default: authRouter, authRouteDeps } = await import("../routes/auth.js")
 const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const ADMIN_OAUTH_STATE = "admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9";
 
 function createSessionGroupApp(handlers: Map<string, RequestHandler>) {
   const app = express();
@@ -130,7 +131,7 @@ test("PART 3: non-super-admin admin login denial redirects and only clears admin
   let adminDestroyed = false;
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "admin.valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => {
@@ -139,7 +140,7 @@ test("PART 3: non-super-admin admin login denial redirects and only clears admin
       },
     });
 
-    const resp = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state");
+    const resp = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`);
     assert.equal(resp.status, 302);
     assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.equal(adminDestroyed, true);
@@ -177,7 +178,7 @@ test("PART 3B: admin callback app-context outage fails closed with redirect (no 
   let adminDestroyed = false;
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "admin.valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => {
@@ -186,7 +187,7 @@ test("PART 3B: admin callback app-context outage fails closed with redirect (no 
       },
     });
 
-    const resp = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state");
+    const resp = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`);
     assert.equal(resp.status, 302);
     assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.equal(adminDestroyed, true);
@@ -197,6 +198,41 @@ test("PART 3B: admin callback app-context outage fails closed with redirect (no 
   } finally {
     restore.reverse().forEach((undo) => undo());
   }
+});
+
+test("PART 3C: admin oauth start embeds appSlug in state payload", async () => {
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+  const resp = await request(app, "/api/auth/google/url", "POST", {
+    origin: "http://admin.local",
+  });
+  assert.equal(resp.status, 200);
+  const body = (await resp.json()) as { url: string };
+  const redirectUrl = new URL(body.url);
+  const state = redirectUrl.searchParams.get("state");
+  assert.ok(state);
+  const segments = state.split(".");
+  assert.equal(segments[0], "admin");
+  const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+  assert.equal(payload.appSlug, "admin");
+  assert.equal(payload.returnTo, "http://admin.local");
+  assert.equal(payload.sessionGroup, "admin");
+});
+
+test("PART 3D: malformed oauth state fails closed without 500", async () => {
+  let destroyed = false;
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    oauthState: "admin.valid-state.bad-payload",
+    oauthReturnTo: "http://admin.local",
+    oauthSessionGroup: "admin",
+    destroy: (cb?: (err?: unknown) => void) => {
+      destroyed = true;
+      cb?.();
+    },
+  });
+  const resp = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.bad-payload");
+  assert.equal(resp.status, 302);
+  assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
+  assert.equal(destroyed, true);
 });
 
 test("PART 4+5: group-scoped logout clears only target cookie and invalidates session", async () => {

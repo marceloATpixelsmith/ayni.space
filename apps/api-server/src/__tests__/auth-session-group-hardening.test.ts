@@ -20,6 +20,7 @@ const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
 const { default: adminRouter } = await import("../routes/admin.js");
+const ADMIN_OAUTH_STATE = "admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9";
 
 async function request(
   app: ReturnType<typeof createMountedSessionApp>,
@@ -153,7 +154,7 @@ test("super admin oauth callback in admin group lands on /dashboard", async () =
   let destroyed = false;
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => {
@@ -162,7 +163,7 @@ test("super admin oauth callback in admin group lands on /dashboard", async () =
       },
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
     assert.equal(destroyed, false);
@@ -182,7 +183,7 @@ test("non-super-admin oauth callback in admin group is denied and only admin coo
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => {
@@ -191,7 +192,7 @@ test("non-super-admin oauth callback in admin group is denied and only admin coo
       },
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.equal(destroyedAdminSession, true);
@@ -218,7 +219,7 @@ test("non-super-admin admin callback fails closed when admin app lookup is unava
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => {
@@ -227,7 +228,7 @@ test("non-super-admin admin callback fails closed when admin app lookup is unava
       },
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.equal(destroyedAdminSession, true);
@@ -267,12 +268,12 @@ test("pre-provisioned superadmin with null google_subject binds successfully on 
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
@@ -310,13 +311,13 @@ test("pre-provisioned non-superadmin is denied in superadmin mode", async () => 
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => cb?.(),
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
@@ -342,13 +343,13 @@ test("unknown user in superadmin mode is denied without creating a user row", as
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
       destroy: (cb?: (err?: unknown) => void) => cb?.(),
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
@@ -386,12 +387,12 @@ test("second login matches by subject directly for pre-provisioned superadmin", 
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
     });
 
-    const response = await request(app, "/api/auth/google/callback?code=ok&state=valid-state");
+    const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
     assert.equal(lookupCalls[0], "subject");
@@ -441,12 +442,12 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
 
   try {
     const authApp = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      oauthState: "valid-state",
+      oauthState: ADMIN_OAUTH_STATE,
       oauthReturnTo: "http://admin.local",
       oauthSessionGroup: "admin",
     });
 
-    const callbackResponse = await request(authApp, "/api/auth/google/callback?code=ok&state=valid-state");
+    const callbackResponse = await request(authApp, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(callbackResponse.status, 302);
     assert.equal(callbackResponse.headers.get("location"), "http://admin.local/dashboard");
 
