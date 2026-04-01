@@ -345,6 +345,13 @@ async function handleGoogleUrl(req: Request, res: Response) {
 }
 
 async function handleGoogleCallback(req: Request, res: Response) {
+  logSuperadminTrace("A0. HANDLER ENTER", {
+    hasCode: Boolean(firstQueryParam(req.query.code)),
+    hasState: Boolean(firstQueryParam(req.query.state)),
+    originalUrl: req.originalUrl,
+    method: req.method,
+  });
+
   let callbackFrontendBase: string | null = null;
   let callbackSessionGroup: string | null = null;
 
@@ -384,6 +391,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     callbackSessionGroup = oauthSessionGroup;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
+    const appSlug = oauthReturnTo ? resolveActiveAppSlugForAuth(oauthReturnTo, oauthSessionGroup) : null;
+    logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
+      appSlug,
+      returnTo: oauthReturnTo ?? null,
+      sessionGroup: oauthSessionGroup,
+      oauthStatePresent: Boolean(req.session.oauthState),
+    });
     delete req.session.oauthReturnTo;
     delete req.session.oauthSessionGroup;
     delete req.session.oauthIntent;
@@ -396,7 +410,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     const frontendBase = oauthReturnTo;
     callbackFrontendBase = frontendBase;
-    const activeAppSlug = resolveActiveAppSlugForAuth(frontendBase, oauthSessionGroup);
+    const activeAppSlug = appSlug;
     if (!activeAppSlug) {
       await denyWithAccessDenied();
       return;
@@ -404,8 +418,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     let app: Awaited<ReturnType<typeof getAppBySlug>> = undefined;
     try {
+      logSuperadminTrace("B0. APP LOOKUP BEFORE", {
+        appSlug: activeAppSlug,
+      });
       app = await getAppBySlug(activeAppSlug);
+      logSuperadminTrace("B1. APP LOOKUP AFTER", {
+        appSlug: activeAppSlug,
+        appFound: Boolean(app),
+      });
     } catch (error) {
+      logSuperadminTrace("B1. APP LOOKUP AFTER", {
+        appSlug: activeAppSlug,
+        appFound: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
       if (activeAppSlug !== "admin") throw error;
       console.log("[auth/google/callback] app lookup failed; using fail-closed admin fallback", {
         oauthSessionGroup,
@@ -417,7 +443,14 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : (activeAppSlug === "admin" ? "superadmin" : null);
     const isSuperadminAccessMode = normalizedAccessProfile === "superadmin";
 
+    logSuperadminTrace("C0. GOOGLE EXCHANGE BEFORE", {
+      hasCode: Boolean(code),
+    });
     const googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
+    logSuperadminTrace("C1. GOOGLE EXCHANGE AFTER", {
+      hasEmail: Boolean(googleUser.email),
+      hasSubject: Boolean(googleUser.sub),
+    });
     const email = normalizeEmail(googleUser.email);
     const subject = googleUser.sub;
     logSuperadminTrace("A. CALLBACK ENTRY", {
@@ -444,19 +477,24 @@ async function handleGoogleCallback(req: Request, res: Response) {
       });
     });
 
-    let user = subject
-      ? await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, subject) })
-      : null;
-    logSuperadminTrace("C. SUBJECT LOOKUP RESULT", {
+    let user = null;
+    if (subject) {
+      logSuperadminTrace("D0. SUBJECT LOOKUP BEFORE", { subject });
+      user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, subject) });
+    }
+    logSuperadminTrace("D1. SUBJECT LOOKUP AFTER", {
       found: Boolean(user),
       userId: user?.id ?? null,
     });
 
     if (!user) {
+      logSuperadminTrace("E0. EMAIL LOOKUP BEFORE", {
+        email: email ?? null,
+      });
       const byEmail = email
         ? await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` })
         : null;
-      logSuperadminTrace("D. EMAIL LOOKUP RESULT", {
+      logSuperadminTrace("E1. EMAIL LOOKUP AFTER", {
         found: Boolean(byEmail),
         userId: byEmail?.id ?? null,
         email: byEmail?.email ?? email ?? null,
@@ -467,7 +505,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       });
 
       if (byEmail && !byEmail.googleSubject && subject) {
-        logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
+        logSuperadminTrace("F0. SUBJECT BIND UPDATE BEFORE", {
           userId: byEmail.id,
           incomingSubject: subject,
           googleSubjectBefore: byEmail.googleSubject ?? null,
@@ -481,19 +519,19 @@ async function handleGoogleCallback(req: Request, res: Response) {
           })
           .where(eq(usersTable.id, byEmail.id))
           .returning();
-        logSuperadminTrace("F. SUBJECT BIND RESULT", {
+        logSuperadminTrace("F1. SUBJECT BIND UPDATE AFTER", {
           rowsAffected: updatedRows.length,
           returnedUserId: updatedRows[0]?.id ?? null,
           googleSubjectAfter: updatedRows[0]?.googleSubject ?? null,
         });
         user = updatedRows[0] ?? null;
       } else {
-        logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
+        logSuperadminTrace("F0. SUBJECT BIND UPDATE BEFORE", {
           userId: byEmail?.id ?? null,
           incomingSubject: subject ?? null,
           googleSubjectBefore: byEmail?.googleSubject ?? null,
         });
-        logSuperadminTrace("F. SUBJECT BIND RESULT", {
+        logSuperadminTrace("F1. SUBJECT BIND UPDATE AFTER", {
           rowsAffected: 0,
           returnedUserId: byEmail?.id ?? null,
           googleSubjectAfter: byEmail?.googleSubject ?? null,
@@ -501,7 +539,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
         user = byEmail;
       }
     } else {
-      logSuperadminTrace("D. EMAIL LOOKUP RESULT", {
+      logSuperadminTrace("E0. EMAIL LOOKUP BEFORE", {
+        email: email ?? null,
+      });
+      logSuperadminTrace("E1. EMAIL LOOKUP AFTER", {
         found: false,
         userId: null,
         email,
@@ -510,12 +551,12 @@ async function handleGoogleCallback(req: Request, res: Response) {
         active: null,
         suspended: null,
       });
-      logSuperadminTrace("E. SUBJECT BIND ATTEMPT", {
+      logSuperadminTrace("F0. SUBJECT BIND UPDATE BEFORE", {
         userId: null,
         incomingSubject: subject ?? null,
         googleSubjectBefore: null,
       });
-      logSuperadminTrace("F. SUBJECT BIND RESULT", {
+      logSuperadminTrace("F1. SUBJECT BIND UPDATE AFTER", {
         rowsAffected: 0,
         returnedUserId: null,
         googleSubjectAfter: user.googleSubject ?? null,
@@ -578,10 +619,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
+    logSuperadminTrace("G0. SESSION WRITE BEFORE", {
+      sessionGroup: oauthSessionGroup,
+      userId: user.id,
+    });
     req.session.userId = user.id;
     req.session.activeOrgId = user.activeOrgId ?? undefined;
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
+    logSuperadminTrace("G1. SESSION WRITE AFTER", {
+      sessionGroup: req.session.sessionGroup ?? null,
+      sessionUserId: req.session.userId ?? null,
+      sessionAppSlug: activeAppSlug,
+      sessionIsSuperAdmin: user.isSuperAdmin,
+    });
 
     writeAuditLog({
       userId: user.id,
@@ -634,13 +685,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
       allow: true,
       denyReason: null,
     });
-    logSuperadminTrace("I. SESSION WRITE", {
-      sessionGroup: req.session.sessionGroup ?? null,
-      sessionUserId: req.session.userId ?? null,
-      sessionAppSlug: activeAppSlug,
-      sessionIsSuperAdmin: user.isSuperAdmin,
-    });
-
     const destination = getPostAuthRedirectPath({
       isSuperAdmin: user.isSuperAdmin,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
@@ -653,6 +697,14 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
     res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
+    const errorName = error instanceof Error ? error.name : typeof error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logSuperadminTrace("X. CALLBACK ERROR", {
+      message: errorMessage,
+      stack: errorStack,
+      name: errorName,
+    });
     console.log("Google callback failed:", error);
     logAuthFailure(req, "google-callback-exception");
     await denyWithAccessDenied();
