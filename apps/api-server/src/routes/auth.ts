@@ -345,6 +345,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
 }
 
 async function handleGoogleCallback(req: Request, res: Response) {
+  let lastCompletedStep: "A0" | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7" | "A8" | "A" = "A0";
   logSuperadminTrace("A0. HANDLER ENTER", {
     hasCode: Boolean(firstQueryParam(req.query.code)),
     hasState: Boolean(firstQueryParam(req.query.state)),
@@ -364,6 +365,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("J. CALLBACK EXIT", {
       redirectTo,
       outcome: "deny",
+      lastCompletedStep,
     });
     await destroySessionAndClearCookie(req, res, oauthSessionGroup);
     res.redirect(redirectTo);
@@ -373,21 +375,65 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const code = firstQueryParam(req.query.code);
     const state = firstQueryParam(req.query.state);
 
+    logSuperadminTrace("A3. STATE VALIDATION START", {
+      hasState: Boolean(state),
+    });
+    lastCompletedStep = "A3";
     if (!code) {
       logAuthFailure(req, "google-callback-missing-code");
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "missing_code",
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
+      });
       await denyWithAccessDenied();
       return;
     }
 
-    if (!state || !req.session.oauthState || state !== req.session.oauthState) {
+    if (!state) {
+      logAuthFailure(req, "google-callback-missing-state");
+      logSuperadminTrace("A4. STATE VALIDATION RESULT", {
+        valid: false,
+        appSlug: null,
+        returnTo: null,
+        sessionGroup: SESSION_GROUPS.DEFAULT,
+      });
+      lastCompletedStep = "A4";
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "missing_state",
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
+      });
+      await denyWithAccessDenied();
+      return;
+    }
+
+    const stateValid = Boolean(req.session.oauthState && state === req.session.oauthState);
+    const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
+    const stateReturnTo = typeof req.session.oauthReturnTo === "string" ? req.session.oauthReturnTo : null;
+    const stateAppSlug = stateReturnTo
+      ? resolveActiveAppSlugForAuth(
+          stateReturnTo,
+          req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT,
+        )
+      : null;
+    logSuperadminTrace("A4. STATE VALIDATION RESULT", {
+      valid: stateValid,
+      appSlug: stateAppSlug,
+      returnTo: stateReturnTo,
+      sessionGroup: req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT,
+    });
+    lastCompletedStep = "A4";
+    if (!stateValid) {
       logAuthFailure(req, "google-callback-invalid-state");
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "invalid_state",
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
+      });
       await denyWithAccessDenied();
       return;
     }
 
     delete req.session.oauthState;
     const oauthReturnTo = req.session.oauthReturnTo;
-    const stateSessionGroup = parseGroupFromOAuthState(state);
     const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     callbackSessionGroup = oauthSessionGroup;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
@@ -398,12 +444,24 @@ async function handleGoogleCallback(req: Request, res: Response) {
       sessionGroup: oauthSessionGroup,
       oauthStatePresent: Boolean(req.session.oauthState),
     });
+    lastCompletedStep = "A1";
+    logSuperadminTrace("A2. CALLBACK INPUTS", {
+      hasCode: Boolean(code),
+      hasState: Boolean(state),
+      codeLength: code?.length ?? 0,
+      stateLength: state?.length ?? 0,
+    });
+    lastCompletedStep = "A2";
     delete req.session.oauthReturnTo;
     delete req.session.oauthSessionGroup;
     delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "missing_return_to",
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, oauthSessionGroup)),
+      });
       await denyWithAccessDenied();
       return;
     }
@@ -412,6 +470,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
     callbackFrontendBase = frontendBase;
     const activeAppSlug = appSlug;
     if (!activeAppSlug) {
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "missing_app_slug",
+        redirectTo: getAccessDeniedRedirect(frontendBase),
+      });
       await denyWithAccessDenied();
       return;
     }
@@ -443,14 +505,54 @@ async function handleGoogleCallback(req: Request, res: Response) {
     const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : (activeAppSlug === "admin" ? "superadmin" : null);
     const isSuperadminAccessMode = normalizedAccessProfile === "superadmin";
 
-    logSuperadminTrace("C0. GOOGLE EXCHANGE BEFORE", {
+    logSuperadminTrace("A5. TOKEN EXCHANGE START", {
       hasCode: Boolean(code),
     });
-    const googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
-    logSuperadminTrace("C1. GOOGLE EXCHANGE AFTER", {
+    lastCompletedStep = "A5";
+    let googleUser: Awaited<ReturnType<typeof authRouteDeps.exchangeCodeForUserFn>>;
+    try {
+      googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
+      logSuperadminTrace("A6. TOKEN EXCHANGE RESULT", {
+        success: true,
+        hasAccessToken: true,
+        hasIdToken: true,
+      });
+      lastCompletedStep = "A6";
+    } catch (error) {
+      logSuperadminTrace("A6. TOKEN EXCHANGE RESULT", {
+        success: false,
+        hasAccessToken: false,
+        hasIdToken: false,
+      });
+      lastCompletedStep = "A6";
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "token_exchange_failed",
+        redirectTo: getAccessDeniedRedirect(frontendBase),
+      });
+      logAuthFailure(req, "google-callback-token-exchange-failed");
+      await denyWithAccessDenied();
+      return;
+    }
+
+    logSuperadminTrace("A7. PROFILE FETCH START", {
+      hasAccessToken: true,
+    });
+    lastCompletedStep = "A7";
+    logSuperadminTrace("A8. PROFILE FETCH RESULT", {
+      success: Boolean(googleUser),
       hasEmail: Boolean(googleUser.email),
       hasSubject: Boolean(googleUser.sub),
     });
+    lastCompletedStep = "A8";
+    if (!googleUser.email) {
+      logSuperadminTrace("R. EARLY RETURN", {
+        reason: "missing_email",
+        redirectTo: getAccessDeniedRedirect(frontendBase),
+      });
+      logAuthFailure(req, "google-callback-missing-email");
+      await denyWithAccessDenied();
+      return;
+    }
     const email = normalizeEmail(googleUser.email);
     const subject = googleUser.sub;
     logSuperadminTrace("A. CALLBACK ENTRY", {
@@ -459,6 +561,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       email,
       subject,
     });
+    lastCompletedStep = "A";
     logSuperadminTrace("B. APP LOOKUP RESULT", {
       appSlug: activeAppSlug,
       appFound: Boolean(app),
@@ -673,6 +776,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logSuperadminTrace("J. CALLBACK EXIT", {
         redirectTo: getAccessDeniedRedirect(frontendBase),
         outcome: "deny",
+        lastCompletedStep,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(getAccessDeniedRedirect(frontendBase));
@@ -694,6 +798,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("J. CALLBACK EXIT", {
       redirectTo: `${frontendBase}${destination}`,
       outcome: "allow",
+      lastCompletedStep,
     });
     res.redirect(`${frontendBase}${destination}`);
   } catch (error) {
@@ -704,6 +809,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
       message: errorMessage,
       stack: errorStack,
       name: errorName,
+    });
+    logSuperadminTrace("R. EARLY RETURN", {
+      reason: "unknown_pre_auth_failure",
+      redirectTo: getAccessDeniedRedirect(callbackFrontendBase),
     });
     console.log("Google callback failed:", error);
     logAuthFailure(req, "google-callback-exception");
