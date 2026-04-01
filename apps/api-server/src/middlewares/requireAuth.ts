@@ -5,6 +5,16 @@ import { destroySessionAndClearCookie } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
+function logAuthCheckTrace(payload: {
+  sessionExists: boolean;
+  sessionGroup: string | null;
+  userId: string | null;
+  isSuperAdmin: boolean;
+  allow: boolean;
+  denyReason: string | null;
+}) {
+  console.log("[AUTH-CHECK-TRACE]", payload);
+}
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
@@ -42,6 +52,14 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
     const sessionIsSuperAdmin = Boolean(user?.isSuperAdmin);
 
     if (!user?.isSuperAdmin) {
+      logAuthCheckTrace({
+        sessionExists: Boolean(req.session),
+        sessionGroup,
+        userId: sessionUserId,
+        isSuperAdmin: sessionIsSuperAdmin,
+        allow: false,
+        denyReason: "not_superadmin",
+      });
       console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
         sessionExists: Boolean(req.session),
         sessionGroup,
@@ -54,6 +72,14 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
       return;
     }
 
+    logAuthCheckTrace({
+      sessionExists: Boolean(req.session),
+      sessionGroup,
+      userId: sessionUserId,
+      isSuperAdmin: sessionIsSuperAdmin,
+      allow: true,
+      denyReason: null,
+    });
     console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
       sessionExists: Boolean(req.session),
       sessionGroup,

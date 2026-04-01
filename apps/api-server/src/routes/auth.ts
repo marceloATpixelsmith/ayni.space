@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { destroySessionAndClearCookie } from "../lib/session.js";
+import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions } from "../lib/session.js";
 import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
@@ -150,6 +150,17 @@ function logSuperadminTrace(checkpoint: string, payload: Record<string, unknown>
   console.log(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
 }
 
+function logAuthCheckTrace(payload: {
+  sessionExists: boolean;
+  sessionGroup: string | null;
+  userId: string | null;
+  isSuperAdmin: boolean;
+  allow: boolean;
+  denyReason: string | null;
+}) {
+  console.log("[AUTH-CHECK-TRACE]", payload);
+}
+
 
 function normalizeAuthIntent(value: unknown): "sign_in" | "create_account" | null {
   if (value === "sign_in" || value === "create_account") return value;
@@ -256,13 +267,30 @@ function getGoogleConfigValidation() {
 
 async function handleMe(req: Request, res: Response) {
   const userId = req.session.userId;
+  const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
   if (!userId) {
+    logAuthCheckTrace({
+      sessionExists: Boolean(req.session),
+      sessionGroup,
+      userId: null,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "missing_session_user_id",
+    });
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user) {
+    logAuthCheckTrace({
+      sessionExists: Boolean(req.session),
+      sessionGroup,
+      userId,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "user_not_found",
+    });
     res.status(401).json({ error: "User not found" });
     return;
   }
@@ -282,6 +310,15 @@ async function handleMe(req: Request, res: Response) {
   if (user.activeOrgId) {
     activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
   }
+
+  logAuthCheckTrace({
+    sessionExists: Boolean(req.session),
+    sessionGroup,
+    userId: user.id,
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    allow: true,
+    denyReason: null,
+  });
 
   res.json({
     id: user.id,
@@ -357,8 +394,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
-  const oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
-  const appSlug = resolveActiveAppSlugForAuth(returnTo, oauthSessionGroup);
+  const inferredSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+  const appSlug = resolveActiveAppSlugForAuth(returnTo, inferredSessionGroup);
+  const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : inferredSessionGroup;
   const statePayload = {
     nonce: randomUUID(),
     appSlug,
@@ -522,10 +560,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
       sessionGroup: parsedStateContext.sessionGroup,
     });
     const oauthReturnTo = parsedStateContext.returnTo;
-    const oauthSessionGroup = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
-    callbackSessionGroup = oauthSessionGroup;
+    const stateSessionGroupCandidate = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
     const appSlug = parsedStateContext.appSlug;
+    const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
+    callbackSessionGroup = oauthSessionGroup;
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
       returnTo: oauthReturnTo ?? null,
@@ -814,6 +853,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("G0. SESSION WRITE BEFORE", {
       sessionGroup: oauthSessionGroup,
       userId: user.id,
+      cookieName: getSessionCookieName(oauthSessionGroup),
+      cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookieSameSite: getSessionCookieOptions().sameSite,
+      cookieSecure: getSessionCookieOptions().secure,
     });
     req.session.userId = user.id;
     req.session.activeOrgId = user.activeOrgId ?? undefined;
@@ -824,6 +867,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
       sessionUserId: req.session.userId ?? null,
       sessionAppSlug: activeAppSlug,
       sessionIsSuperAdmin: user.isSuperAdmin,
+      cookieName: getSessionCookieName(oauthSessionGroup),
+      cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookieSameSite: getSessionCookieOptions().sameSite,
+      cookieSecure: getSessionCookieOptions().secure,
     });
 
     writeAuditLog({
