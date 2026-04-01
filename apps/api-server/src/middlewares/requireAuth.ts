@@ -4,8 +4,23 @@ import { db, usersTable } from "@workspace/db";
 import { destroySessionAndClearCookie } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
-const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
-function logAuthCheckTrace(payload: {
+function logFirstAuthRequest(payload: {
+  path: string;
+  method: string;
+  cookieHeaderPresent: boolean;
+  sessionExists: boolean;
+  sessionId: string | null;
+  sessionGroup: string | null;
+  userId: string | null;
+  isSuperAdmin: boolean;
+  allow: boolean;
+  denyReason: string | null;
+}) {
+  console.log("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST", payload);
+}
+
+function logAdminGuard(payload: {
+  path: string;
   sessionExists: boolean;
   sessionGroup: string | null;
   userId: string | null;
@@ -13,12 +28,28 @@ function logAuthCheckTrace(payload: {
   allow: boolean;
   denyReason: string | null;
 }) {
-  console.log("[AUTH-CHECK-TRACE]", payload);
+  console.log("[AUTH-CHECK-TRACE] ADMIN GUARD", payload);
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
+  const sessionGroup = req.session?.sessionGroup ?? null;
+  const sessionId = req.session?.id ?? null;
+  const cookieHeaderPresent = typeof req.headers["cookie"] === "string" && req.headers["cookie"].trim().length > 0;
+
   if (!userId) {
+    logFirstAuthRequest({
+      path: req.path,
+      method: req.method,
+      cookieHeaderPresent,
+      sessionExists: Boolean(req.session),
+      sessionId,
+      sessionGroup,
+      userId: null,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "missing_user_id",
+    });
     res.status(401).json({ error: "Unauthorized. Please sign in." });
     return;
   }
@@ -28,17 +59,53 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   });
 
   if (!user) {
+    logFirstAuthRequest({
+      path: req.path,
+      method: req.method,
+      cookieHeaderPresent,
+      sessionExists: Boolean(req.session),
+      sessionId,
+      sessionGroup,
+      userId,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "user_not_found",
+    });
     await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(401).json({ error: "User not found. Please sign in again." });
     return;
   }
 
   if (user.suspended || user.deletedAt || !user.active) {
+    logFirstAuthRequest({
+      path: req.path,
+      method: req.method,
+      cookieHeaderPresent,
+      sessionExists: Boolean(req.session),
+      sessionId,
+      sessionGroup,
+      userId,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      allow: false,
+      denyReason: "inactive_or_suspended",
+    });
     await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(403).json({ error: "Account suspended or deleted. Contact support." });
     return;
   }
 
+  logFirstAuthRequest({
+    path: req.path,
+    method: req.method,
+    cookieHeaderPresent,
+    sessionExists: Boolean(req.session),
+    sessionId,
+    sessionGroup,
+    userId,
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    allow: true,
+    denyReason: null,
+  });
   await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, userId));
   (req as Request & { user: typeof user }).user = user;
   next();
@@ -52,7 +119,8 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
     const sessionIsSuperAdmin = Boolean(user?.isSuperAdmin);
 
     if (!user?.isSuperAdmin) {
-      logAuthCheckTrace({
+      logAdminGuard({
+        path: req.path,
         sessionExists: Boolean(req.session),
         sessionGroup,
         userId: sessionUserId,
@@ -60,31 +128,16 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
         allow: false,
         denyReason: "not_superadmin",
       });
-      console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
-        sessionExists: Boolean(req.session),
-        sessionGroup,
-        sessionUserId,
-        sessionIsSuperAdmin,
-        allow: false,
-        denyReason: "not_superadmin",
-      });
       res.status(403).json({ error: "Forbidden. Super admin required." });
       return;
     }
 
-    logAuthCheckTrace({
+    logAdminGuard({
+      path: req.path,
       sessionExists: Boolean(req.session),
       sessionGroup,
       userId: sessionUserId,
       isSuperAdmin: sessionIsSuperAdmin,
-      allow: true,
-      denyReason: null,
-    });
-    console.log(`${SUPERADMIN_TRACE_PREFIX} K. FIRST AUTHENTICATED ADMIN CHECK`, {
-      sessionExists: Boolean(req.session),
-      sessionGroup,
-      sessionUserId,
-      sessionIsSuperAdmin,
       allow: true,
       denyReason: null,
     });
