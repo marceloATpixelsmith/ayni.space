@@ -51,6 +51,7 @@ type OAuthStatePayload = {
   returnTo: string;
   sessionGroup: string;
 };
+type OAuthStateContext = Pick<OAuthStatePayload, "appSlug" | "returnTo" | "sessionGroup">;
 
 function encodeOAuthStatePayload(payload: OAuthStatePayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -90,6 +91,27 @@ function parseOAuthState(state: string | null | undefined): OAuthStatePayload | 
   return payload;
 }
 
+function validateOAuthCallbackState(
+  state: string,
+  expectedState: unknown,
+): { valid: true; stateContext: OAuthStateContext } | { valid: false } {
+  if (typeof expectedState !== "string" || state !== expectedState) {
+    return { valid: false };
+  }
+
+  const parsedState = parseOAuthState(state);
+  if (!parsedState) {
+    return { valid: false };
+  }
+
+  const stateContext: OAuthStateContext = {
+    appSlug: parsedState.appSlug,
+    returnTo: parsedState.returnTo,
+    sessionGroup: parsedState.sessionGroup,
+  };
+  return { valid: true, stateContext };
+}
+
 
 function parseAppSlugByOriginEnv(): Map<string, string> {
   const raw = process.env["APP_SLUG_BY_ORIGIN"] ?? "";
@@ -106,12 +128,12 @@ function parseAppSlugByOriginEnv(): Map<string, string> {
   return mappings;
 }
 
-function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string): string | null {
+function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string): string {
   const explicitMap = parseAppSlugByOriginEnv();
   const explicit = explicitMap.get(frontendBase);
   if (explicit) return explicit;
   if (sessionGroup === SESSION_GROUPS.ADMIN) return "admin";
-  return null;
+  return "workspace";
 }
 
 function firstQueryParam(value: unknown): string | undefined {
@@ -337,33 +359,29 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const oauthSessionGroup = resolveSessionGroupFromOrigin(returnTo);
   const appSlug = resolveActiveAppSlugForAuth(returnTo, oauthSessionGroup);
-  const statePayload = appSlug
-    ? {
-        nonce: randomUUID(),
-        appSlug,
-        returnTo,
-        sessionGroup: oauthSessionGroup,
-      }
-    : null;
-  const state = statePayload ? buildOAuthState(statePayload) : `${oauthSessionGroup}.${randomUUID()}`;
+  const statePayload = {
+    nonce: randomUUID(),
+    appSlug,
+    returnTo,
+    sessionGroup: oauthSessionGroup,
+  };
+  const state = buildOAuthState(statePayload);
   req.session.oauthState = state;
   req.session.oauthReturnTo = returnTo;
   req.session.oauthSessionGroup = oauthSessionGroup;
-  req.session.oauthAppSlug = appSlug ?? undefined;
+  req.session.oauthAppSlug = appSlug;
   req.session.oauthIntent = authIntent ?? undefined;
   logSuperadminTrace("OAUTH START", {
-    appSlug: appSlug ?? null,
+    appSlug,
     returnTo,
     sessionGroup: oauthSessionGroup,
-    generatedStateHasAppSlug: Boolean(statePayload?.appSlug),
+    generatedStateHasAppSlug: true,
   });
-  if (statePayload) {
-    logSuperadminTrace("STATE PAYLOAD BEFORE REDIRECT", {
-      appSlug: statePayload.appSlug,
-      returnTo: statePayload.returnTo,
-      sessionGroup: statePayload.sessionGroup,
-    });
-  }
+  logSuperadminTrace("STATE CREATED", {
+    appSlug: statePayload.appSlug,
+    returnTo: statePayload.returnTo,
+    sessionGroup: statePayload.sessionGroup,
+  });
 
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
@@ -474,22 +492,15 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    const parsedState = parseOAuthState(state);
-    const stateValid = Boolean(req.session.oauthState && state === req.session.oauthState && parsedState?.appSlug);
+    const stateValidation = validateOAuthCallbackState(state, req.session.oauthState);
+    const stateValid = stateValidation.valid;
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const stateReturnTo = parsedState?.returnTo ?? (typeof req.session.oauthReturnTo === "string" ? req.session.oauthReturnTo : null);
-    const stateAppSlug = parsedState?.appSlug ?? (typeof req.session.oauthAppSlug === "string" ? req.session.oauthAppSlug : null);
-    const resolvedStateSessionGroup = parsedState?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const stateContext = stateValidation.valid ? stateValidation.stateContext : null;
+    const resolvedStateSessionGroup = stateContext?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     logSuperadminTrace("A4. STATE VALIDATION RESULT", {
       valid: stateValid,
-      appSlug: stateAppSlug,
-      returnTo: stateReturnTo,
-      sessionGroup: resolvedStateSessionGroup,
-    });
-    logSuperadminTrace("CALLBACK STATE VALIDATION RESULT", {
-      valid: stateValid,
-      appSlug: stateAppSlug,
-      returnTo: stateReturnTo,
+      appSlug: stateContext?.appSlug ?? null,
+      returnTo: stateContext?.returnTo ?? null,
       sessionGroup: resolvedStateSessionGroup,
     });
     lastCompletedStep = "A4";
@@ -504,11 +515,17 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
 
     delete req.session.oauthState;
-    const oauthReturnTo = parsedState?.returnTo ?? req.session.oauthReturnTo;
-    const oauthSessionGroup = callbackSessionGroup ?? parsedState?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const parsedStateContext = stateValidation.stateContext;
+    logSuperadminTrace("STATE AFTER PARSE", {
+      appSlug: parsedStateContext.appSlug,
+      returnTo: parsedStateContext.returnTo,
+      sessionGroup: parsedStateContext.sessionGroup,
+    });
+    const oauthReturnTo = parsedStateContext.returnTo;
+    const oauthSessionGroup = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     callbackSessionGroup = oauthSessionGroup;
     const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
-    const appSlug = parsedState?.appSlug ?? (typeof req.session.oauthAppSlug === "string" ? req.session.oauthAppSlug : null);
+    const appSlug = parsedStateContext.appSlug;
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
       returnTo: oauthReturnTo ?? null,
