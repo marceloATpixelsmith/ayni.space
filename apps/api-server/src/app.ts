@@ -36,16 +36,44 @@ if (allowedOrigins.length === 0) {
   throw new Error("ALLOWED_ORIGINS environment variable must be set with at least one origin");
 }
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow same-origin (no Origin header) or whitelisted origins
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true, // Required for cookies
+  cors((req, callback) => {
+    const rawAllowedOriginsEnv = process.env["ALLOWED_ORIGINS"] ?? "";
+    const parsedAllowedOrigins = rawAllowedOriginsEnv
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0);
+    const requestOrigin = req.header("origin") ?? null;
+    const method = req.method;
+    const path = req.path;
+
+    console.info("[CORS-TRACE] ORIGIN CHECK", {
+      requestOrigin,
+      method,
+      path,
+      rawAllowedOriginsEnv,
+      parsedAllowedOrigins,
+    });
+
+    if (!requestOrigin || parsedAllowedOrigins.includes(requestOrigin)) {
+      console.info("[CORS-TRACE] ORIGIN ALLOWED", {
+        requestOrigin,
+        method,
+        path,
+      });
+      callback(null, { origin: true, credentials: true });
+      return;
+    }
+
+    console.warn("[CORS-TRACE] ORIGIN DENIED", {
+      requestOrigin,
+      method,
+      path,
+      rawAllowedOriginsEnv,
+      parsedAllowedOrigins,
+      reason: "Request origin is not in ALLOWED_ORIGINS",
+    });
+
+    callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
   })
 );
 
