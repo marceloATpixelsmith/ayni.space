@@ -479,20 +479,26 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.match(JSON.stringify(callbackBefore[1]), /"sessionGroup":"admin"/);
     assert.match(JSON.stringify(callbackBefore[1]), /"cookieName":"saas\.admin\.sid"/);
 
-    const callbackAfter = authCheckLogs.find((entry) => entry[0] === "[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER");
+    const callbackAfter = authCheckLogs
+      .map((entry) => String(entry[0]))
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER"));
     assert.ok(callbackAfter);
-    assert.match(JSON.stringify(callbackAfter[1]), /"sessionGroup":"admin"/);
-    assert.match(JSON.stringify(callbackAfter[1]), /"userId":"super-user"/);
+    assert.match(callbackAfter, /sessionGroup=admin/);
+    assert.match(callbackAfter, /userId=super-user/);
 
-    const firstAuthRequest = authCheckLogs.find((entry) => entry[0] === "[AUTH-CHECK-TRACE] FIRST AUTH REQUEST");
+    const firstAuthRequest = authCheckLogs
+      .map((entry) => String(entry[0]))
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST"));
     assert.ok(firstAuthRequest);
-    assert.match(JSON.stringify(firstAuthRequest[1]), /"sessionGroup":"admin"/);
-    assert.match(JSON.stringify(firstAuthRequest[1]), /"allow":true/);
+    assert.match(firstAuthRequest, /sessionGroup=admin/);
+    assert.match(firstAuthRequest, /allow=true/);
 
-    const adminGuard = authCheckLogs.find((entry) => entry[0] === "[AUTH-CHECK-TRACE] ADMIN GUARD");
+    const adminGuard = authCheckLogs
+      .map((entry) => String(entry[0]))
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] ADMIN GUARD"));
     assert.ok(adminGuard);
-    assert.match(JSON.stringify(adminGuard[1]), /"sessionGroup":"admin"/);
-    assert.match(JSON.stringify(adminGuard[1]), /"allow":true/);
+    assert.match(adminGuard, /sessionGroup=admin/);
+    assert.match(adminGuard, /allow=true/);
   } finally {
     for (const undo of restore.reverse()) undo();
   }

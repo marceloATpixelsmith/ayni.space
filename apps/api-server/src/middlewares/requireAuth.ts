@@ -16,7 +16,17 @@ function logFirstAuthRequest(payload: {
   allow: boolean;
   denyReason: string | null;
 }) {
-  console.log("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST", payload);
+  const { path, method, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason } = payload;
+  console.log(
+    `[AUTH-CHECK-TRACE] FIRST AUTH REQUEST ` +
+    `path=${path} method=${method} ` +
+    `sessionExists=${sessionExists} ` +
+    `sessionGroup=${sessionGroup} ` +
+    `userId=${userId} ` +
+    `isSuperAdmin=${isSuperAdmin} ` +
+    `allow=${allow} ` +
+    `denyReason=${denyReason}`
+  );
 }
 
 function logAdminGuard(payload: {
@@ -28,7 +38,17 @@ function logAdminGuard(payload: {
   allow: boolean;
   denyReason: string | null;
 }) {
-  console.log("[AUTH-CHECK-TRACE] ADMIN GUARD", payload);
+  const { path, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason } = payload;
+  console.log(
+    `[AUTH-CHECK-TRACE] ADMIN GUARD ` +
+    `path=${path} ` +
+    `sessionExists=${sessionExists} ` +
+    `sessionGroup=${sessionGroup} ` +
+    `userId=${userId} ` +
+    `isSuperAdmin=${isSuperAdmin} ` +
+    `allow=${allow} ` +
+    `denyReason=${denyReason}`
+  );
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
