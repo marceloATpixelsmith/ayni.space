@@ -874,13 +874,14 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.activeOrgId = user.activeOrgId ?? undefined;
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
-    console.log("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER", {
-      sessionExists: Boolean(req.session),
-      sessionId: req.session?.id ?? null,
-      sessionGroup: req.session.sessionGroup ?? null,
-      userId: req.session.userId ?? null,
-      isSuperAdmin: user.isSuperAdmin,
-    });
+    console.log(
+      `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER ` +
+      `sessionExists=${Boolean(req.session)} ` +
+      `sessionId=${req.session?.id ?? null} ` +
+      `sessionGroup=${req.session.sessionGroup ?? null} ` +
+      `userId=${req.session.userId ?? null} ` +
+      `isSuperAdmin=${user.isSuperAdmin}`
+    );
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
       sessionExists: Boolean(req.session),
       sessionId: req.session?.id ?? null,
