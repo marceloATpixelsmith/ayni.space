@@ -3,12 +3,13 @@ import type { NormalizedAccessProfile } from "./appAccessProfile.js";
 export const ADMIN_ACCESS_DENIED_ERROR = "access_denied";
 
 export function getPostAuthRedirectPath(options: {
+  appSlug: string;
   isSuperAdmin: boolean;
   normalizedAccessProfile: NormalizedAccessProfile;
   requiredOnboarding: "none" | "organization";
   authIntent?: "sign_in" | "create_account" | null;
 }): string {
-  const { isSuperAdmin, normalizedAccessProfile, requiredOnboarding } = options;
+  const { appSlug, isSuperAdmin, normalizedAccessProfile, requiredOnboarding } = options;
 
   if (normalizedAccessProfile === "superadmin") {
     if (isSuperAdmin) return "/dashboard";
@@ -16,7 +17,7 @@ export function getPostAuthRedirectPath(options: {
   }
 
   if (requiredOnboarding !== "none") {
-    return "/onboarding";
+    return `/${appSlug}/onboarding/organization`;
   }
 
   return "/dashboard";
