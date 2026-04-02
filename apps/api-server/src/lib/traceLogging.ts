@@ -6,13 +6,31 @@ function parseBooleanEnv(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+function isNodeTestRuntime(): boolean {
+  if (process.env["NODE_ENV"] === "test") return true;
+
+  if (process.execArgv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+    return true;
+  }
+
+  if (process.argv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+    return true;
+  }
+
+  if (process.argv.some((arg) => arg.includes("__tests__") || arg.endsWith(".test.ts") || arg.endsWith(".test.js"))) {
+    return true;
+  }
+
+  return false;
+}
+
 export function isVerboseTraceLoggingEnabled(): boolean {
   const explicit = parseBooleanEnv(process.env["BACKEND_TRACE_VERBOSE"]);
   if (typeof explicit === "boolean") {
     return explicit;
   }
 
-  return process.env["NODE_ENV"] === "test";
+  return isNodeTestRuntime();
 }
 
 export function logVerboseTrace(...args: unknown[]) {
