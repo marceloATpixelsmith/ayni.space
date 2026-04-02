@@ -257,6 +257,8 @@ declare module "express-session" {
   interface SessionData {
     userId?: string;
     activeOrgId?: string;
+    isSuperAdmin?: boolean;
+    appSlug?: string;
     oauthState?: string;
     oauthReturnTo?: string;
     oauthSessionGroup?: string;

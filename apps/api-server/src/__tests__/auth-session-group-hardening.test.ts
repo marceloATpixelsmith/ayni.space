@@ -474,14 +474,17 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.equal(traceLogs.some((line) => line.includes("G1. SESSION WRITE AFTER")), true);
     assert.equal(traceLogs.some((line) => line.includes("J. CALLBACK EXIT")), true);
 
-    const callbackBefore = authCheckLogs.find((entry) => entry[0] === "[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE");
+    const callbackBefore = authCheckLogs
+      .map((entry) => String(entry[0]))
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE"));
     assert.ok(callbackBefore);
-    assert.match(JSON.stringify(callbackBefore[1]), /"sessionGroup":"admin"/);
-    assert.match(JSON.stringify(callbackBefore[1]), /"cookieName":"saas\.admin\.sid"/);
+    assert.match(callbackBefore, /sessionGroup=admin/);
+    assert.match(callbackBefore, /userId=super-user/);
+    assert.match(callbackBefore, /isSuperAdmin=true/);
 
     const callbackAfter = authCheckLogs
       .map((entry) => String(entry[0]))
-      .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER"));
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE"));
     assert.ok(callbackAfter);
     assert.match(callbackAfter, /sessionGroup=admin/);
     assert.match(callbackAfter, /userId=super-user/);
@@ -504,6 +507,108 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
   }
 });
 
+
+
+test("superadmin callback persists identity fields across next request and allows admin guard", async () => {
+  const logs: unknown[][] = [];
+  const persistedSession: Record<string, unknown> = {
+    oauthState: ADMIN_OAUTH_STATE,
+    oauthReturnTo: "http://admin.local",
+    oauthSessionGroup: "admin",
+  };
+
+  const restore: Array<() => void> = [
+    patchProperty(console, "log", (...args: unknown[]) => {
+      logs.push(args);
+    }),
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "super@example.com", name: "Super" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      onboardingMode: "disabled",
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "super-user",
+      email: "super@example.com",
+      name: "Super",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: true,
+      googleSubject: "sub",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+    patchProperty(db, "select", () => ({
+      from: async () => [{ count: 1 }],
+    }) as never),
+  ];
+
+  try {
+    const app = express();
+    app.use((req, _res, next) => {
+      (req as unknown as { session: Record<string, unknown> }).session = {
+        id: "test-session-id",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          Object.assign(persistedSession, this);
+          cb?.();
+        },
+        regenerate(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          for (const key of Object.keys(this)) {
+            delete this[key];
+          }
+          this.id = "regenerated-session-id";
+          this.destroy = (done?: (err?: unknown) => void) => done?.();
+          this.save = (done?: (err?: unknown) => void) => {
+            Object.assign(persistedSession, this);
+            done?.();
+          };
+          this.regenerate = (done?: (err?: unknown) => void) => done?.();
+          cb?.();
+        },
+        ...persistedSession,
+      };
+      next();
+    });
+    app.use("/api/auth", authRouter);
+    app.use(createSecurityEnforcementMiddleware());
+    app.use("/api/admin", adminRouter);
+
+    const callbackResponse = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`);
+    assert.equal(callbackResponse.status, 302);
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/dashboard");
+    assert.equal(persistedSession.userId, "super-user");
+    assert.equal(persistedSession.isSuperAdmin, true);
+    assert.equal(persistedSession.sessionGroup, "admin");
+    assert.equal(persistedSession.appSlug, "admin");
+
+    const adminResponse = await request(app, "/api/admin/stats", {
+      headers: {
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+    assert.equal(adminResponse.status, 200);
+
+    const authCheckLines = logs
+      .filter((entry) => typeof entry[0] === "string" && entry[0].includes("[AUTH-CHECK-TRACE]"))
+      .map((entry) => String(entry[0]));
+
+    const adminGuard = authCheckLines.find((line) => line.includes("[AUTH-CHECK-TRACE] ADMIN GUARD"));
+    assert.ok(adminGuard);
+    assert.match(adminGuard, /userId=super-user/);
+    assert.match(adminGuard, /allow=true/);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
 test("logout clears only the current request session-group cookie (admin)", async () => {
   let destroyed = false;
 
