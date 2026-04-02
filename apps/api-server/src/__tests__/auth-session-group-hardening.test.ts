@@ -21,6 +21,19 @@ const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
 const { default: adminRouter } = await import("../routes/admin.js");
 const ADMIN_OAUTH_STATE = "admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9";
+const WORKSPACE_ORG_OAUTH_STATE = `default.valid-state.${Buffer.from(JSON.stringify({
+  nonce: "valid-state",
+  appSlug: "workspace",
+  returnTo: "http://workspace.local",
+  sessionGroup: "default",
+}), "utf8").toString("base64url")}`;
+
+const WORKSPACE_SOLO_OAUTH_STATE = `default.valid-state.${Buffer.from(JSON.stringify({
+  nonce: "valid-state",
+  appSlug: "workspace-solo",
+  returnTo: "http://workspace.local",
+  sessionGroup: "default",
+}), "utf8").toString("base64url")}`;
 
 async function request(
   app: ReturnType<typeof createMountedSessionApp>,
@@ -516,6 +529,220 @@ test("unknown user in superadmin mode is denied without creating a user row", as
     assert.equal(response.headers.get("location"), "http://admin.local/login?error=access_denied");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("organization create_account callback provisions unknown user and redirects to onboarding", async () => {
+  const insertedRows: Array<Record<string, unknown>> = [];
+  const now = new Date("2026-01-01T00:00:00.000Z");
+  const createdUser = {
+    id: "created-user",
+    email: "new.user@example.com",
+    name: "New User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: "google-new-user",
+    active: true,
+    suspended: false,
+    deletedAt: null,
+  };
+  let userLookupCount = 0;
+
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-new-user",
+      email: "New.User@Example.com",
+      name: "New User",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "workspace-app",
+      slug: "workspace",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: true,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => {
+      userLookupCount += 1;
+      if (userLookupCount <= 2) return null;
+      return createdUser;
+    }),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (row: Record<string, unknown>) => {
+        if ("email" in row && "isSuperAdmin" in row) {
+          insertedRows.push(row);
+          return {
+            returning: async () => [{ ...createdUser, ...row }],
+          };
+        }
+        return {
+          catch: () => undefined,
+        };
+      },
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+      oauthIntent: "create_account",
+    });
+
+    const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding");
+    assert.equal(insertedRows.length, 1);
+    assert.equal(insertedRows[0]?.email, "new.user@example.com");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("organization callback redirects existing user without org access to onboarding", async () => {
+  const existingUser = {
+    id: "existing-user",
+    email: "existing@example.com",
+    name: "Existing",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: "google-existing-user",
+    active: true,
+    suspended: false,
+    deletedAt: null,
+  };
+
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-existing-user",
+      email: "existing@example.com",
+      name: "Existing",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "workspace-app",
+      slug: "workspace",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: true,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => existingUser),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (row: Record<string, unknown>) => {
+        if ("email" in row && "isSuperAdmin" in row) {
+          return { returning: async () => [] };
+        }
+        return {
+          catch: () => undefined,
+        };
+      },
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+      oauthIntent: "create_account",
+    });
+
+    const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("solo callback provisions unknown user and keeps dashboard redirect", async () => {
+  const createdUser = {
+    id: "solo-created-user",
+    email: "solo@example.com",
+    name: "Solo User",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: "google-solo-user",
+    active: true,
+    suspended: false,
+    deletedAt: null,
+  };
+  let userLookupCount = 0;
+
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-solo-user",
+      email: "solo@example.com",
+      name: "Solo User",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "solo-app",
+      slug: "workspace-solo",
+      isActive: true,
+      accessMode: "solo",
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => {
+      userLookupCount += 1;
+      if (userLookupCount <= 2) return null;
+      return createdUser;
+    }),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (row: Record<string, unknown>) => {
+        if ("email" in row && "isSuperAdmin" in row) {
+          return {
+            returning: async () => [createdUser],
+          };
+        }
+        return {
+          catch: () => undefined,
+        };
+      },
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_SOLO_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+      oauthIntent: "create_account",
+    });
+
+    const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_SOLO_OAUTH_STATE}`);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "http://workspace.local/dashboard");
   } finally {
     for (const undo of restore.reverse()) undo();
   }

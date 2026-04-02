@@ -9,6 +9,7 @@ process.env["ALLOWED_ORIGINS"] = "http://localhost:5173";
 process.env["GOOGLE_CLIENT_ID"] = "test-client";
 process.env["GOOGLE_CLIENT_SECRET"] = "test-secret";
 process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/callback";
+process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=workspace";
 
 const { default: authRouter } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
@@ -190,6 +191,25 @@ test("google oauth url returns clear config error when oauth env is missing", as
   } finally {
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+test("google oauth url requires app slug context and fails closed when missing", async () => {
+  const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+  delete process.env["APP_SLUG_BY_ORIGIN"];
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+
+  try {
+    const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.code, "APP_SLUG_REQUIRED");
+  } finally {
+    if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
+    else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }

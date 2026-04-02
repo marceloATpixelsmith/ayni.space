@@ -148,7 +148,23 @@ function parseAppSlugByOriginEnv(): Map<string, string> {
   return mappings;
 }
 
-function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string): string {
+function getRequestedAppSlug(req: Request): string | null {
+  const bodyAppSlug = firstQueryParam(req.body?.appSlug);
+  if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim();
+
+  const queryAppSlug = firstQueryParam(req.query?.appSlug);
+  if (queryAppSlug && queryAppSlug.trim()) return queryAppSlug.trim();
+
+  const sessionAppSlug = typeof req.session?.appSlug === "string" ? req.session.appSlug.trim() : "";
+  if (sessionAppSlug) return sessionAppSlug;
+
+  return null;
+}
+
+function resolveActiveAppSlugForAuth(req: Request, frontendBase: string, sessionGroup: string): string | null {
+  const requestedAppSlug = getRequestedAppSlug(req);
+  if (requestedAppSlug) return requestedAppSlug;
+
   try {
     const hostname = new URL(frontendBase).hostname.toLowerCase();
     if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
@@ -164,13 +180,13 @@ function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string)
   const explicit = explicitMap.get(frontendBase);
   if (explicit) return explicit;
 
-  return "workspace";
+  return null;
 }
 
 function resolveOauthStartContext(req: Request, returnTo: string) {
   const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
   const resolvedSessionGroup = req.resolvedSessionGroup ?? originSessionGroup;
-  const appSlug = resolveActiveAppSlugForAuth(returnTo, resolvedSessionGroup);
+  const appSlug = resolveActiveAppSlugForAuth(req, returnTo, resolvedSessionGroup);
   const oauthSessionGroup = appSlug === "admin" || resolvedSessionGroup === SESSION_GROUPS.ADMIN
     ? SESSION_GROUPS.ADMIN
     : SESSION_GROUPS.DEFAULT;
@@ -455,6 +471,18 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const { appSlug, oauthSessionGroup } = resolveOauthStartContext(req, returnTo);
+  if (!appSlug) {
+    console.error("[auth/google/url] missing appSlug for oauth start", {
+      returnTo,
+      resolvedSessionGroup: req.resolvedSessionGroup ?? null,
+      originSessionGroup: resolveSessionGroupFromOrigin(returnTo),
+      requestAppSlug: getRequestedAppSlug(req),
+    });
+    logAuthFailure(req, "google-url-missing-app-slug", { returnTo });
+    sendGoogleUrlError(req, res, 400, "APP_SLUG_REQUIRED", "App slug is required to start OAuth.", "app_slug_missing");
+    return;
+  }
+
   const statePayload = {
     nonce: randomUUID(),
     appSlug,
@@ -881,15 +909,38 @@ async function handleGoogleCallback(req: Request, res: Response) {
         await denyWithAccessDenied();
         return;
       }
+
+      const now = new Date();
+      const createdRows = await db
+        .insert(usersTable)
+        .values({
+          id: randomUUID(),
+          email,
+          name: googleUser.name ?? null,
+          avatarUrl: googleUser.picture ?? null,
+          googleSubject: subject ?? null,
+          emailVerifiedAt: now,
+          isSuperAdmin: false,
+          active: true,
+          suspended: false,
+          deletedAt: null,
+          lastLoginAt: now,
+        })
+        .returning();
+      user = createdRows[0] ?? null;
+
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode: app?.accessMode ?? null,
         normalizedAccessProfile,
-        allow: false,
-        denyReason: "user_not_found",
+        allow: Boolean(user),
+        denyReason: user ? null : "user_provisioning_failed",
       });
-      await denyWithAccessDenied();
-      return;
+
+      if (!user) {
+        await denyWithAccessDenied();
+        return;
+      }
     }
 
     logSuperadminTrace("G. FINAL USER CHOSEN FOR AUTH", {
@@ -901,6 +952,18 @@ async function handleGoogleCallback(req: Request, res: Response) {
       suspended: user.suspended,
       activeOrgId: user.activeOrgId ?? null,
     });
+
+    if (user.active === false || user.suspended === true || user.deletedAt) {
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        normalizedAccessProfile,
+        allow: false,
+        denyReason: "inactive_or_suspended_user",
+      });
+      await denyWithAccessDenied();
+      return;
+    }
 
     if (isSuperadminAccessMode && user.isSuperAdmin !== true) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
@@ -1005,11 +1068,30 @@ async function handleGoogleCallback(req: Request, res: Response) {
         }
       : null);
 
-    if (!effectiveContext?.canAccess) {
+    if (!effectiveContext) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
-        normalizedAccessProfile: effectiveContext?.normalizedAccessProfile ?? normalizedAccessProfile,
+        normalizedAccessProfile: normalizedAccessProfile,
+        allow: false,
+        denyReason: "missing_app_context",
+      });
+      logSuperadminTrace("J. CALLBACK EXIT", {
+        redirectTo: getAccessDeniedRedirect(frontendBase),
+        outcome: "deny",
+        lastCompletedStep,
+      });
+      await destroySessionAndClearCookie(req, res, oauthSessionGroup);
+      res.redirect(getAccessDeniedRedirect(frontendBase));
+      return;
+    }
+
+    const onboardingRequired = effectiveContext.requiredOnboarding === "organization";
+    if (!effectiveContext.canAccess && !onboardingRequired) {
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
         allow: false,
         denyReason: "app_context_denied",
       });
