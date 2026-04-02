@@ -248,7 +248,8 @@ test("PART 3E+3F+3G: callback-established admin session is reused by next auth c
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      onboardingMode: false,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "super-user-id",

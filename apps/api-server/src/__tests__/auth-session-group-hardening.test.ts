@@ -61,7 +61,8 @@ function stubDbForCallback(isSuperAdmin: boolean) {
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      onboardingMode: false,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => user),
     patchProperty(db, "update", () => ({
@@ -90,7 +91,8 @@ function stubDbForCallbackSequence(options: {
       slug: "admin",
       isActive: true,
       accessMode: options.isSuperadminApp === false ? "organization" : "superadmin",
-      onboardingMode: false,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async (query: any) => {
       userLookupCount += 1;
@@ -587,7 +589,8 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      onboardingMode: false,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => superUser),
     patchProperty(db, "update", () => ({
@@ -694,7 +697,8 @@ test("superadmin callback persists identity fields across next request and allow
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-      onboardingMode: false,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "super-user",

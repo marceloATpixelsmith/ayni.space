@@ -12,16 +12,17 @@
   - `apps/api-server/src/middlewares/requireOrgAccess.ts`
   - `apps/api-server/src/middlewares/requireAppAccess.ts`
 - App-level access logic is implemented in `apps/api-server/src/lib/appAccess.ts`.
-- App-level onboarding configuration for `platform.apps.onboarding_mode` is boolean and only applies to `access_mode = "solo"` in app access context (`apps/api-server/src/lib/appAccess.ts`, `apps/api-server/src/lib/appAccessProfile.ts`, `lib/db/src/schema/apps.ts`).
-- Organization app access onboarding remains membership/access based (`requiredOnboarding = "organization"`) and does not use `platform.apps.onboarding_mode` (`apps/api-server/src/lib/appAccess.ts`).
-- Organization invitation acceptance is a separate membership flow in `apps/api-server/src/routes/invitations.ts` and is controlled by org membership/invitation status, not by solo onboarding booleans.
+- App-level access/onboarding is centered on `platform.apps.access_mode` (`superadmin`, `solo`, `organization`) with no `platform.apps.onboarding_mode` column (`apps/api-server/src/lib/appAccess.ts`, `apps/api-server/src/lib/appAccessProfile.ts`, `lib/db/src/schema/apps.ts`).
+- Solo access is auto-self-onboarded (no onboarding route requirement), while organization access still uses organization-creation onboarding when membership/access is missing (`requiredOnboarding = "organization"`) (`apps/api-server/src/lib/appAccess.ts`).
+- Organization invitation acceptance is a distinct flow and is only allowed when `platform.apps.staff_invites_enabled = true` for organization apps (`apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/lib/appAccessProfile.ts`).
+- Organization customer self-registration is distinct from staff invitations and is controlled by `platform.apps.customer_registration_enabled` in auth-route policy metadata (`apps/api-server/src/lib/appAccessProfile.ts`, `apps/api-server/src/routes/apps.ts`).
 - Route-level authz boundaries are applied during route registration in API route modules under `apps/api-server/src/routes/*`.
 - Overview-defined non-negotiable: authorization remains middleware-driven (`requireAuth`, `requireOrgAccess`, `requireOrgAdmin`, `requireSuperAdmin`, `requireAppAccess`).
 
 ## Inferred
 - Role/access checks are intentionally centralized at middleware boundaries instead of being spread ad hoc inside handlers.
 - The model supports layered checks (authenticated user -> org-scoped access -> app-scoped access).
-- App-level solo onboarding and organization membership onboarding are intentionally separate decisions in app context evaluation.
+- Solo auto-self-onboarding, organization creation onboarding, staff invitation acceptance, and customer self-registration are intentionally separate policy decisions.
 
 ## Unclear
 - Complete canonical role matrix and precedence definitions across all tenant/app contexts.
@@ -32,4 +33,4 @@
 - Do not remove or weaken org/app access middleware on protected routes.
 - Do not introduce new protected routes without explicit `requireAuth` and relevant scope middleware.
 - Do not diverge role semantics across routes without documenting the change in architecture docs.
-- Do not couple organization invitation/customer registration flows to `platform.apps.onboarding_mode` without explicit architecture change.
+- Do not reintroduce `platform.apps.onboarding_mode` semantics; keep organization invitation and customer registration controls on the organization-only boolean capability flags.

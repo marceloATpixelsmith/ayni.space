@@ -79,19 +79,19 @@ test("shared route policy enforces normalized access-profile onboarding and invi
   );
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true };",
+    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };",
     "Organization profile should allow onboarding and invitation routes.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false };",
-    "Solo onboarding profile should allow onboarding and deny invitation routes.",
+    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };",
+    "Solo profile should deny onboarding, invitation, and customer-registration auth routes.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (!app) {\n    return { allowOnboarding: false, allowInvitations: false };",
+    "if (!app) {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };",
     "Missing app metadata should fail closed and deny onboarding/invitations.",
   );
 });

@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
+import { appsTable, db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -11,8 +11,26 @@ import { inviteSchema, validateBody } from "../middlewares/validation.js";
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+async function isStaffInvitesEnabledForOrg(orgId: string): Promise<boolean> {
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
+  if (!org?.appId) return false;
+
+  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, org.appId) });
+  return app?.accessMode === "organization" && app.staffInvitesEnabled;
+}
+
+async function isStaffInvitesEnabledForInvitation(invitation: { orgId: string | null }): Promise<boolean> {
+  if (!invitation.orgId) return false;
+  return isStaffInvitesEnabledForOrg(invitation.orgId);
+}
+
 async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
   const { orgId } = req.params;
+
+  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
+    return;
+  }
 
   const org = await db.query.organizationsTable.findFirst({
     where: eq(organizationsTable.id, orgId),
@@ -40,6 +58,11 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
   const { orgId } = req.params;
   const userId = req.session.userId;
   const { email, role } = req.body;
+
+  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
+    return;
+  }
 
   if (!userId || !email || !role) {
     res.status(400).json({ error: "email and role are required" });
@@ -106,6 +129,11 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
 async function cancelInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
 
+  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
+    return;
+  }
+
   await db
     .update(invitationsTable)
     .set({ invitationStatus: "revoked" })
@@ -125,6 +153,11 @@ async function cancelInvitation(req: Request<{ orgId: string; invitationId: stri
 
 async function resendInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
+
+  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
+    return;
+  }
 
   const invitation = await db.query.invitationsTable.findFirst({ where: eq(invitationsTable.id, invitationId) });
 
@@ -203,6 +236,20 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
       req,
     });
     res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+
+  if (!(await isStaffInvitesEnabledForInvitation(invitation))) {
+    writeAuditLog({
+      orgId: invitation.orgId ?? undefined,
+      userId,
+      action: "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: { reason: "staff-invites-disabled" },
+      req,
+    });
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
     return;
   }
 

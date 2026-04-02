@@ -75,7 +75,8 @@ test("A: auth/session protections and logout flow", async () => {
   process.env["SESSION_COOKIE_DOMAIN"] = "admin.test.local";
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-auth")),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
     patchProperty(db, "select", selectCountMock()),
     patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
     patchProperty(db, "insert", insertMock()),
@@ -212,7 +213,8 @@ test("D: members and invitations role/org checks and invitation acceptance state
 
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-inv", { email: "member@example.com" })),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       role
         ? (() => {
@@ -311,9 +313,10 @@ test("E: super admin endpoints are super-admin only (no app/subscription depende
 test("Optional: starter tenant/app access checks for ayni + shipibo", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("apps-user")),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization", onboardingMode: true })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: true })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
     patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
   ];

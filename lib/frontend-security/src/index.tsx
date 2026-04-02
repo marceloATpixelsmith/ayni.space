@@ -154,13 +154,14 @@ export type PlatformAppMetadata = {
 export type AppAuthRoutePolicy = {
   allowOnboarding: boolean;
   allowInvitations: boolean;
+  allowCustomerRegistration: boolean;
 };
 
 export function deriveAppAuthRoutePolicy(
   app: PlatformAppMetadata | null | undefined,
 ): AppAuthRoutePolicy {
   if (!app) {
-    return { allowOnboarding: false, allowInvitations: false };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   if (app.authRoutePolicy) {
@@ -168,14 +169,14 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "organization") {
-    return { allowOnboarding: true, allowInvitations: true };
+    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   if (app.normalizedAccessProfile === "solo") {
-    return { allowOnboarding: true, allowInvitations: false };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
-  return { allowOnboarding: false, allowInvitations: false };
+  return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
 }
 
 export function isAuthRouteAllowed(
@@ -231,10 +232,12 @@ function normalizePlatformAppMetadata(
     authRoutePolicyCandidate &&
     typeof authRoutePolicyCandidate === "object" &&
     typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowOnboarding"] === "boolean" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowInvitations"] === "boolean"
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowInvitations"] === "boolean" &&
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowCustomerRegistration"] === "boolean"
       ? {
           allowOnboarding: (authRoutePolicyCandidate as Record<string, boolean>)["allowOnboarding"],
           allowInvitations: (authRoutePolicyCandidate as Record<string, boolean>)["allowInvitations"],
+          allowCustomerRegistration: (authRoutePolicyCandidate as Record<string, boolean>)["allowCustomerRegistration"],
         }
       : undefined;
 

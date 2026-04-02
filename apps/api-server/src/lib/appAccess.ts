@@ -11,7 +11,7 @@ export async function canAccessApp(userId: string, appSlug: string): Promise<boo
   return Boolean(context?.canAccess);
 }
 
-export async function getRequiredOnboarding(userId: string, appSlug: string): Promise<"none" | "organization" | "solo"> {
+export async function getRequiredOnboarding(userId: string, appSlug: string): Promise<"none" | "organization"> {
   const context = await getAppContext(userId, appSlug);
   return context?.requiredOnboarding ?? "none";
 }
@@ -27,7 +27,7 @@ export async function getAppContext(userId: string, appSlug: string) {
 
   const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
   if (!normalizedAccessProfile) {
-    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode, onboardingMode: app.onboardingMode });
+    console.warn("[auth/access] invalid app access config", { appSlug, appId: app.id, accessMode: app.accessMode });
     return null;
   }
 
@@ -53,7 +53,7 @@ export async function getAppContext(userId: string, appSlug: string) {
   const hasActiveAppAccess = appAccess?.accessStatus === "active";
   const hasActiveMembership = orgMembership?.membershipStatus === "active";
 
-  let requiredOnboarding: "none" | "organization" | "solo" = "none";
+  let requiredOnboarding: "none" | "organization" = "none";
   let canAccess = false;
 
   if (normalizedAccessProfile === "superadmin") {
@@ -62,17 +62,13 @@ export async function getAppContext(userId: string, appSlug: string) {
     canAccess = hasActiveMembership || hasActiveAppAccess;
     if (!canAccess) requiredOnboarding = "organization";
   } else if (normalizedAccessProfile === "solo") {
-    canAccess = hasActiveAppAccess;
-    if (!canAccess && app.onboardingMode) requiredOnboarding = "solo";
+    // Solo users are auto-self-onboarded: no onboarding route and no invite/customer registration paths.
+    canAccess = true;
   } else {
     return null;
   }
 
-  const defaultRoute = requiredOnboarding === "organization"
-    ? `/${appSlug}/onboarding/organization`
-    : requiredOnboarding === "solo"
-      ? `/${appSlug}/onboarding/solo`
-      : `/${appSlug}`;
+  const defaultRoute = requiredOnboarding === "organization" ? `/${appSlug}/onboarding/organization` : `/${appSlug}`;
 
   return {
     user,
@@ -81,7 +77,10 @@ export async function getAppContext(userId: string, appSlug: string) {
     activeOrg,
     orgMembership,
     normalizedAccessProfile,
-    authRoutePolicy: getAuthRoutePolicyForProfile(normalizedAccessProfile, app.onboardingMode),
+    authRoutePolicy: getAuthRoutePolicyForProfile(normalizedAccessProfile, {
+      staffInvitesEnabled: app.staffInvitesEnabled,
+      customerRegistrationEnabled: app.customerRegistrationEnabled,
+    }),
     requiredOnboarding,
     canAccess,
     defaultRoute,

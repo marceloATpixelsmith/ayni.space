@@ -760,7 +760,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
       appFound: Boolean(app),
       appId: app?.id ?? null,
       accessMode: app?.accessMode ?? null,
-      onboardingMode: app?.onboardingMode ?? null,
+      staffInvitesEnabled: app?.staffInvitesEnabled ?? null,
+      customerRegistrationEnabled: app?.customerRegistrationEnabled ?? null,
     });
 
     await new Promise((resolve, reject) => {

@@ -43,6 +43,13 @@
       "when": 1743552000000,
       "tag": "20260402_onboarding_mode_boolean",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1743555600000,
+      "tag": "20260402_access_onboarding_refactor",
+      "breakpoints": true
     }
   ]
 }
