@@ -1,4 +1,6 @@
+-- Transitional historical migration:
 -- Convert platform.apps.onboarding_mode from enum/text semantics to boolean.
+-- This remains in history for stepwise upgrades from schemas that still had onboarding_mode.
 -- App-level onboarding boolean semantics:
 --  true  => solo app-level onboarding allowed
 --  false => solo app-level onboarding blocked

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import {
   db,
+  appsTable,
   organizationsTable,
   orgMembershipsTable,
   usersTable,
@@ -8,6 +9,7 @@ import {
 import { eq, and, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { requireOrganizationAppSession } from "../middlewares/requireOrganizationAppSession.js";
 import { validateBody } from "../middlewares/validation.js";
 import { createOrgSchema } from "../middlewares/validation.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
@@ -38,7 +40,7 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // ── POST /organizations ────────────────────────────────────────────────────────
-router.post("/", requireAuth, validateBody(createOrgSchema), async (req, res) => {
+router.post("/", requireAuth, requireOrganizationAppSession, validateBody(createOrgSchema), async (req, res) => {
   const userId = req.session.userId!;
   const { name, slug, website } = req.body as { name: string; slug: string; website?: string };
 
@@ -57,9 +59,16 @@ router.post("/", requireAuth, validateBody(createOrgSchema), async (req, res) =>
   }
 
   const orgId = randomUUID();
+  const sessionAppSlug = req.session.appSlug!;
+  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.slug, sessionAppSlug) });
+  if (!app) {
+    res.status(403).json({ error: "Organization flow is unavailable for this app." });
+    return;
+  }
+
   const [org] = await db
     .insert(organizationsTable)
-    .values({ id: orgId, name, slug, website: website ?? null, appId: "ayni", ownerUserId: userId })
+    .values({ id: orgId, name, slug, website: website ?? null, appId: app.id, ownerUserId: userId })
     .returning();
 
   // Add creator as owner
