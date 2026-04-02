@@ -203,7 +203,7 @@ test("PART 3B: admin callback app-context outage fails closed with redirect (no 
 
 test("PART 3C: admin oauth start embeds appSlug in state payload", async () => {
   const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
-  const resp = await request(app, "/api/auth/google/url", "POST", {
+  const resp = await request(app, "/api/auth/google/url?appSlug=admin", "POST", {
     origin: "http://admin.local",
   });
   assert.equal(resp.status, 200);
@@ -441,20 +441,20 @@ test("PART 7+8+10: turnstile, rate limit, and fail-closed behavior on auth endpo
     app.use(createSecurityEnforcementMiddleware({ verifyFn: async (token) => token === "valid-token" }));
     app.use("/api/auth", authRouter);
 
-    const missingToken = await request(app, "/api/auth/google/url", "POST", {
+    const missingToken = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
       origin: "http://workspace.local",
       "x-forwarded-for": "203.0.113.90",
     });
     assert.equal(missingToken.status, 403);
 
-    const invalidToken = await request(app, "/api/auth/google/url", "POST", {
+    const invalidToken = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
       origin: "http://workspace.local",
       "cf-turnstile-response": "invalid-token",
       "x-forwarded-for": "203.0.113.91",
     });
     assert.equal(invalidToken.status, 403);
 
-    const validToken = await request(app, "/api/auth/google/url", "POST", {
+    const validToken = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
       origin: "http://workspace.local",
       "cf-turnstile-response": "valid-token",
       "x-forwarded-for": "203.0.113.92",
@@ -462,14 +462,14 @@ test("PART 7+8+10: turnstile, rate limit, and fail-closed behavior on auth endpo
     assert.equal(validToken.status, 200);
 
     for (let i = 0; i < 20; i += 1) {
-      const ok = await request(app, "/api/auth/google/url", "POST", {
+      const ok = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
         origin: "http://workspace.local",
         "cf-turnstile-response": "valid-token",
         "x-forwarded-for": "203.0.113.93",
       });
       assert.equal(ok.status, 200);
     }
-    const limited = await request(app, "/api/auth/google/url", "POST", {
+    const limited = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
       origin: "http://workspace.local",
       "cf-turnstile-response": "valid-token",
       "x-forwarded-for": "203.0.113.93",
