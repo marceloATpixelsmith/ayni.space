@@ -17,6 +17,7 @@ process.env["RATE_LIMIT_ENABLED"] = "true";
 
 const { db } = await import("@workspace/db");
 const { default: authRouter, authRouteDeps } = await import("../routes/auth.js");
+const { default: usersRouter } = await import("../routes/users.js");
 const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
@@ -233,6 +234,109 @@ test("PART 3D: malformed oauth state fails closed without 500", async () => {
   assert.equal(resp.status, 302);
   assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
   assert.equal(destroyed, true);
+});
+
+test("PART 3E+3F+3G: callback-established admin session is reused by next auth check and allows superadmin", async () => {
+  const logs: unknown[][] = [];
+  const restore: Array<() => void> = [
+    patchProperty(console, "log", (...args: unknown[]) => {
+      logs.push(args);
+    }),
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "super-sub", email: "super@example.com", name: "Super" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      onboardingMode: "disabled",
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "super-user-id",
+      email: "super@example.com",
+      name: "Super",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: true,
+      googleSubject: "super-sub",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+        returning: async () => ([{
+          id: "super-user-id",
+          email: "super@example.com",
+          name: "Super",
+          avatarUrl: null,
+          activeOrgId: null,
+          isSuperAdmin: true,
+          googleSubject: "super-sub",
+        }]),
+      }),
+    }) as never),
+    patchProperty(db, "insert", () => ({
+      values: () => Promise.resolve([{
+        id: "super-user-id",
+        email: "super@example.com",
+        name: "Super",
+        avatarUrl: null,
+        activeOrgId: null,
+        isSuperAdmin: true,
+        googleSubject: "super-sub",
+      }]),
+    }) as never),
+  ];
+
+  const sessionState: { session: any } = {
+    session: {
+      id: "admin.callback.session",
+      oauthState: ADMIN_OAUTH_STATE,
+      oauthReturnTo: "http://admin.local",
+      oauthSessionGroup: "admin",
+      sessionGroup: "admin",
+      destroy: (cb?: (err?: unknown) => void) => cb?.(),
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+    },
+  };
+
+  try {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as any).session = sessionState.session;
+      next();
+    });
+    app.use("/api/auth", authRouter);
+    app.use("/api/users", usersRouter);
+
+    const callbackResp = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`, "GET", {
+      origin: "http://admin.local",
+      cookie: "saas.admin.sid=admin-cookie",
+    });
+    assert.equal(callbackResp.status, 302);
+
+    const meResp = await request(app, "/api/users/me", "GET", {
+      origin: "http://admin.local",
+      cookie: "saas.admin.sid=admin-cookie",
+    });
+    assert.equal(meResp.status, 200);
+    const mePayload = (await meResp.json()) as Record<string, unknown>;
+    assert.equal(mePayload["id"], "super-user-id");
+    assert.equal(mePayload["isSuperAdmin"], true);
+
+    const firstAuthTrace = logs
+      .map((entry) => String(entry[0]))
+      .find((line) => line.includes("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST"));
+    assert.ok(firstAuthTrace);
+    assert.match(firstAuthTrace, /cookieHeaderPresent=true/);
+    assert.match(firstAuthTrace, /allow=true/);
+    assert.match(firstAuthTrace, /isSuperAdmin=true/);
+  } finally {
+    restore.reverse().forEach((undo) => undo());
+  }
 });
 
 test("PART 4+5: group-scoped logout clears only target cookie and invalidates session", async () => {

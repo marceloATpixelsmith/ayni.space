@@ -141,10 +141,6 @@ function parseAppSlugByOriginEnv(): Map<string, string> {
 }
 
 function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string): string {
-  const explicitMap = parseAppSlugByOriginEnv();
-  const explicit = explicitMap.get(frontendBase);
-  if (explicit) return explicit;
-
   try {
     const hostname = new URL(frontendBase).hostname.toLowerCase();
     if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
@@ -155,6 +151,11 @@ function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string)
   }
 
   if (sessionGroup === SESSION_GROUPS.ADMIN) return "admin";
+
+  const explicitMap = parseAppSlugByOriginEnv();
+  const explicit = explicitMap.get(frontendBase);
+  if (explicit) return explicit;
+
   return "workspace";
 }
 
@@ -432,10 +433,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
-  const requestSessionGroup = req.resolvedSessionGroup ?? getCurrentRequestSessionGroup(req);
-  const inferredSessionGroup = originSessionGroup === SESSION_GROUPS.DEFAULT
-    ? requestSessionGroup
-    : originSessionGroup;
+  const inferredSessionGroup = originSessionGroup;
   const appSlug = resolveActiveAppSlugForAuth(returnTo, inferredSessionGroup);
   const oauthSessionGroup = appSlug === "admin" || inferredSessionGroup === SESSION_GROUPS.ADMIN
     ? SESSION_GROUPS.ADMIN
