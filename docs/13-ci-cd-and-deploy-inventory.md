@@ -7,6 +7,8 @@
 ## Confirmed
 - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs **admin frontend PR tests only** for `apps/admin/**` changes and does not deploy.
 - `.github/workflows/backend-regression-gates.yml` runs **backend PR regression gates only** for API/package/workspace changes and does not deploy.
+- Backend regression gates now capture raw logs to `artifacts/backend-gates/*.log`, upload them as workflow artifacts, and print a compact failure summary when any backend gate step fails.
+- Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.
 - `.github/workflows/linear-history-enforcement.yml` blocks PRs with merge commits (rebase-only history).
 - `.github/workflows/auto-rebase.yml` and `.github/workflows/auto-merge.yml` automate Codex PR maintenance/merge behavior for `master`-targeting codex branches.

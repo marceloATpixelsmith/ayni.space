@@ -11,6 +11,7 @@ import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
+import { logVerboseTrace } from "../lib/traceLogging.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -222,7 +223,7 @@ function normalizeEmail(value: string | null | undefined): string {
 }
 
 function logSuperadminTrace(checkpoint: string, payload: Record<string, unknown>) {
-  console.log(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
+  logVerboseTrace(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
 }
 
 function logAuthCheckTrace(payload: {
@@ -235,7 +236,7 @@ function logAuthCheckTrace(payload: {
   sessionKeys: string;
 }) {
   const { sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
-  console.log(
+  logVerboseTrace(
     `[AUTH-CHECK-TRACE] AUTH ROUTE CHECK ` +
     `sessionExists=${sessionExists} ` +
     `sessionGroup=${sessionGroup} ` +
@@ -526,7 +527,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnTo: statePayload.returnTo,
     sessionGroup: statePayload.sessionGroup,
   });
-  console.log(
+  logVerboseTrace(
     `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
     `appSlug=${appSlug ?? "null"} ` +
     `returnTo=${returnTo ?? "null"} ` +
@@ -1026,7 +1027,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.sessionGroup = oauthSessionGroup;
     req.session.appSlug = activeAppSlug;
     logSessionCookieConfig();
-    console.log(
+    logVerboseTrace(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE ` +
       `userId=${req.session.userId ?? null} ` +
       `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
@@ -1056,7 +1057,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       });
     });
 
-    console.log(
+    logVerboseTrace(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE ` +
       `sessionExists=${Boolean(req.session)} ` +
       `sessionId=${req.sessionID ?? "null"} ` +

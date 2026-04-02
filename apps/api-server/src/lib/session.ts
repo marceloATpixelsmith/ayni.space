@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { pool } from "@workspace/db";
 import { writeAuditLog } from "./audit.js";
 import { getKnownSessionGroups, getSessionCookieNameForGroup, resolveSessionGroupForRequest, SESSION_GROUPS } from "./sessionGroup.js";
+import { logVerboseTrace } from "./traceLogging.js";
 
 const PgStore = connectPgSimple(session);
 
@@ -62,7 +63,7 @@ export function getSessionCookieOptions() {
 
 export function logSessionCookieConfig() {
   const cookieOptions = getSessionCookieOptions();
-  console.log(
+  logVerboseTrace(
     `[AUTH-CHECK-TRACE] COOKIE CONFIG ` +
     `sameSite=${String(cookieOptions.sameSite ?? "null")} ` +
     `secure=${String(cookieOptions.secure ?? false)} ` +

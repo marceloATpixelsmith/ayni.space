@@ -8,6 +8,7 @@ import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
 import { createSecurityEnforcementMiddleware, getSecurityConfig } from "./lib/securityPolicy.js";
+import { infoVerboseTrace, warnVerboseTrace } from "./lib/traceLogging.js";
 
 
 console.info("[startup] app.ts: validating environment...");
@@ -46,7 +47,7 @@ app.use(
     const method = req.method;
     const path = req.path;
 
-    console.info("[CORS-TRACE] ORIGIN CHECK", {
+    infoVerboseTrace("[CORS-TRACE] ORIGIN CHECK", {
       requestOrigin,
       method,
       path,
@@ -55,7 +56,7 @@ app.use(
     });
 
     if (!requestOrigin || parsedAllowedOrigins.includes(requestOrigin)) {
-      console.info("[CORS-TRACE] ORIGIN ALLOWED", {
+      infoVerboseTrace("[CORS-TRACE] ORIGIN ALLOWED", {
         requestOrigin,
         method,
         path,
@@ -64,7 +65,7 @@ app.use(
       return;
     }
 
-    console.warn("[CORS-TRACE] ORIGIN DENIED", {
+    warnVerboseTrace("[CORS-TRACE] ORIGIN DENIED", {
       requestOrigin,
       method,
       path,
