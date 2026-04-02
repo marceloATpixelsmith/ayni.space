@@ -5,6 +5,13 @@ import express from "express";
 process.env["RATE_LIMIT_ENABLED"] = "true";
 const { authRateLimiter } = await import("../middlewares/rateLimit.js");
 
+let rateLimitTestPrefixCounter = 0;
+
+function nextRateLimitTestPrefix(base: string) {
+  rateLimitTestPrefixCounter += 1;
+  return `${base}-${process.pid}-${rateLimitTestPrefixCounter}`;
+}
+
 function createRateLimitedApp(max: number, clientIp: string, windowMs?: number) {
   const app = express();
   app.use(
@@ -13,7 +20,7 @@ function createRateLimitedApp(max: number, clientIp: string, windowMs?: number) 
       req.headers["x-forwarded-for"] = clientIp;
       next();
     },
-    authRateLimiter({ max, keyPrefix: "test-auth-google-url", windowMs }),
+    authRateLimiter({ max, keyPrefix: nextRateLimitTestPrefix("test-auth-google-url"), windowMs }),
   );
   app.post("/api/auth/google/url", (_req, res) => {
     res.status(200).json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=test" });
@@ -71,7 +78,7 @@ test("google auth url limiter unlocks after rate limit window resets", async () 
   const app = createRateLimitedApp(1, "203.0.113.111", 100);
   assert.equal((await requestJson(app)).status, 200);
   assert.equal((await requestJson(app)).status, 429);
-  await new Promise((resolve) => setTimeout(resolve, 140));
+  await new Promise((resolve) => setTimeout(resolve, 220));
   assert.equal((await requestJson(app)).status, 200);
 });
 
@@ -83,13 +90,13 @@ test("google auth url limiter does not consume generic auth limiter budget", asy
       req.headers["x-forwarded-for"] = "203.0.113.12";
       next();
     },
-    authRateLimiter({ max: 2, keyPrefix: "test-auth-google-url-isolated" }),
+    authRateLimiter({ max: 2, keyPrefix: nextRateLimitTestPrefix("test-auth-google-url-isolated") }),
   );
   app.use(
     "/api/auth",
     authRateLimiter({
       max: 2,
-      keyPrefix: "test-auth-generic",
+      keyPrefix: nextRateLimitTestPrefix("test-auth-generic"),
       skip: (req) => req.path === "/google/url" || req.path === "/google/callback",
     }),
   );
