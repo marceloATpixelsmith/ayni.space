@@ -1,8 +1,7 @@
 export type AppSlug = string;
 
-export type AppAccessMode = "restricted" | "public_signup";
-export type AppTenancyMode = "none" | "organization" | "solo";
-export type AppOnboardingMode = "disabled" | "required" | "light";
+export type AppAccessMode = "superadmin" | "solo" | "organization";
+export type AppOnboardingMode = boolean;
 
 export type AccessStatus = "pending" | "active" | "revoked" | "suspended";
 export type MembershipStatus = "invited" | "active" | "revoked" | "suspended";
@@ -18,7 +17,6 @@ export interface AppContext {
     id: string;
     slug: AppSlug;
     accessMode: AppAccessMode;
-    tenancyMode: AppTenancyMode;
     onboardingMode: AppOnboardingMode;
     invitesAllowed: boolean;
     isActive: boolean;
