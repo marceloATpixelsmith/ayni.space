@@ -11,7 +11,7 @@
  * - Sample Ayni ceremony
  */
 
-import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable } from "@workspace/db";
+import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable, type InsertApp } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { addDays } from "./seedHelpers.js";
@@ -36,11 +36,13 @@ async function seed() {
   const ayniAppId = "ayni";
   const adminAppId = "admin";
 
-  await db.insert(appsTable).values([
-    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "superadmin", onboardingMode: false, isActive: true },
-    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "solo", onboardingMode: true, isActive: true },
-    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "organization", onboardingMode: true, isActive: true },
-  ]).onConflictDoNothing();
+  const appsToSeed = [
+    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "superadmin", staffInvitesEnabled: false, customerRegistrationEnabled: false, isActive: true },
+    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "solo", staffInvitesEnabled: false, customerRegistrationEnabled: true, isActive: true },
+    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: true, isActive: true },
+  ] satisfies InsertApp[];
+
+  await db.insert(appsTable).values(appsToSeed).onConflictDoNothing();
 
   // ── APP PLANS ──────────────────────────────────────────────────────────────
   console.log("Creating app plans...");
