@@ -481,6 +481,8 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.match(callbackBefore, /sessionGroup=admin/);
     assert.match(callbackBefore, /userId=super-user/);
     assert.match(callbackBefore, /isSuperAdmin=true/);
+    assert.match(callbackBefore, /appSlug=admin/);
+    assert.match(callbackBefore, /sessionKeys=.*userId/);
 
     const callbackAfter = authCheckLogs
       .map((entry) => String(entry[0]))
@@ -488,6 +490,8 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.ok(callbackAfter);
     assert.match(callbackAfter, /sessionGroup=admin/);
     assert.match(callbackAfter, /userId=super-user/);
+    assert.match(callbackAfter, /appSlug=admin/);
+    assert.match(callbackAfter, /sessionKeys=.*userId/);
 
     const firstAuthRequest = authCheckLogs
       .map((entry) => String(entry[0]))
@@ -495,6 +499,7 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.ok(firstAuthRequest);
     assert.match(firstAuthRequest, /sessionGroup=admin/);
     assert.match(firstAuthRequest, /allow=true/);
+    assert.match(firstAuthRequest, /sessionKeys=.*userId/);
 
     const adminGuard = authCheckLogs
       .map((entry) => String(entry[0]))

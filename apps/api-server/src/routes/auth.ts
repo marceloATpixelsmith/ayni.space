@@ -157,8 +157,19 @@ function logAuthCheckTrace(payload: {
   isSuperAdmin: boolean;
   allow: boolean;
   denyReason: string | null;
+  sessionKeys: string;
 }) {
-  console.log("[AUTH-CHECK-TRACE]", payload);
+  const { sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
+  console.log(
+    `[AUTH-CHECK-TRACE] AUTH ROUTE CHECK ` +
+    `sessionExists=${sessionExists} ` +
+    `sessionGroup=${sessionGroup} ` +
+    `userId=${userId} ` +
+    `isSuperAdmin=${isSuperAdmin} ` +
+    `allow=${allow} ` +
+    `denyReason=${denyReason} ` +
+    `sessionKeys=${sessionKeys}`
+  );
 }
 
 
@@ -268,6 +279,7 @@ function getGoogleConfigValidation() {
 async function handleMe(req: Request, res: Response) {
   const userId = req.session.userId;
   const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
+  const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
   if (!userId) {
     logAuthCheckTrace({
       sessionExists: Boolean(req.session),
@@ -276,6 +288,7 @@ async function handleMe(req: Request, res: Response) {
       isSuperAdmin: false,
       allow: false,
       denyReason: "missing_session_user_id",
+      sessionKeys,
     });
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -290,6 +303,7 @@ async function handleMe(req: Request, res: Response) {
       isSuperAdmin: false,
       allow: false,
       denyReason: "user_not_found",
+      sessionKeys,
     });
     res.status(401).json({ error: "User not found" });
     return;
@@ -318,6 +332,7 @@ async function handleMe(req: Request, res: Response) {
     isSuperAdmin: Boolean(user.isSuperAdmin),
     allow: true,
     denyReason: null,
+    sessionKeys,
   });
 
   res.json({
@@ -861,7 +876,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
       `userId=${req.session.userId ?? null} ` +
       `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
       `sessionGroup=${req.session.sessionGroup ?? null} ` +
-      `appSlug=${req.session.appSlug ?? null}`
+      `appSlug=${req.session.appSlug ?? null} ` +
+      `sessionKeys=${Object.keys(req.session ?? {}).sort().join(",")}`
     );
     logSuperadminTrace("G0. SESSION WRITE BEFORE", {
       sessionGroup: oauthSessionGroup,
@@ -891,7 +907,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
       `sessionId=${req.session?.id ?? null} ` +
       `userId=${req.session.userId ?? null} ` +
       `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
-      `sessionGroup=${req.session.sessionGroup ?? null}`
+      `sessionGroup=${req.session.sessionGroup ?? null} ` +
+      `appSlug=${req.session.appSlug ?? null} ` +
+      `sessionKeys=${Object.keys(req.session ?? {}).sort().join(",")}`
     );
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
       sessionExists: Boolean(req.session),
