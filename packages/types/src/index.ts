@@ -1,7 +1,6 @@
 export type AppSlug = string;
 
 export type AppAccessMode = "superadmin" | "solo" | "organization";
-export type AppOnboardingMode = boolean;
 
 export type AccessStatus = "pending" | "active" | "revoked" | "suspended";
 export type MembershipStatus = "invited" | "active" | "revoked" | "suspended";
@@ -17,8 +16,8 @@ export interface AppContext {
     id: string;
     slug: AppSlug;
     accessMode: AppAccessMode;
-    onboardingMode: AppOnboardingMode;
-    invitesAllowed: boolean;
+    staffInvitesEnabled: boolean;
+    customerRegistrationEnabled: boolean;
     isActive: boolean;
   };
   appAccess: {
@@ -35,6 +34,6 @@ export interface AppContext {
     role: string;
     membershipStatus: MembershipStatus;
   } | null;
-  requiredOnboarding: "none" | "organization" | "solo";
+  requiredOnboarding: "none" | "organization";
   defaultRoute: string;
 }

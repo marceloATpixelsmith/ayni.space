@@ -30,10 +30,14 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
     name: app.name,
     slug: app.slug,
     accessMode: app.accessMode,
-    onboardingMode: app.onboardingMode,
+    staffInvitesEnabled: app.staffInvitesEnabled,
+    customerRegistrationEnabled: app.customerRegistrationEnabled,
     normalizedAccessProfile: resolveNormalizedAccessProfile(app),
     authRoutePolicy: resolveNormalizedAccessProfile(app)
-      ? getAuthRoutePolicyForProfile(resolveNormalizedAccessProfile(app)!, app.onboardingMode)
+      ? getAuthRoutePolicyForProfile(resolveNormalizedAccessProfile(app)!, {
+          staffInvitesEnabled: app.staffInvitesEnabled,
+          customerRegistrationEnabled: app.customerRegistrationEnabled,
+        })
       : null,
     description: app.description,
     iconUrl: app.iconUrl,

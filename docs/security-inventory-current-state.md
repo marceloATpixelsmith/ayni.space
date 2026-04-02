@@ -72,7 +72,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
   - `apps/api-server/src/middlewares/requireAppAccess.ts`
 - **Role resolution from membership status** (`active` only) and role precedence list.
   - `apps/api-server/src/lib/rbac.ts`
-- **App-level entitlement context** (access mode / tenancy mode / onboarding mode).
+- **App-level entitlement context** (access mode plus organization-only invite/customer-registration capability flags).
   - `apps/api-server/src/lib/appAccess.ts`
 
 ### E) Tenant isolation patterns

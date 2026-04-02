@@ -119,6 +119,8 @@ test("invitation accept rejects expired invitations", async () => {
 
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "member@example.com", active: true, suspended: false, deletedAt: null })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-1", appId: "app-org" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-org", accessMode: "organization", staffInvitesEnabled: true })),
     patchProperty(db.query.invitationsTable, "findFirst", async () => ({
       id: "inv-1",
       email: "member@example.com",
@@ -178,6 +180,8 @@ test("invitation accept rejects email mismatch and non-pending invitation", asyn
 
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "member@example.com", active: true, suspended: false, deletedAt: null })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-1", appId: "app-org" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-org", accessMode: "organization", staffInvitesEnabled: true })),
     patchProperty(db.query.invitationsTable, "findFirst", async () => invitationStates.shift() ?? null),
     patchProperty(db, "update", () => ({
       set: () => ({
@@ -199,6 +203,42 @@ test("invitation accept rejects email mismatch and non-pending invitation", asyn
     const reused = await performJsonRequest(app, "POST", "/api/invitations/token-used/accept", {});
     assert.equal(reused.status, 409);
     assert.match(String((reused.body as { error?: string })?.error), /no longer pending/i);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = prevNodeEnv;
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+
+test("invitation accept is blocked when organization staff invites are disabled", async () => {
+  const prevNodeEnv = process.env["NODE_ENV"];
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["NODE_ENV"] = "development";
+  process.env["TURNSTILE_ENABLED"] = "false";
+
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "member@example.com", active: true, suspended: false, deletedAt: null })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-1", appId: "app-org" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-org", accessMode: "organization", staffInvitesEnabled: false })),
+    patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-disabled",
+      email: "member@example.com",
+      orgId: "org-1",
+      invitedRole: "staff",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() + 60_000),
+    })),
+  ];
+
+  try {
+    const app = createSessionApp(invitationsRouter, { userId: "user-1" });
+    const response = await performJsonRequest(app, "POST", "/api/invitations/token-disabled/accept", {});
+    assert.equal(response.status, 403);
+    assert.match(String((response.body as { error?: string })?.error), /disabled/i);
   } finally {
     restores.reverse().forEach((restore) => restore());
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
