@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { destroySessionAndClearCookie } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
-import { logVerboseTrace } from "../lib/traceLogging.js";
 
 function logFirstAuthRequest(payload: {
   path: string;
@@ -19,7 +18,7 @@ function logFirstAuthRequest(payload: {
   sessionKeys: string;
 }) {
   const { path, method, cookieHeaderPresent, sessionExists, sessionId, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
-  logVerboseTrace(
+  console.log(
     `[AUTH-CHECK-TRACE] FIRST AUTH REQUEST ` +
     `path=${path} method=${method} ` +
     `cookieHeaderPresent=${cookieHeaderPresent} ` +
@@ -44,7 +43,7 @@ function logAdminGuard(payload: {
   denyReason: string | null;
 }) {
   const { path, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason } = payload;
-  logVerboseTrace(
+  console.log(
     `[AUTH-CHECK-TRACE] ADMIN GUARD ` +
     `path=${path} ` +
     `sessionExists=${sessionExists} ` +
