@@ -20,12 +20,24 @@ export const authRouteDeps = {
 };
 
 function getRequestFrontendOrigin(req: Request): string | null {
+  const allowedOrigins = getAllowedOrigins();
   const originHeader = req.headers["origin"];
   const origin = typeof originHeader === "string" ? originHeader.trim() : "";
-  if (!origin) return null;
+  if (origin) {
+    try {
+      const normalizedOrigin = new URL(origin).origin;
+      if (allowedOrigins.includes(normalizedOrigin)) return normalizedOrigin;
+    } catch {
+      // noop
+    }
+  }
+
+  const refererHeader = req.headers["referer"];
+  const referer = typeof refererHeader === "string" ? refererHeader.trim() : "";
+  if (!referer) return null;
   try {
-    const normalizedOrigin = new URL(origin).origin;
-    return getAllowedOrigins().includes(normalizedOrigin) ? normalizedOrigin : null;
+    const normalizedReferer = new URL(referer).origin;
+    return allowedOrigins.includes(normalizedReferer) ? normalizedReferer : null;
   } catch {
     return null;
   }
@@ -409,9 +421,15 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
-  const inferredSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+  const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+  const requestSessionGroup = req.resolvedSessionGroup ?? getCurrentRequestSessionGroup(req);
+  const inferredSessionGroup = originSessionGroup === SESSION_GROUPS.DEFAULT
+    ? requestSessionGroup
+    : originSessionGroup;
   const appSlug = resolveActiveAppSlugForAuth(returnTo, inferredSessionGroup);
-  const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : inferredSessionGroup;
+  const oauthSessionGroup = appSlug === "admin" || inferredSessionGroup === SESSION_GROUPS.ADMIN
+    ? SESSION_GROUPS.ADMIN
+    : SESSION_GROUPS.DEFAULT;
   const statePayload = {
     nonce: randomUUID(),
     appSlug,
@@ -435,6 +453,12 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnTo: statePayload.returnTo,
     sessionGroup: statePayload.sessionGroup,
   });
+  console.log(
+    `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
+    `appSlug=${statePayload.appSlug} ` +
+    `returnTo=${statePayload.returnTo} ` +
+    `sessionGroup=${statePayload.sessionGroup}`
+  );
 
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
