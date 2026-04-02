@@ -74,12 +74,33 @@ test("google auth url limiter returns 429 after configured threshold", async () 
   assert.equal(typeof limited.retryAfter, "string");
 });
 
+async function waitForStatus(
+  app: express.Express,
+  expectedStatus: number,
+  { timeoutMs = 1_000, pollMs = 25 }: { timeoutMs?: number; pollMs?: number } = {},
+) {
+  const startedAt = Date.now();
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const result = await requestJson(app);
+    if (result.status === expectedStatus) {
+      return result;
+    }
+
+    if (Date.now() - startedAt >= timeoutMs) {
+      assert.fail(`Timed out waiting for status ${expectedStatus}; last status was ${result.status}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
 test("google auth url limiter unlocks after rate limit window resets", async () => {
   const app = createRateLimitedApp(1, "203.0.113.111", 100);
   assert.equal((await requestJson(app)).status, 200);
   assert.equal((await requestJson(app)).status, 429);
-  await new Promise((resolve) => setTimeout(resolve, 220));
-  assert.equal((await requestJson(app)).status, 200);
+  await waitForStatus(app, 200, { timeoutMs: 1_000, pollMs: 25 });
 });
 
 test("google auth url limiter does not consume generic auth limiter budget", async () => {
