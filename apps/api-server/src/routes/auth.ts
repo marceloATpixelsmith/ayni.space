@@ -111,6 +111,20 @@ function parseOAuthState(state: string | null | undefined): OAuthStatePayload | 
   return payload;
 }
 
+function parseOAuthStateReturnTo(state: string | null | undefined): string | null {
+  if (!state) return null;
+  const segments = state.split(".");
+  if (segments.length < 3) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8")) as Record<string, unknown>;
+    if (typeof payload["returnTo"] !== "string" || payload["returnTo"].trim().length === 0) return null;
+    const origin = new URL(payload["returnTo"]).origin;
+    return getAllowedOrigins().includes(origin) ? origin : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateOAuthCallbackState(
   state: string,
   expectedState: unknown,
@@ -244,8 +258,14 @@ function getAccessDeniedRedirect(frontendBase: string | null): string {
   return `${frontendBase}/login?error=access_denied`;
 }
 
+function getControlledAuthErrorRedirect(frontendBase: string | null, code: string): string {
+  const encodedCode = encodeURIComponent(code);
+  if (!frontendBase) return `/login?error=${encodedCode}`;
+  return `${frontendBase}/login?error=${encodedCode}`;
+}
+
 function getFrontendBaseForDeny(req: Request, oauthSessionGroup: string): string | null {
-  const oauthReturnTo = req.session.oauthReturnTo;
+  const oauthReturnTo = req.session?.oauthReturnTo;
   if (typeof oauthReturnTo === "string") {
     try {
       const normalized = new URL(oauthReturnTo).origin;
@@ -576,7 +596,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
   const denyWithAccessDenied = async () => {
     const state = firstQueryParam(req.query.state);
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const oauthSessionGroup = callbackSessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const oauthSessionGroup = callbackSessionGroup ?? req.session?.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const frontendBase = callbackFrontendBase ?? getFrontendBaseForDeny(req, oauthSessionGroup);
     const redirectTo = getAccessDeniedRedirect(frontendBase);
     logSuperadminTrace("J. CALLBACK EXIT", {
@@ -636,6 +656,19 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
     lastCompletedStep = "A4";
     if (!stateValid) {
+      const parsedState = parseOAuthState(state);
+      if (!parsedState?.appSlug) {
+        const frontendBaseFromState = parseOAuthStateReturnTo(state);
+        console.error("[auth/google/callback] missing appSlug in OAuth callback state", {
+          statePresent: Boolean(state),
+          expectedStatePresent: typeof req.session.oauthState === "string",
+          stateSessionGroup,
+          frontendBaseFromState,
+        });
+        await destroySessionAndClearCookie(req, res, resolvedStateSessionGroup);
+        res.redirect(getControlledAuthErrorRedirect(frontendBaseFromState ?? getFrontendBaseForDeny(req, resolvedStateSessionGroup), "app_slug_invalid"));
+        return;
+      }
       logAuthFailure(req, "google-callback-invalid-state");
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "invalid_state",
@@ -691,39 +724,41 @@ async function handleGoogleCallback(req: Request, res: Response) {
     callbackFrontendBase = frontendBase;
     const activeAppSlug = appSlug;
     if (!activeAppSlug) {
+      console.error("[auth/google/callback] missing appSlug after state validation", {
+        statePresent: Boolean(state),
+        oauthReturnTo,
+      });
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "missing_app_slug",
-        redirectTo: getAccessDeniedRedirect(frontendBase),
+        redirectTo: getControlledAuthErrorRedirect(frontendBase, "app_slug_missing"),
       });
-      await denyWithAccessDenied();
+      await destroySessionAndClearCookie(req, res, oauthSessionGroup);
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_slug_missing"));
       return;
     }
 
-    let app: Awaited<ReturnType<typeof getAppBySlug>> = undefined;
-    try {
-      logSuperadminTrace("B0. APP LOOKUP BEFORE", {
+    logSuperadminTrace("B0. APP LOOKUP BEFORE", {
+      appSlug: activeAppSlug,
+    });
+    const app = await getAppBySlug(activeAppSlug);
+    logSuperadminTrace("B1. APP LOOKUP AFTER", {
+      appSlug: activeAppSlug,
+      appFound: Boolean(app),
+      appId: app?.id ?? null,
+    });
+
+    if (!app) {
+      console.error("[auth/google/callback] app lookup failed for OAuth callback appSlug", {
         appSlug: activeAppSlug,
-      });
-      app = await getAppBySlug(activeAppSlug);
-      logSuperadminTrace("B1. APP LOOKUP AFTER", {
-        appSlug: activeAppSlug,
-        appFound: Boolean(app),
-      });
-    } catch (error) {
-      logSuperadminTrace("B1. APP LOOKUP AFTER", {
-        appSlug: activeAppSlug,
-        appFound: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      if (activeAppSlug !== "admin") throw error;
-      console.log("[auth/google/callback] app lookup failed; using fail-closed admin fallback", {
-        oauthSessionGroup,
         frontendBase,
-        error,
       });
+      logAuthFailure(req, "google-callback-app-not-found", { appSlug: activeAppSlug });
+      await destroySessionAndClearCookie(req, res, oauthSessionGroup);
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_not_found"));
+      return;
     }
 
-    const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : (activeAppSlug === "admin" ? "superadmin" : null);
+    const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
     const isSuperadminAccessMode = normalizedAccessProfile === "superadmin";
 
     logSuperadminTrace("A5. TOKEN EXCHANGE START", {
@@ -790,6 +825,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
       accessMode: app?.accessMode ?? null,
       staffInvitesEnabled: app?.staffInvitesEnabled ?? null,
       customerRegistrationEnabled: app?.customerRegistrationEnabled ?? null,
+    });
+    console.info("[auth/google/callback] resolved app context", {
+      appSlug: activeAppSlug,
+      appId: app.id,
+      normalizedAccessProfile,
     });
 
     await new Promise((resolve, reject) => {
@@ -1049,40 +1089,38 @@ async function handleGoogleCallback(req: Request, res: Response) {
       req,
     });
 
-    let appContext = null as Awaited<ReturnType<typeof getAppContext>>;
-    try {
-      appContext = await getAppContext(user.id, activeAppSlug);
-    } catch (error) {
-      if (activeAppSlug === "admin") {
-        console.log("[auth/google/callback] app-context lookup failed; using fail-closed admin fallback", { oauthSessionGroup, frontendBase, error });
-      } else {
-        throw error;
-      }
-    }
-
-    const effectiveContext = appContext ?? (activeAppSlug === "admin"
+    const effectiveContext = normalizedAccessProfile === "superadmin"
       ? {
           canAccess: Boolean(user.isSuperAdmin),
           normalizedAccessProfile: "superadmin" as const,
           requiredOnboarding: "none" as const,
         }
-      : null);
+      : await getAppContext(user.id, activeAppSlug);
 
     if (!effectiveContext) {
+      console.error("[auth/google/callback] unable to resolve app context", {
+        appSlug: activeAppSlug,
+        appId: app.id,
+        userId: user.id,
+      });
+      logAuthFailure(req, "google-callback-missing-app-context", {
+        appSlug: activeAppSlug,
+        appId: app.id,
+      });
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        accessMode: app.accessMode,
         normalizedAccessProfile: normalizedAccessProfile,
         allow: false,
         denyReason: "missing_app_context",
       });
       logSuperadminTrace("J. CALLBACK EXIT", {
-        redirectTo: getAccessDeniedRedirect(frontendBase),
+        redirectTo: getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"),
         outcome: "deny",
         lastCompletedStep,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(getAccessDeniedRedirect(frontendBase));
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"));
       return;
     }
 
@@ -1111,11 +1149,22 @@ async function handleGoogleCallback(req: Request, res: Response) {
       allow: true,
       denyReason: null,
     });
+    console.info("[auth/google/callback] post-auth app requirements", {
+      appSlug: activeAppSlug,
+      appId: app.id,
+      requiredOnboarding: effectiveContext.requiredOnboarding,
+      canAccess: effectiveContext.canAccess,
+    });
     const destination = getPostAuthRedirectPath({
+      appSlug: activeAppSlug,
       isSuperAdmin: user.isSuperAdmin,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       requiredOnboarding: effectiveContext.requiredOnboarding,
       authIntent: oauthIntent,
+    });
+    console.info("[auth/google/callback] final redirect path", {
+      appSlug: activeAppSlug,
+      redirectPath: destination,
     });
     logSuperadminTrace("J. CALLBACK EXIT", {
       redirectTo: `${frontendBase}${destination}`,

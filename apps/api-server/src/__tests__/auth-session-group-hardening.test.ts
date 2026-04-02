@@ -603,7 +603,7 @@ test("organization create_account callback provisions unknown user and redirects
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding");
+    assert.equal(response.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
     assert.equal(insertedRows.length, 1);
     assert.equal(insertedRows[0]?.email, "new.user@example.com");
   } finally {
@@ -670,10 +670,29 @@ test("organization callback redirects existing user without org access to onboar
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding");
+    assert.equal(response.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
   } finally {
     for (const undo of restore.reverse()) undo();
   }
+});
+
+test("organization callback with missing appSlug in state fails with explicit app slug error", async () => {
+  const invalidState = `default.valid-state.${Buffer.from(JSON.stringify({
+    nonce: "valid-state",
+    returnTo: "http://workspace.local",
+    sessionGroup: "default",
+  }), "utf8").toString("base64url")}`;
+
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    oauthState: invalidState,
+    oauthReturnTo: "http://workspace.local",
+    oauthSessionGroup: "default",
+    oauthIntent: "create_account",
+  });
+
+  const response = await request(app, `/api/auth/google/callback?code=ok&state=${invalidState}`);
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "http://workspace.local/login?error=app_slug_invalid");
 });
 
 test("solo callback provisions unknown user and keeps dashboard redirect", async () => {
