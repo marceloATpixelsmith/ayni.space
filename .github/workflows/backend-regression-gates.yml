@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKEND_TRACE_VERBOSE: "0"
+      CI: "true"
 
     steps:
       - uses: actions/checkout@v6
@@ -45,11 +47,88 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm -w typecheck
+      - name: Create backend logs directory
+        run: mkdir -p artifacts/backend-gates
 
-      - run: pnpm --filter @workspace/api-server build
+      - name: Typecheck workspace
+        id: typecheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/backend-typecheck.log
 
-      - run: pnpm --filter @workspace/api-server test
+      - name: Build api-server
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/backend-build.log
+
+      - name: Run api-server test suite
+        id: api_tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log
 
       - name: Run dedicated Phase A API regression suite
-        run: pnpm test:api-regression
+        id: regression
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
+
+      - name: Upload backend gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-log
+          path: artifacts/backend-gates/backend-test.log
+          if-no-files-found: warn
+
+      - name: Upload backend typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-typecheck-log
+          path: artifacts/backend-gates/backend-typecheck.log
+          if-no-files-found: warn
+
+      - name: Upload backend build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build-log
+          path: artifacts/backend-gates/backend-build.log
+          if-no-files-found: warn
+
+      - name: Upload backend regression log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-regression-log
+          path: artifacts/backend-gates/backend-regression.log
+          if-no-files-found: warn
+
+      - name: Compact backend failure summary
+        if: failure()
+        run: |
+          for log in artifacts/backend-gates/*.log; do
+            if [ ! -f "$log" ]; then
+              continue
+            fi
+            echo ""
+            echo "===== Failure summary from ${log} ====="
+            grep -nE "^(not ok|FAIL|Error:|\\s+at |\\# fail |\\# tests |\\# pass )|ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL|Test Suites?:|Failed Tests?:|AssertionError|UnhandledPromiseRejection|ELIFECYCLE" "$log" | tail -n 120 || true
+          done
+
+      - name: Fail job if any backend gate failed
+        if: always()
+        run: |
+          if [ "${{ steps.typecheck.outcome }}" != "success" ] || \
+             [ "${{ steps.build.outcome }}" != "success" ] || \
+             [ "${{ steps.api_tests.outcome }}" != "success" ] || \
+             [ "${{ steps.regression.outcome }}" != "success" ]; then
+            echo "One or more backend gate steps failed."
+            exit 1
+          fi

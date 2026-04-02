@@ -8,7 +8,9 @@
     "build": "tsx build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/__tests__/*.test.ts",
+    "test:ci": "tsx --test --test-reporter=spec src/__tests__/*.test.ts",
     "test:regression": "tsx --test src/__tests__/api-regression-phase-a.test.ts",
+    "test:regression:ci": "tsx --test --test-reporter=spec src/__tests__/api-regression-phase-a.test.ts",
     "test:auth-security-regression": "tsx --test src/__tests__/auth-security-regression-suite.test.ts"
   },
   "dependencies": {
