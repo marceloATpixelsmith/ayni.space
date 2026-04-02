@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions } from "../lib/session.js";
+import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
 import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
@@ -144,6 +144,16 @@ function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string)
   const explicitMap = parseAppSlugByOriginEnv();
   const explicit = explicitMap.get(frontendBase);
   if (explicit) return explicit;
+
+  try {
+    const hostname = new URL(frontendBase).hostname.toLowerCase();
+    if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
+      return "admin";
+    }
+  } catch {
+    // noop
+  }
+
   if (sessionGroup === SESSION_GROUPS.ADMIN) return "admin";
   return "workspace";
 }
@@ -459,6 +469,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     `returnTo=${returnTo ?? "null"} ` +
     `sessionGroup=${oauthSessionGroup ?? "null"}`
   );
+  logSessionCookieConfig();
 
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
@@ -895,6 +906,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
     req.session.appSlug = activeAppSlug;
+    logSessionCookieConfig();
     console.log(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE ` +
       `userId=${req.session.userId ?? null} ` +

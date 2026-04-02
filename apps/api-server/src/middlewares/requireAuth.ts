@@ -17,11 +17,13 @@ function logFirstAuthRequest(payload: {
   denyReason: string | null;
   sessionKeys: string;
 }) {
-  const { path, method, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
+  const { path, method, cookieHeaderPresent, sessionExists, sessionId, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
   console.log(
     `[AUTH-CHECK-TRACE] FIRST AUTH REQUEST ` +
     `path=${path} method=${method} ` +
+    `cookieHeaderPresent=${cookieHeaderPresent} ` +
     `sessionExists=${sessionExists} ` +
+    `sessionId=${sessionId} ` +
     `sessionGroup=${sessionGroup} ` +
     `userId=${userId} ` +
     `isSuperAdmin=${isSuperAdmin} ` +

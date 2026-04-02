@@ -28,7 +28,7 @@ test("session cookie flags are hardened in production", () => {
       const options = sessionLib.buildSessionOptions("secret");
       assert.equal(options.cookie?.httpOnly, true);
       assert.equal(options.cookie?.secure, true);
-      assert.equal(options.cookie?.sameSite, "lax");
+      assert.equal(options.cookie?.sameSite, "none");
       assert.equal(options.cookie?.maxAge, 1800000);
       assert.equal(options.rolling, true);
     });

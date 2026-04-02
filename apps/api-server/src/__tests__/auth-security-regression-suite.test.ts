@@ -291,7 +291,7 @@ test("PART 6: cookie naming + attributes + clearing contract are group-correct",
     assert.equal(adminOptions.name, "saas.admin.sid");
     assert.equal(workspaceOptions.name, "saas.workspace.sid");
     assert.equal(adminOptions.cookie?.httpOnly, true);
-    assert.equal(adminOptions.cookie?.sameSite, "lax");
+    assert.equal(adminOptions.cookie?.sameSite, "none");
     assert.equal(adminOptions.cookie?.secure, true);
 
     const headers: Record<string, string> = {};
@@ -307,7 +307,7 @@ test("PART 6: cookie naming + attributes + clearing contract are group-correct",
     assert.equal(headers["name"], "saas.admin.sid");
     assert.equal(headers["domain"], "admin.test.local");
     assert.equal(headers["httpOnly"], "true");
-    assert.equal(headers["sameSite"], "lax");
+    assert.equal(headers["sameSite"], "none");
   } finally {
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
     else process.env["NODE_ENV"] = prevNodeEnv;

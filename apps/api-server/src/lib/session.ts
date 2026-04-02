@@ -34,11 +34,16 @@ export function getSessionPolicy() {
   const absoluteTimeoutMs = parsePositiveInt(process.env["SESSION_ABSOLUTE_TIMEOUT_MS"], DEFAULT_ABSOLUTE_TIMEOUT_MS);
   const pruneIntervalSeconds = parsePositiveInt(process.env["SESSION_PRUNE_INTERVAL_SECONDS"], DEFAULT_PRUNE_INTERVAL_SECONDS);
 
+  const configuredSameSite = (process.env["SESSION_COOKIE_SAME_SITE"] ?? "").trim().toLowerCase();
+  const cookieSameSite = configuredSameSite === "lax" || configuredSameSite === "strict" || configuredSameSite === "none"
+    ? configuredSameSite
+    : (process.env["NODE_ENV"] === "production" ? "none" : "lax");
+
   return {
     idleTimeoutMs,
     absoluteTimeoutMs,
     pruneIntervalSeconds,
-    cookieSameSite: "lax" as const,
+    cookieSameSite: cookieSameSite as "lax" | "strict" | "none",
   };
 }
 
@@ -51,6 +56,19 @@ export function getSessionCookieOptions() {
     path: "/",
     ...(process.env["SESSION_COOKIE_DOMAIN"] ? { domain: process.env["SESSION_COOKIE_DOMAIN"] } : {}),
   } as const;
+}
+
+
+
+export function logSessionCookieConfig() {
+  const cookieOptions = getSessionCookieOptions();
+  console.log(
+    `[AUTH-CHECK-TRACE] COOKIE CONFIG ` +
+    `sameSite=${String(cookieOptions.sameSite ?? "null")} ` +
+    `secure=${String(cookieOptions.secure ?? false)} ` +
+    `domain=${String(cookieOptions.domain ?? "null")} ` +
+    `path=${String(cookieOptions.path ?? "null")}`
+  );
 }
 
 export function getSessionCookieName(sessionGroup: string = SESSION_GROUPS.DEFAULT) {

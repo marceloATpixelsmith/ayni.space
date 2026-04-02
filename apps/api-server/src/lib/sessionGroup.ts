@@ -38,6 +38,15 @@ export function resolveSessionGroupFromOrigin(origin: string | null | undefined)
     return ADMIN_SESSION_GROUP;
   }
 
+  try {
+    const hostname = new URL(normalizedOrigin).hostname.toLowerCase();
+    if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
+      return ADMIN_SESSION_GROUP;
+    }
+  } catch {
+    // noop
+  }
+
   return DEFAULT_SESSION_GROUP;
 }
 

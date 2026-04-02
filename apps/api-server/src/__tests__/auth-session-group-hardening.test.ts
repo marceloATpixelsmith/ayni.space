@@ -145,6 +145,40 @@ test("session-group resolver maps admin and default origins", () => {
   assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.DEFAULT).name, "saas.workspace.sid");
 });
 
+
+
+test("session-group resolver infers admin group from admin.* host fallback", () => {
+  const prevAdminOrigins = process.env["ADMIN_FRONTEND_ORIGINS"];
+  delete process.env["ADMIN_FRONTEND_ORIGINS"];
+
+  try {
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.ayni.space"), sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.preview.ayni.space"), sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://workspace.ayni.space"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
+  } finally {
+    if (prevAdminOrigins === undefined) delete process.env["ADMIN_FRONTEND_ORIGINS"];
+    else process.env["ADMIN_FRONTEND_ORIGINS"] = prevAdminOrigins;
+  }
+});
+
+test("production session cookie config defaults to SameSite=None with secure=true", () => {
+  const prevNodeEnv = process.env["NODE_ENV"];
+  const prevSameSite = process.env["SESSION_COOKIE_SAME_SITE"];
+
+  process.env["NODE_ENV"] = "production";
+  delete process.env["SESSION_COOKIE_SAME_SITE"];
+
+  try {
+    const options = sessionLib.getSessionCookieOptions();
+    assert.equal(options.sameSite, "none");
+    assert.equal(options.secure, true);
+  } finally {
+    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = prevNodeEnv;
+    if (prevSameSite === undefined) delete process.env["SESSION_COOKIE_SAME_SITE"];
+    else process.env["SESSION_COOKIE_SAME_SITE"] = prevSameSite;
+  }
+});
 test("admin oauth start derives admin context and emits oauth-state trace log", async () => {
   const logs: unknown[][] = [];
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
@@ -547,6 +581,8 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
       .map((entry) => String(entry[0]))
       .find((line) => line.includes("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST"));
     assert.ok(firstAuthRequest);
+    assert.match(firstAuthRequest, /cookieHeaderPresent=false/);
+    assert.match(firstAuthRequest, /sessionId=test-session-id/);
     assert.match(firstAuthRequest, /sessionGroup=admin/);
     assert.match(firstAuthRequest, /allow=true/);
     assert.match(firstAuthRequest, /sessionKeys=.*userId/);
