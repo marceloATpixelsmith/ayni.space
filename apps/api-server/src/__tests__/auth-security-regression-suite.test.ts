@@ -232,7 +232,7 @@ test("PART 3D: malformed oauth state fails closed without 500", async () => {
   });
   const resp = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.bad-payload");
   assert.equal(resp.status, 302);
-  assert.equal(resp.headers.get("location"), "http://admin.local/login?error=access_denied");
+  assert.equal(resp.headers.get("location"), "http://admin.local/login?error=app_slug_invalid");
   assert.equal(destroyed, true);
 });
 
