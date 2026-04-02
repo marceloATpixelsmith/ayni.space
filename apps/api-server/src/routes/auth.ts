@@ -10,6 +10,7 @@ import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
+import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 
@@ -359,35 +360,21 @@ function getGoogleConfigValidation() {
 }
 
 async function handleMe(req: Request, res: Response) {
-  const userId = req.session.userId;
+  const authenticatedUser = (req as Request & { user?: typeof usersTable.$inferSelect }).user;
+  const userId = authenticatedUser?.id ?? req.session.userId;
   const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
   const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
-  if (!userId) {
+  if (!userId || !authenticatedUser) {
     logAuthCheckTrace({
       sessionExists: Boolean(req.session),
       sessionGroup,
-      userId: null,
+      userId: userId ?? null,
       isSuperAdmin: false,
       allow: false,
-      denyReason: "missing_session_user_id",
+      denyReason: "missing_authenticated_user",
       sessionKeys,
     });
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  if (!user) {
-    logAuthCheckTrace({
-      sessionExists: Boolean(req.session),
-      sessionGroup,
-      userId,
-      isSuperAdmin: false,
-      allow: false,
-      denyReason: "user_not_found",
-      sessionKeys,
-    });
-    res.status(401).json({ error: "User not found" });
+    res.status(401).json({ error: "Unauthorized. Please sign in." });
     return;
   }
 
@@ -403,27 +390,27 @@ async function handleMe(req: Request, res: Response) {
     .where(eq(orgMembershipsTable.userId, userId));
 
   let activeOrg = null;
-  if (user.activeOrgId) {
-    activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) });
+  if (authenticatedUser.activeOrgId) {
+    activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, authenticatedUser.activeOrgId) });
   }
 
   logAuthCheckTrace({
     sessionExists: Boolean(req.session),
     sessionGroup,
-    userId: user.id,
-    isSuperAdmin: Boolean(user.isSuperAdmin),
+    userId: authenticatedUser.id,
+    isSuperAdmin: Boolean(authenticatedUser.isSuperAdmin),
     allow: true,
     denyReason: null,
     sessionKeys,
   });
 
   res.json({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    avatarUrl: user.avatarUrl,
-    isSuperAdmin: user.isSuperAdmin,
-    activeOrgId: user.activeOrgId,
+    id: authenticatedUser.id,
+    email: authenticatedUser.email,
+    name: authenticatedUser.name,
+    avatarUrl: authenticatedUser.avatarUrl,
+    isSuperAdmin: authenticatedUser.isSuperAdmin,
+    activeOrgId: authenticatedUser.activeOrgId,
     activeOrg: activeOrg,
     memberships,
   });
@@ -1192,7 +1179,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
-router.get("/me", handleMe);
+router.get("/me", requireAuth, handleMe);
 router.post("/logout", handleLogout);
 router.post("/google/url", handleGoogleUrl);
 router.get("/google/callback", handleGoogleCallback);
