@@ -15,8 +15,9 @@ function logFirstAuthRequest(payload: {
   isSuperAdmin: boolean;
   allow: boolean;
   denyReason: string | null;
+  sessionKeys: string;
 }) {
-  const { path, method, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason } = payload;
+  const { path, method, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
   console.log(
     `[AUTH-CHECK-TRACE] FIRST AUTH REQUEST ` +
     `path=${path} method=${method} ` +
@@ -25,7 +26,8 @@ function logFirstAuthRequest(payload: {
     `userId=${userId} ` +
     `isSuperAdmin=${isSuperAdmin} ` +
     `allow=${allow} ` +
-    `denyReason=${denyReason}`
+    `denyReason=${denyReason} ` +
+    `sessionKeys=${sessionKeys}`
   );
 }
 
@@ -56,6 +58,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const sessionGroup = req.session?.sessionGroup ?? null;
   const sessionId = req.session?.id ?? null;
   const cookieHeaderPresent = typeof req.headers["cookie"] === "string" && req.headers["cookie"].trim().length > 0;
+  const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
 
   if (!userId) {
     logFirstAuthRequest({
@@ -69,6 +72,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isSuperAdmin: false,
       allow: false,
       denyReason: "missing_user_id",
+      sessionKeys,
     });
     res.status(401).json({ error: "Unauthorized. Please sign in." });
     return;
@@ -90,6 +94,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isSuperAdmin: false,
       allow: false,
       denyReason: "user_not_found",
+      sessionKeys,
     });
     await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(401).json({ error: "User not found. Please sign in again." });
@@ -108,6 +113,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isSuperAdmin: Boolean(user.isSuperAdmin),
       allow: false,
       denyReason: "inactive_or_suspended",
+      sessionKeys,
     });
     await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(403).json({ error: "Account suspended or deleted. Contact support." });
@@ -125,6 +131,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     isSuperAdmin: Boolean(user.isSuperAdmin),
     allow: true,
     denyReason: null,
+    sessionKeys,
   });
   await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, userId));
   (req as Request & { user: typeof user }).user = user;
