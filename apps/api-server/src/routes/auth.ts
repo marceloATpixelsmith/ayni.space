@@ -11,7 +11,7 @@ import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
-import { logVerboseTrace } from "../lib/traceLogging.js";
+import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -310,7 +310,7 @@ function logAuthFailure(req: Request, reason: string, metadata: Record<string, u
 }
 
 function logGoogleUrlBranch(req: Request, branch: string, metadata: Record<string, unknown> = {}) {
-  console.info("[auth/google/url]", {
+  infoVerboseTrace("[auth/google/url]", {
     branch,
     method: req.method,
     path: req.path,
@@ -827,7 +827,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       staffInvitesEnabled: app?.staffInvitesEnabled ?? null,
       customerRegistrationEnabled: app?.customerRegistrationEnabled ?? null,
     });
-    console.info("[auth/google/callback] resolved app context", {
+    infoVerboseTrace("[auth/google/callback] resolved app context", {
       appSlug: activeAppSlug,
       appId: app.id,
       normalizedAccessProfile,
@@ -1150,7 +1150,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       allow: true,
       denyReason: null,
     });
-    console.info("[auth/google/callback] post-auth app requirements", {
+    infoVerboseTrace("[auth/google/callback] post-auth app requirements", {
       appSlug: activeAppSlug,
       appId: app.id,
       requiredOnboarding: effectiveContext.requiredOnboarding,
@@ -1163,7 +1163,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       authIntent: oauthIntent,
     });
-    console.info("[auth/google/callback] final redirect path", {
+    infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
       redirectPath: destination,
     });

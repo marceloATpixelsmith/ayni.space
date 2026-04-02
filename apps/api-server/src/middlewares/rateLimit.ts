@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+import { infoVerboseTrace } from "../lib/traceLogging.js";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const configuredRateLimitEnabled = process.env.RATE_LIMIT_ENABLED;
@@ -57,7 +58,7 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
       const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSeconds));
       if (keyPrefix === "auth-google-url" || keyPrefix.startsWith("test-auth-google-url")) {
-        console.info("[auth/google/url]", {
+        infoVerboseTrace("[auth/google/url]", {
           branch: "rate_limited",
           method: req.method,
           path: req.path,

@@ -6,7 +6,7 @@
 ## Confirmed
 - PR validation workflows:
   - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs `pnpm --filter @workspace/admin run test:security-shell` for admin frontend PR changes.
-  - `.github/workflows/backend-regression-gates.yml` runs backend typecheck/build/test gates on PRs affecting backend/shared package scope, captures each backend gate command's raw output into `artifacts/backend-gates/*.log`, uploads logs as artifacts, and emits a compact `if: failure()` summary focused on failure markers (for example `not ok`, `FAIL`, `Error:`, stack frames, and `ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL`).
+  - `.github/workflows/backend-regression-gates.yml` runs backend typecheck/build/test gates on PRs affecting backend/shared package scope, captures each backend gate command's raw output into `artifacts/backend-gates/*.log` via `set -o pipefail` + `tee` while preserving true command exit codes (`exit ${PIPESTATUS[0]}`), uploads raw logs as artifacts, and when backend tests fail runs `scripts/ci/summarize-backend-test-failures.mjs` to print a compact action-log summary with explicit failing test name, file reference, key error line, failure block, and final test-count summary.
   - Backend gate CI runs with `BACKEND_TRACE_VERBOSE=0` by default to suppress high-volume auth/CORS trace logs; set `BACKEND_TRACE_VERBOSE=1` to restore deep trace output for diagnostics.
   - `.github/workflows/lockfile-sync-check.yml` enforces `pnpm install --frozen-lockfile` for dependency/workflow-affecting PRs.
   - `.github/workflows/linear-history-enforcement.yml` enforces no-merge-commit (linear/rebase-only) PR history.

@@ -56,6 +56,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/backend-typecheck.log
+          exit ${PIPESTATUS[0]}
 
       - name: Build api-server
         id: build
@@ -63,6 +64,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/backend-build.log
+          exit ${PIPESTATUS[0]}
 
       - name: Run api-server test suite
         id: api_tests
@@ -70,6 +72,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log
+          exit ${PIPESTATUS[0]}
 
       - name: Run dedicated Phase A API regression suite
         id: regression
@@ -77,6 +80,31 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Backend test failure summary (api-server suite)
+        if: always()
+        run: |
+          if [ "${{ steps.api_tests.outcome }}" = "success" ]; then
+            echo "api-server test suite passed; no failure summary required."
+            exit 0
+          fi
+
+          node scripts/ci/summarize-backend-test-failures.mjs \
+            artifacts/backend-gates/backend-test.log \
+            artifacts/backend-gates/backend-test-failure-summary.txt
+
+      - name: Backend test failure summary (regression suite)
+        if: always()
+        run: |
+          if [ "${{ steps.regression.outcome }}" = "success" ]; then
+            echo "Phase A regression suite passed; no failure summary required."
+            exit 0
+          fi
+
+          node scripts/ci/summarize-backend-test-failures.mjs \
+            artifacts/backend-gates/backend-regression.log \
+            artifacts/backend-gates/backend-regression-failure-summary.txt
 
       - name: Upload backend gate logs
         if: always()
@@ -110,10 +138,25 @@ jobs:
           path: artifacts/backend-gates/backend-regression.log
           if-no-files-found: warn
 
-      - name: Compact backend failure summary
+      - name: Upload backend parsed failure summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-failure-summaries
+          path: |
+            artifacts/backend-gates/backend-test-failure-summary.txt
+            artifacts/backend-gates/backend-regression-failure-summary.txt
+          if-no-files-found: warn
+
+      - name: Compact backend failure summary (non-test gates)
         if: failure()
         run: |
           for log in artifacts/backend-gates/*.log; do
+            case "$log" in
+              *backend-test.log|*backend-regression.log)
+                continue
+                ;;
+            esac
             if [ ! -f "$log" ]; then
               continue
             fi
