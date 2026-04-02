@@ -5,6 +5,7 @@ import { appsTable, db, invitationsTable, orgMembershipsTable, organizationsTabl
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { requireOrganizationAppSession } from "../middlewares/requireOrganizationAppSession.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
 
@@ -356,21 +357,29 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
   res.json(org);
 }
 
-router.get("/organizations/:orgId/invitations", requireAuth, requireOrgAccess, listInvitations);
+router.get("/organizations/:orgId/invitations", requireAuth, requireOrganizationAppSession, requireOrgAccess, listInvitations);
 router.post(
   "/organizations/:orgId/invitations",
   requireAuth,
+  requireOrganizationAppSession,
   requireOrgAdmin,
   validateBody(inviteSchema),
   createInvitation
 );
-router.delete("/organizations/:orgId/invitations/:invitationId", requireAuth, requireOrgAdmin, cancelInvitation);
+router.delete(
+  "/organizations/:orgId/invitations/:invitationId",
+  requireAuth,
+  requireOrganizationAppSession,
+  requireOrgAdmin,
+  cancelInvitation
+);
 router.post(
   "/organizations/:orgId/invitations/:invitationId/resend",
   requireAuth,
+  requireOrganizationAppSession,
   requireOrgAdmin,
   resendInvitation
 );
-router.post("/invitations/:token/accept", requireAuth, acceptInvitation);
+router.post("/invitations/:token/accept", requireAuth, requireOrganizationAppSession, acceptInvitation);
 
 export default router;

@@ -140,7 +140,7 @@ test("invitation accept rejects expired invitations", async () => {
   ];
 
   try {
-    const app = createSessionApp(invitationsRouter, { userId: "user-1" });
+    const app = createSessionApp(invitationsRouter, { userId: "user-1", appSlug: "ayni" });
     const response = await performJsonRequest(app, "POST", "/api/invitations/token-expired/accept", {});
     assert.equal(response.status, 410);
     assert.match(String((response.body as { error?: string })?.error), /expired/i);
@@ -194,7 +194,7 @@ test("invitation accept rejects email mismatch and non-pending invitation", asyn
   ];
 
   try {
-    const app = createSessionApp(invitationsRouter, { userId: "user-1" });
+    const app = createSessionApp(invitationsRouter, { userId: "user-1", appSlug: "ayni" });
 
     const mismatch = await performJsonRequest(app, "POST", "/api/invitations/token-mismatch/accept", {});
     assert.equal(mismatch.status, 403);
@@ -235,7 +235,7 @@ test("invitation accept is blocked when organization staff invites are disabled"
   ];
 
   try {
-    const app = createSessionApp(invitationsRouter, { userId: "user-1" });
+    const app = createSessionApp(invitationsRouter, { userId: "user-1", appSlug: "ayni" });
     const response = await performJsonRequest(app, "POST", "/api/invitations/token-disabled/accept", {});
     assert.equal(response.status, 403);
     assert.match(String((response.body as { error?: string })?.error), /disabled/i);

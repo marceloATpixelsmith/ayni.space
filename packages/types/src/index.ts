@@ -6,7 +6,7 @@ export type AccessStatus = "pending" | "active" | "revoked" | "suspended";
 export type MembershipStatus = "invited" | "active" | "revoked" | "suspended";
 export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
 
-export type RestrictedAppRole = "super_admin" | "support_admin" | "read_only_admin" | (string & {});
+export type SuperadminAppRole = "super_admin" | "support_admin" | "read_only_admin" | (string & {});
 export type OrganizationAppRole = "org_owner" | "org_admin" | "staff" | (string & {});
 export type SoloAppRole = "solo_user" | (string & {});
 

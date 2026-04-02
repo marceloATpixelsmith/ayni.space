@@ -169,6 +169,7 @@ test("C: organizations visibility, validation, and role-gated update", async () 
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-orgs")),
     patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       role ? { id: "m-role", userId: "user-orgs", orgId: "org-a", membershipStatus: "active", role } : null,
     ),
@@ -185,7 +186,7 @@ test("C: organizations visibility, validation, and role-gated update", async () 
   ];
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-orgs" });
+    const app = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-orgs", appSlug: "ayni" });
     assert.equal((await performJsonRequest(app, "GET", "/api/organizations/")).status, 200);
     assert.equal((await performJsonRequest(app, "POST", "/api/organizations/", { name: "New Org", slug: "new-org" })).status, 201);
     assert.equal((await performJsonRequest(app, "POST", "/api/organizations/", { name: "n", slug: "BAD" })).status, 400);
@@ -243,8 +244,8 @@ test("D: members and invitations role/org checks and invitation acceptance state
   ];
 
   try {
-    const orgApp = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-inv" });
-    const inviteApp = createMountedSessionApp([{ path: "/api", router: invitationsRouter }], { userId: "user-inv" });
+    const orgApp = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-inv", appSlug: "ayni" });
+    const inviteApp = createMountedSessionApp([{ path: "/api", router: invitationsRouter }], { userId: "user-inv", appSlug: "ayni" });
 
     assert.equal((await performJsonRequest(orgApp, "GET", "/api/organizations/org-a/members")).status, 200);
     role = null;
