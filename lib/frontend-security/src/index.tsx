@@ -38,6 +38,7 @@ function toApiUrl(path: string): string {
 }
 
 export async function fetchCsrfToken(): Promise<string> {
+  console.log("[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST path=/api/csrf-token credentialsMode=include");
   const response = await fetch(toApiUrl("/api/csrf-token"), {
     method: "GET",
     credentials: "include",
@@ -58,6 +59,12 @@ export async function fetchCsrfToken(): Promise<string> {
 export async function secureApiFetch(path: string, init: RequestInit = {}, csrfToken?: string | null): Promise<Response> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
+  const credentialsMode = init.credentials ?? "include";
+  console.log(
+    `[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST ` +
+    `path=${path} ` +
+    `credentialsMode=${credentialsMode}`
+  );
 
   if (!SAFE_METHODS.has(method) && csrfToken) {
     headers.set("x-csrf-token", csrfToken);
@@ -66,7 +73,7 @@ export async function secureApiFetch(path: string, init: RequestInit = {}, csrfT
   return fetch(toApiUrl(path), {
     ...init,
     headers,
-    credentials: "include",
+    credentials: credentialsMode,
   });
 }
 

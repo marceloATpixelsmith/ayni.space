@@ -324,12 +324,18 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
   const requestUrl = toApiUrl(requestInfo.url);
+  const credentialsMode = init.credentials ?? "include";
+  console.log(
+    `[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST ` +
+    `path=${requestInfo.url} ` +
+    `credentialsMode=${credentialsMode}`
+  );
 
   const response = await fetch(requestUrl, {
     ...init,
     method,
     headers,
-    credentials: init.credentials ?? "include",
+    credentials: credentialsMode,
   });
 
   if (!response.ok) {
