@@ -124,24 +124,15 @@ export function mapGoogleSignInError(
     return `Too many attempts. Please wait and retry.${retryHint}`;
   }
 
-  if (payload?.code === "TURNSTILE_MISSING_TOKEN")
-    return "Verification required. Please complete the challenge.";
-  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED")
-    return "Verification expired. Please complete the challenge again.";
-  if (payload?.code === "TURNSTILE_INVALID_TOKEN")
-    return "Verification failed. Please try again.";
-  if (payload?.code === "TURNSTILE_MISCONFIGURED")
-    return "Verification is temporarily unavailable due to configuration. Please contact support.";
-  if (payload?.code === "TURNSTILE_UNAVAILABLE")
-    return "Verification service is temporarily unavailable. Please try again.";
-  if (
-    payload?.code === "OAUTH_CONFIG_MISSING" ||
-    payload?.code === "OAUTH_URL_INVALID"
-  ) {
+  if (payload?.code === "TURNSTILE_MISSING_TOKEN") return "Verification required. Please complete the challenge.";
+  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") return "Verification expired. Please complete the challenge again.";
+  if (payload?.code === "TURNSTILE_INVALID_TOKEN") return "Verification failed. Please try again.";
+  if (payload?.code === "TURNSTILE_MISCONFIGURED") return "Verification is temporarily unavailable due to configuration. Please contact support.";
+  if (payload?.code === "TURNSTILE_UNAVAILABLE") return "Verification service is temporarily unavailable. Please try again.";
+  if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
     return "Sign-in is temporarily unavailable due to configuration. Please contact support.";
   }
-  if (payload?.code === "ORIGIN_NOT_ALLOWED")
-    return "Access origin is not allowed for sign-in.";
+  if (payload?.code === "ORIGIN_NOT_ALLOWED") return "Access origin is not allowed for sign-in.";
 
   if (status === 403)
     return payload?.error ?? "Verification failed. Please try again.";
@@ -425,6 +416,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sessionRevoked) {
         setSessionRevoked(false);
       }
+      void meQuery.refetch();
       void runAuthCheck();
       if (!csrfTokenRef.current) {
         void refreshCsrfState();
@@ -456,7 +448,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       intent: "sign_in" | "create_account" = "sign_in",
     ) => {
       if (loginRequestRef.current) {
-        return loginRequestRef.current;
+      return loginRequestRef.current;
       }
 
       const request = (async () => {
