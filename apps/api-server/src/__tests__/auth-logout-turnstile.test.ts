@@ -76,7 +76,7 @@ test("logout clears cookie with shared session cookie options", async () => {
     assert.match(setCookie, /Domain=admin\.test\.local/i);
     assert.match(setCookie, /Path=\//i);
     assert.match(setCookie, /HttpOnly/i);
-    assert.match(setCookie, /SameSite=Lax/i);
+    assert.match(setCookie, /SameSite=None/i);
     assert.match(setCookie, /Secure/i);
   } finally {
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];

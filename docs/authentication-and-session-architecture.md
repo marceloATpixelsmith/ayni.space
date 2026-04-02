@@ -12,6 +12,7 @@
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.
 - Authentication routes/session binding are implemented in `apps/api-server/src/routes/auth.ts`.
 - Session lifecycle helpers are implemented in `apps/api-server/src/lib/session.ts` (canonicalized for store config, cookie options/clearing, session destruction, and logout-other-sessions cleanup).
+- Session cookie policy is centralized in `apps/api-server/src/lib/session.ts` with production-safe cross-origin defaults (`SameSite=None`, `Secure=true` in production) and explicit trace logging (`[AUTH-CHECK-TRACE] COOKIE CONFIG ...`).
 - Session-group resolution and group-specific cookie naming are centralized in `apps/api-server/src/lib/sessionGroup.ts` and consumed by auth routes in `apps/api-server/src/routes/auth.ts`.
 - Session issuance is request-scoped by group: `apps/api-server/src/lib/session.ts` now resolves the group per request (`origin`/`referer` allowlist, OAuth callback `state`, or single matching group cookie) and dispatches to a per-group `express-session` middleware with a group-specific cookie name.
 - Session IDs are group-namespaced at issuance time (`<sessionGroup>.<uuid>` via `genid`) in `apps/api-server/src/lib/session.ts`, which prevents cross-group SID collisions in `platform.sessions` while still using one shared store table.
