@@ -37,3 +37,29 @@ test("customFetch sends credentialed requests by default and emits auth-client t
     globalThis.fetch = originalFetch;
   }
 });
+
+test("customFetch keeps auth/session requests credentialed even if request options omit credentials", async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedCredentials: RequestCredentials | undefined;
+
+  try {
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedCredentials = init?.credentials;
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+    }) as typeof fetch;
+
+    await customFetch<{ ok: boolean }>("/api/auth/me", {
+      method: "GET",
+      credentials: "omit",
+      responseType: "json",
+    });
+    assert.equal(capturedCredentials, "include");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

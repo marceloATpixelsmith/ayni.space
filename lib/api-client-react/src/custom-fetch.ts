@@ -49,6 +49,10 @@ function toApiUrl(inputUrl: string): string {
   return `${API_BASE.replace(/\/$/, "")}${inputUrl}`;
 }
 
+function isCredentialRequiredPath(path: string): boolean {
+  return path.startsWith("/api/auth/") || path === "/api/csrf-token";
+}
+
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
   const headers = new Headers();
 
@@ -324,7 +328,9 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
   const requestUrl = toApiUrl(requestInfo.url);
-  const credentialsMode = init.credentials ?? "include";
+  const credentialsMode = isCredentialRequiredPath(requestInfo.url)
+    ? "include"
+    : (init.credentials ?? "include");
   console.log(
     `[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST ` +
     `path=${requestInfo.url} ` +

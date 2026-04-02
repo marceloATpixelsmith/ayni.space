@@ -17,6 +17,8 @@
 - Session revocation for `/api/users/logout-others` is group-aware (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/users.ts`) and does not wipe unrelated session groups.
 - Frontend auth provider/route gate: `lib/frontend-security/src/index.tsx`.
 - CSRF-aware API fetch path: `lib/api-client-react/src/custom-fetch.ts`.
+- OAuth start origin derivation in auth route resolves trusted `origin`/`referer` and trusted forwarded host/proto headers before allowlist checks (`apps/api-server/src/routes/auth.ts`).
+- Shared frontend fetch layers force credentialed auth/session requests (`/api/auth/*`, `/api/csrf-token`) via `credentials: "include"` (`lib/api-client-react/src/custom-fetch.ts`, `lib/frontend-security/src/index.tsx`).
 - Auth/session middleware integration lives in `apps/api-server/src/app.ts`.
 
 ## Inferred

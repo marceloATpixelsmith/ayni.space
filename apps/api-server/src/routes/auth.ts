@@ -21,26 +21,34 @@ export const authRouteDeps = {
 
 function getRequestFrontendOrigin(req: Request): string | null {
   const allowedOrigins = getAllowedOrigins();
+  const candidateOrigins: string[] = [];
   const originHeader = req.headers["origin"];
-  const origin = typeof originHeader === "string" ? originHeader.trim() : "";
-  if (origin) {
+  if (typeof originHeader === "string" && originHeader.trim()) {
+    candidateOrigins.push(originHeader.trim());
+  }
+
+  const refererHeader = req.headers["referer"];
+  if (typeof refererHeader === "string" && refererHeader.trim()) {
+    candidateOrigins.push(refererHeader.trim());
+  }
+
+  const forwardedHost = typeof req.headers["x-forwarded-host"] === "string" ? req.headers["x-forwarded-host"].trim() : "";
+  const forwardedProtoRaw = typeof req.headers["x-forwarded-proto"] === "string" ? req.headers["x-forwarded-proto"].trim() : "";
+  const forwardedProto = forwardedProtoRaw.split(",", 1)[0]?.trim() || "";
+  if (forwardedHost) {
+    const proto = forwardedProto || "https";
+    candidateOrigins.push(`${proto}://${forwardedHost}`);
+  }
+
+  for (const candidate of candidateOrigins) {
     try {
-      const normalizedOrigin = new URL(origin).origin;
+      const normalizedOrigin = new URL(candidate).origin;
       if (allowedOrigins.includes(normalizedOrigin)) return normalizedOrigin;
     } catch {
       // noop
     }
   }
-
-  const refererHeader = req.headers["referer"];
-  const referer = typeof refererHeader === "string" ? refererHeader.trim() : "";
-  if (!referer) return null;
-  try {
-    const normalizedReferer = new URL(referer).origin;
-    return allowedOrigins.includes(normalizedReferer) ? normalizedReferer : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function getCurrentRequestSessionGroup(req: Request): string {
@@ -157,6 +165,20 @@ function resolveActiveAppSlugForAuth(frontendBase: string, sessionGroup: string)
   if (explicit) return explicit;
 
   return "workspace";
+}
+
+function resolveOauthStartContext(req: Request, returnTo: string) {
+  const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
+  const resolvedSessionGroup = req.resolvedSessionGroup ?? originSessionGroup;
+  const appSlug = resolveActiveAppSlugForAuth(returnTo, resolvedSessionGroup);
+  const oauthSessionGroup = appSlug === "admin" || resolvedSessionGroup === SESSION_GROUPS.ADMIN
+    ? SESSION_GROUPS.ADMIN
+    : SESSION_GROUPS.DEFAULT;
+
+  return {
+    appSlug,
+    oauthSessionGroup,
+  };
 }
 
 function firstQueryParam(value: unknown): string | undefined {
@@ -432,12 +454,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
-  const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
-  const inferredSessionGroup = originSessionGroup;
-  const appSlug = resolveActiveAppSlugForAuth(returnTo, inferredSessionGroup);
-  const oauthSessionGroup = appSlug === "admin" || inferredSessionGroup === SESSION_GROUPS.ADMIN
-    ? SESSION_GROUPS.ADMIN
-    : SESSION_GROUPS.DEFAULT;
+  const { appSlug, oauthSessionGroup } = resolveOauthStartContext(req, returnTo);
   const statePayload = {
     nonce: randomUUID(),
     appSlug,
