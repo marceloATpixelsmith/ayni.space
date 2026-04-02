@@ -850,45 +850,56 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
-    console.log("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE", {
-      appSlug: activeAppSlug,
-      sessionGroup: oauthSessionGroup,
-      userId: user.id,
-      isSuperAdmin: user.isSuperAdmin,
-      cookieName: getSessionCookieName(oauthSessionGroup),
-      cookieDomain: getSessionCookieOptions().domain ?? null,
-      cookiePath: getSessionCookieOptions().path,
-      cookieSameSite: getSessionCookieOptions().sameSite,
-      cookieSecure: getSessionCookieOptions().secure,
-    });
-    logSuperadminTrace("G0. SESSION WRITE BEFORE", {
-      sessionGroup: oauthSessionGroup,
-      userId: user.id,
-      cookieName: getSessionCookieName(oauthSessionGroup),
-      cookieDomain: getSessionCookieOptions().domain ?? null,
-      cookiePath: getSessionCookieOptions().path,
-      cookieSameSite: getSessionCookieOptions().sameSite,
-      cookieSecure: getSessionCookieOptions().secure,
-    });
     req.session.userId = user.id;
+    req.session.isSuperAdmin = Boolean(user.isSuperAdmin);
     req.session.activeOrgId = user.activeOrgId ?? undefined;
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
+    req.session.appSlug = activeAppSlug;
     console.log(
-      `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER ` +
+      `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE ` +
+      `userId=${req.session.userId ?? null} ` +
+      `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
+      `sessionGroup=${req.session.sessionGroup ?? null} ` +
+      `appSlug=${req.session.appSlug ?? null}`
+    );
+    logSuperadminTrace("G0. SESSION WRITE BEFORE", {
+      sessionGroup: oauthSessionGroup,
+      userId: user.id,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      appSlug: activeAppSlug,
+      cookieName: getSessionCookieName(oauthSessionGroup),
+      cookieDomain: getSessionCookieOptions().domain ?? null,
+      cookiePath: getSessionCookieOptions().path,
+      cookieSameSite: getSessionCookieOptions().sameSite,
+      cookieSecure: getSessionCookieOptions().secure,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((saveErr: unknown) => {
+        if (saveErr) {
+          reject(saveErr);
+          return;
+        }
+        resolve();
+      });
+    });
+
+    console.log(
+      `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE ` +
       `sessionExists=${Boolean(req.session)} ` +
       `sessionId=${req.session?.id ?? null} ` +
-      `sessionGroup=${req.session.sessionGroup ?? null} ` +
       `userId=${req.session.userId ?? null} ` +
-      `isSuperAdmin=${user.isSuperAdmin}`
+      `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
+      `sessionGroup=${req.session.sessionGroup ?? null}`
     );
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
       sessionExists: Boolean(req.session),
       sessionId: req.session?.id ?? null,
       sessionGroup: req.session.sessionGroup ?? null,
       sessionUserId: req.session.userId ?? null,
-      sessionAppSlug: activeAppSlug,
-      sessionIsSuperAdmin: user.isSuperAdmin,
+      sessionIsSuperAdmin: req.session.isSuperAdmin ?? false,
+      sessionAppSlug: req.session.appSlug ?? null,
       cookieName: getSessionCookieName(oauthSessionGroup),
       cookieDomain: getSessionCookieOptions().domain ?? null,
       cookiePath: getSessionCookieOptions().path,
