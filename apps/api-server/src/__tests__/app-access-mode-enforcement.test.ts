@@ -19,7 +19,7 @@ test("superadmin apps require super-admin even when app entitlement exists", asy
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-            onboardingMode: "required",
+            onboardingMode: true,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-non-super",
@@ -63,7 +63,7 @@ test("superadmin apps allow super-admin without org membership/app entitlement",
       slug: "admin",
       isActive: true,
       accessMode: "superadmin",
-            onboardingMode: "required",
+            onboardingMode: true,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-super",
@@ -91,14 +91,14 @@ test("superadmin apps allow super-admin without org membership/app entitlement",
 });
 
 
-test("solo mode without onboarding denies invite/onboarding requirement when entitlement missing", async () => {
+test("solo mode with onboarding disabled blocks solo onboarding when entitlement missing", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-solo",
       slug: "shipibo",
       isActive: true,
       accessMode: "solo",
-            onboardingMode: "disabled",
+            onboardingMode: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-solo",
@@ -125,6 +125,43 @@ test("solo mode without onboarding denies invite/onboarding requirement when ent
   }
 });
 
+
+
+test("solo mode with onboarding enabled requires solo onboarding when entitlement missing", async () => {
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-solo",
+      slug: "shipibo",
+      isActive: true,
+      accessMode: "solo",
+            onboardingMode: true,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-solo",
+      email: "solo@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      isSuperAdmin: false,
+      activeOrgId: null,
+    })),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+  ];
+
+  try {
+    const context = await getAppContext("user-solo", "shipibo");
+    assert.ok(context);
+    assert.equal(context?.normalizedAccessProfile, "solo");
+    assert.equal(context?.requiredOnboarding, "solo");
+    assert.equal(context?.canAccess, false);
+    assert.equal(context?.defaultRoute, "/shipibo/onboarding/solo");
+  } finally {
+    teardown(restores);
+  }
+});
+
 test("organization mode requires organization onboarding for non-member user", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
@@ -132,7 +169,7 @@ test("organization mode requires organization onboarding for non-member user", a
       slug: "ayni",
       isActive: true,
       accessMode: "organization",
-            onboardingMode: "required",
+            onboardingMode: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-org",

@@ -157,6 +157,7 @@ export type AuthRouteKind = "onboarding" | "invitation";
 export type PlatformAppMetadata = {
   slug: string;
   normalizedAccessProfile: NormalizedAccessProfile;
+  authRoutePolicy?: AppAuthRoutePolicy;
 };
 
 export type AppAuthRoutePolicy = {
@@ -169,6 +170,10 @@ export function deriveAppAuthRoutePolicy(
 ): AppAuthRoutePolicy {
   if (!app) {
     return { allowOnboarding: false, allowInvitations: false };
+  }
+
+  if (app.authRoutePolicy) {
+    return app.authRoutePolicy;
   }
 
   if (app.normalizedAccessProfile === "organization") {
@@ -230,9 +235,22 @@ function normalizePlatformAppMetadata(
   )
     return null;
 
+  const authRoutePolicyCandidate = candidate["authRoutePolicy"];
+  const authRoutePolicy =
+    authRoutePolicyCandidate &&
+    typeof authRoutePolicyCandidate === "object" &&
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowOnboarding"] === "boolean" &&
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowInvitations"] === "boolean"
+      ? {
+          allowOnboarding: (authRoutePolicyCandidate as Record<string, boolean>)["allowOnboarding"],
+          allowInvitations: (authRoutePolicyCandidate as Record<string, boolean>)["allowInvitations"],
+        }
+      : undefined;
+
   return {
     slug: candidate["slug"],
     normalizedAccessProfile: candidate["normalizedAccessProfile"],
+    authRoutePolicy,
   };
 }
 

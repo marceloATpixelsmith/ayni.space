@@ -36,6 +36,13 @@
       "when": 1743379200000,
       "tag": "20260331_auth_model_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1743552000000,
+      "tag": "20260402_onboarding_mode_boolean",
+      "breakpoints": true
     }
   ]
 }

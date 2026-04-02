@@ -54,7 +54,7 @@ test("app access boundary denies user without app entitlement", async () => {
       slug: "shipibo",
       isActive: true,
       accessMode: "organization",
-            onboardingMode: "required",
+            onboardingMode: true,
     })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
@@ -93,7 +93,7 @@ test("ayni tenant routes deny cross-org reads even with app access", async () =>
       slug: "ayni",
       isActive: true,
       accessMode: "organization",
-            onboardingMode: "required",
+            onboardingMode: true,
     })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => ({
       id: "uaa-1",

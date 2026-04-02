@@ -63,7 +63,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     if (!canAccess) requiredOnboarding = "organization";
   } else if (normalizedAccessProfile === "solo") {
     canAccess = hasActiveAppAccess;
-    if (!canAccess && app.onboardingMode !== "disabled") requiredOnboarding = "solo";
+    if (!canAccess && app.onboardingMode) requiredOnboarding = "solo";
   } else {
     return null;
   }

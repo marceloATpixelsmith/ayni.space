@@ -71,6 +71,12 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 });
 
 test("shared route policy enforces normalized access-profile onboarding and invitation rules", () => {
+
+  expectIncludes(
+    authProviderSource,
+    'authRoutePolicy?: AppAuthRoutePolicy;',
+    "Platform app metadata should carry backend auth-route policy for onboarding/invitation gating.",
+  );
   expectIncludes(
     authProviderSource,
     "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true };",

@@ -4,7 +4,6 @@ import { z } from "zod/v4";
 import { platform } from "./_schemas";
 
 export const appAccessModeEnum = pgEnum("app_access_mode", ["superadmin", "solo", "organization"]);
-export const appOnboardingModeEnum = pgEnum("app_onboarding_mode", ["disabled", "required", "light"]);
 export const accessStatusEnum = pgEnum("access_status", ["pending", "active", "revoked", "suspended"]);
 
 // App registry - reusable definition for current and future apps.
@@ -17,7 +16,7 @@ export const appsTable = platform.table(
     description: text("description"),
     iconUrl: text("icon_url"),
     accessMode: appAccessModeEnum("access_mode").notNull().default("organization"),
-    onboardingMode: appOnboardingModeEnum("onboarding_mode").notNull().default("required"),
+    onboardingMode: boolean("onboarding_mode").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     metadata: jsonb("metadata").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
