@@ -455,9 +455,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
   });
   console.log(
     `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
-    `appSlug=${statePayload.appSlug} ` +
-    `returnTo=${statePayload.returnTo} ` +
-    `sessionGroup=${statePayload.sessionGroup}`
+    `appSlug=${appSlug ?? "null"} ` +
+    `returnTo=${returnTo ?? "null"} ` +
+    `sessionGroup=${oauthSessionGroup ?? "null"}`
   );
 
   const configValidation = getGoogleConfigValidation();
@@ -928,12 +928,12 @@ async function handleGoogleCallback(req: Request, res: Response) {
     console.log(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE ` +
       `sessionExists=${Boolean(req.session)} ` +
-      `sessionId=${req.session?.id ?? null} ` +
-      `userId=${req.session.userId ?? null} ` +
-      `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
-      `sessionGroup=${req.session.sessionGroup ?? null} ` +
-      `appSlug=${req.session.appSlug ?? null} ` +
-      `sessionKeys=${Object.keys(req.session ?? {}).sort().join(",")}`
+      `sessionId=${req.sessionID ?? "null"} ` +
+      `userId=${String((req.session as any)?.userId ?? (req.session as any)?.user?.id ?? "null")} ` +
+      `isSuperAdmin=${String((req.session as any)?.isSuperAdmin ?? (req.session as any)?.user?.isSuperAdmin ?? false)} ` +
+      `sessionGroup=${String((req.session as any)?.sessionGroup ?? "null")} ` +
+      `appSlug=${String((req.session as any)?.appSlug ?? "null")} ` +
+      `sessionKeys=${Object.keys(req.session ?? {}).join(",")}`
     );
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
       sessionExists: Boolean(req.session),
