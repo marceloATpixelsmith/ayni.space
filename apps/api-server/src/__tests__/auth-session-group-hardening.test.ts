@@ -269,6 +269,42 @@ test("admin oauth start ignores conflicting APP_SLUG_BY_ORIGIN mapping and keeps
   }
 });
 
+test("admin oauth start derives admin context from forwarded host when origin/referer are unavailable", async () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
+  process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
+  process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
+  process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const response = await request(app, "/api/auth/google/url", {
+      method: "POST",
+      headers: {
+        "x-forwarded-host": "admin.local",
+        "x-forwarded-proto": "http",
+      },
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { url: string };
+    const state = new URL(body.url).searchParams.get("state");
+    assert.ok(state);
+    const segments = state.split(".");
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "admin");
+    assert.equal(payload.sessionGroup, "admin");
+    assert.equal(payload.returnTo, "http://admin.local");
+  } finally {
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirect === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirect;
+  }
+});
+
 test("super admin oauth callback in admin group lands on /dashboard", async () => {
   const restore: Array<() => void> = [
     patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "super@example.com", name: "Super" })),

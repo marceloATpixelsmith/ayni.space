@@ -24,6 +24,8 @@
 - Session persistence queries that revoke other sessions are group-isolated (`sessionGroup` match) rather than user-global, preventing cross-group revocation from `logout-others`.
 - Frontend auth state, bootstrap, and route gating are implemented in `lib/frontend-security/src/index.tsx`.
 - CSRF-aware shared fetch path is implemented in `lib/api-client-react/src/custom-fetch.ts`.
+- OAuth start return-origin resolution accepts trusted `origin`/`referer` and trusted forwarded host/proto headers (`x-forwarded-host`, `x-forwarded-proto`) before allowlist validation so reverse-proxied admin logins derive correct app context at initiation (`apps/api-server/src/routes/auth.ts`).
+- Frontend auth/session calls are hard-pinned to credentialed fetch mode in shared clients (`/api/auth/*` and `/api/csrf-token` always use `credentials: "include"` in `lib/api-client-react/src/custom-fetch.ts` and `lib/frontend-security/src/index.tsx`).
 - Backend app middleware composition runs through `apps/api-server/src/app.ts`, where session and security middleware ordering is centralized.
 - Session middleware runtime provisioning is explicitly migration-managed (`createTableIfMissing=false`) and pinned to schema-qualified persistence (`platform.sessions`).
 

@@ -37,6 +37,10 @@ function toApiUrl(path: string): string {
   return `${API_BASE.replace(/\/$/, "")}${path}`;
 }
 
+function isCredentialRequiredPath(path: string): boolean {
+  return path.startsWith("/api/auth/") || path === "/api/csrf-token";
+}
+
 export async function fetchCsrfToken(): Promise<string> {
   console.log("[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST path=/api/csrf-token credentialsMode=include");
   const response = await fetch(toApiUrl("/api/csrf-token"), {
@@ -59,7 +63,7 @@ export async function fetchCsrfToken(): Promise<string> {
 export async function secureApiFetch(path: string, init: RequestInit = {}, csrfToken?: string | null): Promise<Response> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
-  const credentialsMode = init.credentials ?? "include";
+  const credentialsMode = isCredentialRequiredPath(path) ? "include" : (init.credentials ?? "include");
   console.log(
     `[AUTH-CHECK-TRACE] AUTH CLIENT REQUEST ` +
     `path=${path} ` +
