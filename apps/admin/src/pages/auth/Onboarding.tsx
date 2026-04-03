@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Building2, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useTurnstileToken } from "@workspace/frontend-security";
+import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { captureApiFailure, getUserSafeErrorMessage } from "@workspace/frontend-observability";
 
 const formSchema = z.object({
@@ -25,6 +25,7 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const turnstile = useTurnstileToken();
+  const auth = useAuth();
   const queryClient = useQueryClient();
   const { data: user, isLoading } = useGetMe();
 
@@ -50,8 +51,8 @@ export default function Onboarding() {
     mutation: {
       onSuccess: async () => {
         toast({ title: "Organization created successfully" });
+        await auth.refreshSession();
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        await queryClient.refetchQueries({ queryKey: getGetMeQueryKey(), type: "active" });
         setLocation("/dashboard");
       },
       onError: (error: unknown, variables: { data: { name: string; slug: string } }) => {
