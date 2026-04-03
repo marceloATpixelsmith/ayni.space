@@ -1,7 +1,8 @@
 import { db } from "@workspace/db";
 import { emailWebhookEventsTable, outboundEmailLogsTable, tenantEmailProviderConnectionsTable } from "@workspace/db/schema";
-import { and, desc, eq, gte, ilike, isNull, lte, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lte, ne, sql, type SQL } from "drizzle-orm";
 import type {
+  CorrelationStatus,
   EmailProvider,
   Lane2SendResult,
   Lane2TransactionalEmailRequest,
@@ -64,6 +65,7 @@ export type OutboundLogQueryFilters = {
 
 export type EmailEventQueryFilters = {
   orgId?: string;
+  correlationStatus?: CorrelationStatus;
   provider?: EmailProvider;
   normalizedEventType?: NormalizedDeliveryState;
   providerMessageId?: string;
@@ -291,7 +293,7 @@ export class TransactionalEmailRepository {
       requestedSubject: input.request.subject,
       requestedFrom: input.request.fromEmail,
       requestedTo: input.request.to.map((r) => r.email),
-      requestedTemplateReference: input.request.templateRef,
+      requestedTemplateReference: input.request.templateRef !== undefined ? String(input.request.templateRef) : null,
       requestedScheduledAt: input.request.scheduledAt ? new Date(input.request.scheduledAt) : null,
       attemptResult: "failed",
       deliveryState: "pending",
@@ -357,6 +359,7 @@ export class TransactionalEmailRepository {
     diagnostic?: string;
     rawPayload: Record<string, unknown>;
     linkedOutboundEmailLogId?: string;
+    correlationStatus?: CorrelationStatus;
   }): Promise<void> {
     await db.insert(emailWebhookEventsTable).values({
       id: event.id,
@@ -370,6 +373,7 @@ export class TransactionalEmailRepository {
       diagnostic: event.diagnostic,
       rawPayload: sanitizeSnapshot(event.rawPayload),
       linkedOutboundEmailLogId: event.linkedOutboundEmailLogId,
+      correlationStatus: event.correlationStatus ?? "linked",
     });
   }
 
@@ -387,6 +391,13 @@ export class TransactionalEmailRepository {
     if (filters.dateFrom) whereClauses.push(gte(outboundEmailLogsTable.createdAt, filters.dateFrom));
     if (filters.dateTo) whereClauses.push(lte(outboundEmailLogsTable.createdAt, filters.dateTo));
     if (filters.subject) whereClauses.push(ilike(outboundEmailLogsTable.requestedSubject, `%${filters.subject}%`));
+    if (filters.recipient) {
+      whereClauses.push(sql`exists (
+        select 1
+        from unnest(${outboundEmailLogsTable.requestedTo}) as recipient_email
+        where recipient_email ilike ${`%${filters.recipient}%`}
+      )`);
+    }
 
     const whereExpr = whereClauses.length ? and(...whereClauses) : undefined;
     return db.query.outboundEmailLogsTable.findMany({
@@ -410,6 +421,16 @@ export class TransactionalEmailRepository {
     if (filters.providerMessageId) whereClauses.push(eq(emailWebhookEventsTable.providerMessageId, filters.providerMessageId));
     if (filters.recipient) whereClauses.push(ilike(emailWebhookEventsTable.recipient, `%${filters.recipient}%`));
     if (filters.linkedOutboundEmailLogId) whereClauses.push(eq(emailWebhookEventsTable.linkedOutboundEmailLogId, filters.linkedOutboundEmailLogId));
+    if (filters.correlationStatus) whereClauses.push(eq(emailWebhookEventsTable.correlationStatus, filters.correlationStatus));
+    if (filters.orgId) {
+      whereClauses.push(sql`exists (
+        select 1
+        from platform.outbound_email_logs l
+        where l.id = ${emailWebhookEventsTable.linkedOutboundEmailLogId}
+          and l.org_id = ${filters.orgId}
+      )`);
+      whereClauses.push(eq(emailWebhookEventsTable.correlationStatus, "linked"));
+    }
     if (filters.dateFrom) whereClauses.push(gte(emailWebhookEventsTable.receivedAt, filters.dateFrom));
     if (filters.dateTo) whereClauses.push(lte(emailWebhookEventsTable.receivedAt, filters.dateTo));
 
@@ -502,6 +523,7 @@ export class InMemoryTransactionalEmailRepository {
     diagnostic?: string;
     rawPayload: Record<string, unknown>;
     linkedOutboundEmailLogId?: string;
+    correlationStatus?: CorrelationStatus;
   }) {
     this.webhookEvents.push(event);
   }

@@ -130,6 +130,7 @@ The persistence model is intentionally queryable for future superadmin tooling:
   5. Correlate by provider message id to `platform.outbound_email_logs`.
   6. Update outbound log delivery state while preserving event history.
 - Unknown/unmapped provider event types do not crash processing; they normalize to `failed` and are still stored.
+- Webhook events that do not correlate to an outbound log are still persisted with `correlation_status='unlinked'`.
 
 ## Delivery event/state model
 - Supported normalized states in lane2 runtime:
@@ -149,6 +150,7 @@ The persistence model is intentionally queryable for future superadmin tooling:
 - Webhook-time correlation:
   - Primary key: `(provider, provider_message_id)` lookup into outbound logs.
   - Linked event row stores `linked_outbound_email_log_id`.
+  - Uncorrelated events are stored as `correlation_status='unlinked'` and excluded from org-scoped event queries.
 
 ## Connection validation behavior (implemented)
 - Internal validation entrypoint: `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/validate`.
@@ -203,7 +205,7 @@ The persistence model is intentionally queryable for future superadmin tooling:
   - `status` (attempt result)
   - `deliveryState`
   - `dateFrom`, `dateTo`
-  - `recipient` (org endpoint post-filter)
+  - `recipient` (applied in DB query layer so pagination is against filtered result set)
   - `subject`
   - `providerMessageId`
   - `correlationId`
@@ -226,6 +228,13 @@ The persistence model is intentionally queryable for future superadmin tooling:
 - UI implementation is explicitly deferred to a future PR.
 
 ## Provider differences handled
-- Brevo template id is numeric (`templateId`), Mailchimp Transactional supports message template merge vars differently.
+- Brevo template id is numeric (`templateId`) and `templateRef` is strictly validated as a finite number before provider send.
+- Mailchimp Transactional `templateRef` remains string-based and non-empty.
 - Mailchimp Transactional returns per-recipient array statuses; lane2 runtime uses first response object as immediate attempt result.
 - Signature validation semantics differ and are optional unless the relevant env secret is configured.
+
+## Validation hardening (implemented)
+- Scheduling is strict: `scheduledAt` must be a valid ISO datetime and must be in the future.
+- Attachments are strict: must be structured objects, and inline attachments require `contentId`.
+- Template params are strict: `templateParams` must be an object (not array/null/scalar).
+- Unsupported capabilities fail closed; no silent coercion or field dropping.

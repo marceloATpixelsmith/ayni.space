@@ -3,6 +3,7 @@ export * from "./capabilities";
 export * from "./crypto";
 export * from "./sanitization";
 export * from "./validation";
+export * from "./errors";
 export * from "./repository";
 export * from "./service";
 export * from "./runtime";

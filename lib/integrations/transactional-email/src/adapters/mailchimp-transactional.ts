@@ -8,6 +8,7 @@ import type {
   ProviderConnectionCredentials,
 } from "../types";
 import { sanitizeSnapshot } from "../sanitization";
+import { normalizeProviderError } from "../errors";
 
 const MAILCHIMP_TX_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send.json";
 const MAILCHIMP_TX_TEMPLATE_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send-template.json";
@@ -86,10 +87,14 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
         provider: this.provider,
         deliveryState: "failed",
         error: {
-          code: `mailchimp_transactional_${response.status}`,
-          message: String(errorObject["message"] ?? "Mailchimp Transactional send failed"),
-          retryable: response.status >= 500,
-          details: sanitizeSnapshot(errorObject),
+          ...normalizeProviderError({
+            provider: "mailchimp_transactional",
+            code: `mailchimp_transactional_${response.status}`,
+            message: String(errorObject["message"] ?? "Mailchimp Transactional send failed"),
+            retryable: response.status >= 500,
+            normalizedType: "provider",
+            details: sanitizeSnapshot(errorObject),
+          }),
         },
         rawResponseSnapshot: sanitizeSnapshot(errorObject),
       };
@@ -109,10 +114,14 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
       error:
         messageStatus === "rejected"
           ? {
-              code: "mailchimp_transactional_rejected",
-              message: String(first["reject_reason"] ?? "rejected"),
-              retryable: false,
-              details: sanitizeSnapshot(first),
+              ...normalizeProviderError({
+                provider: "mailchimp_transactional",
+                code: "mailchimp_transactional_rejected",
+                message: String(first["reject_reason"] ?? "rejected"),
+                retryable: false,
+                normalizedType: "provider",
+                details: sanitizeSnapshot(first),
+              }),
             }
           : undefined,
       rawResponseSnapshot: sanitizeSnapshot(first),

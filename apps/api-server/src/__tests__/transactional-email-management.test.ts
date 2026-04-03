@@ -113,12 +113,16 @@ test("validation response sanitizes credential-like diagnostics", async () => {
 });
 
 test("org log query supports recipient filtering", async () => {
+  let observedRecipientFilter: string | undefined;
   const restores = [
     ...baseAuthRestores("org-1"),
-    patchProperty(TransactionalEmailRepository.prototype as any, "listOutboundLogs", async () => [
+    patchProperty(TransactionalEmailRepository.prototype as any, "listOutboundLogs", async (filters: Record<string, unknown>) => {
+      observedRecipientFilter = filters["recipient"] as string | undefined;
+      return [
       { id: "l1", requestedTo: ["alice@example.com"] },
       { id: "l2", requestedTo: ["bob@example.com"] },
-    ]),
+      ];
+    }),
   ];
   try {
     const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
@@ -128,8 +132,8 @@ test("org log query supports recipient filtering", async () => {
       "/api/organizations/org-1/transactional-email/logs?recipient=alice"
     );
     assert.equal(response.status, 200);
-    assert.equal(response.body.logs.length, 1);
-    assert.equal(response.body.logs[0].id, "l1");
+    assert.equal(response.body.logs.length, 2);
+    assert.equal(observedRecipientFilter, "alice");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -161,15 +165,15 @@ test("superadmin access to platform-wide logs is enforced", async () => {
 });
 
 test("org events query excludes events from other org logs", async () => {
+  let seenOrgId: string | undefined;
   const restores = [
     ...baseAuthRestores("org-1"),
-    patchProperty(TransactionalEmailRepository.prototype as any, "listEvents", async () => [
+    patchProperty(TransactionalEmailRepository.prototype as any, "listEvents", async (filters: Record<string, unknown>) => {
+      seenOrgId = filters["orgId"] as string | undefined;
+      return [
       { id: "e1", linkedOutboundEmailLogId: "log-1" },
-      { id: "e2", linkedOutboundEmailLogId: "log-2" },
-    ]),
-    patchProperty(TransactionalEmailRepository.prototype as any, "findOutboundLogById", async (logId: string) =>
-      logId === "log-1" ? { id: "log-1", orgId: "org-1" } : { id: "log-2", orgId: "org-2" }
-    ),
+    ];
+    }),
   ];
 
   try {
@@ -178,6 +182,7 @@ test("org events query excludes events from other org logs", async () => {
     assert.equal(response.status, 200);
     assert.equal(response.body.events.length, 1);
     assert.equal(response.body.events[0].id, "e1");
+    assert.equal(seenOrgId, "org-1");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -210,5 +215,19 @@ test("brevo webhook rejects malformed signature without throwing", async () => {
   } finally {
     restores.reverse().forEach((restore) => restore());
     delete process.env["BREVO_WEBHOOK_SECRET"];
+  }
+});
+
+test("brevo webhook endpoint remains resilient when ingestion throws", async () => {
+  const restores = [patchProperty(Lane2TransactionalEmailRuntime.prototype as any, "ingestWebhook", async () => {
+    throw new Error("boom");
+  })];
+  try {
+    const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
+    const response = await performJsonRequest(app, "POST", "/api/transactional-email/webhooks/brevo", { event: "unknown" });
+    assert.equal(response.status, 202);
+    assert.equal(response.body.accepted, true);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
   }
 });

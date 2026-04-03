@@ -51,7 +51,7 @@ export type Lane2TransactionalEmailRequest = {
   subject?: string;
   textBody?: string;
   htmlBody?: string;
-  templateRef?: string;
+  templateRef?: string | number;
   templateParams?: Record<string, unknown>;
   attachments?: EmailAttachment[];
   tags?: string[];
@@ -76,8 +76,10 @@ export type ProviderCapabilities = {
 };
 
 export type NormalizedProviderError = {
+  provider: EmailProvider;
   code: string;
   message: string;
+  normalizedType: "validation" | "provider" | "network" | "unknown";
   retryable: boolean;
   details?: Record<string, unknown>;
 };
@@ -120,3 +122,5 @@ export type NormalizedWebhookEvent = {
   diagnostic?: string;
   rawPayload: Record<string, unknown>;
 };
+
+export type CorrelationStatus = "linked" | "unlinked";

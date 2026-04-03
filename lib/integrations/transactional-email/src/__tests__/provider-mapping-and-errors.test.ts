@@ -53,6 +53,8 @@ test("brevo adapter normalizes error", async () => {
   );
   assert.equal(result.status, "failed");
   assert.equal(result.error?.code, "brevo_400");
+  assert.equal(result.error?.provider, "brevo");
+  assert.equal(result.error?.normalizedType, "provider");
 });
 
 test("brevo adapter send success maps accepted result", async () => {
@@ -77,6 +79,8 @@ test("mailchimp adapter normalizes rejection", async () => {
   );
   assert.equal(result.status, "rejected");
   assert.equal(result.deliveryState, "rejected");
+  assert.equal(result.error?.provider, "mailchimp_transactional");
+  assert.equal(result.error?.normalizedType, "provider");
 });
 
 test("mailchimp transactional adapter send success maps accepted result", async () => {
