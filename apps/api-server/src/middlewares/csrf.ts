@@ -4,6 +4,8 @@ import type { RequestHandler } from "express";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MISSING_ORIGIN_REFERER_EXCEPTIONS: Array<{ method: string; pattern: RegExp }> = [
   { method: "POST", pattern: /^\/api\/billing\/webhook\/?$/ },
+  { method: "POST", pattern: /^\/api\/transactional-email\/webhooks\/brevo\/?$/ },
+  { method: "POST", pattern: /^\/api\/transactional-email\/webhooks\/mailchimp-transactional\/?$/ },
 ];
 
 function ensureSessionCsrfToken(req: any): string {
@@ -15,6 +17,14 @@ function ensureSessionCsrfToken(req: any): string {
 }
 
 export const csrfProtection: RequestHandler = (req, res, next) => {
+  const webhookBypass = MISSING_ORIGIN_REFERER_EXCEPTIONS.some(
+    (entry) => entry.method === req.method.toUpperCase() && entry.pattern.test(req.path),
+  );
+  if (webhookBypass) {
+    next();
+    return;
+  }
+
   const token = ensureSessionCsrfToken(req);
 
   if (SAFE_METHODS.has(req.method)) {

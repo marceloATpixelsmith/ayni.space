@@ -11,6 +11,7 @@ import auditRouter from "./audit.js";
 import adminRouter from "./admin.js";
 import shipiboRouter from "./shipibo.js";
 import ayniRouter from "./ayni.js";
+import transactionalEmailRouter from "./transactional-email.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/", auditRouter); // /organizations/:orgId/audit-logs
 router.use("/admin", adminRouter);
 router.use("/shipibo", shipiboRouter);
 router.use("/ayni", ayniRouter);
+router.use("/", transactionalEmailRouter);
 
 export default router;

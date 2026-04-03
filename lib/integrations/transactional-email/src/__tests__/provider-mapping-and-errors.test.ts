@@ -45,6 +45,15 @@ test("brevo adapter normalizes error", async () => {
   assert.equal(result.error?.code, "brevo_400");
 });
 
+test("brevo adapter send success maps accepted result", async () => {
+  const adapter = new BrevoEmailAdapter();
+  const result = await adapter.send(connection, request, async () =>
+    new Response(JSON.stringify({ messageId: "brevo-123" }), { status: 201 })
+  );
+  assert.equal(result.status, "accepted");
+  assert.equal(result.providerMessageId, "brevo-123");
+});
+
 test("mailchimp adapter normalizes rejection", async () => {
   const adapter = new MailchimpTransactionalEmailAdapter();
   const result = await adapter.send(
@@ -58,4 +67,24 @@ test("mailchimp adapter normalizes rejection", async () => {
   );
   assert.equal(result.status, "rejected");
   assert.equal(result.deliveryState, "rejected");
+});
+
+test("mailchimp transactional adapter send success maps accepted result", async () => {
+  const adapter = new MailchimpTransactionalEmailAdapter();
+  const result = await adapter.send(
+    { ...connection, provider: "mailchimp_transactional", credentials: { apiKey: "mc-key" } },
+    request,
+    async () => new Response(JSON.stringify([{ _id: "mc-1", status: "sent" }]), { status: 200 })
+  );
+  assert.equal(result.status, "accepted");
+  assert.equal(result.providerMessageId, "mc-1");
+});
+
+test("provider webhook normalization handles unknown types without crashing", () => {
+  const brevo = new BrevoEmailAdapter();
+  const mailchimp = new MailchimpTransactionalEmailAdapter();
+  const brevoEvent = brevo.normalizeWebhook({ event: "mystery", "message-id": "a" });
+  const mcEvent = mailchimp.normalizeWebhook({ event: "mystery", msg: { _id: "b" } });
+  assert.equal(brevoEvent[0]?.normalizedEventType, "failed");
+  assert.equal(mcEvent[0]?.normalizedEventType, "failed");
 });

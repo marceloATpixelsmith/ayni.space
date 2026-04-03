@@ -92,6 +92,8 @@ export type Lane2SendResult = {
   rawResponseSnapshot?: Record<string, unknown>;
 };
 
+export type ProviderConnectionValidationState = "valid" | "invalid" | "degraded";
+
 export type ProviderConnectionCredentials = {
   apiKey: string;
   serverPrefix?: string;
@@ -106,4 +108,15 @@ export type Lane2ProviderConnection = {
   defaultSenderName?: string;
   defaultSenderEmail?: string;
   defaultReplyTo?: string;
+};
+
+export type NormalizedWebhookEvent = {
+  provider: EmailProvider;
+  rawProviderEventType: string;
+  normalizedEventType: NormalizedDeliveryState;
+  providerMessageId?: string;
+  recipient?: string;
+  reason?: string;
+  diagnostic?: string;
+  rawPayload: Record<string, unknown>;
 };

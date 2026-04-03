@@ -1,9 +1,16 @@
 import { PROVIDER_CAPABILITIES } from "../capabilities";
 import type { EmailProviderAdapter, FetchLike } from "./base";
-import type { Lane2ProviderConnection, Lane2SendResult, Lane2TransactionalEmailRequest } from "../types";
+import type {
+  Lane2ProviderConnection,
+  Lane2SendResult,
+  Lane2TransactionalEmailRequest,
+  NormalizedWebhookEvent,
+  ProviderConnectionCredentials,
+} from "../types";
 import { sanitizeSnapshot } from "../sanitization";
 
 const MAILCHIMP_TX_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send.json";
+const MAILCHIMP_TX_PING_ENDPOINT = "https://mandrillapp.com/api/1.0/users/ping2.json";
 
 function mapMailchimpPayload(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest): Record<string, unknown> {
   return {
@@ -99,6 +106,61 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
           : undefined,
       rawResponseSnapshot: sanitizeSnapshot(first),
     };
+  }
+
+  async validateConnection(credentials: ProviderConnectionCredentials, fetcher: FetchLike = fetch) {
+    const response = await fetcher(MAILCHIMP_TX_PING_ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: credentials.apiKey }),
+    });
+    if (!response.ok) {
+      return { state: "invalid" as const, error: `Mailchimp Transactional authentication failed (${response.status})` };
+    }
+    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (String(body["PING"] ?? "") !== "PONG!") {
+      return { state: "degraded" as const, error: "Mailchimp Transactional ping returned unexpected response" };
+    }
+    return { state: "valid" as const };
+  }
+
+  normalizeWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    const events = Array.isArray(payload) ? payload : [payload];
+    return events.map((entry): NormalizedWebhookEvent => {
+      const row = (entry ?? {}) as Record<string, unknown>;
+      const rawType = String(row["event"] ?? "unknown");
+      const msg = (row["msg"] ?? {}) as Record<string, unknown>;
+      const providerMessageId = typeof msg["_id"] === "string" ? msg["_id"] : undefined;
+      const state = rawType === "send"
+        ? "sent"
+        : rawType === "deferral"
+          ? "deferred"
+          : rawType === "hard_bounce"
+            ? "bounced_hard"
+            : rawType === "soft_bounce"
+              ? "bounced_soft"
+              : rawType === "open"
+                ? "opened"
+                : rawType === "click"
+                  ? "clicked"
+                  : rawType === "spam"
+                    ? "complained"
+                    : rawType === "unsub"
+                      ? "unsubscribed"
+                      : rawType === "reject"
+                        ? "rejected"
+                        : "failed";
+      return {
+        provider: "mailchimp_transactional",
+        rawProviderEventType: rawType,
+        normalizedEventType: state,
+        providerMessageId,
+        recipient: typeof row["email"] === "string" ? row["email"] : undefined,
+        reason: typeof row["reason"] === "string" ? row["reason"] : undefined,
+        diagnostic: typeof row["diag"] === "string" ? row["diag"] : undefined,
+        rawPayload: sanitizeSnapshot(row),
+      };
+    });
   }
 }
 

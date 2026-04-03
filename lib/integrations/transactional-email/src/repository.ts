@@ -1,7 +1,13 @@
 import { db } from "@workspace/db";
-import { emailWebhookEventsTable, outboundEmailLogsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
-import type { Lane2SendResult, Lane2TransactionalEmailRequest, NormalizedDeliveryState } from "./types";
+import { emailWebhookEventsTable, outboundEmailLogsTable, tenantEmailProviderConnectionsTable } from "@workspace/db/schema";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import type {
+  EmailProvider,
+  Lane2SendResult,
+  Lane2TransactionalEmailRequest,
+  NormalizedDeliveryState,
+  ProviderConnectionValidationState,
+} from "./types";
 import { sanitizeSnapshot } from "./sanitization";
 
 export type OutboundLogCreateInput = {
@@ -12,6 +18,43 @@ export type OutboundLogCreateInput = {
 };
 
 export class TransactionalEmailRepository {
+  async findActiveConnection(orgId: string, appId: string) {
+    return db.query.tenantEmailProviderConnectionsTable.findFirst({
+      where: and(
+        eq(tenantEmailProviderConnectionsTable.orgId, orgId),
+        eq(tenantEmailProviderConnectionsTable.appId, appId),
+        eq(tenantEmailProviderConnectionsTable.isActive, true),
+        isNull(tenantEmailProviderConnectionsTable.deletedAt),
+      ),
+      orderBy: [desc(tenantEmailProviderConnectionsTable.updatedAt)],
+    });
+  }
+
+  async findConnectionById(connectionId: string) {
+    return db.query.tenantEmailProviderConnectionsTable.findFirst({
+      where: eq(tenantEmailProviderConnectionsTable.id, connectionId),
+    });
+  }
+
+  async updateConnectionValidation(
+    connectionId: string,
+    validation: {
+      state: ProviderConnectionValidationState;
+      error?: string;
+    }
+  ): Promise<void> {
+    await db
+      .update(tenantEmailProviderConnectionsTable)
+      .set({
+        lastValidatedAt: new Date(),
+        lastValidationStatus: validation.state,
+        lastValidationError: validation.error ?? null,
+        status: validation.state === "valid" ? "validated" : "invalid",
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantEmailProviderConnectionsTable.id, connectionId));
+  }
+
   async createOutboundAttempt(input: OutboundLogCreateInput): Promise<void> {
     await db.insert(outboundEmailLogsTable).values({
       id: input.id,
@@ -32,6 +75,34 @@ export class TransactionalEmailRepository {
       attemptResult: "failed",
       deliveryState: "pending",
     });
+  }
+
+  async markOutboundProviderMessage(logId: string, providerMessageId?: string, providerRequestId?: string): Promise<void> {
+    await db
+      .update(outboundEmailLogsTable)
+      .set({
+        providerMessageId: providerMessageId ?? null,
+        providerRequestId: providerRequestId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(outboundEmailLogsTable.id, logId));
+  }
+
+  async findOutboundLogByProviderMessage(provider: EmailProvider, providerMessageId: string) {
+    return db.query.outboundEmailLogsTable.findFirst({
+      where: and(eq(outboundEmailLogsTable.provider, provider), eq(outboundEmailLogsTable.providerMessageId, providerMessageId)),
+      orderBy: [desc(outboundEmailLogsTable.createdAt)],
+    });
+  }
+
+  async updateOutboundDeliveryState(logId: string, state: NormalizedDeliveryState): Promise<void> {
+    await db
+      .update(outboundEmailLogsTable)
+      .set({
+        deliveryState: state,
+        updatedAt: new Date(),
+      })
+      .where(eq(outboundEmailLogsTable.id, logId));
   }
 
   async markOutboundResult(logId: string, result: Lane2SendResult): Promise<void> {
@@ -84,6 +155,18 @@ export class TransactionalEmailRepository {
 
 export class InMemoryTransactionalEmailRepository {
   outboundLogs: Array<Record<string, unknown>> = [];
+  connections: Array<{
+    id: string;
+    orgId: string;
+    appId: string;
+    provider: EmailProvider;
+    encryptedCredentials: string;
+    defaultSenderName?: string | null;
+    defaultSenderEmail?: string | null;
+    defaultReplyTo?: string | null;
+    isActive?: boolean;
+  }> = [];
+  webhookEvents: Array<Record<string, unknown>> = [];
 
   async createOutboundAttempt(input: OutboundLogCreateInput): Promise<void> {
     this.outboundLogs.push({
@@ -103,5 +186,53 @@ export class InMemoryTransactionalEmailRepository {
     }
     row["status"] = result.status;
     row["result"] = sanitizeSnapshot(result);
+  }
+
+  async findActiveConnection(orgId: string, appId: string) {
+    return this.connections.find((connection) => connection.orgId === orgId && connection.appId === appId && connection.isActive !== false);
+  }
+
+  async findConnectionById(connectionId: string) {
+    return this.connections.find((connection) => connection.id === connectionId);
+  }
+
+  async updateConnectionValidation(connectionId: string, validation: { state: ProviderConnectionValidationState; error?: string }) {
+    const connection = this.connections.find((item) => item.id === connectionId);
+    if (!connection) return;
+    (connection as Record<string, unknown>)["lastValidationStatus"] = validation.state;
+    (connection as Record<string, unknown>)["lastValidationError"] = validation.error ?? null;
+  }
+
+  async markOutboundProviderMessage(logId: string, providerMessageId?: string, providerRequestId?: string) {
+    const row = this.outboundLogs.find((entry) => entry["id"] === logId);
+    if (!row) return;
+    row["providerMessageId"] = providerMessageId;
+    row["providerRequestId"] = providerRequestId;
+  }
+
+  async findOutboundLogByProviderMessage(provider: EmailProvider, providerMessageId: string) {
+    return this.outboundLogs.find((entry) => entry["provider"] === provider && entry["providerMessageId"] === providerMessageId);
+  }
+
+  async updateOutboundDeliveryState(logId: string, state: NormalizedDeliveryState) {
+    const row = this.outboundLogs.find((entry) => entry["id"] === logId);
+    if (!row) return;
+    row["deliveryState"] = state;
+  }
+
+  async insertWebhookEvent(event: {
+    id: string;
+    provider: "brevo" | "mailchimp_transactional";
+    rawProviderEventType: string;
+    normalizedEventType: NormalizedDeliveryState;
+    providerMessageId?: string;
+    recipient?: string;
+    deliveryState?: NormalizedDeliveryState;
+    reason?: string;
+    diagnostic?: string;
+    rawPayload: Record<string, unknown>;
+    linkedOutboundEmailLogId?: string;
+  }) {
+    this.webhookEvents.push(event);
   }
 }

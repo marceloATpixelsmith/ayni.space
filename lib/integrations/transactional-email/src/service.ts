@@ -37,8 +37,37 @@ export class Lane2TransactionalEmailService {
       request,
     });
 
-    const result = await adapter.send(connection, request);
-    await this.repository.markOutboundResult(logId, result);
-    return { logId, result };
+    const enrichedRequest: Lane2TransactionalEmailRequest = {
+      ...request,
+      metadata: {
+        ...(request.metadata ?? {}),
+        ayni_correlation_id: request.correlationId,
+        ayni_outbound_log_id: logId,
+      },
+      headers: {
+        ...(request.headers ?? {}),
+        "x-ayni-correlation-id": request.correlationId,
+        "x-ayni-outbound-log-id": logId,
+      },
+    };
+
+    try {
+      const result = await adapter.send(connection, enrichedRequest);
+      await this.repository.markOutboundResult(logId, result);
+      return { logId, result };
+    } catch (error) {
+      const result: Lane2SendResult = {
+        status: "failed",
+        provider: connection.provider,
+        deliveryState: "failed",
+        error: {
+          code: "provider_request_exception",
+          message: error instanceof Error ? error.message : "provider request failed",
+          retryable: false,
+        },
+      };
+      await this.repository.markOutboundResult(logId, result);
+      return { logId, result };
+    }
   }
 }

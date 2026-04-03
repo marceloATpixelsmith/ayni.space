@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { InMemoryTransactionalEmailRepository } from "../repository";
 import { Lane2TransactionalEmailService } from "../service";
+
+process.env["DATABASE_URL"] ??= "postgres://postgres:postgres@localhost:5432/ayni_test";
+const { InMemoryTransactionalEmailRepository } = await import("../repository");
 
 const connection = {
   id: "conn_1",
@@ -39,6 +41,8 @@ test("service logs success path", async () => {
         supportsCustomHeaders: true,
       },
       send: async () => ({ provider: "brevo", status: "accepted", deliveryState: "accepted" }),
+      validateConnection: async () => ({ state: "valid" as const }),
+      normalizeWebhook: () => [],
     },
   });
 
@@ -71,6 +75,8 @@ test("service logs failure path", async () => {
         deliveryState: "failed",
         error: { code: "brevo_400", message: "invalid", retryable: false },
       }),
+      validateConnection: async () => ({ state: "valid" as const }),
+      normalizeWebhook: () => [],
     },
   });
 

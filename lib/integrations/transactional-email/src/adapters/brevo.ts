@@ -1,9 +1,16 @@
 import { PROVIDER_CAPABILITIES } from "../capabilities";
 import type { EmailProviderAdapter, FetchLike } from "./base";
-import type { Lane2ProviderConnection, Lane2SendResult, Lane2TransactionalEmailRequest } from "../types";
+import type {
+  Lane2ProviderConnection,
+  Lane2SendResult,
+  Lane2TransactionalEmailRequest,
+  NormalizedWebhookEvent,
+  ProviderConnectionCredentials,
+} from "../types";
 import { sanitizeSnapshot } from "../sanitization";
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+const BREVO_ACCOUNT_ENDPOINT = "https://api.brevo.com/v3/account";
 
 function mapBrevoPayload(request: Lane2TransactionalEmailRequest): Record<string, unknown> {
   return {
@@ -72,6 +79,62 @@ export class BrevoEmailAdapter implements EmailProviderAdapter {
       providerMessageId: String(body["messageId"] ?? ""),
       rawResponseSnapshot: sanitizeSnapshot(body),
     };
+  }
+
+  async validateConnection(credentials: ProviderConnectionCredentials, fetcher: FetchLike = fetch) {
+    const response = await fetcher(BREVO_ACCOUNT_ENDPOINT, {
+      method: "GET",
+      headers: {
+        "api-key": credentials.apiKey,
+      },
+    });
+    if (!response.ok) {
+      return { state: "invalid" as const, error: `Brevo authentication failed (${response.status})` };
+    }
+    return { state: "valid" as const };
+  }
+
+  normalizeWebhook(payload: unknown): NormalizedWebhookEvent[] {
+    const events = Array.isArray(payload) ? payload : [payload];
+    return events.map((entry): NormalizedWebhookEvent => {
+      const row = (entry ?? {}) as Record<string, unknown>;
+      const rawType = String(row["event"] ?? "unknown");
+      const messageId = typeof row["message-id"] === "string" ? row["message-id"] : undefined;
+      const email = typeof row["email"] === "string" ? row["email"] : undefined;
+      const state = rawType === "sent"
+        ? "sent"
+        : rawType === "delivered"
+          ? "delivered"
+          : rawType === "open"
+            ? "opened"
+            : rawType === "click"
+              ? "clicked"
+              : rawType === "hard_bounce"
+                ? "bounced_hard"
+                : rawType === "soft_bounce"
+                  ? "bounced_soft"
+                  : rawType === "blocked"
+                    ? "blocked"
+                    : rawType === "spam"
+                      ? "complained"
+                      : rawType === "deferred"
+                        ? "deferred"
+                        : rawType === "invalid"
+                          ? "failed"
+                          : rawType === "unsubscribed"
+                            ? "unsubscribed"
+                            : "failed";
+      return {
+        provider: "brevo",
+        rawProviderEventType: rawType,
+        normalizedEventType: state,
+        providerMessageId: messageId,
+        recipient: email,
+        reason: typeof row["reason"] === "string" ? row["reason"] : undefined,
+        diagnostic: typeof row["description"] === "string" ? row["description"] : undefined,
+        rawPayload: sanitizeSnapshot(row),
+      };
+    });
   }
 }
 
