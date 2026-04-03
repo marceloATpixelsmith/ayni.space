@@ -294,24 +294,29 @@ The persistence model is intentionally queryable for future superadmin tooling:
   - retries keyed by `(org_id, app_id, correlation_id|idempotency_key)` to avoid accidental duplicate sends.
 
 ## Lane 2 Production Readiness Checklist
-- Required environment variables:
-  - `EMAIL_CREDENTIALS_ENCRYPTION_KEY` (exactly 64 hex chars; startup hard-fail if invalid)
-  - `SESSION_SECRET`
-  - `GOOGLE_CLIENT_ID`
-  - `GOOGLE_CLIENT_SECRET`
-  - `GOOGLE_REDIRECT_URI`
-  - `ALLOWED_ORIGINS`
-  - `STRIPE_WEBHOOK_SECRET`
-  - Optional provider base URLs (validated if set):
+- Environment variable audit (current backend behavior):
+  - Required now (startup hard-fail):
+    - `SESSION_SECRET`
+    - `GOOGLE_CLIENT_ID`
+    - `GOOGLE_CLIENT_SECRET`
+    - `GOOGLE_REDIRECT_URI`
+    - `ALLOWED_ORIGINS`
+    - `STRIPE_WEBHOOK_SECRET`
+    - `EMAIL_CREDENTIALS_ENCRYPTION_KEY` (exactly 64 hex chars)
+  - Required only when feature is enabled / in specific runtime mode:
+    - `PLATFORM_BREVO_API_KEY` (required in `NODE_ENV=production` for Lane 1 invitation email delivery)
+    - `BREVO_WEBHOOK_SECRET` (required only if Brevo webhook signature validation is enabled)
+    - `MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY` (required only if Mailchimp Transactional webhook signature validation is enabled)
+  - Optional now (validated when set):
+    - `PLATFORM_TRANSACTIONAL_EMAIL_PROVIDER` (defaults to `brevo`; only `brevo` currently accepted)
     - `BREVO_API_BASE_URL`
     - `MAILCHIMP_TRANSACTIONAL_API_BASE_URL`
-  - Optional webhook signature secrets (recommended in production):
-    - `BREVO_WEBHOOK_SECRET`
-    - `MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY`
-- Migration steps:
-  1. run `pnpm --filter @workspace/db run migrate`
-  2. verify migration table recorded `20260403_lane2_webhook_correlation_status`
+- Migration and deploy order (production):
+  1. apply DB migrations: `pnpm --filter @workspace/db run migrate`
+  2. verify required env vars exist in deploy target (including Lane 1 + Lane 2 requirements above)
   3. deploy backend (`apps/api-server`)
+  4. verify invitation create/resend sends email and creates `platform.outbound_email_logs` rows with `lane='lane1'`
+  5. verify webhooks (`/api/transactional-email/webhooks/*`) and event linkage/visibility where configured
 - Webhook setup steps:
   - Brevo:
     - configure webhook URL: `POST /api/transactional-email/webhooks/brevo`
@@ -324,10 +329,15 @@ The persistence model is intentionally queryable for future superadmin tooling:
   2. call connection validation endpoint
   3. confirm `last_validation_status` and sanitized error diagnostics
 - Logging verification:
-  - trigger send success and verify outbound runtime log + `outbound_email_logs` success status
-  - trigger provider failure and verify runtime error log + normalized error persisted
-  - trigger webhook with invalid signature and verify warning log + 401 response
-  - trigger webhook unknown/unlinked event and verify warning log + persisted unlinked webhook event
+  - Lane 1: trigger invitation create + resend, verify API success and `outbound_email_logs` rows with app-configured sender/subject/template output.
+  - Lane 1 failure visibility:
+    - remove app sender/template config and verify explicit API 500 + audit log action `org.member.invited.email.failed` / `org.invitation.resent.email.failed`
+    - force provider failure and verify explicit API 500 + console error `[invitations] lane1 invitation email send failed|resend failed`
+  - Lane 2: trigger send success and verify outbound runtime log + `outbound_email_logs` success status.
+  - Lane 2 failure visibility:
+    - trigger provider failure and verify runtime error log + normalized error persisted.
+    - trigger webhook with invalid signature and verify warning log + 401 response.
+    - trigger webhook unknown/unlinked event and verify warning log + persisted unlinked webhook event.
 - Known limitations (intentional for this lane):
   - in-memory per-process send throttling guard (not distributed)
   - no async queue/retry worker yet
