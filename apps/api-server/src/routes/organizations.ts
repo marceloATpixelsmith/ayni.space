@@ -15,12 +15,14 @@ import { createOrgSchema } from "../middlewares/validation.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getOrgAppsHandler } from "./apps.js";
+import { isSessionGroupCompatible, resolveSessionGroupForApp } from "../lib/sessionGroupCompatibility.js";
 
 const router: IRouter = Router();
 
 // ── GET /organizations ────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
   const userId = req.session.userId!;
+  const currentSessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
 
   const result = await db
     .select({
@@ -31,12 +33,40 @@ router.get("/", requireAuth, async (req, res) => {
       website: organizationsTable.website,
       stripeCustomerId: organizationsTable.stripeCustomerId,
       createdAt: organizationsTable.createdAt,
+      appId: organizationsTable.appId,
     })
     .from(orgMembershipsTable)
     .innerJoin(organizationsTable, eq(orgMembershipsTable.orgId, organizationsTable.id))
     .where(and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.membershipStatus, "active")));
 
-  res.json(result.map((o) => ({ ...o, memberCount: 0 })));
+  type OrganizationRow = (typeof result)[number];
+  const scoped = (
+    await Promise.all(
+      result.map(async (organization: OrganizationRow) => {
+        const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, organization.appId) });
+        if (!app) return null;
+        if (
+          !isSessionGroupCompatible(
+            currentSessionGroup,
+            resolveSessionGroupForApp({
+              slug: app.slug,
+              metadata: app.metadata ?? {},
+            }),
+          )
+        ) {
+          return null;
+        }
+        return organization;
+      }),
+    )
+  )
+    .filter((organization: OrganizationRow | null): organization is OrganizationRow => Boolean(organization))
+    .map((organization: OrganizationRow) => {
+      const { appId: _appId, ...scopedOrganization } = organization;
+      return { ...scopedOrganization, memberCount: 0 };
+    });
+
+  res.json(scoped);
 });
 
 // ── POST /organizations ────────────────────────────────────────────────────────

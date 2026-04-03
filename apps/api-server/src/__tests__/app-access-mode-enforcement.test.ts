@@ -178,7 +178,7 @@ test("organization mode requires organization onboarding for non-member user", a
   }
 });
 
-test("organization auth route policy enables invites/customer-registration from capability flags", async () => {
+test("organization auth route policy enables invites but keeps customer-registration fail-closed until implemented", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-org",
@@ -214,7 +214,7 @@ test("organization auth route policy enables invites/customer-registration from 
     assert.deepEqual(context?.authRoutePolicy, {
       allowOnboarding: true,
       allowInvitations: true,
-      allowCustomerRegistration: true,
+      allowCustomerRegistration: false,
     });
   } finally {
     teardown(restores);

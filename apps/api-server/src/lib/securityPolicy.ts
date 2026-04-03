@@ -13,6 +13,11 @@ type SecurityRule = {
   rateLimit?: { type: "auth" | "default"; options?: RateLimitOptions };
 };
 
+const PRIVILEGED_ROUTE_RULES = [
+  { method: "PATCH", pattern: /^\/api\/users\/[^/]+\/suspend\/?$/ },
+  { method: "PATCH", pattern: /^\/api\/users\/[^/]+\/unsuspend\/?$/ },
+] as const;
+
 type SecurityConfig = {
   allowedOrigins: string[];
   failClosedDefaultCategory: Exclude<EndpointCategory, "PUBLIC">;
@@ -113,6 +118,12 @@ export function getSecurityConfig(): SecurityConfig {
         pattern: /^\/api\/auth\/me\/?$/,
         category: "AUTHENTICATED",
       },
+      ...PRIVILEGED_ROUTE_RULES.map((entry) => ({
+        method: entry.method,
+        pattern: entry.pattern,
+        category: "ADMIN" as const,
+        rateLimit: { type: "default" as const, options: { keyPrefix: "admin-privileged" } },
+      })),
       {
         method: "*",
         pattern: /^\/api\/users(\/|$)/,
@@ -149,6 +160,10 @@ function resolveRule(method: string, path: string, config: SecurityConfig): Secu
     }
   }
   return null;
+}
+
+export function getSecurityRuleForRequest(method: string, path: string): SecurityRule | null {
+  return resolveRule(method.toUpperCase(), path, getSecurityConfig());
 }
 
 export function createSecurityEnforcementMiddleware(deps: Parameters<typeof turnstileVerifyMiddleware>[0] = {}): RequestHandler {

@@ -102,3 +102,61 @@ test("switch-org rotates/persists session for valid org membership", async () =>
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("switch-org denies cross-session-group targets and preserves active org", async () => {
+  const crossGroupOrgId = "44444444-4444-4444-8444-444444444444";
+  let userActiveOrgId = "org-a";
+  let updateCallCount = 0;
+
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-switch-boundary",
+      email: "switch-boundary@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      activeOrgId: userActiveOrgId,
+    })),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
+      id: "membership-target",
+      userId: "user-switch-boundary",
+      orgId: crossGroupOrgId,
+      membershipStatus: "active",
+      role: "staff",
+    })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: crossGroupOrgId, appId: "app-admin" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-admin", slug: "admin", metadata: {}, isActive: true })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => {
+          updateCallCount += 1;
+          if (updateCallCount > 1) {
+            userActiveOrgId = crossGroupOrgId;
+          }
+          return undefined;
+        },
+      }),
+    } as never)),
+  ];
+
+  try {
+    const app = createSessionApp(usersRouter, {
+      userId: "user-switch-boundary",
+      activeOrgId: "org-a",
+      sessionGroup: "default",
+      regenerate: (cb) => cb?.(),
+      save: (cb) => cb?.(),
+    });
+
+    const response = await performJsonRequest(app, "POST", "/api/me/switch-org", {
+      orgId: crossGroupOrgId,
+    });
+
+    assert.equal(response.status, 403);
+    assert.match(response.body.error, /outside this session group/i);
+    assert.equal(updateCallCount, 1);
+    assert.equal(userActiveOrgId, "org-a");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});

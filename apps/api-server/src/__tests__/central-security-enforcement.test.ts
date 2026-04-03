@@ -8,6 +8,7 @@ process.env["NODE_ENV"] = "development";
 process.env["ALLOWED_ORIGINS"] = "http://localhost:5173";
 
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const { getSecurityRuleForRequest } = await import("../lib/securityPolicy.js");
 const { db } = await import("@workspace/db");
 const { default: adminRouter } = await import("../routes/admin.js");
 const { default: usersRouter } = await import("../routes/users.js");
@@ -127,4 +128,26 @@ test("ADMIN routes are centrally enforced as super-admin only", async () => {
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
+});
+
+test("origin/referer protection denies unsafe requests with missing headers except explicit machine exceptions", async () => {
+  const { originRefererProtection } = await import("../middlewares/csrf.js");
+  const app = express();
+  app.use(express.json());
+  app.use(originRefererProtection(["http://localhost:5173"]));
+  app.post("/api/organizations/org-a/invitations", (_req, res) => res.status(200).json({ ok: true }));
+  app.post("/api/billing/webhook", (_req, res) => res.status(200).json({ ok: true }));
+
+  const blocked = await requestJson(app, "POST", "/api/organizations/org-a/invitations", {}, { origin: "" });
+  assert.equal(blocked.status, 403);
+
+  const allowedMachine = await requestJson(app, "POST", "/api/billing/webhook", {}, { origin: "" });
+  assert.equal(allowedMachine.status, 200);
+});
+
+test("privileged non-/api/admin routes are explicitly classified as ADMIN", () => {
+  const suspendRule = getSecurityRuleForRequest("PATCH", "/api/users/user-1/suspend");
+  const unsuspendRule = getSecurityRuleForRequest("PATCH", "/api/users/user-1/unsuspend");
+  assert.equal(suspendRule?.category, "ADMIN");
+  assert.equal(unsuspendRule?.category, "ADMIN");
 });

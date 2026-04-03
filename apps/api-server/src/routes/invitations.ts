@@ -8,6 +8,7 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrganizationAppSession } from "../middlewares/requireOrganizationAppSession.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
+import { assertRequestSessionGroupCompatibleWithOrg, resolveOrgSessionGroupContext } from "../lib/sessionGroupCompatibility.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +85,11 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
   }
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
+  const orgContext = await resolveOrgSessionGroupContext(orgId);
+  if (!orgContext) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
 
   const rawInvitationToken = randomBytes(32).toString("hex");
   const tokenHash = createHash("sha256").update(rawInvitationToken).digest("hex");
@@ -98,7 +104,7 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
       invitedRole: role,
       token: tokenHash,
       invitationStatus: "pending",
-      appId: "ayni",
+      appId: orgContext.appId,
       invitedByUserId: userId,
       expiresAt: invitationExpiresAt,
     })
@@ -321,6 +327,25 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
       req,
     });
     res.status(500).json({ error: "Invitation is invalid" });
+    return;
+  }
+
+  const orgSessionGroupCheck = await assertRequestSessionGroupCompatibleWithOrg(req, invitation.orgId);
+  if (!orgSessionGroupCheck.ok) {
+    writeAuditLog({
+      orgId: invitation.orgId,
+      userId,
+      action: "invitation.accept.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: { reason: orgSessionGroupCheck.reason },
+      req,
+    });
+    res.status(orgSessionGroupCheck.reason === "invalid-org" ? 404 : 403).json({
+      error: orgSessionGroupCheck.reason === "invalid-org"
+        ? "Organization not found"
+        : "Organization is not accessible from this session context.",
+    });
     return;
   }
 

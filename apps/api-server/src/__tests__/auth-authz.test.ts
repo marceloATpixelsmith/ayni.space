@@ -35,6 +35,13 @@ test("allows authenticated user with org membership", async () => {
       id: "org-allowed",
       name: "Allowed Org",
       slug: "allowed-org",
+      appId: "app-1",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "ayni",
+      metadata: {},
+      isActive: true,
     })),
     patchProperty(db, "select", () => ({
       from: () => ({
@@ -49,7 +56,7 @@ test("allows authenticated user with org membership", async () => {
   ];
 
   try {
-    const app = createSessionApp(organizationsRouter, { userId: "user-1" });
+    const app = createSessionApp(organizationsRouter, { userId: "user-1", sessionGroup: "default" });
     const response = await performJsonRequest(app, "GET", "/api/org-allowed");
 
     assert.equal(response.status, 200);
@@ -69,6 +76,17 @@ test("forbids authenticated user without org membership", async () => {
       deletedAt: null,
     })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({
+      id: "org-forbidden",
+      appId: "app-1",
+      name: "Forbidden Org",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "ayni",
+      metadata: {},
+      isActive: true,
+    })),
     patchProperty(db, "update", () => ({
       set: () => ({
         where: async () => undefined,
@@ -77,7 +95,7 @@ test("forbids authenticated user without org membership", async () => {
   ];
 
   try {
-    const app = createSessionApp(organizationsRouter, { userId: "user-2" });
+    const app = createSessionApp(organizationsRouter, { userId: "user-2", sessionGroup: "default" });
     const response = await performJsonRequest(app, "GET", "/api/org-forbidden");
 
     assert.equal(response.status, 403);

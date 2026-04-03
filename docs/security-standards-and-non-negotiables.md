@@ -5,7 +5,9 @@
 
 ## Confirmed
 - Security-critical controls are centralized in API middleware stack (`apps/api-server/src/app.ts`) including security headers, CORS, CSRF, origin/referer checks, and auth/session middleware integration.
+- Origin/referer protection now denies unsafe requests missing both headers by default, with explicit machine exception only for Stripe webhook ingestion (`apps/api-server/src/middlewares/csrf.ts`).
 - Authorization controls are middleware-based (`requireAuth`, `requireOrgAccess`, `requireAppAccess`, plus overview-listed `requireOrgAdmin` and `requireSuperAdmin`).
+- Central security classification includes explicit ADMIN mapping for privileged non-`/api/admin` user suspend/unsuspend routes to prevent accidental under-classification (`apps/api-server/src/lib/securityPolicy.ts`).
 - Frontend security layer is centralized in `lib/frontend-security/src/index.tsx` with related Turnstile support in `lib/frontend-security/src/turnstile.tsx`.
 - Shared CSRF-aware API client behavior is in `lib/api-client-react/src/custom-fetch.ts`.
 - Overview non-negotiables explicitly require middleware-driven auth/authz and continued use of shared frontend security layer.

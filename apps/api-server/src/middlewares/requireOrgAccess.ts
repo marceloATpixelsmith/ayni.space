@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { getUserOrgRole, ORG_ROLES } from "../lib/rbac.js";
+import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
 
 function asSingleString(value: string | string[] | undefined): string | undefined {
   if (typeof value === "string") return value;
@@ -13,6 +14,17 @@ export async function requireOrgAccess(req: Request, res: Response, next: NextFu
 
   if (!orgId || !userId) {
     res.status(400).json({ error: "Organization ID and user session required." });
+    return;
+  }
+
+  const sessionGroupCheck = await assertRequestSessionGroupCompatibleWithOrg(req, orgId);
+  if (!sessionGroupCheck.ok) {
+    if (sessionGroupCheck.reason === "invalid-org") {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
+
+    res.status(403).json({ error: "Organization is not accessible from this session context." });
     return;
   }
 

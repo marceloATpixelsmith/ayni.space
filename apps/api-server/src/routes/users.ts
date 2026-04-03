@@ -6,6 +6,7 @@ import { validateBody, updateUserSchema, switchOrgSchema } from "../middlewares/
 import { writeAuditLog } from "../lib/audit.js";
 import { destroySessionAndClearCookie, revokeOtherSessionsForUser } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
+import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
 
 const router: IRouter = Router();
 
@@ -72,6 +73,16 @@ router.post("/me/switch-org", requireAuth, validateBody(switchOrgSchema), async 
 
   if (!membership) {
     res.status(403).json({ error: "You are not a member of that organization" });
+    return;
+  }
+
+  const sessionGroupCheck = await assertRequestSessionGroupCompatibleWithOrg(req, orgId);
+  if (!sessionGroupCheck.ok) {
+    if (sessionGroupCheck.reason === "invalid-org") {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
+    res.status(403).json({ error: "You cannot switch to an organization outside this session group" });
     return;
   }
 
