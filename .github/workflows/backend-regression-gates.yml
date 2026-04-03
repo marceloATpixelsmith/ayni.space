@@ -215,29 +215,58 @@ jobs:
       - name: Fail job if any backend gate failed
         if: always()
         run: |
-          echo "typecheck: outcome=${{ steps.typecheck.outcome }}, exit_code=${{ steps.typecheck.outputs.exit_code || '0' }}"
-          echo "build: outcome=${{ steps.build.outcome }}, exit_code=${{ steps.build.outputs.exit_code || '0' }}"
-          echo "api-tests: outcome=${{ steps.api_tests.outcome }}, exit_code=${{ steps.api_tests.outputs.exit_code || '0' }}"
-          echo "api-regression: outcome=${{ steps.regression.outcome }}, exit_code=${{ steps.regression.outputs.exit_code || '0' }}"
+          should_fail_step() {
+            local outcome="$1"
+            local exit_code="$2"
+
+            if [ "$outcome" = "cancelled" ] || [ "$outcome" = "skipped" ]; then
+              return 0
+            fi
+
+            if [ "$outcome" = "success" ]; then
+              return 1
+            fi
+
+            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -eq 0 ]; then
+              echo "warning: non-success outcome reported with zero exit code; treating as pass"
+              return 1
+            fi
+
+            return 0
+          }
+
+          typecheck_outcome="${{ steps.typecheck.outcome }}"
+          typecheck_exit="${{ steps.typecheck.outputs.exit_code || '0' }}"
+          build_outcome="${{ steps.build.outcome }}"
+          build_exit="${{ steps.build.outputs.exit_code || '0' }}"
+          api_tests_outcome="${{ steps.api_tests.outcome }}"
+          api_tests_exit="${{ steps.api_tests.outputs.exit_code || '0' }}"
+          regression_outcome="${{ steps.regression.outcome }}"
+          regression_exit="${{ steps.regression.outputs.exit_code || '0' }}"
+
+          echo "typecheck: outcome=$typecheck_outcome, exit_code=$typecheck_exit"
+          echo "build: outcome=$build_outcome, exit_code=$build_exit"
+          echo "api-tests: outcome=$api_tests_outcome, exit_code=$api_tests_exit"
+          echo "api-regression: outcome=$regression_outcome, exit_code=$regression_exit"
 
           failed=0
 
-          if [ "${{ steps.typecheck.outcome }}" != "success" ]; then
+          if should_fail_step "$typecheck_outcome" "$typecheck_exit"; then
             echo "FAILED STEP: Typecheck (id: typecheck, exit: ${{ steps.typecheck.outputs.exit_code || 'unknown' }})"
             failed=1
           fi
 
-          if [ "${{ steps.build.outcome }}" != "success" ]; then
+          if should_fail_step "$build_outcome" "$build_exit"; then
             echo "FAILED STEP: Build API Server (id: build, exit: ${{ steps.build.outputs.exit_code || 'unknown' }})"
             failed=1
           fi
 
-          if [ "${{ steps.api_tests.outcome }}" != "success" ]; then
+          if should_fail_step "$api_tests_outcome" "$api_tests_exit"; then
             echo "FAILED STEP: Run API Test Suite (id: api_tests, exit: ${{ steps.api_tests.outputs.exit_code || 'unknown' }})"
             failed=1
           fi
 
-          if [ "${{ steps.regression.outcome }}" != "success" ]; then
+          if should_fail_step "$regression_outcome" "$regression_exit"; then
             echo "FAILED STEP: Run API Regression Suite (Phase A) (id: regression, exit: ${{ steps.regression.outputs.exit_code || 'unknown' }})"
             failed=1
           fi
