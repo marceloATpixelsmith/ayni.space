@@ -41,6 +41,7 @@ async function request(
   options: {
     method?: "GET" | "POST";
     headers?: Record<string, string>;
+    body?: string;
   } = {},
 ) {
   const server = app.listen(0);
@@ -51,12 +52,22 @@ async function request(
     return await fetch(`http://127.0.0.1:${address.port}${path}`, {
       method: options.method ?? "GET",
       headers: options.headers,
+      body: options.body,
       redirect: "manual",
     });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
   }
 }
+
+const WORKSPACE_INVITATION_CONTINUATION_PATH = "/invitations/test-token/accept";
+const WORKSPACE_ORG_INVITATION_OAUTH_STATE = `default.valid-state.${Buffer.from(JSON.stringify({
+  nonce: "valid-state",
+  appSlug: "workspace",
+  returnTo: "http://workspace.local",
+  sessionGroup: "default",
+  returnToPath: WORKSPACE_INVITATION_CONTINUATION_PATH,
+}), "utf8").toString("base64url")}`;
 
 function stubDbForCallback(isSuperAdmin: boolean) {
   const user = {
@@ -239,6 +250,43 @@ test("admin oauth start derives admin context and emits oauth-state trace log", 
     for (const undo of restore.reverse()) undo();
     if (prevTraceVerbose === undefined) delete process.env["BACKEND_TRACE_VERBOSE"];
     else process.env["BACKEND_TRACE_VERBOSE"] = prevTraceVerbose;
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirect === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirect;
+  }
+});
+
+test("oauth start preserves login continuation path in oauth state payload", async () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
+  process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
+  process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
+  process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const response = await request(app, "/api/auth/google/url?appSlug=workspace", {
+      method: "POST",
+      headers: {
+        origin: "http://workspace.local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        returnToPath: WORKSPACE_INVITATION_CONTINUATION_PATH,
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { url: string };
+    const state = new URL(body.url).searchParams.get("state");
+    assert.ok(state);
+    const segments = state.split(".");
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.returnToPath, WORKSPACE_INVITATION_CONTINUATION_PATH);
+  } finally {
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
@@ -675,6 +723,66 @@ test("organization callback redirects existing user without org access to onboar
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
     assert.equal(response.headers.get("location"), "http://workspace.local/onboarding/organization");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("organization callback prioritizes invitation continuation path over onboarding redirect", async () => {
+  const existingUser = {
+    id: "existing-user",
+    email: "existing@example.com",
+    name: "Existing",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: "google-existing-user",
+    active: true,
+    suspended: false,
+    deletedAt: null,
+  };
+
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-existing-user",
+      email: "existing@example.com",
+      name: "Existing",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "workspace-app",
+      slug: "workspace",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: true,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => existingUser),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (_row: Record<string, unknown>) => ({
+        catch: () => undefined,
+      }),
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_INVITATION_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthReturnToPath: WORKSPACE_INVITATION_CONTINUATION_PATH,
+      oauthSessionGroup: "default",
+    });
+
+    const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_INVITATION_OAUTH_STATE}`);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), `http://workspace.local${WORKSPACE_INVITATION_CONTINUATION_PATH}`);
   } finally {
     for (const undo of restore.reverse()) undo();
   }

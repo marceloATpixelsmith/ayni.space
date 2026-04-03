@@ -239,13 +239,13 @@ test("legacy /apps/:slug alias remains root-relative and redirects to org dashbo
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
-    "if (isInvitationContinuationPath(next)) {",
+    "if (isInvitationContinuationPath(nextPath)) {",
     "Login should explicitly branch invitation continuations before generic access checks.",
   );
 
   expectIncludes(
     loginSource,
-    "setLocation(next);\n        return;",
+    "setLocation(nextPath);\n        return;",
     "Login should prioritize invitation continuation before generic access checks.",
   );
 
@@ -263,7 +263,7 @@ test("super-admin users are sent to /dashboard after login", () => {
 
   expectIncludes(
     loginSource,
-    'setLocation(next || "/dashboard");',
+    'setLocation(nextPath || "/dashboard");',
     "Login must redirect super admins to /dashboard.",
   );
 
@@ -517,8 +517,8 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent)",
-    "Login should pass turnstile token into OAuth URL request.",
+    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
+    "Login should pass turnstile token and continuation path into OAuth URL request.",
   );
 
   expectIncludes(
@@ -557,6 +557,12 @@ test("login includes turnstile token when requesting oauth url", () => {
     authProviderSource,
     "\"cf-turnstile-response\": normalizedTurnstileToken",
     "OAuth URL request should include Turnstile token in request body for backend verification.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "returnToPath: normalizedReturnToPath",
+    "OAuth URL request should include sanitized continuation path for post-auth handoff.",
   );
 });
 

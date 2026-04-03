@@ -53,6 +53,7 @@ export default function Login() {
   } = useTurnstileToken();
 
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
+  const nextPath = query.get("next");
   const accessErrorCode = query.get("error");
   const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
 
@@ -78,12 +79,11 @@ export default function Login() {
 
   React.useEffect(() => {
     if (auth.status === "authenticated") {
-      const next = query.get("next");
-      if (isInvitationContinuationPath(next)) {
+      if (isInvitationContinuationPath(nextPath)) {
         console.info("[INVITATION-FLOW] login success redirecting to invitation continuation", {
-          nextPath: next,
+          nextPath,
         });
-        setLocation(next);
+        setLocation(nextPath);
         return;
       }
       const appAccess = (auth.user as (typeof auth.user & { appAccess?: Record<string, unknown> }) | null)?.appAccess;
@@ -94,12 +94,12 @@ export default function Login() {
       if (normalizedAccessProfile === "superadmin") {
         if (auth.user?.isSuperAdmin) {
           console.info("[INVITATION-FLOW] login success redirecting superadmin", {
-            nextPath: next,
+            nextPath,
           });
-          setLocation(next || "/dashboard");
+          setLocation(nextPath || "/dashboard");
         } else {
           console.info("[INVITATION-FLOW] login success denying non-superadmin", {
-            nextPath: next,
+            nextPath,
           });
           setLocation(adminAccessDeniedLoginPath());
         }
@@ -108,7 +108,7 @@ export default function Login() {
 
       if (requiredOnboarding === "organization" && canAccess === false) {
         console.info("[INVITATION-FLOW] login success redirecting to onboarding", {
-          nextPath: next,
+          nextPath,
         });
         setLocation("/onboarding/organization");
         return;
@@ -116,19 +116,19 @@ export default function Login() {
 
       if (canAccess === false) {
         console.info("[INVITATION-FLOW] login success redirecting to access denied", {
-          nextPath: next,
+          nextPath,
         });
         setLocation(adminAccessDeniedLoginPath());
         return;
       }
 
       console.info("[INVITATION-FLOW] login success redirecting to default target", {
-        nextPath: next,
-        target: next || "/dashboard",
+        nextPath,
+        target: nextPath || "/dashboard",
       });
-      setLocation(next || "/dashboard");
+      setLocation(nextPath || "/dashboard");
     }
-  }, [auth.status, auth.user, setLocation, query]);
+  }, [auth.status, auth.user, setLocation, nextPath]);
 
   const disabledReasons = React.useMemo(
     () =>
@@ -200,7 +200,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithGoogle(turnstileToken, intent).catch((error) => {
+    auth.loginWithGoogle(turnstileToken, intent, nextPath).catch((error) => {
       console.error("Google sign-in failed", error);
       const message = error instanceof Error
         ? ((error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message))

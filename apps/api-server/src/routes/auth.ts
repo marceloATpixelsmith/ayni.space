@@ -73,8 +73,16 @@ type OAuthStatePayload = {
   appSlug: string;
   returnTo: string;
   sessionGroup: string;
+  returnToPath?: string;
 };
-type OAuthStateContext = Pick<OAuthStatePayload, "appSlug" | "returnTo" | "sessionGroup">;
+type OAuthStateContext = Pick<OAuthStatePayload, "appSlug" | "returnTo" | "sessionGroup" | "returnToPath">;
+
+function normalizeReturnToPath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  return trimmed;
+}
 
 function encodeOAuthStatePayload(payload: OAuthStatePayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -87,11 +95,13 @@ function decodeOAuthStatePayload(encodedPayload: string): OAuthStatePayload | nu
     if (typeof parsed["appSlug"] !== "string" || parsed["appSlug"].trim().length === 0) return null;
     if (typeof parsed["returnTo"] !== "string" || parsed["returnTo"].trim().length === 0) return null;
     if (typeof parsed["sessionGroup"] !== "string" || parsed["sessionGroup"].trim().length === 0) return null;
+    const returnToPath = normalizeReturnToPath(parsed["returnToPath"]);
     return {
       nonce: parsed["nonce"],
       appSlug: parsed["appSlug"],
       returnTo: parsed["returnTo"],
       sessionGroup: parsed["sessionGroup"],
+      returnToPath: returnToPath ?? undefined,
     };
   } catch {
     return null;
@@ -145,6 +155,7 @@ function validateOAuthCallbackState(
     appSlug: parsedState.appSlug,
     returnTo: parsedState.returnTo,
     sessionGroup: parsedState.sessionGroup,
+    returnToPath: parsedState.returnToPath,
   };
   return { valid: true, stateContext };
 }
@@ -565,6 +576,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
+
   const { appSlug, oauthSessionGroup } = resolveOauthStartContext(req, returnTo);
   if (!appSlug) {
     console.error("[auth/google/url] missing appSlug for oauth start", {
@@ -583,10 +596,12 @@ async function handleGoogleUrl(req: Request, res: Response) {
     appSlug,
     returnTo,
     sessionGroup: oauthSessionGroup,
+    returnToPath: returnToPath ?? undefined,
   };
   const state = buildOAuthState(statePayload);
   req.session.oauthState = state;
   req.session.oauthReturnTo = returnTo;
+  req.session.oauthReturnToPath = returnToPath ?? undefined;
   req.session.oauthSessionGroup = oauthSessionGroup;
   req.session.oauthAppSlug = appSlug;
   logSuperadminTrace("OAUTH START", {
@@ -598,6 +613,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   logSuperadminTrace("STATE CREATED", {
     appSlug: statePayload.appSlug,
     returnTo: statePayload.returnTo,
+    returnToPath: statePayload.returnToPath ?? null,
     sessionGroup: statePayload.sessionGroup,
   });
   logVerboseTrace(
@@ -726,6 +742,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       valid: stateValid,
       appSlug: stateContext?.appSlug ?? null,
       returnTo: stateContext?.returnTo ?? null,
+      returnToPath: stateContext?.returnToPath ?? null,
       sessionGroup: resolvedStateSessionGroup,
     });
     lastCompletedStep = "A4";
@@ -757,9 +774,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("STATE AFTER PARSE", {
       appSlug: parsedStateContext.appSlug,
       returnTo: parsedStateContext.returnTo,
+      returnToPath: parsedStateContext.returnToPath ?? null,
       sessionGroup: parsedStateContext.sessionGroup,
     });
     const oauthReturnTo = parsedStateContext.returnTo;
+    const oauthReturnToPath = parsedStateContext.returnToPath ?? req.session.oauthReturnToPath ?? null;
     const stateSessionGroupCandidate = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const appSlug = parsedStateContext.appSlug;
     const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
@@ -767,6 +786,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
       returnTo: oauthReturnTo ?? null,
+      returnToPath: oauthReturnToPath,
       sessionGroup: oauthSessionGroup,
       oauthStatePresent: Boolean(req.session.oauthState),
     });
@@ -779,6 +799,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
     lastCompletedStep = "A2";
     delete req.session.oauthReturnTo;
+    delete req.session.oauthReturnToPath;
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
 
@@ -1233,16 +1254,18 @@ async function handleGoogleCallback(req: Request, res: Response) {
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       requiredOnboarding: effectiveContext.requiredOnboarding,
     });
+    const continuationDestination = normalizeReturnToPath(oauthReturnToPath);
+    const finalDestination = continuationDestination ?? destination;
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
-      redirectPath: destination,
+      redirectPath: finalDestination,
     });
     logSuperadminTrace("J. CALLBACK EXIT", {
-      redirectTo: `${frontendBase}${destination}`,
+      redirectTo: `${frontendBase}${finalDestination}`,
       outcome: "allow",
       lastCompletedStep,
     });
-    res.redirect(`${frontendBase}${destination}`);
+    res.redirect(`${frontendBase}${finalDestination}`);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : typeof error;
     const errorMessage = error instanceof Error ? error.message : String(error);
