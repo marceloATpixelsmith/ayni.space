@@ -72,6 +72,17 @@ test("switch-org rotates/persists session for valid org membership", async () =>
       membershipStatus: "active",
       role: "staff",
     })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({
+      id: "22222222-2222-4222-8222-222222222222",
+      appId: "app-default",
+      name: "Target Org",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-default",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+    })),
     patchProperty(db, "update", () => ({
       set: () => ({
         where: async () => {
@@ -86,6 +97,7 @@ test("switch-org rotates/persists session for valid org membership", async () =>
     const app = createSessionApp(usersRouter, {
       userId: "user-switch-ok",
       activeOrgId: "org-a",
+      sessionGroup: "default",
       regenerate: (cb) => cb?.(),
       save: (cb) => cb?.(),
     });

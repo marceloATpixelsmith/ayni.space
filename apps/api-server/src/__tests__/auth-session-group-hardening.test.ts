@@ -680,6 +680,85 @@ test("organization callback redirects existing user without org access to onboar
   }
 });
 
+test("organization oauth callback redirect is unchanged across authIntent values", async () => {
+  const existingUser = {
+    id: "existing-user",
+    email: "existing@example.com",
+    name: "Existing",
+    avatarUrl: null,
+    activeOrgId: null,
+    isSuperAdmin: false,
+    googleSubject: "google-existing-user",
+    active: true,
+    suspended: false,
+    deletedAt: null,
+  };
+
+  const restore: Array<() => void> = [
+    patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+      sub: "google-existing-user",
+      email: "existing@example.com",
+      name: "Existing",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "workspace-app",
+      slug: "workspace",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: true,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => existingUser),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", (_table: any) => ({
+      values: (_row: Record<string, unknown>) => ({
+        catch: () => undefined,
+      }),
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const callbackPath = `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`;
+    const noIntentApp = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+    });
+    const createAccountIntentApp = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+      oauthIntent: "create_account",
+    });
+    const signInIntentApp = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      oauthState: WORKSPACE_ORG_OAUTH_STATE,
+      oauthReturnTo: "http://workspace.local",
+      oauthSessionGroup: "default",
+      oauthIntent: "sign_in",
+    });
+
+    const noIntentResponse = await request(noIntentApp, callbackPath);
+    const createAccountResponse = await request(createAccountIntentApp, callbackPath);
+    const signInResponse = await request(signInIntentApp, callbackPath);
+
+    assert.equal(noIntentResponse.status, 302);
+    assert.equal(createAccountResponse.status, 302);
+    assert.equal(signInResponse.status, 302);
+    assert.equal(noIntentResponse.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
+    assert.equal(createAccountResponse.headers.get("location"), noIntentResponse.headers.get("location"));
+    assert.equal(signInResponse.headers.get("location"), noIntentResponse.headers.get("location"));
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
 test("organization callback with missing appSlug in state fails with explicit app slug error", async () => {
   const invalidState = `default.valid-state.${Buffer.from(JSON.stringify({
     nonce: "valid-state",
