@@ -32,8 +32,13 @@ export function getLoginDisabledReasons(input: {
   return reasons;
 }
 
+function isInvitationContinuationPath(nextPath: string | null): nextPath is string {
+  if (!nextPath) return false;
+  return /^\/invitations\/[^/]+\/accept$/.test(nextPath);
+}
+
 export default function Login() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const search = useSearch();
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const deniedCleanupAttemptedRef = React.useRef(false);
@@ -73,7 +78,11 @@ export default function Login() {
 
   React.useEffect(() => {
     if (auth.status === "authenticated") {
-      const next = new URLSearchParams(location.split("?")[1] ?? "").get("next");
+      const next = query.get("next");
+      if (isInvitationContinuationPath(next)) {
+        setLocation(next);
+        return;
+      }
       const appAccess = (auth.user as (typeof auth.user & { appAccess?: Record<string, unknown> }) | null)?.appAccess;
       const normalizedAccessProfile = appAccess?.["normalizedAccessProfile"];
       const canAccess = appAccess?.["canAccess"];
@@ -100,7 +109,7 @@ export default function Login() {
 
       setLocation(next || "/dashboard");
     }
-  }, [auth.status, auth.user, setLocation, location]);
+  }, [auth.status, auth.user, setLocation, query]);
 
   const disabledReasons = React.useMemo(
     () =>
