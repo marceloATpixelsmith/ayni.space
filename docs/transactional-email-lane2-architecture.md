@@ -5,7 +5,7 @@
 - Lane 1 (platform-owned credentials) is intentionally out of scope for this PR.
 
 ## Lane model
-- **Lane 1**: app/platform-owned credentials for platform notifications (not implemented here).
+- **Lane 1**: app/platform-owned credentials for platform notifications. Invitation-email delivery is now implemented as a narrow app-configured flow in `apps/api-server/src/lib/invitationEmail.ts` and `apps/api-server/src/routes/invitations.ts`.
 - **Lane 2**: org-owned credentials used to send org/customer transactional email through tenant-configured providers.
 
 ## Confirmed implementation
@@ -90,8 +90,30 @@ The persistence model is intentionally queryable for future superadmin tooling:
 - provider identifiers for reconciliation
 - later event stream/state transitions via webhook logs
 
+## Lane 1 invitation email path (implemented)
+- Scope is intentionally narrow to auth invitation emails only.
+- App-level sender/template configuration is read from `platform.apps` fields:
+  - `transactional_from_email`
+  - `transactional_from_name`
+  - `transactional_reply_to_email`
+  - `invitation_email_subject`
+  - `invitation_email_html`
+- Supported allowlisted template tokens (subject + html):
+  - `{{invitee_email}}`
+  - `{{invitee_name}}`
+  - `{{inviter_name}}`
+  - `{{app_name}}`
+  - `{{organization_name}}`
+  - `{{invitation_url}}`
+  - `{{expires_at}}`
+- Unknown tokens are preserved verbatim (no crash, deterministic).
+- Missing token values render as empty string (deterministic).
+- HTML token values are escaped during interpolation; subject values are plain interpolation.
+- Invitation sends are logged into `platform.outbound_email_logs` with `lane='lane1'` and provider outcome details.
+- Provider credentials remain platform-owned via environment variables (`PLATFORM_TRANSACTIONAL_EMAIL_PROVIDER`, `PLATFORM_BREVO_API_KEY`) and are not stored in the database.
+
 ## Known intentional gaps (next PR)
-- No Lane 1 runtime integration yet.
+- No broad Lane 1 notifications framework yet (invitation-only in this phase).
 - No org-facing UI/superadmin UI yet.
 
 ## Live send execution pipeline (implemented)

@@ -76,7 +76,17 @@ test("A: auth/session protections and logout flow", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-auth")),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      name: "Ayni",
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      transactionalFromEmail: "invites@example.com",
+      transactionalFromName: "Invites",
+      transactionalReplyToEmail: "support@example.com",
+      invitationEmailSubject: "Invite {{organization_name}}",
+      invitationEmailHtml: "<p>{{invitee_email}}</p>",
+    })),
     patchProperty(db, "select", selectCountMock()),
     patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
     patchProperty(db, "insert", insertMock()),
@@ -224,6 +234,11 @@ test("C2: auth/me reflects authorized appAccess immediately after onboarding org
       isActive: true,
       accessMode: "organization",
       staffInvitesEnabled: true,
+      transactionalFromEmail: "invites@example.com",
+      transactionalFromName: "Invites",
+      transactionalReplyToEmail: "support@example.com",
+      invitationEmailSubject: "Invite {{organization_name}}",
+      invitationEmailHtml: "<p>{{invitee_email}}</p>",
       customerRegistrationEnabled: false,
       metadata: {},
     })),
@@ -316,7 +331,7 @@ test("D: members and invitations role/org checks and invitation acceptance state
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-inv", { email: "member@example.com" })),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", name: "Ayni", accessMode: "organization", staffInvitesEnabled: true, transactionalFromEmail: "invites@example.com", transactionalFromName: "Invites", transactionalReplyToEmail: "support@example.com", invitationEmailSubject: "Invite {{organization_name}}", invitationEmailHtml: "<p>{{invitee_email}}</p>" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       role
         ? (() => {
@@ -415,10 +430,15 @@ test("E: super admin endpoints are super-admin only (no app/subscription depende
 test("Optional: starter tenant/app access checks for ayni + shipibo", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("apps-user")),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: true })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization", staffInvitesEnabled: true,
+      transactionalFromEmail: "invites@example.com",
+      transactionalFromName: "Invites",
+      transactionalReplyToEmail: "support@example.com",
+      invitationEmailSubject: "Invite {{organization_name}}",
+      invitationEmailHtml: "<p>{{invitee_email}}</p>", customerRegistrationEnabled: true })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", accessMode: "organization", staffInvitesEnabled: true })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", name: "Ayni", accessMode: "organization", staffInvitesEnabled: true, transactionalFromEmail: "invites@example.com", transactionalFromName: "Invites", transactionalReplyToEmail: "support@example.com", invitationEmailSubject: "Invite {{organization_name}}", invitationEmailHtml: "<p>{{invitee_email}}</p>" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
     patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
   ];
