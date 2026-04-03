@@ -23,6 +23,10 @@
   - `lib/api-spec/openapi.yaml`, `lib/api-spec/orval.config.ts`
   - `lib/api-client-react/src/index.ts`, `lib/api-zod/src/index.ts`
   - `lib/db/src/index.ts`, `lib/db/src/schema/*.ts`, `lib/db/migrations/*.sql`
+- Transactional email Lane 2 foundation:
+  - `lib/integrations/transactional-email/src/*`
+  - `lib/db/src/schema/transactional_email.ts`
+  - `lib/db/migrations/20260403_lane2_transactional_email_foundation.sql`
 
 ## Inferred
 - Shared systems are centralized to keep security, observability, and data access behavior consistent across active apps.

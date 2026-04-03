@@ -57,6 +57,13 @@
       "when": 1743638400000,
       "tag": "20260403_org_app_access_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1743681600000,
+      "tag": "20260403_lane2_transactional_email_foundation",
+      "breakpoints": true
     }
   ]
 }
