@@ -72,6 +72,20 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
   );
 });
 
+test("post-onboarding flow waits for auth refresh before navigating to /dashboard", () => {
+  expectIncludes(
+    onboardingSource,
+    "await auth.refreshSession();",
+    "Onboarding completion must await auth refresh to avoid stale auth redirects.",
+  );
+
+  expectIncludes(
+    onboardingSource,
+    "setLocation(\"/dashboard\");",
+    "Onboarding completion should route users directly to /dashboard after auth refresh.",
+  );
+});
+
 test("shared route policy enforces normalized access-profile onboarding and invitation rules", () => {
 
   expectIncludes(
@@ -625,7 +639,7 @@ test("app-access snapshot allows organization users into dashboard after onboard
 
   expectIncludes(
     onboardingSource,
-    'await queryClient.refetchQueries({ queryKey: getGetMeQueryKey(), type: "active" });',
-    "Onboarding success should refetch auth state so dashboard authorization is immediate.",
+    "await auth.refreshSession();",
+    "Onboarding success should refresh shared auth state so dashboard authorization is immediate.",
   );
 });

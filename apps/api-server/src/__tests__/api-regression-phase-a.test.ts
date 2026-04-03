@@ -214,6 +214,99 @@ test("C: organizations visibility, validation, and role-gated update", async () 
   }
 });
 
+test("C2: auth/me reflects authorized appAccess immediately after onboarding organization creation", async () => {
+  let organizationLookupCount = 0;
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => user("user-onboarding", { activeOrgId: "org-new" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-ayni",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: false,
+      metadata: {},
+    })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => {
+      organizationLookupCount += 1;
+      if (organizationLookupCount === 1) return null;
+      return {
+        id: "org-new",
+        name: "New Org",
+        slug: "new-org",
+        appId: "app-ayni",
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
+      id: "m-onboarding",
+      userId: "user-onboarding",
+      orgId: "org-new",
+      membershipStatus: "active",
+      role: "org_owner",
+    })),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => ([
+      {
+        id: "m-onboarding",
+        userId: "user-onboarding",
+        orgId: "org-new",
+        membershipStatus: "active",
+        role: "org_owner",
+      },
+    ])),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => ({
+      id: "oa-new",
+      orgId: "org-new",
+      appId: "app-ayni",
+      enabled: true,
+    })),
+    patchProperty(db.query.orgAppAccessTable, "findMany", async () => ([
+      {
+        id: "oa-new",
+        orgId: "org-new",
+        appId: "app-ayni",
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ])),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db, "insert", insertMock([{ id: "org-new", name: "New Org", slug: "new-org", appId: "app-ayni" }])),
+    patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
+    patchProperty(db, "select", () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () => ([
+            { orgId: "org-new", orgName: "New Org", orgSlug: "new-org", role: "org_owner" },
+          ]),
+        }),
+      }),
+    } as never)),
+  ];
+
+  try {
+    const app = createMountedSessionApp(
+      [
+        { path: "/api/auth", router: authRouter },
+        { path: "/api/organizations", router: organizationsRouter },
+      ],
+      { userId: "user-onboarding", appSlug: "ayni", sessionGroup: "default" },
+    );
+
+    const onboarding = await performJsonRequest(app, "POST", "/api/organizations/", { name: "New Org", slug: "new-org" });
+    assert.equal(onboarding.status, 201);
+
+    const meAfterOnboarding = await performJsonRequest(app, "GET", "/api/auth/me");
+    assert.equal(meAfterOnboarding.status, 200);
+    assert.equal(meAfterOnboarding.body?.appAccess?.canAccess, true);
+    assert.equal(meAfterOnboarding.body?.appAccess?.requiredOnboarding, "none");
+  } finally {
+    teardown(restores);
+  }
+});
+
 test("D: members and invitations role/org checks and invitation acceptance states", async () => {
   let role: "org_admin" | "staff" | null = "org_admin";
   let inviteState: "pending" | "expired" | "accepted" | "missing" = "pending";
