@@ -18,6 +18,13 @@ export default function InvitationAccept() {
 
   React.useEffect(() => {
     const token = params.token;
+    console.info("[INVITATION-FLOW] invitation accept page mounted", {
+      hasToken: Boolean(token),
+      tokenLength: token?.length ?? 0,
+      authStatus: auth.status,
+      turnstileEnabled: turnstile.enabled,
+      hasTurnstileToken: Boolean(turnstile.token),
+    });
     if (!token) {
       setStatus("error");
       setMessage("Invitation token is missing.");
@@ -29,7 +36,11 @@ export default function InvitationAccept() {
     }
 
     if (auth.status === "unauthenticated") {
-      setLocation(`/login?next=${encodeURIComponent(`/invitations/${token}/accept`)}`);
+      const loginPath = `/login?next=${encodeURIComponent(`/invitations/${token}/accept`)}`;
+      console.info("[INVITATION-FLOW] invitation accept redirecting to login with continuation", {
+        target: loginPath,
+      });
+      setLocation(loginPath);
       return;
     }
 
@@ -50,6 +61,10 @@ export default function InvitationAccept() {
     lastSubmittedRef.current = submissionKey;
     setStatus("working");
     setMessage("Accepting invitation...");
+    console.info("[INVITATION-FLOW] invitation accept API call starting", {
+      tokenLength: token.length,
+      hasTurnstileToken: Boolean(turnstile.token),
+    });
 
     auth
       .acceptInvitation(token, turnstile.token)
@@ -58,12 +73,19 @@ export default function InvitationAccept() {
         inFlightRef.current = false;
         setStatus("done");
         setMessage("Invitation accepted. Redirecting to dashboard...");
+        console.info("[INVITATION-FLOW] invitation accept API call succeeded", {
+          nextNavigation: "/dashboard",
+        });
         setTimeout(() => setLocation("/dashboard"), 900);
       })
       .catch((error) => {
         if (cancelled) return;
         setStatus("error");
         const typedError = error as Error & { code?: string };
+        console.info("[INVITATION-FLOW] invitation accept API call failed", {
+          code: typedError.code ?? null,
+          message: typedError.message,
+        });
         setMessage(typedError.message || "Failed to accept invitation.");
         inFlightRef.current = false;
         if (typedError.code?.startsWith("TURNSTILE_")) {

@@ -560,6 +560,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const acceptInvitation = React.useCallback(
     async (token: string, turnstileToken?: string | null) => {
+      console.info("[INVITATION-FLOW] auth.acceptInvitation invoked", {
+        tokenLength: token.length,
+        hasTurnstileToken: Boolean(turnstileToken),
+      });
       const headers: HeadersInit = {};
       if (turnstileToken) {
         headers["cf-turnstile-response"] = turnstileToken;
@@ -579,10 +583,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const error = new Error(payload?.error ?? "Failed to accept invitation.") as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
+        console.info("[INVITATION-FLOW] auth.acceptInvitation request failed", {
+          status: response.status,
+          code: payload?.code ?? null,
+        });
         throw error;
       }
 
+      console.info("[INVITATION-FLOW] auth.acceptInvitation request succeeded; refreshing session");
       await refreshSession();
+      console.info("[INVITATION-FLOW] auth.acceptInvitation session refresh complete");
     },
     [refreshSession],
   );

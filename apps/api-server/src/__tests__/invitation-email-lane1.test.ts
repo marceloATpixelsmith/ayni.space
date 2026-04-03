@@ -134,6 +134,10 @@ test("lane1 invitation sender uses app sender/template config and logs lane1 out
     assert.equal(((brevoBody as any)?.["sender"] as any)?.email, "invites@ayni.space");
     assert.equal(((brevoBody as any)?.["to"] as any)?.[0]?.email, "invitee@example.com");
     assert.equal(((brevoBody as any)?.["to"] as any)?.[0]?.name, "Casey Johnson");
+    assert.match(
+      String((brevoBody as any)?.["htmlContent"] ?? ""),
+      /https:\/\/app\.example\/invitations\/token-123\/accept/,
+    );
   } finally {
     globalThis.fetch = originalFetch;
     restores.reverse().forEach((restore) => restore());
