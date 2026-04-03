@@ -74,9 +74,13 @@ jobs:
         id: api_tests
         continue-on-error: true
         run: |
-          set -o pipefail
-          pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log
-          status=${PIPESTATUS[0]}
+          set -euo pipefail
+          if pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log; then
+            status=0
+          else
+            status=$?
+          fi
+          echo "api-tests exit code: $status"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
