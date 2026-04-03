@@ -17,6 +17,12 @@ import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
 import Login from "./pages/auth/Login";
 import Onboarding from "./pages/auth/Onboarding";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import DashboardHome from "./pages/dashboard/DashboardHome";
+import AppsDirectory from "./pages/dashboard/Apps";
+import Members from "./pages/dashboard/Members";
+import Invitations from "./pages/dashboard/Invitations";
+import Billing from "./pages/dashboard/Billing";
+import Settings from "./pages/dashboard/Settings";
 import InvitationAccept from "./pages/auth/InvitationAccept";
 import NotFound from "./pages/not-found";
 import { adminAccessDeniedLoginPath } from "./pages/auth/accessDenied";
@@ -174,7 +180,7 @@ function ConfigDrivenAuthRoute({
   return <>{children}</>;
 }
 
-function ProtectedSuperAdmin({ children }: { children: React.ReactNode }) {
+function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
 
   if (auth.status === "loading") return <AuthLoading />;
@@ -205,7 +211,30 @@ function DashboardRoute() {
   const [isSectionMatch, sectionParams] = useRoute<{ section?: string }>("/dashboard/:section");
   const section = isSectionMatch ? sectionParams?.section : undefined;
 
-  return <AdminDashboard section={section} />;
+  const auth = useAuth();
+  const appAccess = getCurrentAppAccess(auth.user);
+
+  if (appAccess?.normalizedAccessProfile === "superadmin") {
+    return <AdminDashboard section={section} />;
+  }
+
+  const orgSection = section ?? "overview";
+  switch (orgSection) {
+    case "overview":
+      return <DashboardHome />;
+    case "apps":
+      return <AppsDirectory />;
+    case "members":
+      return <Members />;
+    case "invitations":
+      return <Invitations />;
+    case "billing":
+      return <Billing />;
+    case "settings":
+      return <Settings />;
+    default:
+      return <NotFound />;
+  }
 }
 
 function Router() {
@@ -217,12 +246,12 @@ function Router() {
       <Route path="/onboarding">{() => <AuthRedirect to="/onboarding/organization" />}</Route>
       <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
 
-      {/* Restricted super-admin routes */}
-      <Route path="/dashboard">{() => <ProtectedSuperAdmin><AdminDashboard /></ProtectedSuperAdmin>}</Route>
-      <Route path="/dashboard/:section">{() => <ProtectedSuperAdmin><DashboardRoute /></ProtectedSuperAdmin>}</Route>
+      {/* App-access routes */}
+      <Route path="/dashboard">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
+      <Route path="/dashboard/:section">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
 
       {/* Fail-closed aliases for legacy routes */}
-      <Route path="/apps/:slug">{() => <ProtectedSuperAdmin><AuthRedirect to="/dashboard" /></ProtectedSuperAdmin>}</Route>
+      <Route path="/apps/:slug">{() => <ProtectedAppAccess><AuthRedirect to="/dashboard/apps" /></ProtectedAppAccess>}</Route>
 
       <Route component={NotFound} />
     </Switch>

@@ -6,6 +6,7 @@
 ## Confirmed
 - App authorization and auth-route gating now use one normalized profile resolver derived from `platform.apps` (`superadmin`, `solo`, `organization`) in `apps/api-server/src/lib/appAccessProfile.ts` and backend context assembly in `apps/api-server/src/lib/appAccess.ts`.
 - Frontend auth route gating now consumes backend-derived `normalizedAccessProfile` metadata via `lib/frontend-security/src/index.tsx` instead of reinterpreting legacy raw fields.
+- Admin frontend `/dashboard` routes are app-access gated (authenticated + app context) in `apps/admin/src/App.tsx`; superadmin-only enforcement is retained inside the superadmin dashboard surface (`apps/admin/src/pages/admin/AdminDashboard.tsx`) rather than as a blanket wrapper on all `/dashboard` paths.
 
 - Authorization is middleware-driven in API routes:
   - `apps/api-server/src/middlewares/requireAuth.ts`
