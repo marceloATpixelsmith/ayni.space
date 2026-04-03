@@ -238,3 +238,75 @@ The persistence model is intentionally queryable for future superadmin tooling:
 - Attachments are strict: must be structured objects, and inline attachments require `contentId`.
 - Template params are strict: `templateParams` must be an object (not array/null/scalar).
 - Unsupported capabilities fail closed; no silent coercion or field dropping.
+
+## Migration guard notes (production safety)
+- Migration `lib/db/migrations/20260403_lane2_webhook_correlation_status.sql` is additive only:
+  - creates enum `email_webhook_correlation_status`
+  - adds `correlation_status` column with `not null default 'linked'`
+  - adds supporting index `email_webhook_events_correlation_status_idx`
+- No table drops, column drops, truncates, or destructive rewrites are part of this migration.
+- Backward compatibility behavior:
+  - existing rows receive the default value (`linked`) at migration time
+  - webhook ingestion explicitly writes `unlinked` when no outbound log match exists.
+- Required deploy order:
+  1. run database migration(s)
+  2. deploy backend
+
+## Retry / failure strategy (current + future queue design notes)
+- Current lane2 runtime behavior (no queue yet):
+  - immediate provider API failures are returned to caller and persisted to outbound logs.
+  - webhook ingestion failures are logged and fail-safe (`202` response from endpoint), and failed processing attempts are persisted as webhook events when possible.
+- Retryability guidance:
+  - Retryable (future queue candidates):
+    - provider/network timeouts
+    - transient 5xx provider responses
+    - temporary provider throttling
+  - Non-retryable:
+    - invalid credentials / auth failures
+    - capability validation failures
+    - malformed request payloads
+    - signature verification failures for webhooks
+- Future queue strategy expectation:
+  - bounded retry count with exponential backoff + jitter
+  - dead-letter/log terminal failures after retry budget exhaustion
+  - retries keyed by `(org_id, app_id, correlation_id|idempotency_key)` to avoid accidental duplicate sends.
+
+## Lane 2 Production Readiness Checklist
+- Required environment variables:
+  - `EMAIL_CREDENTIALS_ENCRYPTION_KEY` (exactly 64 hex chars; startup hard-fail if invalid)
+  - `SESSION_SECRET`
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI`
+  - `ALLOWED_ORIGINS`
+  - `STRIPE_WEBHOOK_SECRET`
+  - Optional provider base URLs (validated if set):
+    - `BREVO_API_BASE_URL`
+    - `MAILCHIMP_TRANSACTIONAL_API_BASE_URL`
+  - Optional webhook signature secrets (recommended in production):
+    - `BREVO_WEBHOOK_SECRET`
+    - `MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY`
+- Migration steps:
+  1. run `pnpm --filter @workspace/db run migrate`
+  2. verify migration table recorded `20260403_lane2_webhook_correlation_status`
+  3. deploy backend (`apps/api-server`)
+- Webhook setup steps:
+  - Brevo:
+    - configure webhook URL: `POST /api/transactional-email/webhooks/brevo`
+    - configure matching secret in both Brevo and `BREVO_WEBHOOK_SECRET`
+  - Mailchimp Transactional:
+    - configure webhook URL: `POST /api/transactional-email/webhooks/mailchimp-transactional`
+    - configure matching secret in both Mandrill settings and `MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY`
+- Connection test flow:
+  1. create/rotate provider connection
+  2. call connection validation endpoint
+  3. confirm `last_validation_status` and sanitized error diagnostics
+- Logging verification:
+  - trigger send success and verify outbound runtime log + `outbound_email_logs` success status
+  - trigger provider failure and verify runtime error log + normalized error persisted
+  - trigger webhook with invalid signature and verify warning log + 401 response
+  - trigger webhook unknown/unlinked event and verify warning log + persisted unlinked webhook event
+- Known limitations (intentional for this lane):
+  - in-memory per-process send throttling guard (not distributed)
+  - no async queue/retry worker yet
+  - webhook ingestion remains best-effort fail-safe and relies on runtime logging + DB persistence for investigation.

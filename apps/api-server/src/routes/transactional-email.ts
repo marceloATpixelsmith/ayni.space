@@ -10,6 +10,44 @@ import { randomUUID } from "node:crypto";
 const router = Router();
 const repository = new TransactionalEmailRepository();
 const runtime = new Lane2TransactionalEmailRuntime(repository);
+const SEND_ATTEMPT_WINDOW_MS = 30_000;
+const SEND_ATTEMPT_MAX_PER_WINDOW = 5;
+const WEBHOOK_MAX_EVENTS_PER_REQUEST = 500;
+const sendRateLimitWindow = new Map<string, number[]>();
+
+type ApiErrorCode =
+  | "BAD_REQUEST"
+  | "RATE_LIMITED"
+  | "UNAUTHORIZED"
+  | "INTERNAL_ERROR"
+  | "SEND_FAILED"
+  | "WEBHOOK_SIGNATURE_INVALID";
+
+function errorBody(code: ApiErrorCode, message: string, details?: Record<string, unknown>) {
+  return { error: { code, message, ...(details ? { details } : {}) } };
+}
+
+function buildRateLimitKey(orgId: string, userId?: string | null): string {
+  return `${orgId}:${userId ?? "anonymous"}`;
+}
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const previous = sendRateLimitWindow.get(key) ?? [];
+  const recent = previous.filter((timestamp) => now - timestamp <= SEND_ATTEMPT_WINDOW_MS);
+  if (recent.length >= SEND_ATTEMPT_MAX_PER_WINDOW) {
+    sendRateLimitWindow.set(key, recent);
+    return true;
+  }
+  recent.push(now);
+  sendRateLimitWindow.set(key, recent);
+  return false;
+}
+
+function countWebhookEvents(payload: unknown): number {
+  if (Array.isArray(payload)) return payload.length;
+  return 1;
+}
 
 function validateMailchimpSignature(body: unknown, signature: string | undefined) {
   const secret = process.env["MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY"];
@@ -87,20 +125,48 @@ async function getOrgConnectionOr404(orgId: string, connectionId: string) {
 router.post("/organizations/:orgId/transactional-email/send", requireAuth, requireOrgAccess, async (req, res) => {
   const orgId = asSingleString(req.params["orgId"]);
   if (!orgId) {
-    res.status(400).json({ error: "Organization ID is required" });
+    res.status(400).json(errorBody("BAD_REQUEST", "Organization ID is required"));
+    return;
+  }
+  const rateLimitKey = buildRateLimitKey(orgId, req.session?.userId);
+  if (isRateLimited(rateLimitKey)) {
+    console.warn("[transactional-email] send request rate-limited", { orgId, actorUserId: req.session?.userId ?? null });
+    res.status(429).json(errorBody("RATE_LIMITED", "Too many send attempts. Please retry shortly."));
     return;
   }
 
   try {
-    const result = await runtime.send({
+    const response = await runtime.send({
       ...(req.body ?? {}),
       orgId,
       actorUserId: req.session?.userId,
       correlationId: String(req.body?.correlationId ?? req.get("x-correlation-id") ?? `email-${Date.now()}`),
     });
-    res.status(200).json(result);
+    if (response.result.status === "failed" || response.result.status === "rejected") {
+      console.error("[transactional-email] provider send failed", {
+        orgId,
+        actorUserId: req.session?.userId ?? null,
+        provider: response.result.provider,
+        status: response.result.status,
+        errorCode: response.result.error?.code ?? null,
+      });
+      res.status(502).json(errorBody("SEND_FAILED", "Provider send failed", {
+        logId: response.logId,
+        provider: response.result.provider,
+        status: response.result.status,
+        reason: response.result.error?.message ?? "unknown provider failure",
+      }));
+      return;
+    }
+    res.status(200).json(response);
   } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "lane2 send failed" });
+    const message = error instanceof Error ? error.message : "lane2 send failed";
+    console.error("[transactional-email] send request validation/runtime failure", {
+      orgId,
+      actorUserId: req.session?.userId ?? null,
+      error: sanitizeValidationError(message),
+    });
+    res.status(400).json(errorBody("BAD_REQUEST", "lane2 send failed", { reason: sanitizeValidationError(message) }));
   }
 });
 
@@ -410,29 +476,51 @@ router.get("/admin/transactional-email/connections", requireSuperAdmin, async (r
 });
 
 router.post("/transactional-email/webhooks/brevo", async (req, res) => {
+  const eventCount = countWebhookEvents(req.body);
+  if (eventCount > WEBHOOK_MAX_EVENTS_PER_REQUEST) {
+    console.warn("[transactional-email] brevo webhook payload exceeded safe event limit", { eventCount });
+    res.status(202).json({ accepted: true, ignored: true });
+    return;
+  }
+
   const signature = req.get("x-brevo-signature");
   if (!validateBrevoSignature(req.body, signature ?? undefined)) {
-    res.status(401).json({ error: "Invalid webhook signature" });
+    console.warn("[transactional-email] brevo webhook signature rejected");
+    res.status(401).json(errorBody("WEBHOOK_SIGNATURE_INVALID", "Invalid webhook signature"));
     return;
   }
   try {
-    await runtime.ingestWebhook("brevo", req.body);
-  } catch {
-    // webhook ingestion is fail-safe and should never crash endpoint callers
+    const ingested = await runtime.ingestWebhook("brevo", req.body);
+    console.info("[transactional-email] brevo webhook ingested", { ingested });
+  } catch (error) {
+    console.error("[transactional-email] brevo webhook ingestion failed", {
+      error: error instanceof Error ? error.message : "unknown webhook ingestion error",
+    });
   }
   res.status(202).json({ accepted: true });
 });
 
 router.post("/transactional-email/webhooks/mailchimp-transactional", async (req, res) => {
+  const eventCount = countWebhookEvents(req.body);
+  if (eventCount > WEBHOOK_MAX_EVENTS_PER_REQUEST) {
+    console.warn("[transactional-email] mailchimp webhook payload exceeded safe event limit", { eventCount });
+    res.status(202).json({ accepted: true, ignored: true });
+    return;
+  }
+
   const signature = req.get("x-mandrill-signature");
   if (!validateMailchimpSignature(req.body, signature ?? undefined)) {
-    res.status(401).json({ error: "Invalid webhook signature" });
+    console.warn("[transactional-email] mailchimp webhook signature rejected");
+    res.status(401).json(errorBody("WEBHOOK_SIGNATURE_INVALID", "Invalid webhook signature"));
     return;
   }
   try {
-    await runtime.ingestWebhook("mailchimp_transactional", req.body);
-  } catch {
-    // webhook ingestion is fail-safe and should never crash endpoint callers
+    const ingested = await runtime.ingestWebhook("mailchimp_transactional", req.body);
+    console.info("[transactional-email] mailchimp webhook ingested", { ingested });
+  } catch (error) {
+    console.error("[transactional-email] mailchimp webhook ingestion failed", {
+      error: error instanceof Error ? error.message : "unknown webhook ingestion error",
+    });
   }
   res.status(202).json({ accepted: true });
 });

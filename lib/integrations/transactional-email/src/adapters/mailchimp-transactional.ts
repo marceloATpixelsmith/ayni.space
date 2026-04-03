@@ -10,9 +10,9 @@ import type {
 import { sanitizeSnapshot } from "../sanitization";
 import { normalizeProviderError } from "../errors";
 
-const MAILCHIMP_TX_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send.json";
-const MAILCHIMP_TX_TEMPLATE_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send-template.json";
-const MAILCHIMP_TX_PING_ENDPOINT = "https://mandrillapp.com/api/1.0/users/ping2.json";
+function resolveMailchimpBaseUrl(): string {
+  return process.env["MAILCHIMP_TRANSACTIONAL_API_BASE_URL"] ?? "https://mandrillapp.com";
+}
 
 function mapMailchimpPayload(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest): Record<string, unknown> {
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
@@ -69,8 +69,11 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
   readonly capabilities = PROVIDER_CAPABILITIES.mailchimp_transactional;
 
   async send(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest, fetcher: FetchLike = fetch): Promise<Lane2SendResult> {
+    const mailchimpBaseUrl = resolveMailchimpBaseUrl();
     const payload = mapMailchimpPayload(connection, request);
-    const endpoint = request.templateRef ? MAILCHIMP_TX_TEMPLATE_ENDPOINT : MAILCHIMP_TX_ENDPOINT;
+    const endpoint = request.templateRef
+      ? `${mailchimpBaseUrl}/api/1.0/messages/send-template.json`
+      : `${mailchimpBaseUrl}/api/1.0/messages/send.json`;
     const response = await fetcher(endpoint, {
       method: "POST",
       headers: {
@@ -129,7 +132,8 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
   }
 
   async validateConnection(credentials: ProviderConnectionCredentials, fetcher: FetchLike = fetch) {
-    const response = await fetcher(MAILCHIMP_TX_PING_ENDPOINT, {
+    const mailchimpBaseUrl = resolveMailchimpBaseUrl();
+    const response = await fetcher(`${mailchimpBaseUrl}/api/1.0/users/ping2.json`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ key: credentials.apiKey }),

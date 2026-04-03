@@ -10,8 +10,9 @@ import type {
 import { sanitizeSnapshot } from "../sanitization";
 import { normalizeProviderError } from "../errors";
 
-const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
-const BREVO_ACCOUNT_ENDPOINT = "https://api.brevo.com/v3/account";
+function resolveBrevoBaseUrl(): string {
+  return process.env["BREVO_API_BASE_URL"] ?? "https://api.brevo.com";
+}
 
 function mapBrevoPayload(request: Lane2TransactionalEmailRequest): Record<string, unknown> {
   return {
@@ -47,8 +48,9 @@ export class BrevoEmailAdapter implements EmailProviderAdapter {
   readonly capabilities = PROVIDER_CAPABILITIES.brevo;
 
   async send(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest, fetcher: FetchLike = fetch): Promise<Lane2SendResult> {
+    const brevoBaseUrl = resolveBrevoBaseUrl();
     const payload = mapBrevoPayload(request);
-    const response = await fetcher(BREVO_ENDPOINT, {
+    const response = await fetcher(`${brevoBaseUrl}/v3/smtp/email`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -87,7 +89,8 @@ export class BrevoEmailAdapter implements EmailProviderAdapter {
   }
 
   async validateConnection(credentials: ProviderConnectionCredentials, fetcher: FetchLike = fetch) {
-    const response = await fetcher(BREVO_ACCOUNT_ENDPOINT, {
+    const brevoBaseUrl = resolveBrevoBaseUrl();
+    const response = await fetcher(`${brevoBaseUrl}/v3/account`, {
       method: "GET",
       headers: {
         "api-key": credentials.apiKey,
