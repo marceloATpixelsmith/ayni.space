@@ -33,7 +33,7 @@
     "@types/node": "catalog:",
     "@types/uuid": "^11.0.0",
     "connect-pg-simple": "^10.0.0",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.28.0",
     "express-session": "^1.19.0",
     "google-auth-library": "^10.6.1",
     "stripe": "^20.4.1",
