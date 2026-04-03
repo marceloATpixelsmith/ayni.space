@@ -71,8 +71,14 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 
   expectIncludes(
     appSource,
-    "if (auth.status === \"unauthenticated\") {\n    return <AuthRedirect to=\"/login\" />;",
-    "Allowed onboarding/invitation routes should still route logged-out users to /login.",
+    "if (routeKind === \"invitation\") {\n      return <AuthRedirect to={`/login?next=${encodeURIComponent(location)}`} />;\n    }",
+    "Invitation auth route should preserve continuation path through login.",
+  );
+
+  expectIncludes(
+    appSource,
+    "return <AuthRedirect to=\"/login\" />;",
+    "Allowed onboarding route should still route logged-out users to /login.",
   );
 });
 
@@ -213,6 +219,12 @@ test("legacy /apps/:slug alias remains root-relative and redirects to org dashbo
 });
 
 test("super-admin users are sent to /dashboard after login", () => {
+  expectIncludes(
+    loginSource,
+    "if (isInvitationContinuationPath(next)) {\n        setLocation(next);\n        return;\n      }",
+    "Login should prioritize invitation continuation before generic access checks.",
+  );
+
   expectIncludes(
     loginSource,
     'if (normalizedAccessProfile === "superadmin") {\n        if (auth.user?.isSuperAdmin) {\n          setLocation(next || "/dashboard");',

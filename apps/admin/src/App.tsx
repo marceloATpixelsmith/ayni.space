@@ -156,6 +156,7 @@ function ConfigDrivenAuthRoute({
   children: React.ReactNode;
 }) {
   const auth = useAuth();
+  const [location] = useLocation();
   const { metadata, loading } = useCurrentAppMetadata();
 
   if (loading || auth.status === "loading") return <AuthLoading />;
@@ -174,6 +175,9 @@ function ConfigDrivenAuthRoute({
   }
 
   if (auth.status === "unauthenticated") {
+    if (routeKind === "invitation") {
+      return <AuthRedirect to={`/login?next=${encodeURIComponent(location)}`} />;
+    }
     return <AuthRedirect to="/login" />;
   }
 
