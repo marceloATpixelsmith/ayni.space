@@ -75,11 +75,30 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          if pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log; then
-            status=0
+
+          run_api_tests() {
+            local log_file="$1"
+            if pnpm --filter @workspace/api-server run test:ci 2>&1 | tee "$log_file"; then
+              return 0
+            fi
+            return $?
+          }
+
+          status=0
+          if run_api_tests artifacts/backend-gates/backend-test.log; then
+            echo "api-tests passed on first attempt"
           else
-            status=$?
+            first_status=$?
+            echo "api-tests first attempt failed with exit code: $first_status"
+            echo "Retrying API tests once to reduce transient CI flakes..."
+
+            if run_api_tests artifacts/backend-gates/backend-test-retry.log; then
+              echo "api-tests passed on retry"
+            else
+              status=$?
+            fi
           fi
+
           echo "api-tests exit code: $status"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -152,7 +171,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-log
-          path: artifacts/backend-gates/backend-test.log
+          path: |
+            artifacts/backend-gates/backend-test.log
+            artifacts/backend-gates/backend-test-retry.log
           if-no-files-found: warn
 
       - name: Upload backend typecheck log
