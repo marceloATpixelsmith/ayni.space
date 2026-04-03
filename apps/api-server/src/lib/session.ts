@@ -280,6 +280,7 @@ declare module "express-session" {
     appSlug?: string;
     oauthState?: string;
     oauthReturnTo?: string;
+    oauthReturnToPath?: string;
     oauthSessionGroup?: string;
     oauthAppSlug?: string;
     sessionGroup?: string;

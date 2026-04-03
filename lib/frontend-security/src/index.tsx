@@ -22,6 +22,7 @@ type AuthContextValue = {
   loginWithGoogle: (
     turnstileToken?: string | null,
     intent?: "sign_in" | "create_account",
+    returnToPath?: string | null,
   ) => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
@@ -53,6 +54,13 @@ const OAUTH_START_STORAGE_KEY = "auth:oauth-started-at";
 const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
 const OAUTH_STARTUP_DELAY_MS = 120;
 const OAUTH_POST_REDIRECT_RETRY_DELAY_MS = 450;
+
+function normalizeReturnToPath(path: string | null | undefined): string | null {
+  if (typeof path !== "string") return null;
+  const trimmed = path.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  return trimmed;
+}
 
 function toApiUrl(path: string): string {
   if (!API_BASE) return path;
@@ -454,6 +462,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (
       turnstileToken?: string | null,
       intent: "sign_in" | "create_account" = "sign_in",
+      returnToPath?: string | null,
     ) => {
       if (loginRequestRef.current) {
       return loginRequestRef.current;
@@ -469,6 +478,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw new Error("Security token is not ready. Please try again.");
         }
 
+        const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
         const response = await secureApiFetch(
           "/api/auth/google/url",
           {
@@ -480,6 +490,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({
               "cf-turnstile-response": normalizedTurnstileToken,
               intent,
+              returnToPath: normalizedReturnToPath,
             }),
           },
           token,
