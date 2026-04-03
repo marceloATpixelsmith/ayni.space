@@ -47,7 +47,7 @@ test("logged-out users are redirected to /login", () => {
 test("onboarding and invitation auth routes are centrally gated by app metadata", () => {
   expectIncludes(
     appSource,
-    '<Route path="/onboarding">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>',
+    '<Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>',
     "Onboarding route should be wrapped by config-driven gating.",
   );
 
@@ -150,8 +150,6 @@ test("non-super-admin users are blocked from dashboard and deeper routes", () =>
   const protectedPaths = [
     "/dashboard",
     "/dashboard/:section",
-    "/admin",
-    "/admin/:section",
     "/apps/:slug",
   ];
 

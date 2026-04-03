@@ -22,7 +22,7 @@ test("organization profile routes post-auth users to onboarding when required", 
     requiredOnboarding: "organization",
   });
 
-  assert.equal(destination, "/workspace/onboarding/organization");
+  assert.equal(destination, "/onboarding/organization");
 });
 
 test("authorized callback destination remains dashboard when onboarding not required", () => {
@@ -39,4 +39,17 @@ test("authorized callback destination remains dashboard when onboarding not requ
     normalizedAccessProfile: "solo",
     requiredOnboarding: "none",
   }), "/dashboard");
+});
+
+
+test("organization profile onboarding redirect never includes /admin prefix", () => {
+  const destination = getPostAuthRedirectPath({
+    appSlug: "admin",
+    isSuperAdmin: false,
+    normalizedAccessProfile: "organization",
+    requiredOnboarding: "organization",
+  });
+
+  assert.equal(destination, "/onboarding/organization");
+  assert.equal(destination.includes("/admin/"), false);
 });

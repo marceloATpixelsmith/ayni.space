@@ -54,7 +54,7 @@ export default function AdminDashboard({ section = "overview" }: { section?: str
           {NAV.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setLocation(id === "overview" ? "/admin" : `/admin/${id}`)}
+              onClick={() => setLocation(id === "overview" ? "/dashboard" : `/dashboard/${id}`)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
                 section === id
                   ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"

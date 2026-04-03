@@ -607,7 +607,7 @@ test("organization create_account callback provisions unknown user and redirects
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
+    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding/organization");
     assert.equal(insertedRows.length, 1);
     assert.equal(insertedRows[0]?.email, "new.user@example.com");
   } finally {
@@ -674,7 +674,7 @@ test("organization callback redirects existing user without org access to onboar
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
+    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding/organization");
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -751,7 +751,7 @@ test("organization oauth callback redirect is unchanged across authIntent values
     assert.equal(noIntentResponse.status, 302);
     assert.equal(createAccountResponse.status, 302);
     assert.equal(signInResponse.status, 302);
-    assert.equal(noIntentResponse.headers.get("location"), "http://workspace.local/workspace/onboarding/organization");
+    assert.equal(noIntentResponse.headers.get("location"), "http://workspace.local/onboarding/organization");
     assert.equal(createAccountResponse.headers.get("location"), noIntentResponse.headers.get("location"));
     assert.equal(signInResponse.headers.get("location"), noIntentResponse.headers.get("location"));
   } finally {

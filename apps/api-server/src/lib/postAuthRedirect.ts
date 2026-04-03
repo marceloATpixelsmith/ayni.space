@@ -16,7 +16,7 @@ export function getPostAuthRedirectPath(options: {
   }
 
   if (requiredOnboarding !== "none") {
-    return `/${appSlug}/onboarding/organization`;
+    return "/onboarding/organization";
   }
 
   return "/dashboard";
