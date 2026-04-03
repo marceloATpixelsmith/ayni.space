@@ -48,6 +48,7 @@
 29. `codex-working-rules.md`
 30. `open-questions-and-conflicts.md`
 31. `auth-security-regression-suite.md`
+32. `transactional-email-lane2-architecture.md`
 
 ### Numbered compatibility copies
 - `06-authorization-and-access-model-inventory.md`

@@ -9,6 +9,7 @@
 - API route aggregation is centralized via `apps/api-server/src/routes/index.ts` and route modules in `apps/api-server/src/routes/*`.
 - Request path is implemented as: frontend -> API client/fetch layer -> API routes -> `@workspace/db` -> PostgreSQL.
 - The API server is the single active backend gateway in current repository state.
+- Lane 2 transactional email foundation is implemented as a shared backend integration package at `lib/integrations/transactional-email` with provider-agnostic contracts and adapter scaffolding for Brevo and Mailchimp Transactional.
 
 ## Inferred
 - The backend is intentionally a single service boundary for auth, org, app-access, and operational middleware concerns.
