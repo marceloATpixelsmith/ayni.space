@@ -71,8 +71,26 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 
   expectIncludes(
     appSource,
-    "if (routeKind === \"invitation\") {\n      return <AuthRedirect to={`/login?next=${encodeURIComponent(location)}`} />;\n    }",
+    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
+    "Invitation unauthenticated routing should be evaluated explicitly.",
+  );
+
+  expectIncludes(
+    appSource,
+    "const redirectTarget = `/login?next=${encodeURIComponent(location)}`;",
+    "Invitation unauthenticated redirect should include a continuation target.",
+  );
+
+  expectIncludes(
+    appSource,
+    "return <AuthRedirect to={redirectTarget} />;",
     "Invitation auth route should preserve continuation path through login.",
+  );
+
+  expectIncludes(
+    appSource,
+    "console.info(\"[INVITATION-FLOW] redirecting unauthenticated invitation user to login with continuation\"",
+    "Invitation flow should emit diagnostics for unauthenticated continuation redirects.",
   );
 
   expectIncludes(
@@ -221,19 +239,37 @@ test("legacy /apps/:slug alias remains root-relative and redirects to org dashbo
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
-    "if (isInvitationContinuationPath(next)) {\n        setLocation(next);\n        return;\n      }",
+    "if (isInvitationContinuationPath(next)) {",
+    "Login should explicitly branch invitation continuations before generic access checks.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "setLocation(next);\n        return;",
     "Login should prioritize invitation continuation before generic access checks.",
   );
 
   expectIncludes(
     loginSource,
-    'if (normalizedAccessProfile === "superadmin") {\n        if (auth.user?.isSuperAdmin) {\n          setLocation(next || "/dashboard");',
+    'if (normalizedAccessProfile === "superadmin") {',
+    "Login should preserve an explicit superadmin branch.",
+  );
+
+  expectIncludes(
+    loginSource,
+    'if (auth.user?.isSuperAdmin) {',
+    "Login must branch superadmin success behavior.",
+  );
+
+  expectIncludes(
+    loginSource,
+    'setLocation(next || "/dashboard");',
     "Login must redirect super admins to /dashboard.",
   );
 
   expectIncludes(
     loginSource,
-    '} else {\n          setLocation(adminAccessDeniedLoginPath());',
+    'setLocation(adminAccessDeniedLoginPath());',
     "Login must route non-super admins to /login with an access error.",
   );
 

@@ -80,6 +80,9 @@ export default function Login() {
     if (auth.status === "authenticated") {
       const next = query.get("next");
       if (isInvitationContinuationPath(next)) {
+        console.info("[INVITATION-FLOW] login success redirecting to invitation continuation", {
+          nextPath: next,
+        });
         setLocation(next);
         return;
       }
@@ -90,23 +93,39 @@ export default function Login() {
 
       if (normalizedAccessProfile === "superadmin") {
         if (auth.user?.isSuperAdmin) {
+          console.info("[INVITATION-FLOW] login success redirecting superadmin", {
+            nextPath: next,
+          });
           setLocation(next || "/dashboard");
         } else {
+          console.info("[INVITATION-FLOW] login success denying non-superadmin", {
+            nextPath: next,
+          });
           setLocation(adminAccessDeniedLoginPath());
         }
         return;
       }
 
       if (requiredOnboarding === "organization" && canAccess === false) {
+        console.info("[INVITATION-FLOW] login success redirecting to onboarding", {
+          nextPath: next,
+        });
         setLocation("/onboarding/organization");
         return;
       }
 
       if (canAccess === false) {
+        console.info("[INVITATION-FLOW] login success redirecting to access denied", {
+          nextPath: next,
+        });
         setLocation(adminAccessDeniedLoginPath());
         return;
       }
 
+      console.info("[INVITATION-FLOW] login success redirecting to default target", {
+        nextPath: next,
+        target: next || "/dashboard",
+      });
       setLocation(next || "/dashboard");
     }
   }, [auth.status, auth.user, setLocation, query]);

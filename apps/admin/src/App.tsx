@@ -159,9 +159,39 @@ function ConfigDrivenAuthRoute({
   const [location] = useLocation();
   const { metadata, loading } = useCurrentAppMetadata();
 
+  if (routeKind === "invitation") {
+    console.info("[INVITATION-FLOW] invitation route hit", {
+      path: location,
+      authStatus: auth.status,
+      metadataLoaded: !loading,
+      invitationRoutesAllowed: metadata?.authRoutePolicy?.allowInvitations ?? null,
+    });
+  }
+
   if (loading || auth.status === "loading") return <AuthLoading />;
 
+  if (auth.status === "unauthenticated" && routeKind === "invitation") {
+    const redirectTarget = `/login?next=${encodeURIComponent(location)}`;
+    console.info("[INVITATION-FLOW] redirecting unauthenticated invitation user to login with continuation", {
+      from: location,
+      to: redirectTarget,
+    });
+    return <AuthRedirect to={redirectTarget} />;
+  }
+
   if (!isAuthRouteAllowed(metadata, routeKind)) {
+    console.info("[INVITATION-FLOW] auth route disallowed by metadata policy", {
+      routeKind,
+      path: location,
+      authStatus: auth.status,
+      redirectTo: getDisallowedAuthRouteRedirect({
+        app: metadata,
+        authStatus: auth.status,
+        isSuperAdmin: auth.user?.isSuperAdmin,
+        deniedLoginPath: adminAccessDeniedLoginPath(),
+      }),
+      metadataPolicy: metadata?.authRoutePolicy ?? null,
+    });
     return (
       <AuthRedirect
         to={getDisallowedAuthRouteRedirect({
@@ -175,9 +205,10 @@ function ConfigDrivenAuthRoute({
   }
 
   if (auth.status === "unauthenticated") {
-    if (routeKind === "invitation") {
-      return <AuthRedirect to={`/login?next=${encodeURIComponent(location)}`} />;
-    }
+    console.info("[INVITATION-FLOW] redirecting unauthenticated user to generic login", {
+      routeKind,
+      path: location,
+    });
     return <AuthRedirect to="/login" />;
   }
 
