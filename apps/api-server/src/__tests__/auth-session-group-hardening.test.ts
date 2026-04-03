@@ -199,6 +199,8 @@ test("admin oauth start derives admin context and emits oauth-state trace log", 
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
+  const prevTraceVerbose = process.env["BACKEND_TRACE_VERBOSE"];
+  process.env["BACKEND_TRACE_VERBOSE"] = "1";
   process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
   process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
   process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
@@ -235,6 +237,8 @@ test("admin oauth start derives admin context and emits oauth-state trace log", 
     assert.match(oauthStateTrace, /sessionGroup=admin/);
   } finally {
     for (const undo of restore.reverse()) undo();
+    if (prevTraceVerbose === undefined) delete process.env["BACKEND_TRACE_VERBOSE"];
+    else process.env["BACKEND_TRACE_VERBOSE"] = prevTraceVerbose;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
@@ -814,6 +818,8 @@ test("second login matches by subject directly for pre-provisioned superadmin", 
 
 test("superadmin callback + downstream admin check emit trace checkpoints and allow protected route", async () => {
   const logs: unknown[][] = [];
+  const prevTraceVerbose = process.env["BACKEND_TRACE_VERBOSE"];
+  process.env["BACKEND_TRACE_VERBOSE"] = "1";
   const superUser = {
     id: "super-user",
     email: "super@example.com",
@@ -920,6 +926,8 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.match(adminGuard, /allow=true/);
   } finally {
     for (const undo of restore.reverse()) undo();
+    if (prevTraceVerbose === undefined) delete process.env["BACKEND_TRACE_VERBOSE"];
+    else process.env["BACKEND_TRACE_VERBOSE"] = prevTraceVerbose;
   }
 });
 
