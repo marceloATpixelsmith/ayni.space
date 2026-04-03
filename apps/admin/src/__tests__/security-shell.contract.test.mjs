@@ -138,44 +138,38 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
   );
 });
 
-test("non-super-admin users are blocked from dashboard and deeper routes", () => {
+test("dashboard routes are app-access gated (not blanket superadmin-only)", () => {
   expectIncludes(
     appSource,
-    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());',
-    "Root route must block non-super-admin users.",
+    '<Route path="/dashboard">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>',
+    "Dashboard root should be guarded by app-access gate.",
   );
 
   expectIncludes(
-    accessDeniedSource,
-    'return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;',
-    "Non-super-admin redirects must target /login with the shared access error.",
-  );
-
-  expectNotIncludes(
     appSource,
-    '/unauthorized',
-    "Admin shell must not route to /unauthorized.",
+    '<Route path="/dashboard/:section">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>',
+    "Dashboard sections should be guarded by app-access gate.",
   );
 
-  expectNotIncludes(
-    loginSource,
-    'setLocation(next || "/app")',
-    "Login flow must not redirect non-super-admin users to /app.",
+  expectIncludes(
+    appSource,
+    "if (appAccess?.normalizedAccessProfile === \"superadmin\") {\n    return <AdminDashboard section={section} />;",
+    "Superadmin app profile should still render the superadmin dashboard component.",
   );
 
-  const protectedPaths = [
-    "/dashboard",
-    "/dashboard/:section",
-    "/apps/:slug",
-  ];
+  expectIncludes(
+    appSource,
+    "case \"overview\":\n      return <DashboardHome />;",
+    "Organization-access users should render organization dashboard routes under /dashboard.",
+  );
+});
 
-  for (const routePath of protectedPaths) {
-    expectIncludes(
-      appSource,
-      `<Route path="${routePath}">{() => <ProtectedSuperAdmin>`,
-      `Route ${routePath} should require super-admin access.`,
-    );
-  }
+test("legacy /apps/:slug alias remains root-relative and redirects to org dashboard apps route", () => {
+  expectIncludes(
+    appSource,
+    '<Route path="/apps/:slug">{() => <ProtectedAppAccess><AuthRedirect to="/dashboard/apps" /></ProtectedAppAccess>}</Route>',
+    "Legacy app alias should redirect to root-relative /dashboard/apps with app-access guard.",
+  );
 });
 
 test("super-admin users are sent to /dashboard after login", () => {
@@ -215,6 +209,20 @@ test("protected authenticated non-super-admin users are routed to login with acc
     appSource,
     'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());',
     "Root route should route authenticated non-super-admin users to /login with access error.",
+  );
+});
+
+test("superadmin-only dashboard component remains fail-closed", () => {
+  expectIncludes(
+    adminDashboardSource,
+    "if (!userLoading && user && !user.isSuperAdmin) setLocation(adminAccessDeniedLoginPath());",
+    "Superadmin dashboard component must still deny non-superadmin users.",
+  );
+
+  expectIncludes(
+    accessDeniedSource,
+    'return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;',
+    "Access denied helper should remain shared and stable.",
   );
 });
 
