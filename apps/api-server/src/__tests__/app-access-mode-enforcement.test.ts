@@ -91,7 +91,7 @@ test("superadmin apps allow super-admin without org membership/app entitlement",
     assert.ok(context);
     assert.equal(context?.canAccess, true);
     assert.equal(context?.requiredOnboarding, "none");
-    assert.equal(context?.defaultRoute, "/admin");
+    assert.equal(context?.defaultRoute, "/dashboard");
   } finally {
     teardown(restores);
   }

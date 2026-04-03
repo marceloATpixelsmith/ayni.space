@@ -155,14 +155,13 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
-      <Route path="/onboarding">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/onboarding">{() => <AuthRedirect to="/onboarding/organization" />}</Route>
       <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
 
       {/* Restricted super-admin routes */}
       <Route path="/dashboard">{() => <ProtectedSuperAdmin><AdminDashboard /></ProtectedSuperAdmin>}</Route>
       <Route path="/dashboard/:section">{() => <ProtectedSuperAdmin><DashboardRoute /></ProtectedSuperAdmin>}</Route>
-      <Route path="/admin">{() => <ProtectedSuperAdmin><AdminDashboard /></ProtectedSuperAdmin>}</Route>
-      <Route path="/admin/:section">{() => <ProtectedSuperAdmin><AdminDashboard /></ProtectedSuperAdmin>}</Route>
 
       {/* Fail-closed aliases for legacy routes */}
       <Route path="/apps/:slug">{() => <ProtectedSuperAdmin><AuthRedirect to="/dashboard" /></ProtectedSuperAdmin>}</Route>

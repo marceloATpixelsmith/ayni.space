@@ -156,8 +156,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={location.startsWith("/admin")}>
-                        <Link href="/admin" className="flex items-center gap-3">
+                      <SidebarMenuButton asChild isActive={location === "/dashboard" || location.startsWith("/dashboard/")}>
+                        <Link href="/dashboard" className="flex items-center gap-3">
                           <ShieldCheck className="w-4 h-4 text-primary" />
                           <span className="font-medium">Super Admin</span>
                         </Link>

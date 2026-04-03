@@ -2,6 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { db, appsTable, orgMembershipsTable, organizationsTable, userAppAccessTable, usersTable } from "@workspace/db";
 import { getAuthRoutePolicyForProfile, resolveNormalizedAccessProfile } from "./appAccessProfile.js";
 
+function getDefaultRouteByAppSlug(appSlug: string): string {
+  return appSlug === "admin" ? "/dashboard" : `/${appSlug}`;
+}
+
 export async function getAppBySlug(appSlug: string) {
   return db.query.appsTable.findFirst({ where: and(eq(appsTable.slug, appSlug), eq(appsTable.isActive, true)) });
 }
@@ -18,7 +22,7 @@ export async function getRequiredOnboarding(userId: string, appSlug: string): Pr
 
 export async function getDefaultRoute(userId: string, appSlug: string): Promise<string> {
   const context = await getAppContext(userId, appSlug);
-  return context?.defaultRoute ?? `/${appSlug}`;
+  return context?.defaultRoute ?? getDefaultRouteByAppSlug(appSlug);
 }
 
 export async function getAppContext(userId: string, appSlug: string) {
@@ -68,7 +72,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     return null;
   }
 
-  const defaultRoute = requiredOnboarding === "organization" ? `/${appSlug}/onboarding/organization` : `/${appSlug}`;
+  const defaultRoute = requiredOnboarding === "organization" ? "/onboarding/organization" : getDefaultRouteByAppSlug(appSlug);
 
   return {
     user,

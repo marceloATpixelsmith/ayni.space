@@ -57,7 +57,7 @@ export default function Onboarding() {
         captureApiFailure(error, {
           area: "onboarding",
           action: "create_organization",
-          route: "/onboarding",
+          route: "/onboarding/organization",
           app: "admin",
           user: {
             id: user?.id,
