@@ -49,7 +49,7 @@ type AuthAppAccessSnapshot = {
 function getCurrentAppAccess(user: ReturnType<typeof useAuth>["user"]): AuthAppAccessSnapshot | null {
   const candidate = (user as (typeof user & { appAccess?: unknown }) | null)?.appAccess;
   if (!candidate || typeof candidate !== "object") return null;
-  const record = candidate as Record<string, unknown>;
+  const record = candidate as unknown as Record<string, unknown>;
   if (record["appSlug"] !== CURRENT_APP_SLUG) return null;
   if (typeof record["canAccess"] !== "boolean") return null;
   if (typeof record["appSlug"] !== "string") return null;

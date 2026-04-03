@@ -15,6 +15,10 @@ import type { InvitationStatus } from "./invitationStatus";
 export interface Invitation {
   id: string;
   email: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
   role: InvitationRole;
   orgId: string;
   orgName: string;

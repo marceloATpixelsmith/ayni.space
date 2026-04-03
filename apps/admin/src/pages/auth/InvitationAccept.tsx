@@ -13,6 +13,8 @@ export default function InvitationAccept() {
   const turnstile = useTurnstileToken();
   const [status, setStatus] = React.useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = React.useState("Preparing invitation acceptance...");
+  const lastSubmittedRef = React.useRef<string | null>(null);
+  const inFlightRef = React.useRef(false);
 
   React.useEffect(() => {
     const token = params.token;
@@ -32,12 +34,20 @@ export default function InvitationAccept() {
     }
 
     if (turnstile.enabled && !turnstile.token) {
+      inFlightRef.current = false;
       setStatus("idle");
       setMessage("Complete verification to accept this invitation.");
       return;
     }
 
+    const submissionKey = `${token}:${turnstile.token ?? ""}`;
+    if (inFlightRef.current || lastSubmittedRef.current === submissionKey) {
+      return;
+    }
+
     let cancelled = false;
+    inFlightRef.current = true;
+    lastSubmittedRef.current = submissionKey;
     setStatus("working");
     setMessage("Accepting invitation...");
 
@@ -45,6 +55,7 @@ export default function InvitationAccept() {
       .acceptInvitation(token, turnstile.token)
       .then(() => {
         if (cancelled) return;
+        inFlightRef.current = false;
         setStatus("done");
         setMessage("Invitation accepted. Redirecting to dashboard...");
         setTimeout(() => setLocation("/dashboard"), 900);
@@ -52,14 +63,20 @@ export default function InvitationAccept() {
       .catch((error) => {
         if (cancelled) return;
         setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Failed to accept invitation.");
-        turnstile.reset();
+        const typedError = error as Error & { code?: string };
+        setMessage(typedError.message || "Failed to accept invitation.");
+        inFlightRef.current = false;
+        if (typedError.code?.startsWith("TURNSTILE_")) {
+          lastSubmittedRef.current = null;
+          turnstile.reset();
+        }
       });
 
     return () => {
       cancelled = true;
+      inFlightRef.current = false;
     };
-  }, [auth, params.token, setLocation, turnstile]);
+  }, [auth, params.token, setLocation, turnstile.enabled, turnstile.reset, turnstile.token]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">

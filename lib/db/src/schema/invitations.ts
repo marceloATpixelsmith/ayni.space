@@ -13,6 +13,8 @@ export const invitationsTable = platform.table(
     appId: text("app_id").notNull(),
     orgId: text("org_id"),
     email: text("email").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
     invitedRole: text("invited_role").notNull().default("staff"),
     token: text("token").notNull().unique(),
     invitationStatus: text("invitation_status").notNull().default("pending"),

@@ -401,6 +401,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+  /organizations/{orgId}/invitations/{invitationId}/resend:
+    post:
+      operationId: resendInvitation
+      tags: [invitations]
+      summary: Resend an invitation
+      parameters:
+        - in: path
+          name: orgId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: invitationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation resent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
 
   /invitations/{token}/accept:
     post:
@@ -1153,6 +1176,10 @@ components:
           type: string
         email:
           type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
         role:
           type: string
           enum: [owner, admin, member, viewer]
@@ -1175,6 +1202,10 @@ components:
       type: object
       properties:
         email:
+          type: string
+        firstName:
+          type: string
+        lastName:
           type: string
         role:
           type: string

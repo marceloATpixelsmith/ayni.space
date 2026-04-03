@@ -44,6 +44,31 @@ export interface OrgMembershipSummary {
   role: string;
 }
 
+export type AuthAppAccessRequiredOnboarding =
+  (typeof AuthAppAccessRequiredOnboarding)[keyof typeof AuthAppAccessRequiredOnboarding];
+
+export const AuthAppAccessRequiredOnboarding = {
+  none: "none",
+  organization: "organization",
+} as const;
+
+export type AuthAppAccessNormalizedAccessProfile =
+  (typeof AuthAppAccessNormalizedAccessProfile)[keyof typeof AuthAppAccessNormalizedAccessProfile];
+
+export const AuthAppAccessNormalizedAccessProfile = {
+  superadmin: "superadmin",
+  solo: "solo",
+  organization: "organization",
+} as const;
+
+export interface AuthAppAccess {
+  appSlug: string;
+  canAccess: boolean;
+  requiredOnboarding: AuthAppAccessRequiredOnboarding;
+  defaultRoute: string;
+  normalizedAccessProfile: AuthAppAccessNormalizedAccessProfile;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -56,6 +81,7 @@ export interface AuthUser {
   activeOrgId?: string | null;
   activeOrg?: Organization;
   memberships?: OrgMembershipSummary[];
+  appAccess?: AuthAppAccess;
 }
 
 export interface AuthUrlResponse {
@@ -165,6 +191,10 @@ export const InvitationStatus = {
 export interface Invitation {
   id: string;
   email: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
   role: InvitationRole;
   orgId: string;
   orgName: string;
@@ -185,6 +215,8 @@ export const CreateInvitationRequestRole = {
 
 export interface CreateInvitationRequest {
   email: string;
+  firstName?: string;
+  lastName?: string;
   role: CreateInvitationRequestRole;
 }
 

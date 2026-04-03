@@ -1576,6 +1576,94 @@ export const useCancelInvitation = <
 };
 
 /**
+ * @summary Resend an invitation
+ */
+export const getResendInvitationUrl = (orgId: string, invitationId: string) => {
+  return `/api/organizations/${orgId}/invitations/${invitationId}/resend`;
+};
+
+export const resendInvitation = async (
+  orgId: string,
+  invitationId: string,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(
+    getResendInvitationUrl(orgId, invitationId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getResendInvitationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendInvitation>>,
+    TError,
+    { orgId: string; invitationId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendInvitation>>,
+  TError,
+  { orgId: string; invitationId: string },
+  TContext
+> => {
+  const mutationKey = ["resendInvitation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendInvitation>>,
+    { orgId: string; invitationId: string }
+  > = (props) => {
+    const { orgId, invitationId } = props ?? {};
+
+    return resendInvitation(orgId, invitationId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendInvitationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendInvitation>>
+>;
+
+export type ResendInvitationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Resend an invitation
+ */
+export const useResendInvitation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendInvitation>>,
+    TError,
+    { orgId: string; invitationId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendInvitation>>,
+  TError,
+  { orgId: string; invitationId: string },
+  TContext
+> => {
+  return useMutation(getResendInvitationMutationOptions(options));
+};
+
+/**
  * @summary Accept an invitation by token
  */
 export const getAcceptInvitationUrl = (token: string) => {
