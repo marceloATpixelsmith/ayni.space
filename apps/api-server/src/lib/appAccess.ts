@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { db, appsTable, orgMembershipsTable, organizationsTable, userAppAccessTable, usersTable } from "@workspace/db";
+import { db, appsTable, orgAppAccessTable, orgMembershipsTable, organizationsTable, userAppAccessTable, usersTable } from "@workspace/db";
 import { getAuthRoutePolicyForProfile, resolveNormalizedAccessProfile } from "./appAccessProfile.js";
 
 function getDefaultRouteByAppSlug(appSlug: string): string {
@@ -44,18 +44,9 @@ export async function getAppContext(userId: string, appSlug: string) {
     where: and(eq(userAppAccessTable.userId, userId), eq(userAppAccessTable.appId, app.id)),
   });
 
-  const activeOrg = user.activeOrgId
-    ? await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, user.activeOrgId) })
-    : null;
-
-  const orgMembership = user.activeOrgId
-    ? await db.query.orgMembershipsTable.findFirst({
-        where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, user.activeOrgId)),
-      })
-    : null;
-
   const hasActiveAppAccess = appAccess?.accessStatus === "active";
-  const hasActiveMembership = orgMembership?.membershipStatus === "active";
+  let activeOrg = null;
+  let orgMembership = null;
 
   let requiredOnboarding: "none" | "organization" = "none";
   let canAccess = false;
@@ -63,10 +54,57 @@ export async function getAppContext(userId: string, appSlug: string) {
   if (normalizedAccessProfile === "superadmin") {
     canAccess = Boolean(user.isSuperAdmin);
   } else if (normalizedAccessProfile === "organization") {
-    canAccess = hasActiveMembership || hasActiveAppAccess;
+    let activeMemberships: Array<typeof orgMembershipsTable.$inferSelect> = [];
+    try {
+      activeMemberships = await db.query.orgMembershipsTable.findMany({
+        where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.membershipStatus, "active")),
+      });
+    } catch {
+      activeMemberships = [];
+    }
+    if (activeMemberships.length === 0 && user.activeOrgId) {
+      const activeMembership = await db.query.orgMembershipsTable.findFirst({
+        where: and(
+          eq(orgMembershipsTable.userId, userId),
+          eq(orgMembershipsTable.orgId, user.activeOrgId),
+          eq(orgMembershipsTable.membershipStatus, "active"),
+        ),
+      });
+      if (activeMembership) activeMemberships = [activeMembership];
+    }
+
+    const orgAuthorizations = (
+      await Promise.all(
+        activeMemberships.map(async (membership) => {
+          const organization = await db.query.organizationsTable.findFirst({
+            where: and(eq(organizationsTable.id, membership.orgId), eq(organizationsTable.isActive, true)),
+          });
+          if (!organization) return null;
+
+          let orgAppAccess = null;
+          try {
+            orgAppAccess = await db.query.orgAppAccessTable.findFirst({
+              where: and(eq(orgAppAccessTable.orgId, organization.id), eq(orgAppAccessTable.appId, app.id), eq(orgAppAccessTable.enabled, true)),
+            });
+          } catch {
+            orgAppAccess = null;
+          }
+          if (!orgAppAccess && organization.appId !== app.id) return null;
+
+          return { membership, organization };
+        }),
+      )
+    ).filter(Boolean) as Array<{
+      membership: (typeof activeMemberships)[number];
+      organization: typeof organizationsTable.$inferSelect;
+    }>;
+
+    const selectedAuthorization = orgAuthorizations.find((item) => item.organization.id === user.activeOrgId) ?? orgAuthorizations[0] ?? null;
+    activeOrg = selectedAuthorization?.organization ?? null;
+    orgMembership = selectedAuthorization?.membership ?? null;
+    canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
     if (!canAccess) requiredOnboarding = "organization";
   } else if (normalizedAccessProfile === "solo") {
-    // Solo users are auto-self-onboarded: no onboarding route and no invite/customer registration paths.
     canAccess = true;
   } else {
     return null;

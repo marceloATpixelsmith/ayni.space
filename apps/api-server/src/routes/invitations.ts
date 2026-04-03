@@ -1,35 +1,77 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { and, eq } from "drizzle-orm";
-import { appsTable, db, invitationsTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
+import { appsTable, db, invitationsTable, orgAppAccessTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrganizationAppSession } from "../middlewares/requireOrganizationAppSession.js";
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
-import { assertRequestSessionGroupCompatibleWithOrg, resolveOrgSessionGroupContext } from "../lib/sessionGroupCompatibility.js";
+import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-async function isStaffInvitesEnabledForOrg(orgId: string): Promise<boolean> {
-  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
-  if (!org?.appId) return false;
+async function getOrganizationAppContextForSession(orgId: string, sessionAppSlug: string | undefined) {
+  if (!sessionAppSlug) return null;
 
-  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, org.appId) });
-  return app?.accessMode === "organization" && app.staffInvitesEnabled;
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
+  if (!org) return null;
+
+  const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.slug, sessionAppSlug), eq(appsTable.isActive, true)) });
+  if (!app || app.accessMode !== "organization") return null;
+
+  let orgAppAccess = null;
+  try {
+    orgAppAccess = await db.query.orgAppAccessTable.findFirst({
+      where: and(eq(orgAppAccessTable.orgId, orgId), eq(orgAppAccessTable.appId, app.id), eq(orgAppAccessTable.enabled, true)),
+    });
+  } catch {
+    orgAppAccess = null;
+  }
+  if (!orgAppAccess && org.appId !== app.id) return null;
+
+  return { app };
 }
 
-async function isStaffInvitesEnabledForInvitation(invitation: { orgId: string | null }): Promise<boolean> {
+async function isStaffInvitesEnabledForOrg(orgId: string, sessionAppSlug: string | undefined): Promise<boolean> {
+  const context = await getOrganizationAppContextForSession(orgId, sessionAppSlug);
+  return Boolean(context?.app.staffInvitesEnabled);
+}
+
+async function isStaffInvitesEnabledForInvitation(
+  invitation: { orgId: string | null; appId: string },
+): Promise<boolean> {
   if (!invitation.orgId) return false;
-  return isStaffInvitesEnabledForOrg(invitation.orgId);
+  let resolvedAppId = invitation.appId;
+  if (!resolvedAppId) {
+    const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
+    resolvedAppId = org?.appId ?? "";
+  }
+  if (!resolvedAppId) return false;
+
+  const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, resolvedAppId), eq(appsTable.isActive, true)) });
+  if (!app || app.accessMode !== "organization" || !app.staffInvitesEnabled) return false;
+
+  let orgAppAccess = null;
+  try {
+    orgAppAccess = await db.query.orgAppAccessTable.findFirst({
+      where: and(eq(orgAppAccessTable.orgId, invitation.orgId), eq(orgAppAccessTable.appId, resolvedAppId), eq(orgAppAccessTable.enabled, true)),
+    });
+  } catch {
+    orgAppAccess = null;
+  }
+  if (orgAppAccess) return true;
+
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
+  return org?.appId === resolvedAppId;
 }
 
 async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
   const { orgId } = req.params;
 
-  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+  if (!(await isStaffInvitesEnabledForOrg(orgId, req.session.appSlug))) {
     res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
     return;
   }
@@ -61,7 +103,7 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
   const userId = req.session.userId;
   const { email, role } = req.body;
 
-  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+  if (!(await isStaffInvitesEnabledForOrg(orgId, req.session.appSlug))) {
     res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
     return;
   }
@@ -85,8 +127,8 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
   }
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, orgId) });
-  const orgContext = await resolveOrgSessionGroupContext(orgId);
-  if (!orgContext) {
+  const organizationAppContext = await getOrganizationAppContextForSession(orgId, req.session.appSlug);
+  if (!organizationAppContext) {
     res.status(404).json({ error: "Organization not found" });
     return;
   }
@@ -104,7 +146,7 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
       invitedRole: role,
       token: tokenHash,
       invitationStatus: "pending",
-      appId: orgContext.appId,
+      appId: organizationAppContext.app.id,
       invitedByUserId: userId,
       expiresAt: invitationExpiresAt,
     })
@@ -136,7 +178,7 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
 async function cancelInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
 
-  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+  if (!(await isStaffInvitesEnabledForOrg(orgId, req.session.appSlug))) {
     res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
     return;
   }
@@ -167,7 +209,7 @@ async function cancelInvitation(req: Request<{ orgId: string; invitationId: stri
 async function resendInvitation(req: Request<{ orgId: string; invitationId: string }>, res: Response) {
   const { orgId, invitationId } = req.params;
 
-  if (!(await isStaffInvitesEnabledForOrg(orgId))) {
+  if (!(await isStaffInvitesEnabledForOrg(orgId, req.session.appSlug))) {
     res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
     return;
   }

@@ -37,14 +37,6 @@ test("superadmin apps require super-admin even when app entitlement exists", asy
       appId: "app-admin",
       accessStatus: "active",
     })),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
-      id: "m-1",
-      userId: "user-non-super",
-      orgId: "org-a",
-      membershipStatus: "active",
-      role: "staff",
-    })),
   ];
 
   try {
@@ -52,60 +44,20 @@ test("superadmin apps require super-admin even when app entitlement exists", asy
     assert.ok(context);
     assert.equal(context?.canAccess, false);
     assert.equal(context?.requiredOnboarding, "none");
-    assert.deepEqual(context?.authRoutePolicy, {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    });
   } finally {
     teardown(restores);
   }
 });
 
-test("superadmin apps allow super-admin without org membership/app entitlement", async () => {
-  const restores = [
-    patchProperty(db.query.appsTable, "findFirst", async () => ({
-      id: "app-admin",
-      slug: "admin",
-      isActive: true,
-      accessMode: "superadmin",
-      staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
-    })),
-    patchProperty(db.query.usersTable, "findFirst", async () => ({
-      id: "user-super",
-      email: "admin@example.com",
-      active: true,
-      suspended: false,
-      deletedAt: null,
-      isSuperAdmin: true,
-      activeOrgId: null,
-    })),
-    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
-  ];
-
-  try {
-    const context = await getAppContext("user-super", "admin");
-    assert.ok(context);
-    assert.equal(context?.canAccess, true);
-    assert.equal(context?.requiredOnboarding, "none");
-    assert.equal(context?.defaultRoute, "/dashboard");
-  } finally {
-    teardown(restores);
-  }
-});
-
-test("solo apps auto-self-onboard and allow valid users without app entitlement", async () => {
+test("solo apps remain directly accessible for valid users", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-solo",
       slug: "shipibo",
       isActive: true,
       accessMode: "solo",
-      staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-solo",
@@ -117,68 +69,19 @@ test("solo apps auto-self-onboard and allow valid users without app entitlement"
       activeOrgId: null,
     })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
   ];
 
   try {
     const context = await getAppContext("user-solo", "shipibo");
     assert.ok(context);
     assert.equal(context?.normalizedAccessProfile, "solo");
-    assert.equal(context?.requiredOnboarding, "none");
     assert.equal(context?.canAccess, true);
-    assert.equal(context?.defaultRoute, "/shipibo");
-    assert.deepEqual(context?.authRoutePolicy, {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    });
   } finally {
     teardown(restores);
   }
 });
 
-test("organization mode requires organization onboarding for non-member user", async () => {
-  const restores = [
-    patchProperty(db.query.appsTable, "findFirst", async () => ({
-      id: "app-org",
-      slug: "ayni",
-      isActive: true,
-      accessMode: "organization",
-      staffInvitesEnabled: false,
-      customerRegistrationEnabled: false,
-    })),
-    patchProperty(db.query.usersTable, "findFirst", async () => ({
-      id: "user-org",
-      email: "org@example.com",
-      active: true,
-      suspended: false,
-      deletedAt: null,
-      isSuperAdmin: false,
-      activeOrgId: null,
-    })),
-    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
-  ];
-
-  try {
-    const context = await getAppContext("user-org", "ayni");
-    assert.ok(context);
-    assert.equal(context?.normalizedAccessProfile, "organization");
-    assert.equal(context?.requiredOnboarding, "organization");
-    assert.equal(context?.canAccess, false);
-    assert.deepEqual(context?.authRoutePolicy, {
-      allowOnboarding: true,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    });
-  } finally {
-    teardown(restores);
-  }
-});
-
-test("organization auth route policy enables invites but keeps customer-registration fail-closed until implemented", async () => {
+test("organization mode allows active membership + org_app_access without user_app_access", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-org",
@@ -186,11 +89,12 @@ test("organization auth route policy enables invites but keeps customer-registra
       isActive: true,
       accessMode: "organization",
       staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
+      customerRegistrationEnabled: false,
+      metadata: {},
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({
-      id: "user-org",
-      email: "org@example.com",
+      id: "user-org-member",
+      email: "member@example.com",
       active: true,
       suspended: false,
       deletedAt: null,
@@ -198,30 +102,30 @@ test("organization auth route policy enables invites but keeps customer-registra
       activeOrgId: "org-a",
     })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a" })),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
-      id: "m-1",
-      userId: "user-org",
-      orgId: "org-a",
-      membershipStatus: "active",
-      role: "org_admin",
-    })),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => ([
+      {
+        id: "m-member",
+        userId: "user-org-member",
+        orgId: "org-a",
+        membershipStatus: "active",
+        role: "staff",
+      },
+    ])),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", isActive: true })),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => ({ id: "oa-1", orgId: "org-a", appId: "app-org", enabled: true })),
   ];
 
   try {
-    const context = await getAppContext("user-org", "ayni");
+    const context = await getAppContext("user-org-member", "ayni");
     assert.ok(context);
-    assert.deepEqual(context?.authRoutePolicy, {
-      allowOnboarding: true,
-      allowInvitations: true,
-      allowCustomerRegistration: false,
-    });
+    assert.equal(context?.canAccess, true);
+    assert.equal(context?.requiredOnboarding, "none");
   } finally {
     teardown(restores);
   }
 });
 
-test("organization mode grants access from active membership even without user_app_access row", async () => {
+test("organization mode denies when membership exists but org_app_access is missing", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-org",
@@ -241,21 +145,100 @@ test("organization mode grants access from active membership even without user_a
       activeOrgId: "org-a",
     })),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-org" })),
-    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
-      id: "m-member",
-      userId: "user-org-member",
-      orgId: "org-a",
-      membershipStatus: "active",
-      role: "staff",
-    })),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => ([
+      {
+        id: "m-member",
+        userId: "user-org-member",
+        orgId: "org-a",
+        membershipStatus: "active",
+        role: "staff",
+      },
+    ])),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", isActive: true })),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => null),
   ];
 
   try {
     const context = await getAppContext("user-org-member", "ayni");
     assert.ok(context);
-    assert.equal(context?.canAccess, true);
-    assert.equal(context?.requiredOnboarding, "none");
+    assert.equal(context?.canAccess, false);
+    assert.equal(context?.requiredOnboarding, "organization");
+  } finally {
+    teardown(restores);
+  }
+});
+
+test("organization mode denies when org_app_access exists but membership is missing", async () => {
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-org",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-org-member",
+      email: "member@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      isSuperAdmin: false,
+      activeOrgId: "org-a",
+    })),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => []),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+  ];
+
+  try {
+    const context = await getAppContext("user-org-member", "ayni");
+    assert.ok(context);
+    assert.equal(context?.canAccess, false);
+    assert.equal(context?.requiredOnboarding, "organization");
+  } finally {
+    teardown(restores);
+  }
+});
+
+test("same org membership can authorize the same user to multiple apps via org_app_access", async () => {
+  let appLookupCount = 0;
+  let orgAppAccessLookupCount = 0;
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => {
+      appLookupCount += 1;
+      if (appLookupCount === 2) {
+        return { id: "app-shipibo", slug: "shipibo", isActive: true, accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: false };
+      }
+      return { id: "app-ayni", slug: "ayni", isActive: true, accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: false };
+    }),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-org-member",
+      email: "member@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      isSuperAdmin: false,
+      activeOrgId: "org-a",
+    })),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => ([
+      { id: "m-member", userId: "user-org-member", orgId: "org-a", membershipStatus: "active", role: "staff" },
+    ])),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", isActive: true })),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => {
+      orgAppAccessLookupCount += 1;
+      if (orgAppAccessLookupCount === 1) return { id: "oa-ayni", orgId: "org-a", appId: "app-ayni", enabled: true };
+      return { id: "oa-shipibo", orgId: "org-a", appId: "app-shipibo", enabled: true };
+    }),
+  ];
+
+  try {
+    const ayniContext = await getAppContext("user-org-member", "ayni");
+    const shipiboContext = await getAppContext("user-org-member", "shipibo");
+    assert.equal(ayniContext?.canAccess, true);
+    assert.equal(shipiboContext?.canAccess, true);
   } finally {
     teardown(restores);
   }

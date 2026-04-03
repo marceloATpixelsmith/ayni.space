@@ -46,6 +46,7 @@ function getCurrentAppAccess(user: ReturnType<typeof useAuth>["user"]): AuthAppA
   const record = candidate as Record<string, unknown>;
   if (record["appSlug"] !== CURRENT_APP_SLUG) return null;
   if (typeof record["canAccess"] !== "boolean") return null;
+  if (typeof record["appSlug"] !== "string") return null;
   if (record["requiredOnboarding"] !== "none" && record["requiredOnboarding"] !== "organization") return null;
   if (typeof record["defaultRoute"] !== "string") return null;
   if (
