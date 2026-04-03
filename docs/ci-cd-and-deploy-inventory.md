@@ -11,6 +11,7 @@
 - The same backend failure summary content is appended to `$GITHUB_STEP_SUMMARY` so failing error details are visible on the run summary page without downloading artifacts.
 - If structured parsing cannot extract explicit failures, backend failure summaries explicitly report parse failure and print a raw fallback excerpt selected from marker-based failure blocks or the final meaningful log tail.
 - Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
+- Final backend gate job-fail evaluation now keys off each step's captured `exit_code` and treats anomalous `outcome != success` + `exit_code=0` combinations as pass, preventing false-negative gate failures caused by outcome/exit-code mismatch.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.
 - `.github/workflows/linear-history-enforcement.yml` blocks PRs with merge commits (rebase-only history).
 - `.github/workflows/auto-rebase.yml` and `.github/workflows/auto-merge.yml` automate Codex PR maintenance/merge behavior for `master`-targeting codex branches.
