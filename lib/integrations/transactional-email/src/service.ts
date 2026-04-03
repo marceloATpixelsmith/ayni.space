@@ -5,6 +5,7 @@ import { MailchimpTransactionalEmailAdapter } from "./adapters/mailchimp-transac
 import type { Lane2ProviderConnection, Lane2SendResult, Lane2TransactionalEmailRequest } from "./types";
 import { validateLane2Request } from "./validation";
 import { InMemoryTransactionalEmailRepository } from "./repository";
+import { normalizeProviderError } from "./errors";
 
 const ADAPTERS: Record<string, EmailProviderAdapter> = {
   brevo: new BrevoEmailAdapter(),
@@ -61,9 +62,13 @@ export class Lane2TransactionalEmailService {
         provider: connection.provider,
         deliveryState: "failed",
         error: {
-          code: "provider_request_exception",
-          message: error instanceof Error ? error.message : "provider request failed",
-          retryable: false,
+          ...normalizeProviderError({
+            provider: connection.provider,
+            code: "provider_request_exception",
+            message: error instanceof Error ? error.message : "provider request failed",
+            retryable: false,
+            normalizedType: "network",
+          }),
         },
       };
       await this.repository.markOutboundResult(logId, result);

@@ -41,6 +41,7 @@ export const emailNormalizedEventTypeEnum = pgEnum("email_normalized_event_type"
   "failed",
   "cancelled",
 ]);
+export const emailWebhookCorrelationStatusEnum = pgEnum("email_webhook_correlation_status", ["linked", "unlinked"]);
 
 export const tenantEmailProviderConnectionsTable = platform.table(
   "tenant_email_provider_connections",
@@ -122,6 +123,7 @@ export const emailWebhookEventsTable = platform.table(
     reason: text("reason"),
     diagnostic: text("diagnostic"),
     rawPayload: jsonb("raw_payload").notNull().default({}),
+    correlationStatus: emailWebhookCorrelationStatusEnum("correlation_status").notNull().default("linked"),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
     linkedOutboundEmailLogId: text("linked_outbound_email_log_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

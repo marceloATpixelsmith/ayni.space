@@ -73,7 +73,7 @@ test("service logs failure path", async () => {
         provider: "brevo",
         status: "failed",
         deliveryState: "failed",
-        error: { code: "brevo_400", message: "invalid", retryable: false },
+        error: { provider: "brevo", code: "brevo_400", message: "invalid", normalizedType: "provider", retryable: false },
       }),
       validateConnection: async () => ({ state: "valid" as const }),
       normalizeWebhook: () => [],
@@ -84,4 +84,7 @@ test("service logs failure path", async () => {
   assert.equal(output.result.status, "failed");
   assert.equal(repo.outboundLogs.length, 1);
   assert.equal(repo.outboundLogs[0]?.["status"], "failed");
+  const normalizedError = (output.result.error ?? {}) as Record<string, unknown>;
+  assert.equal(normalizedError["provider"], "brevo");
+  assert.equal(normalizedError["normalizedType"], "provider");
 });

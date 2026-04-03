@@ -125,3 +125,102 @@ test("runtime correlates webhook events and updates delivery state", async () =>
   assert.equal(repo.webhookEvents[0]?.["linkedOutboundEmailLogId"], "log_1");
   assert.equal(repo.outboundLogs[0]?.["deliveryState"], "delivered");
 });
+
+test("runtime persists unlinked webhook events", async () => {
+  const repo = new InMemoryTransactionalEmailRepository();
+  const runtime = new Lane2TransactionalEmailRuntime(repo as never, {
+    brevo: {
+      provider: "brevo",
+      capabilities: {
+        supportsTemplates: true,
+        supportsScheduling: true,
+        supportsMetadata: true,
+        supportsTags: true,
+        supportsInlineAttachments: true,
+        supportsBatchSend: true,
+        supportsWebhooks: true,
+        supportsReplyTo: true,
+        supportsCcBcc: true,
+        supportsCustomHeaders: true,
+      },
+      send: async () => ({ provider: "brevo", status: "accepted", deliveryState: "accepted" }),
+      validateConnection: async () => ({ state: "valid" }),
+      normalizeWebhook: () => [
+        {
+          provider: "brevo",
+          rawProviderEventType: "delivered",
+          normalizedEventType: "delivered",
+          providerMessageId: "missing-id",
+          rawPayload: { event: "delivered" },
+        },
+      ],
+    },
+    mailchimp_transactional: {
+      provider: "mailchimp_transactional",
+      capabilities: {
+        supportsTemplates: true,
+        supportsScheduling: true,
+        supportsMetadata: true,
+        supportsTags: true,
+        supportsInlineAttachments: true,
+        supportsBatchSend: true,
+        supportsWebhooks: true,
+        supportsReplyTo: true,
+        supportsCcBcc: true,
+        supportsCustomHeaders: true,
+      },
+      send: async () => ({ provider: "mailchimp_transactional", status: "accepted", deliveryState: "accepted" }),
+      validateConnection: async () => ({ state: "valid" }),
+      normalizeWebhook: () => [],
+    },
+  });
+  await runtime.ingestWebhook("brevo", { event: "delivered" });
+  assert.equal(repo.webhookEvents[0]?.["correlationStatus"], "unlinked");
+});
+
+test("runtime handles malformed webhook payloads without throwing", async () => {
+  const repo = new InMemoryTransactionalEmailRepository();
+  const runtime = new Lane2TransactionalEmailRuntime(repo as never, {
+    brevo: {
+      provider: "brevo",
+      capabilities: {
+        supportsTemplates: true,
+        supportsScheduling: true,
+        supportsMetadata: true,
+        supportsTags: true,
+        supportsInlineAttachments: true,
+        supportsBatchSend: true,
+        supportsWebhooks: true,
+        supportsReplyTo: true,
+        supportsCcBcc: true,
+        supportsCustomHeaders: true,
+      },
+      send: async () => ({ provider: "brevo", status: "accepted", deliveryState: "accepted" }),
+      validateConnection: async () => ({ state: "valid" }),
+      normalizeWebhook: () => {
+        throw new Error("bad payload");
+      },
+    },
+    mailchimp_transactional: {
+      provider: "mailchimp_transactional",
+      capabilities: {
+        supportsTemplates: true,
+        supportsScheduling: true,
+        supportsMetadata: true,
+        supportsTags: true,
+        supportsInlineAttachments: true,
+        supportsBatchSend: true,
+        supportsWebhooks: true,
+        supportsReplyTo: true,
+        supportsCcBcc: true,
+        supportsCustomHeaders: true,
+      },
+      send: async () => ({ provider: "mailchimp_transactional", status: "accepted", deliveryState: "accepted" }),
+      validateConnection: async () => ({ state: "valid" }),
+      normalizeWebhook: () => [],
+    },
+  });
+  const count = await runtime.ingestWebhook("brevo", { bad: true });
+  assert.equal(count, 1);
+  assert.equal(repo.webhookEvents.length, 1);
+});

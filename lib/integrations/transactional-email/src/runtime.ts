@@ -5,7 +5,8 @@ import { BrevoEmailAdapter } from "./adapters/brevo";
 import { MailchimpTransactionalEmailAdapter } from "./adapters/mailchimp-transactional";
 import { TransactionalEmailRepository } from "./repository";
 import { Lane2TransactionalEmailService } from "./service";
-import type { Lane2TransactionalEmailRequest, ProviderConnectionCredentials, ProviderConnectionValidationState } from "./types";
+import type { Lane2TransactionalEmailRequest, NormalizedWebhookEvent, ProviderConnectionCredentials, ProviderConnectionValidationState } from "./types";
+import { sanitizeSnapshot } from "./sanitization";
 
 const ADAPTERS: Record<string, EmailProviderAdapter> = {
   brevo: new BrevoEmailAdapter(),
@@ -76,26 +77,57 @@ export class Lane2TransactionalEmailRuntime {
 
   async ingestWebhook(provider: "brevo" | "mailchimp_transactional", payload: unknown) {
     const adapter = this.adapters[provider];
-    const normalizedEvents = adapter.normalizeWebhook(payload);
+    let normalizedEvents: NormalizedWebhookEvent[];
+    try {
+      normalizedEvents = adapter.normalizeWebhook(payload);
+    } catch (error) {
+      normalizedEvents = [
+        {
+          provider,
+          rawProviderEventType: "unknown",
+          normalizedEventType: "failed" as const,
+          reason: "normalization_failed",
+          diagnostic: error instanceof Error ? error.message : "unknown normalization error",
+          rawPayload: sanitizeSnapshot({ payload }),
+        },
+      ];
+    }
     for (const event of normalizedEvents) {
-      const log = event.providerMessageId
-        ? await this.repository.findOutboundLogByProviderMessage(event.provider, event.providerMessageId)
-        : null;
-      await this.repository.insertWebhookEvent({
-        id: randomUUID(),
-        provider: event.provider,
-        rawProviderEventType: event.rawProviderEventType,
-        normalizedEventType: event.normalizedEventType,
-        providerMessageId: event.providerMessageId,
-        recipient: event.recipient,
-        deliveryState: event.normalizedEventType,
-        reason: event.reason,
-        diagnostic: event.diagnostic,
-        rawPayload: event.rawPayload,
-        linkedOutboundEmailLogId: (log?.id as string | undefined) ?? undefined,
-      });
-      if (log?.id) {
-        await this.repository.updateOutboundDeliveryState(String(log.id), event.normalizedEventType);
+      try {
+        const log = event.providerMessageId
+          ? await this.repository.findOutboundLogByProviderMessage(event.provider, event.providerMessageId)
+          : null;
+        await this.repository.insertWebhookEvent({
+          id: randomUUID(),
+          provider: event.provider,
+          rawProviderEventType: event.rawProviderEventType,
+          normalizedEventType: event.normalizedEventType,
+          providerMessageId: event.providerMessageId,
+          recipient: event.recipient,
+          deliveryState: event.normalizedEventType,
+          reason: event.reason ?? (event.rawProviderEventType === "unknown" ? "unknown_event_type" : undefined),
+          diagnostic: event.diagnostic,
+          rawPayload: event.rawPayload,
+          linkedOutboundEmailLogId: (log?.id as string | undefined) ?? undefined,
+          correlationStatus: log?.id ? "linked" : "unlinked",
+        });
+        if (log?.id) {
+          await this.repository.updateOutboundDeliveryState(String(log.id), event.normalizedEventType);
+        }
+      } catch {
+        await this.repository.insertWebhookEvent({
+          id: randomUUID(),
+          provider: event.provider,
+          rawProviderEventType: "unknown",
+          normalizedEventType: "failed",
+          providerMessageId: event.providerMessageId,
+          recipient: event.recipient,
+          deliveryState: "failed",
+          reason: "webhook_processing_failed",
+          diagnostic: "failed to process normalized webhook event",
+          rawPayload: sanitizeSnapshot(event.rawPayload),
+          correlationStatus: "unlinked",
+        });
       }
     }
     return normalizedEvents.length;

@@ -268,7 +268,7 @@ router.get("/organizations/:orgId/transactional-email/logs", requireAuth, requir
     providerConnectionId: asSingleString(req.query["connectionId"]),
     attemptResult: asSingleString(req.query["status"]) as "accepted" | "queued" | "rejected" | "failed" | undefined,
     deliveryState: normalizeDeliveryState(req.query["deliveryState"]),
-    recipient: undefined,
+    recipient: recipientFilter,
     subject: asSingleString(req.query["subject"]),
     providerMessageId: asSingleString(req.query["providerMessageId"]),
     correlationId: asSingleString(req.query["correlationId"]),
@@ -278,12 +278,7 @@ router.get("/organizations/:orgId/transactional-email/logs", requireAuth, requir
     offset,
   });
 
-  const filtered = recipientFilter
-    ? logs.filter((log: { requestedTo: unknown }) =>
-      Array.isArray(log.requestedTo) &&
-      log.requestedTo.some((recipient: unknown) => String(recipient).toLowerCase().includes(recipientFilter.toLowerCase())))
-    : logs;
-  res.status(200).json({ logs: filtered, limit, offset });
+  res.status(200).json({ logs, limit, offset });
 });
 
 router.get("/organizations/:orgId/transactional-email/logs/:logId", requireAuth, requireOrgAdmin, async (req, res) => {
@@ -322,14 +317,7 @@ router.get("/organizations/:orgId/transactional-email/events", requireAuth, requ
     limit,
     offset,
   });
-
-  const scoped = [];
-  for (const event of events) {
-    if (!event.linkedOutboundEmailLogId) continue;
-    const log = await repository.findOutboundLogById(event.linkedOutboundEmailLogId);
-    if (log?.orgId === orgId) scoped.push(event);
-  }
-  res.status(200).json({ events: scoped, limit, offset });
+  res.status(200).json({ events, limit, offset });
 });
 
 router.get("/organizations/:orgId/transactional-email/logs/:logId/events", requireAuth, requireOrgAdmin, async (req, res) => {
@@ -363,7 +351,7 @@ router.get("/admin/transactional-email/logs", requireSuperAdmin, async (req, res
     providerConnectionId: asSingleString(req.query["connectionId"]),
     attemptResult: asSingleString(req.query["status"]) as "accepted" | "queued" | "rejected" | "failed" | undefined,
     deliveryState: normalizeDeliveryState(req.query["deliveryState"]),
-    recipient: undefined,
+    recipient: asSingleString(req.query["recipient"]),
     subject: asSingleString(req.query["subject"]),
     providerMessageId: asSingleString(req.query["providerMessageId"]),
     correlationId: asSingleString(req.query["correlationId"]),
@@ -427,7 +415,11 @@ router.post("/transactional-email/webhooks/brevo", async (req, res) => {
     res.status(401).json({ error: "Invalid webhook signature" });
     return;
   }
-  await runtime.ingestWebhook("brevo", req.body);
+  try {
+    await runtime.ingestWebhook("brevo", req.body);
+  } catch {
+    // webhook ingestion is fail-safe and should never crash endpoint callers
+  }
   res.status(202).json({ accepted: true });
 });
 
@@ -437,7 +429,11 @@ router.post("/transactional-email/webhooks/mailchimp-transactional", async (req,
     res.status(401).json({ error: "Invalid webhook signature" });
     return;
   }
-  await runtime.ingestWebhook("mailchimp_transactional", req.body);
+  try {
+    await runtime.ingestWebhook("mailchimp_transactional", req.body);
+  } catch {
+    // webhook ingestion is fail-safe and should never crash endpoint callers
+  }
   res.status(202).json({ accepted: true });
 });
 

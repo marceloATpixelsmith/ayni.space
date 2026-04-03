@@ -8,6 +8,7 @@ import type {
   ProviderConnectionCredentials,
 } from "../types";
 import { sanitizeSnapshot } from "../sanitization";
+import { normalizeProviderError } from "../errors";
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 const BREVO_ACCOUNT_ENDPOINT = "https://api.brevo.com/v3/account";
@@ -22,7 +23,7 @@ function mapBrevoPayload(request: Lane2TransactionalEmailRequest): Record<string
     subject: request.subject,
     textContent: request.textBody,
     htmlContent: request.htmlBody,
-    templateId: request.templateRef ? Number(request.templateRef) : undefined,
+    templateId: request.templateRef !== undefined ? request.templateRef : undefined,
     params: request.templateParams,
     attachment: request.attachments?.filter((a) => !a.inline).map((a) => ({
       name: a.filename,
@@ -63,10 +64,14 @@ export class BrevoEmailAdapter implements EmailProviderAdapter {
         provider: this.provider,
         deliveryState: "failed",
         error: {
-          code: `brevo_${response.status}`,
-          message: String(body["message"] ?? "Brevo send failed"),
-          retryable: response.status >= 500,
-          details: sanitizeSnapshot(body),
+          ...normalizeProviderError({
+            provider: "brevo",
+            code: `brevo_${response.status}`,
+            message: String(body["message"] ?? "Brevo send failed"),
+            retryable: response.status >= 500,
+            normalizedType: "provider",
+            details: sanitizeSnapshot(body),
+          }),
         },
         rawResponseSnapshot: sanitizeSnapshot(body),
       };
