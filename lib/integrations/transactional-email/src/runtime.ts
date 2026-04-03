@@ -49,7 +49,7 @@ export class Lane2TransactionalEmailRuntime {
       throw new Error(`Unsupported provider: ${connection.provider}`);
     }
     const service = new Lane2TransactionalEmailService(this.repository as any, this.adapters);
-    return service.send(request, {
+    const result = await service.send(request, {
       id: connection.id,
       orgId: connection.orgId,
       appId: connection.appId,
@@ -59,6 +59,16 @@ export class Lane2TransactionalEmailRuntime {
       defaultSenderEmail: connection.defaultSenderEmail ?? undefined,
       defaultSenderName: connection.defaultSenderName ?? undefined,
     });
+    if (result.result.status === "failed" || result.result.status === "rejected") {
+      console.error("[lane2-runtime] send failed", {
+        orgId: request.orgId,
+        appId: request.appId,
+        provider: connection.provider,
+        status: result.result.status,
+        errorCode: result.result.error?.code ?? null,
+      });
+    }
+    return result;
   }
 
   async validateConnection(connectionId: string): Promise<{ state: ProviderConnectionValidationState; error?: string }> {
@@ -81,6 +91,10 @@ export class Lane2TransactionalEmailRuntime {
     try {
       normalizedEvents = adapter.normalizeWebhook(payload);
     } catch (error) {
+      console.error("[lane2-runtime] webhook normalization failed", {
+        provider,
+        error: error instanceof Error ? error.message : "unknown normalization error",
+      });
       normalizedEvents = [
         {
           provider,
@@ -93,6 +107,13 @@ export class Lane2TransactionalEmailRuntime {
       ];
     }
     for (const event of normalizedEvents) {
+      if (event.rawProviderEventType === "unknown" || event.normalizedEventType === "failed") {
+        console.warn("[lane2-runtime] webhook event mapped as unknown/failed", {
+          provider: event.provider,
+          rawProviderEventType: event.rawProviderEventType,
+          providerMessageId: event.providerMessageId ?? null,
+        });
+      }
       try {
         const log = event.providerMessageId
           ? await this.repository.findOutboundLogByProviderMessage(event.provider, event.providerMessageId)
@@ -115,6 +136,11 @@ export class Lane2TransactionalEmailRuntime {
           await this.repository.updateOutboundDeliveryState(String(log.id), event.normalizedEventType);
         }
       } catch {
+        console.error("[lane2-runtime] webhook event processing failed", {
+          provider: event.provider,
+          rawProviderEventType: event.rawProviderEventType,
+          providerMessageId: event.providerMessageId ?? null,
+        });
         await this.repository.insertWebhookEvent({
           id: randomUUID(),
           provider: event.provider,

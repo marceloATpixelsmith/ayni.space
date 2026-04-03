@@ -231,3 +231,86 @@ test("brevo webhook endpoint remains resilient when ingestion throws", async () 
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("send endpoint returns success payload for accepted provider result", async () => {
+  const restores = [
+    ...baseAuthRestores("org-1"),
+    patchProperty(Lane2TransactionalEmailRuntime.prototype as any, "send", async () => ({
+      logId: "log-1",
+      result: { provider: "brevo", status: "accepted", deliveryState: "accepted" },
+    })),
+  ];
+  try {
+    const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
+    const response = await performJsonRequest(app, "POST", "/api/organizations/org-1/transactional-email/send", {
+      appId: "app-1",
+      fromEmail: "noreply@example.com",
+      to: [{ email: "to@example.com" }],
+      subject: "hello",
+      textBody: "world",
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.logId, "log-1");
+    assert.equal(response.body.result.status, "accepted");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("send endpoint surfaces provider failures with normalized error and logs failure", async () => {
+  let logged = "";
+  const restores = [
+    ...baseAuthRestores("org-1"),
+    patchProperty(console, "error", (...args: unknown[]) => {
+      logged = args.map((item) => String(item)).join(" ");
+    }),
+    patchProperty(Lane2TransactionalEmailRuntime.prototype as any, "send", async () => ({
+      logId: "log-2",
+      result: {
+        provider: "brevo",
+        status: "failed",
+        deliveryState: "failed",
+        error: { code: "brevo_500", message: "provider unavailable" },
+      },
+    })),
+  ];
+  try {
+    const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
+    const response = await performJsonRequest(app, "POST", "/api/organizations/org-1/transactional-email/send", {
+      appId: "app-1",
+      fromEmail: "noreply@example.com",
+      to: [{ email: "to@example.com" }],
+      subject: "hello",
+      textBody: "world",
+    });
+    assert.equal(response.status, 502);
+    assert.equal(response.body.error.code, "SEND_FAILED");
+    assert.match(logged, /provider send failed/);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("webhook payload guards accept but ignore oversized webhook batches", async () => {
+  let warnLog = "";
+  const restores = [
+    patchProperty(console, "warn", (...args: unknown[]) => {
+      warnLog = args.map((item) => String(item)).join(" ");
+    }),
+    patchProperty(Lane2TransactionalEmailRuntime.prototype as any, "ingestWebhook", async () => 1),
+  ];
+  try {
+    const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
+    const response = await performJsonRequest(
+      app,
+      "POST",
+      "/api/transactional-email/webhooks/brevo",
+      Array.from({ length: 501 }, (_, i) => ({ event: `event-${i}` }))
+    );
+    assert.equal(response.status, 202);
+    assert.equal(response.body.ignored, true);
+    assert.match(warnLog, /safe event limit/);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
