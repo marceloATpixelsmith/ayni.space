@@ -220,3 +220,43 @@ test("organization auth route policy enables invites but keeps customer-registra
     teardown(restores);
   }
 });
+
+test("organization mode grants access from active membership even without user_app_access row", async () => {
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-org",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-org-member",
+      email: "member@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      isSuperAdmin: false,
+      activeOrgId: "org-a",
+    })),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-org" })),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
+      id: "m-member",
+      userId: "user-org-member",
+      orgId: "org-a",
+      membershipStatus: "active",
+      role: "staff",
+    })),
+  ];
+
+  try {
+    const context = await getAppContext("user-org-member", "ayni");
+    assert.ok(context);
+    assert.equal(context?.canAccess, true);
+    assert.equal(context?.requiredOnboarding, "none");
+  } finally {
+    teardown(restores);
+  }
+});

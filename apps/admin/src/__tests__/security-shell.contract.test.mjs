@@ -12,6 +12,7 @@ const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts"
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
 const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
 const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
+const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -21,6 +22,7 @@ const turnstileSource = fs.readFileSync(turnstilePath, "utf8");
 const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
 const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
 const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
+const onboardingSource = fs.readFileSync(onboardingPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -165,13 +167,13 @@ test("non-super-admin users are blocked from dashboard and deeper routes", () =>
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
-    'if (auth.user?.isSuperAdmin) {\n        setLocation(next || "/dashboard");',
+    'if (normalizedAccessProfile === "superadmin") {\n        if (auth.user?.isSuperAdmin) {\n          setLocation(next || "/dashboard");',
     "Login must redirect super admins to /dashboard.",
   );
 
   expectIncludes(
     loginSource,
-    '} else {\n        setLocation(adminAccessDeniedLoginPath());',
+    '} else {\n          setLocation(adminAccessDeniedLoginPath());',
     "Login must route non-super admins to /login with an access error.",
   );
 
@@ -191,8 +193,8 @@ test("super-admin users are sent to /dashboard after login", () => {
 test("protected authenticated non-super-admin users are routed to login with access error", () => {
   expectIncludes(
     appSource,
-    "if (!auth.user?.isSuperAdmin) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
-    "Protected routes must route authenticated non-super-admin users to /login with access error.",
+    "if (appAccess?.normalizedAccessProfile === \"superadmin\" && !auth.user?.isSuperAdmin) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    "Protected routes must route authenticated non-super-admin users to /login with access error for superadmin apps.",
   );
 
   expectIncludes(
@@ -605,5 +607,25 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
     turnstileSource,
     "console.info(\"[turnstile] state\", {",
     "Turnstile hook should log runtime readiness and callback transitions for refresh diagnostics.",
+  );
+});
+
+test("app-access snapshot allows organization users into dashboard after onboarding", () => {
+  expectIncludes(
+    appSource,
+    'if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {\n    return <AuthRedirect to="/onboarding/organization" />;',
+    "Protected routes should send users with incomplete organization onboarding to onboarding route.",
+  );
+
+  expectIncludes(
+    appSource,
+    "if (appAccess && !appAccess.canAccess) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    "Protected routes should deny users explicitly marked as app-inaccessible.",
+  );
+
+  expectIncludes(
+    onboardingSource,
+    'await queryClient.refetchQueries({ queryKey: getGetMeQueryKey(), type: "active" });',
+    "Onboarding success should refetch auth state so dashboard authorization is immediate.",
   );
 });

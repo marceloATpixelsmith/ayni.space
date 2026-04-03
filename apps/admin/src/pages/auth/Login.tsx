@@ -74,13 +74,33 @@ export default function Login() {
   React.useEffect(() => {
     if (auth.status === "authenticated") {
       const next = new URLSearchParams(location.split("?")[1] ?? "").get("next");
-      if (auth.user?.isSuperAdmin) {
-        setLocation(next || "/dashboard");
-      } else {
-        setLocation(adminAccessDeniedLoginPath());
+      const appAccess = (auth.user as (typeof auth.user & { appAccess?: Record<string, unknown> }) | null)?.appAccess;
+      const normalizedAccessProfile = appAccess?.["normalizedAccessProfile"];
+      const canAccess = appAccess?.["canAccess"];
+      const requiredOnboarding = appAccess?.["requiredOnboarding"];
+
+      if (normalizedAccessProfile === "superadmin") {
+        if (auth.user?.isSuperAdmin) {
+          setLocation(next || "/dashboard");
+        } else {
+          setLocation(adminAccessDeniedLoginPath());
+        }
+        return;
       }
+
+      if (requiredOnboarding === "organization" && canAccess === false) {
+        setLocation("/onboarding/organization");
+        return;
+      }
+
+      if (canAccess === false) {
+        setLocation(adminAccessDeniedLoginPath());
+        return;
+      }
+
+      setLocation(next || "/dashboard");
     }
-  }, [auth.status, setLocation, location]);
+  }, [auth.status, auth.user, setLocation, location]);
 
   const disabledReasons = React.useMemo(
     () =>

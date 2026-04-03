@@ -438,6 +438,11 @@ async function handleMe(req: Request, res: Response) {
     sessionKeys,
   });
 
+  const sessionAppSlug = typeof req.session.appSlug === "string" ? req.session.appSlug.trim() : "";
+  const appAccessContext = sessionAppSlug
+    ? await getAppContext(authenticatedUser.id, sessionAppSlug)
+    : null;
+
   res.json({
     id: authenticatedUser.id,
     email: authenticatedUser.email,
@@ -447,6 +452,15 @@ async function handleMe(req: Request, res: Response) {
     activeOrgId: activeOrg?.id ?? null,
     activeOrg: activeOrg,
     memberships: scopedMemberships,
+    appAccess: appAccessContext
+      ? {
+          appSlug: sessionAppSlug,
+          canAccess: appAccessContext.canAccess,
+          requiredOnboarding: appAccessContext.requiredOnboarding,
+          defaultRoute: appAccessContext.defaultRoute,
+          normalizedAccessProfile: appAccessContext.normalizedAccessProfile,
+        }
+      : null,
   });
 }
 
