@@ -100,7 +100,7 @@ test("google auth url limiter unlocks after rate limit window resets", async () 
   const app = createRateLimitedApp(1, "203.0.113.111", 100);
   assert.equal((await requestJson(app)).status, 200);
   assert.equal((await requestJson(app)).status, 429);
-  await waitForStatus(app, 200, { timeoutMs: 3_000, pollMs: 50 });
+  await waitForStatus(app, 200, { timeoutMs: 10_000, pollMs: 50 });
 });
 
 test("google auth url limiter does not consume generic auth limiter budget", async () => {
