@@ -130,6 +130,8 @@ test("B: user profile and org switching paths", async () => {
   let allowed = false;
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-profile")),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "22222222-2222-4222-8222-222222222222", appId: "app-1", name: "Org 222" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       allowed
         ? { id: "m-1", userId: "user-profile", orgId: "22222222-2222-4222-8222-222222222222", membershipStatus: "active", role: "staff" }
@@ -146,6 +148,7 @@ test("B: user profile and org switching paths", async () => {
   try {
     const app = createMountedSessionApp([{ path: "/api/users", router: usersRouter }], {
       userId: "user-profile",
+      sessionGroup: "default",
       regenerate: (cb) => cb?.(),
       save: (cb) => cb?.(),
     });
@@ -166,9 +169,14 @@ test("B: user profile and org switching paths", async () => {
 
 test("C: organizations visibility, validation, and role-gated update", async () => {
   let role: "org_admin" | "staff" | null = "org_admin";
+  let orgLookupCount = 0;
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-orgs")),
-    patchProperty(db.query.organizationsTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => {
+      orgLookupCount += 1;
+      if (orgLookupCount === 1) return null;
+      return { id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" };
+    }),
     patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "ayni", isActive: true, accessMode: "organization" })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       role ? { id: "m-role", userId: "user-orgs", orgId: "org-a", membershipStatus: "active", role } : null,
@@ -186,7 +194,7 @@ test("C: organizations visibility, validation, and role-gated update", async () 
   ];
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-orgs", appSlug: "ayni" });
+    const app = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-orgs", appSlug: "ayni", sessionGroup: "default" });
     assert.equal((await performJsonRequest(app, "GET", "/api/organizations/")).status, 200);
     assert.equal((await performJsonRequest(app, "POST", "/api/organizations/", { name: "New Org", slug: "new-org" })).status, 201);
     assert.equal((await performJsonRequest(app, "POST", "/api/organizations/", { name: "n", slug: "BAD" })).status, 400);
@@ -244,8 +252,8 @@ test("D: members and invitations role/org checks and invitation acceptance state
   ];
 
   try {
-    const orgApp = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-inv", appSlug: "ayni" });
-    const inviteApp = createMountedSessionApp([{ path: "/api", router: invitationsRouter }], { userId: "user-inv", appSlug: "ayni" });
+    const orgApp = createMountedSessionApp([{ path: "/api/organizations", router: organizationsRouter }], { userId: "user-inv", appSlug: "ayni", sessionGroup: "default" });
+    const inviteApp = createMountedSessionApp([{ path: "/api", router: invitationsRouter }], { userId: "user-inv", appSlug: "ayni", sessionGroup: "default" });
 
     assert.equal((await performJsonRequest(orgApp, "GET", "/api/organizations/org-a/members")).status, 200);
     role = null;

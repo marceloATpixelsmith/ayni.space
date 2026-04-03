@@ -20,6 +20,15 @@ test("tenant isolation denies cross-org reads", async () => {
       deletedAt: null,
       activeOrgId: "org-a",
     })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-b", name: "Org B", slug: "org-b", appId: "app-ayni" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-ayni",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: true,
+    })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
     patchProperty(db, "update", () => ({
       set: () => ({
@@ -29,7 +38,7 @@ test("tenant isolation denies cross-org reads", async () => {
   ];
 
   try {
-    const app = createSessionApp(organizationsRouter, { userId: "user-org-a" });
+    const app = createSessionApp(organizationsRouter, { userId: "user-org-a", sessionGroup: "default" });
     const response = await performJsonRequest(app, "GET", "/api/org-b");
 
     assert.equal(response.status, 403);

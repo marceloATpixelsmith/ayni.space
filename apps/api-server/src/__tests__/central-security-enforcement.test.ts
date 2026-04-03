@@ -145,6 +145,41 @@ test("origin/referer protection denies unsafe requests with missing headers exce
   assert.equal(allowedMachine.status, 200);
 });
 
+test("origin/referer protection denies invalid and malformed origin values while allowing referer-only valid requests", async () => {
+  const { originRefererProtection } = await import("../middlewares/csrf.js");
+  const app = express();
+  app.use(express.json());
+  app.use(originRefererProtection(["http://localhost:5173"]));
+  app.post("/api/organizations/org-a/invitations", (_req, res) => res.status(200).json({ ok: true }));
+
+  const invalidOrigin = await requestJson(
+    app,
+    "POST",
+    "/api/organizations/org-a/invitations",
+    {},
+    { origin: "http://evil.example", referer: "http://evil.example/invitations" },
+  );
+  assert.equal(invalidOrigin.status, 403);
+
+  const refererOnlyAllowed = await requestJson(
+    app,
+    "POST",
+    "/api/organizations/org-a/invitations",
+    {},
+    { referer: "http://localhost:5173/organizations/org-a" },
+  );
+  assert.equal(refererOnlyAllowed.status, 200);
+
+  const malformedOrigin = await requestJson(
+    app,
+    "POST",
+    "/api/organizations/org-a/invitations",
+    {},
+    { origin: "not a url" },
+  );
+  assert.equal(malformedOrigin.status, 403);
+});
+
 test("privileged non-/api/admin routes are explicitly classified as ADMIN", () => {
   const suspendRule = getSecurityRuleForRequest("PATCH", "/api/users/user-1/suspend");
   const unsuspendRule = getSecurityRuleForRequest("PATCH", "/api/users/user-1/unsuspend");

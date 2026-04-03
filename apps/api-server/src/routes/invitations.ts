@@ -141,10 +141,16 @@ async function cancelInvitation(req: Request<{ orgId: string; invitationId: stri
     return;
   }
 
-  await db
+  const revokedInvitations = await db
     .update(invitationsTable)
     .set({ invitationStatus: "revoked" })
-    .where(eq(invitationsTable.id, invitationId));
+    .where(and(eq(invitationsTable.id, invitationId), eq(invitationsTable.orgId, orgId)))
+    .returning({ id: invitationsTable.id });
+
+  if (revokedInvitations.length === 0) {
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
 
   writeAuditLog({
     orgId,

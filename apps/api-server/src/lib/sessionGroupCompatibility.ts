@@ -56,18 +56,13 @@ export function isSessionGroupCompatible(currentSessionGroup: string | null | un
 export async function assertRequestSessionGroupCompatibleWithOrg(
   req: Request,
   orgId: string,
-): Promise<{ ok: true; context: OrgSessionGroupContext } | { ok: false; reason: "invalid-org" | "incompatible-session-group" }> {
+): Promise<
+  { ok: true; context: OrgSessionGroupContext } |
+  { ok: false; reason: "invalid-org" | "incompatible-session-group" | "missing-session-group" }
+> {
   const currentSessionGroup = req.session?.sessionGroup ?? req.resolvedSessionGroup ?? null;
   if (!currentSessionGroup) {
-    return {
-      ok: true,
-      context: {
-        orgId,
-        appId: "",
-        appSlug: "",
-        targetSessionGroup: SESSION_GROUPS.DEFAULT,
-      },
-    };
+    return { ok: false, reason: "missing-session-group" };
   }
 
   const context = await resolveOrgSessionGroupContext(orgId);
