@@ -55,6 +55,12 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+export function deriveInviteeName(input: { firstName?: string | null; lastName?: string | null }): string {
+  const first = input.firstName?.trim() ?? "";
+  const last = input.lastName?.trim() ?? "";
+  return [first, last].filter(Boolean).join(" ").trim();
+}
+
 export function renderInvitationTemplate(template: string, context: InvitationTemplateContext, options: { escapeValues: boolean }) {
   return template.replace(INVITATION_TOKEN_PATTERN, (match, tokenName: string) => {
     if (!INVITATION_TEMPLATE_TOKENS.includes(tokenName as InvitationTokenKey)) {
@@ -172,6 +178,8 @@ export async function sendLane1InvitationEmail(params: {
   invitationToken: string;
   invitationExpiresAt: Date;
   inviteeEmail: string;
+  inviteeFirstName?: string | null;
+  inviteeLastName?: string | null;
   invitedByUserId: string;
   actorUserId: string;
 }) {
@@ -201,7 +209,7 @@ export async function sendLane1InvitationEmail(params: {
 
   const tokenContext: InvitationTemplateContext = {
     invitee_email: params.inviteeEmail,
-    invitee_name: "",
+    invitee_name: deriveInviteeName({ firstName: params.inviteeFirstName, lastName: params.inviteeLastName }),
     inviter_name: inviter?.name ?? inviter?.email ?? "",
     app_name: app.name,
     organization_name: org.name,
@@ -224,7 +232,10 @@ export async function sendLane1InvitationEmail(params: {
     fromEmail: app.transactionalFromEmail,
     fromName: app.transactionalFromName ?? undefined,
     replyTo: app.transactionalReplyToEmail ? { email: app.transactionalReplyToEmail } : undefined,
-    to: [{ email: params.inviteeEmail }],
+    to: [{
+      email: params.inviteeEmail,
+      name: deriveInviteeName({ firstName: params.inviteeFirstName, lastName: params.inviteeLastName }) || undefined,
+    }],
     subject: renderedSubject,
     htmlBody: renderedHtml,
     metadata: {

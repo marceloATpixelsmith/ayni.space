@@ -50,6 +50,15 @@ export const GetMeResponse = zod.object({
       }),
     )
     .optional(),
+  appAccess: zod
+    .object({
+      appSlug: zod.string(),
+      canAccess: zod.boolean(),
+      requiredOnboarding: zod.enum(["none", "organization"]),
+      defaultRoute: zod.string(),
+      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
+    })
+    .optional(),
 });
 
 /**
@@ -103,6 +112,15 @@ export const GoogleAuthCallbackResponse = zod.object({
         role: zod.string(),
       }),
     )
+    .optional(),
+  appAccess: zod
+    .object({
+      appSlug: zod.string(),
+      canAccess: zod.boolean(),
+      requiredOnboarding: zod.enum(["none", "organization"]),
+      defaultRoute: zod.string(),
+      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
+    })
     .optional(),
 });
 
@@ -169,6 +187,15 @@ export const SwitchOrganizationResponse = zod.object({
         role: zod.string(),
       }),
     )
+    .optional(),
+  appAccess: zod
+    .object({
+      appSlug: zod.string(),
+      canAccess: zod.boolean(),
+      requiredOnboarding: zod.enum(["none", "organization"]),
+      defaultRoute: zod.string(),
+      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
+    })
     .optional(),
 });
 
@@ -303,6 +330,8 @@ export const GetOrgInvitationsParams = zod.object({
 export const GetOrgInvitationsResponseItem = zod.object({
   id: zod.string(),
   email: zod.string(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
   role: zod.enum(["owner", "admin", "member", "viewer"]),
   orgId: zod.string(),
   orgName: zod.string(),
@@ -323,6 +352,8 @@ export const CreateInvitationParams = zod.object({
 
 export const CreateInvitationBody = zod.object({
   email: zod.string(),
+  firstName: zod.string().optional(),
+  lastName: zod.string().optional(),
   role: zod.enum(["owner", "admin", "member", "viewer"]),
 });
 
@@ -335,6 +366,19 @@ export const CancelInvitationParams = zod.object({
 });
 
 export const CancelInvitationResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Resend an invitation
+ */
+export const ResendInvitationParams = zod.object({
+  orgId: zod.coerce.string(),
+  invitationId: zod.coerce.string(),
+});
+
+export const ResendInvitationResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
 });

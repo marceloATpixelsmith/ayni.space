@@ -89,6 +89,8 @@ async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
     invitations.map((invitation: (typeof invitations)[number]) => ({
       id: invitation.id,
       email: invitation.email,
+      firstName: invitation.firstName,
+      lastName: invitation.lastName,
       role: invitation.invitedRole,
       orgId: invitation.orgId,
       orgName: org?.name ?? "",
@@ -102,7 +104,7 @@ async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
 async function createInvitation(req: Request<{ orgId: string }>, res: Response) {
   const { orgId } = req.params;
   const userId = req.session.userId;
-  const { email, role } = req.body;
+  const { email, role, firstName, lastName } = req.body;
 
   if (!(await isStaffInvitesEnabledForOrg(orgId, req.session.appSlug))) {
     res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
@@ -143,6 +145,8 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
     .values({
       id: randomUUID(),
       email,
+      firstName,
+      lastName,
       orgId,
       invitedRole: role,
       token: tokenHash,
@@ -172,6 +176,8 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
       invitationToken: rawInvitationToken,
       invitationExpiresAt: invitation.expiresAt,
       inviteeEmail: invitation.email,
+      inviteeFirstName: invitation.firstName,
+      inviteeLastName: invitation.lastName,
       invitedByUserId: userId,
       actorUserId: userId,
     });
@@ -202,6 +208,8 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
   res.status(201).json({
     id: invitation.id,
     email: invitation.email,
+    firstName: invitation.firstName,
+    lastName: invitation.lastName,
     role: invitation.invitedRole,
     orgId: invitation.orgId,
     orgName: org?.name ?? "",
@@ -276,6 +284,8 @@ async function resendInvitation(req: Request<{ orgId: string; invitationId: stri
       invitationToken: rawInvitationToken,
       invitationExpiresAt,
       inviteeEmail: invitation.email,
+      inviteeFirstName: invitation.firstName,
+      inviteeLastName: invitation.lastName,
       invitedByUserId: invitation.invitedByUserId ?? req.session.userId ?? "",
       actorUserId: req.session.userId ?? "",
     });

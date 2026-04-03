@@ -106,6 +106,11 @@ The persistence model is intentionally queryable for future superadmin tooling:
   - `{{organization_name}}`
   - `{{invitation_url}}`
   - `{{expires_at}}`
+- `{{invitee_name}}` derivation for invitations is deterministic:
+  - trim `first_name` and `last_name`
+  - join non-empty parts with a single space
+  - if only one part exists, use that single part
+  - if both are empty/missing, render as empty string
 - Unknown tokens are preserved verbatim (no crash, deterministic).
 - Missing token values render as empty string (deterministic).
 - HTML token values are escaped during interpolation; subject values are plain interpolation.

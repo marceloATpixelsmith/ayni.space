@@ -78,6 +78,13 @@
       "when": 1743692400000,
       "tag": "20260403_lane1_invitation_email_config",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1743696000000,
+      "tag": "20260403_invitation_name_fields",
+      "breakpoints": true
     }
   ]
 }

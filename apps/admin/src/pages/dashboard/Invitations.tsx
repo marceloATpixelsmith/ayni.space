@@ -1,6 +1,13 @@
 import React from "react";
 import { useLocation } from "wouter";
-import { useGetMe, useGetOrgInvitations, useCreateInvitation, useCancelInvitation } from "@workspace/api-client-react";
+import {
+  getGetOrgInvitationsQueryKey,
+  useGetMe,
+  useGetOrgInvitations,
+  useCreateInvitation,
+  useCancelInvitation,
+  useResendInvitation,
+} from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +25,8 @@ export default function Invitations() {
   const queryClient = useQueryClient();
   const turnstile = useTurnstileToken();
   const [email, setEmail] = React.useState("");
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
   const [role, setRole] = React.useState("member");
   const [error, setError] = React.useState("");
 
@@ -27,6 +36,7 @@ export default function Invitations() {
   });
   const createInvitation = useCreateInvitation();
   const cancelInvitation = useCancelInvitation();
+  const resendInvitation = useResendInvitation();
 
   React.useEffect(() => {
     if (!userLoading && !user) setLocation("/login");
@@ -43,11 +53,18 @@ export default function Invitations() {
     try {
       await createInvitation.mutateAsync({
         orgId,
-        data: { email: email.trim(), role: role as "owner" | "admin" | "member" | "viewer" },
+        data: {
+          email: email.trim(),
+          firstName: firstName.trim() || undefined,
+          lastName: lastName.trim() || undefined,
+          role: role as "owner" | "admin" | "member" | "viewer",
+        },
       });
       setEmail("");
+      setFirstName("");
+      setLastName("");
       turnstile.reset();
-      queryClient.invalidateQueries({ queryKey: ["/api/organizations/{orgId}/invitations"] });
+      await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });
     } catch (err: unknown) {
       setError((err as { data?: { error?: string } })?.data?.error ?? "Failed to send invitation");
     }
@@ -55,7 +72,12 @@ export default function Invitations() {
 
   const handleCancel = async (invitationId: string) => {
     await cancelInvitation.mutateAsync({ orgId, invitationId });
-    queryClient.invalidateQueries({ queryKey: ["/api/organizations/{orgId}/invitations"] });
+    await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });
+  };
+
+  const handleResend = async (invitationId: string) => {
+    await resendInvitation.mutateAsync({ orgId, invitationId });
+    await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });
   };
 
   return (
@@ -82,6 +104,24 @@ export default function Invitations() {
                   placeholder="colleague@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="min-w-40">
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">First name</label>
+                <Input
+                  type="text"
+                  placeholder="Pat"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div className="min-w-40">
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Last name</label>
+                <Input
+                  type="text"
+                  placeholder="Lee"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
                 />
               </div>
               <div>
@@ -129,7 +169,7 @@ export default function Invitations() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Expires</TableHead>
-                    <TableHead className="w-20">Actions</TableHead>
+                    <TableHead className="w-40">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -143,14 +183,19 @@ export default function Invitations() {
                         {new Date(inv.expiresAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleCancel(inv.id)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleResend(inv.id)}>
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleCancel(inv.id)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

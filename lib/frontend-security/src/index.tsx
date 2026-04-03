@@ -44,6 +44,11 @@ type GoogleUrlErrorPayload = {
   code?: string;
 } | null;
 
+type ApiErrorPayload = {
+  error?: string;
+  code?: string;
+} | null;
+
 const OAUTH_START_STORAGE_KEY = "auth:oauth-started-at";
 const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
 const OAUTH_STARTUP_DELAY_MS = 120;
@@ -570,10 +575,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(payload?.error ?? "Failed to accept invitation.");
+        const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+        const error = new Error(payload?.error ?? "Failed to accept invitation.") as Error & { code?: string; status?: number };
+        error.code = payload?.code;
+        error.status = response.status;
+        throw error;
       }
 
       await refreshSession();

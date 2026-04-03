@@ -13,6 +13,8 @@ const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-secur
 const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
 const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
 const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
+const invitationsDashboardPath = path.resolve(__dirname, "../pages/dashboard/Invitations.tsx");
+const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -23,6 +25,8 @@ const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.ts
 const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
 const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
 const onboardingSource = fs.readFileSync(onboardingPath, "utf8");
+const invitationsDashboardSource = fs.readFileSync(invitationsDashboardPath, "utf8");
+const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -83,6 +87,42 @@ test("post-onboarding flow waits for auth refresh before navigating to /dashboar
     onboardingSource,
     "setLocation(\"/dashboard\");",
     "Onboarding completion should route users directly to /dashboard after auth refresh.",
+  );
+});
+
+test("invitation accept flow prevents duplicate submissions and only resets turnstile for turnstile-specific errors", () => {
+  expectIncludes(
+    invitationAcceptSource,
+    "if (inFlightRef.current || lastSubmittedRef.current === submissionKey) {",
+    "Invitation accept page should block duplicate submissions for the same token/challenge pair.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "if (typedError.code?.startsWith(\"TURNSTILE_\")) {",
+    "Invitation accept page should only reset Turnstile on Turnstile-specific backend errors.",
+  );
+});
+
+test("invitation dashboard submits first and last name and refreshes pending invitations after create/cancel/resend", () => {
+  expectIncludes(
+    invitationsDashboardSource,
+    "firstName: firstName.trim() || undefined,",
+    "Invitation create payload should include invitee first name.",
+  );
+  expectIncludes(
+    invitationsDashboardSource,
+    "lastName: lastName.trim() || undefined,",
+    "Invitation create payload should include invitee last name.",
+  );
+  expectIncludes(
+    invitationsDashboardSource,
+    "await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });",
+    "Invitation dashboard should invalidate pending invitation query immediately after mutation success.",
+  );
+  expectIncludes(
+    invitationsDashboardSource,
+    "const resendInvitation = useResendInvitation();",
+    "Invitation dashboard should expose resend action through the generated resend mutation hook.",
   );
 });
 

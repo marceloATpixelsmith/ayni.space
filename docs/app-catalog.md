@@ -13,6 +13,7 @@
   - backend entry/composition: `apps/api-server/src/index.ts`, `apps/api-server/src/app.ts`
   - frontend entry/shell: `apps/admin/src/main.tsx`, `apps/admin/src/App.tsx`
   - mockup app package/source: `apps/mockup-sandbox/package.json`, `apps/mockup-sandbox/src/*`
+  - invitation admin UI immediate refresh behavior after create/resend/cancel: `apps/admin/src/pages/dashboard/Invitations.tsx` (react-query invalidation via generated invitation query key)
 
 ## Inferred
 - `apps/admin` currently carries both tenant and platform-admin UI responsibilities.

@@ -40,17 +40,26 @@ export const createOrgSchema: Schema<{ name: string; slug: string; website?: str
   },
 };
 
-export const inviteSchema: Schema<{ email: string; role: string }> = {
+export const inviteSchema: Schema<{ email: string; role: string; firstName?: string; lastName?: string }> = {
   safeParse(input) {
     if (!input || typeof input !== "object") return fail("body", "Body must be an object");
     const body = input as Record<string, unknown>;
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const role = typeof body.role === "string" ? body.role.trim() : "";
+    const firstNameRaw = typeof body.firstName === "string" ? body.firstName.trim() : "";
+    const lastNameRaw = typeof body.lastName === "string" ? body.lastName.trim() : "";
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("email", "Email must be valid");
     if (role.length < 2 || role.length > 30) return fail("role", "Role must be between 2 and 30 characters");
+    if (firstNameRaw.length > 100) return fail("firstName", "First name must be 100 characters or fewer");
+    if (lastNameRaw.length > 100) return fail("lastName", "Last name must be 100 characters or fewer");
 
-    return ok({ email, role });
+    return ok({
+      email,
+      role,
+      firstName: firstNameRaw || undefined,
+      lastName: lastNameRaw || undefined,
+    });
   },
 };
 

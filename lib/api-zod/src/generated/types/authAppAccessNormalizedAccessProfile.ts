@@ -9,11 +9,12 @@ Authentication uses the `saas.sid` cookie-backed session. For authenticated stat
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateInvitationRequestRole } from "./createInvitationRequestRole";
 
-export interface CreateInvitationRequest {
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  role: CreateInvitationRequestRole;
-}
+export type AuthAppAccessNormalizedAccessProfile =
+  (typeof AuthAppAccessNormalizedAccessProfile)[keyof typeof AuthAppAccessNormalizedAccessProfile];
+
+export const AuthAppAccessNormalizedAccessProfile = {
+  superadmin: "superadmin",
+  solo: "solo",
+  organization: "organization",
+} as const;
