@@ -182,3 +182,33 @@ test("org events query excludes events from other org logs", async () => {
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("brevo webhook rejects malformed signature without throwing", async () => {
+  process.env["BREVO_WEBHOOK_SECRET"] = "top-secret";
+  const restores = [patchProperty(Lane2TransactionalEmailRuntime.prototype as any, "ingestWebhook", async () => 1)];
+
+  try {
+    const app = createSessionApp(transactionalEmailRouter, { userId: "user-1", sessionGroup: "default" });
+    const server = app.listen(0);
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/transactional-email/webhooks/brevo`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-brevo-signature": "bad",
+        },
+        body: JSON.stringify({ event: "delivered" }),
+      });
+      assert.equal(response.status, 401);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    }
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+    delete process.env["BREVO_WEBHOOK_SECRET"];
+  }
+});

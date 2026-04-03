@@ -36,3 +36,10 @@ test("validateLane2Request enforces provider capability failures", () => {
     PROVIDER_CAPABILITIES.brevo.supportsCcBcc = original;
   }
 });
+
+test("validateLane2Request rejects metadata for brevo", () => {
+  assert.throws(
+    () => validateLane2Request("brevo", { ...baseRequest, metadata: { key: "value" } }),
+    (error) => error instanceof EmailValidationError && error.code === "unsupported_metadata"
+  );
+});

@@ -36,6 +36,16 @@ test("mapMailchimpPayload maps normalized payload", () => {
   assert.equal(message["subject"], "subject");
 });
 
+test("mapMailchimpPayload maps reply-to into headers", () => {
+  const mapped = mapMailchimpPayload(
+    { ...connection, provider: "mailchimp_transactional" as const },
+    { ...request, replyTo: { email: "reply@example.com", name: "Support" } }
+  );
+  const message = mapped["message"] as Record<string, unknown>;
+  const headers = message["headers"] as Record<string, unknown>;
+  assert.equal(headers["Reply-To"], "Support <reply@example.com>");
+});
+
 test("brevo adapter normalizes error", async () => {
   const adapter = new BrevoEmailAdapter();
   const result = await adapter.send(connection, request, async () =>
@@ -78,6 +88,20 @@ test("mailchimp transactional adapter send success maps accepted result", async 
   );
   assert.equal(result.status, "accepted");
   assert.equal(result.providerMessageId, "mc-1");
+});
+
+test("mailchimp transactional adapter uses template endpoint when templateRef is provided", async () => {
+  const adapter = new MailchimpTransactionalEmailAdapter();
+  let calledUrl = "";
+  await adapter.send(
+    { ...connection, provider: "mailchimp_transactional", credentials: { apiKey: "mc-key" } },
+    { ...request, templateRef: "welcome-template" },
+    async (input) => {
+      calledUrl = input;
+      return new Response(JSON.stringify([{ _id: "mc-2", status: "sent" }]), { status: 200 });
+    }
+  );
+  assert.equal(calledUrl, "https://mandrillapp.com/api/1.0/messages/send-template.json");
 });
 
 test("provider webhook normalization handles unknown types without crashing", () => {

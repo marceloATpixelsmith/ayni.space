@@ -16,7 +16,10 @@ function validateMailchimpSignature(body: unknown, signature: string | undefined
   if (!secret) return true;
   if (!signature) return false;
   const digest = createHmac("sha1", secret).update(JSON.stringify(body)).digest("base64");
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  const provided = Buffer.from(signature);
+  const expected = Buffer.from(digest);
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(provided, expected);
 }
 
 function validateBrevoSignature(body: unknown, signature: string | undefined) {
@@ -24,7 +27,10 @@ function validateBrevoSignature(body: unknown, signature: string | undefined) {
   if (!secret) return true;
   if (!signature) return false;
   const digest = createHmac("sha256", secret).update(JSON.stringify(body)).digest("hex");
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  const provided = Buffer.from(signature);
+  const expected = Buffer.from(digest);
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(provided, expected);
 }
 
 function asSingleString(value: unknown): string | undefined {
@@ -35,7 +41,7 @@ function asSingleString(value: unknown): string | undefined {
 
 function parsePageNumber(value: unknown, fallback: number): number {
   const parsed = Number.parseInt(asSingleString(value) ?? "", 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function parseDate(value: unknown): Date | undefined {
