@@ -50,37 +50,45 @@ jobs:
       - name: Create backend logs directory
         run: mkdir -p artifacts/backend-gates
 
-      - name: Typecheck workspace
+      - name: Typecheck
         id: typecheck
         continue-on-error: true
         run: |
           set -o pipefail
           pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/backend-typecheck.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
-      - name: Build api-server
+      - name: Build API Server
         id: build
         continue-on-error: true
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/backend-build.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
-      - name: Run api-server test suite
+      - name: Run API Test Suite
         id: api_tests
         continue-on-error: true
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server run test:ci 2>&1 | tee artifacts/backend-gates/backend-test.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
-      - name: Run dedicated Phase A API regression suite
+      - name: Run API Regression Suite (Phase A)
         id: regression
         continue-on-error: true
         run: |
           set -o pipefail
           pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
-          exit ${PIPESTATUS[0]}
+          status=${PIPESTATUS[0]}
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       - name: Backend gate failure summary (action output + step summary)
         if: always()
@@ -107,25 +115,25 @@ jobs:
           summarize_if_failed "${{ steps.typecheck.outcome }}" \
             artifacts/backend-gates/backend-typecheck.log \
             artifacts/backend-gates/backend-typecheck-failure-summary.txt \
-            "Typecheck workspace" \
+            "Typecheck" \
             "pnpm -w typecheck"
 
           summarize_if_failed "${{ steps.build.outcome }}" \
             artifacts/backend-gates/backend-build.log \
             artifacts/backend-gates/backend-build-failure-summary.txt \
-            "Build api-server" \
+            "Build API Server" \
             "pnpm --filter @workspace/api-server build"
 
           summarize_if_failed "${{ steps.api_tests.outcome }}" \
             artifacts/backend-gates/backend-test.log \
             artifacts/backend-gates/backend-test-failure-summary.txt \
-            "Run api-server test suite" \
+            "Run API Test Suite" \
             "pnpm --filter @workspace/api-server run test:ci"
 
           summarize_if_failed "${{ steps.regression.outcome }}" \
             artifacts/backend-gates/backend-regression.log \
             artifacts/backend-gates/backend-regression-failure-summary.txt \
-            "Run dedicated Phase A API regression suite" \
+            "Run API Regression Suite (Phase A)" \
             "pnpm --filter @workspace/api-server run test:regression:ci"
 
           if [ "${{ steps.typecheck.outcome }}" = "success" ] && \
@@ -182,10 +190,34 @@ jobs:
       - name: Fail job if any backend gate failed
         if: always()
         run: |
-          if [ "${{ steps.typecheck.outcome }}" != "success" ] || \
-             [ "${{ steps.build.outcome }}" != "success" ] || \
-             [ "${{ steps.api_tests.outcome }}" != "success" ] || \
-             [ "${{ steps.regression.outcome }}" != "success" ]; then
-            echo "One or more backend gate steps failed."
+          echo "typecheck: outcome=${{ steps.typecheck.outcome }}, exit_code=${{ steps.typecheck.outputs.exit_code || '0' }}"
+          echo "build: outcome=${{ steps.build.outcome }}, exit_code=${{ steps.build.outputs.exit_code || '0' }}"
+          echo "api-tests: outcome=${{ steps.api_tests.outcome }}, exit_code=${{ steps.api_tests.outputs.exit_code || '0' }}"
+          echo "api-regression: outcome=${{ steps.regression.outcome }}, exit_code=${{ steps.regression.outputs.exit_code || '0' }}"
+
+          failed=0
+
+          if [ "${{ steps.typecheck.outcome }}" != "success" ]; then
+            echo "FAILED STEP: Typecheck (id: typecheck, exit: ${{ steps.typecheck.outputs.exit_code || 'unknown' }})"
+            failed=1
+          fi
+
+          if [ "${{ steps.build.outcome }}" != "success" ]; then
+            echo "FAILED STEP: Build API Server (id: build, exit: ${{ steps.build.outputs.exit_code || 'unknown' }})"
+            failed=1
+          fi
+
+          if [ "${{ steps.api_tests.outcome }}" != "success" ]; then
+            echo "FAILED STEP: Run API Test Suite (id: api_tests, exit: ${{ steps.api_tests.outputs.exit_code || 'unknown' }})"
+            failed=1
+          fi
+
+          if [ "${{ steps.regression.outcome }}" != "success" ]; then
+            echo "FAILED STEP: Run API Regression Suite (Phase A) (id: regression, exit: ${{ steps.regression.outputs.exit_code || 'unknown' }})"
+            failed=1
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            echo "Backend regression gates failed."
             exit 1
           fi
