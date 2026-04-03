@@ -89,5 +89,72 @@ The persistence model is intentionally queryable for future superadmin tooling:
 ## Known intentional gaps (next PR)
 - No Lane 1 runtime integration yet.
 - No org-facing UI/superadmin UI yet.
-- No webhook ingestion routes yet (schema + repository hooks are in place).
-- No provider credential verification endpoint/job yet (fields exist to support it).
+
+## Live send execution pipeline (implemented)
+- Internal send entrypoint: `POST /api/organizations/:orgId/transactional-email/send`.
+- Runtime flow (`lib/integrations/transactional-email/src/runtime.ts` + `service.ts`):
+  1. Resolve org/app active provider connection from `platform.tenant_email_provider_connections`.
+  2. Decrypt credentials from `encrypted_credentials` using `EMAIL_CREDENTIALS_ENCRYPTION_KEY`.
+  3. Validate request with provider capability model (`validateLane2Request`).
+  4. Persist pre-send `platform.outbound_email_logs` row.
+  5. Execute provider API call via adapter.
+  6. Persist normalized send result + provider IDs/error snapshot.
+  7. Return normalized lane2 result to caller.
+- All provider call exceptions are normalized and persisted as failed attempts (no silent drop).
+
+## Provider integrations (implemented)
+- Brevo adapter (`adapters/brevo.ts`):
+  - Sends via `POST https://api.brevo.com/v3/smtp/email`.
+  - Connection validation via `GET https://api.brevo.com/v3/account`.
+  - Webhook normalization map includes: sent, delivered, open, click, hard/soft bounce, blocked, spam, deferred, unsubscribed, invalid.
+- Mailchimp Transactional adapter (`adapters/mailchimp-transactional.ts`):
+  - Sends via `POST https://mandrillapp.com/api/1.0/messages/send.json`.
+  - Connection validation via `POST https://mandrillapp.com/api/1.0/users/ping2.json`.
+  - Webhook normalization map includes: send, deferral, hard/soft bounce, open, click, spam, unsub, reject.
+
+## Webhook ingestion flow (implemented)
+- Endpoints:
+  - `POST /api/transactional-email/webhooks/brevo`
+  - `POST /api/transactional-email/webhooks/mailchimp-transactional`
+- Flow:
+  1. Accept provider payload.
+  2. Optional signature check when env secret configured (`BREVO_WEBHOOK_SECRET`, `MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY`).
+  3. Preserve full raw payload in `platform.email_webhook_events.raw_payload`.
+  4. Normalize provider event type to unified delivery state.
+  5. Correlate by provider message id to `platform.outbound_email_logs`.
+  6. Update outbound log delivery state while preserving event history.
+- Unknown/unmapped provider event types do not crash processing; they normalize to `failed` and are still stored.
+
+## Delivery event/state model
+- Supported normalized states in lane2 runtime:
+  - `accepted`, `sent`, `delivered`, `opened`, `clicked`, `bounced_soft`, `bounced_hard`, `deferred`, `complained`, `unsubscribed`, `blocked`, `rejected`, `failed`
+- Multiple events per provider message are stored in `platform.email_webhook_events`.
+- Delivery state in `platform.outbound_email_logs` is updated over time by newest ingested event.
+
+## Correlation strategy (implemented)
+- Send-time correlation fields:
+  - `correlationId` from request into `platform.outbound_email_logs.correlation_id`.
+  - Generated outbound `logId` persisted as `platform.outbound_email_logs.id`.
+  - Adapter payload enrichment with:
+    - metadata `ayni_correlation_id`
+    - metadata `ayni_outbound_log_id`
+    - headers `x-ayni-correlation-id`
+    - headers `x-ayni-outbound-log-id`
+- Webhook-time correlation:
+  - Primary key: `(provider, provider_message_id)` lookup into outbound logs.
+  - Linked event row stores `linked_outbound_email_log_id`.
+
+## Connection validation behavior (implemented)
+- Internal validation entrypoint: `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/validate`.
+- Validation writes:
+  - `last_validated_at`
+  - `last_validation_status` (`valid` | `invalid` | `degraded`)
+  - `last_validation_error` (sanitized, non-secret)
+- Connection `status` is updated to:
+  - `validated` when state is `valid`
+  - `invalid` when state is `invalid` or `degraded`
+
+## Provider differences handled
+- Brevo template id is numeric (`templateId`), Mailchimp Transactional supports message template merge vars differently.
+- Mailchimp Transactional returns per-recipient array statuses; lane2 runtime uses first response object as immediate attempt result.
+- Signature validation semantics differ and are optional unless the relevant env secret is configured.

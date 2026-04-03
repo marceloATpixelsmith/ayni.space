@@ -379,6 +379,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/transactional-email':
+        specifier: workspace:*
+        version: link:../../lib/integrations/transactional-email
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7

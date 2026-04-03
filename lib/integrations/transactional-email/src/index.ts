@@ -5,6 +5,7 @@ export * from "./sanitization";
 export * from "./validation";
 export * from "./repository";
 export * from "./service";
+export * from "./runtime";
 export * from "./adapters/base";
 export * from "./adapters/brevo";
 export * from "./adapters/mailchimp-transactional";
