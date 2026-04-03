@@ -154,6 +154,71 @@ The persistence model is intentionally queryable for future superadmin tooling:
   - `validated` when state is `valid`
   - `invalid` when state is `invalid` or `degraded`
 
+## Org-admin and superadmin management/query APIs (implemented)
+- Org-admin (org scoped; requires org-admin membership in the target org):
+  - `POST /api/organizations/:orgId/transactional-email/connections`
+  - `GET /api/organizations/:orgId/transactional-email/connections`
+  - `PATCH /api/organizations/:orgId/transactional-email/connections/:connectionId`
+  - `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/rotate-credential`
+  - `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/deactivate`
+  - `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/reactivate`
+  - `POST /api/organizations/:orgId/transactional-email/connections/:connectionId/validate`
+  - `GET /api/organizations/:orgId/transactional-email/logs`
+  - `GET /api/organizations/:orgId/transactional-email/logs/:logId`
+  - `GET /api/organizations/:orgId/transactional-email/logs/:logId/events`
+  - `GET /api/organizations/:orgId/transactional-email/events`
+- Superadmin (platform scope; requires superadmin session):
+  - `GET /api/admin/transactional-email/logs`
+  - `GET /api/admin/transactional-email/logs/:logId`
+  - `GET /api/admin/transactional-email/events`
+  - `GET /api/admin/transactional-email/connections`
+
+## Connection model decision (implemented)
+- Active-send resolution remains one active connection per `(org_id, app_id)` at runtime.
+- When creating a new active connection for an org+app or reactivating an existing connection, other active connections for that same org+app are deactivated (`is_active=false`, `status=disabled`).
+- Historical/inactive records remain queryable for audit/history (when `includeInactive=true`).
+
+## Redaction and secret hygiene (implemented)
+- Secrets are accepted only on create/rotate endpoints and encrypted at rest (`encrypted_credentials`).
+- Secrets are never returned by management/query APIs.
+- Connection responses return:
+  - metadata (`provider`, `status`, sender defaults, validation timestamps/results)
+  - redacted credential summary only (`redactedCredential`)
+  - key version metadata (`credentialKeyVersion`)
+- Validation responses are sanitized to redact token-like strings from diagnostics.
+- Log/event query responses never return decrypted credential material.
+
+## Query/filter capabilities (implemented)
+- Outbound log list supports filters:
+  - `orgId` (org endpoints fixed by path; admin optional query)
+  - `appId`
+  - `provider`
+  - `connectionId`
+  - `status` (attempt result)
+  - `deliveryState`
+  - `dateFrom`, `dateTo`
+  - `recipient` (org endpoint post-filter)
+  - `subject`
+  - `providerMessageId`
+  - `correlationId`
+  - `lane` fixed to `lane2`
+  - pagination: `limit`, `offset`
+- Delivery event list supports filters:
+  - `provider`
+  - `eventType` (normalized delivery event state)
+  - `providerMessageId`
+  - `recipient`
+  - `logId` (linked outbound log)
+  - `dateFrom`, `dateTo`
+  - pagination: `limit`, `offset`
+
+## Intended future UI integration path
+- These APIs are backend-only and intentionally UI-ready through:
+  - stable org-admin scoped management endpoints
+  - superadmin platform query endpoints
+  - redacted response shapes for safe rendering in admin surfaces
+- UI implementation is explicitly deferred to a future PR.
+
 ## Provider differences handled
 - Brevo template id is numeric (`templateId`), Mailchimp Transactional supports message template merge vars differently.
 - Mailchimp Transactional returns per-recipient array statuses; lane2 runtime uses first response object as immediate attempt result.
