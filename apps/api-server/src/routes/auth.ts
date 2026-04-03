@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { eq, sql } from "drizzle-orm";
-import { db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
+import { appsTable, db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
@@ -9,6 +9,7 @@ import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForR
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
+import { isSessionGroupCompatible, resolveSessionGroupForApp } from "../lib/sessionGroupCompatibility.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
@@ -250,11 +251,6 @@ function logAuthCheckTrace(payload: {
 }
 
 
-function normalizeAuthIntent(value: unknown): "sign_in" | "create_account" | null {
-  if (value === "sign_in" || value === "create_account") return value;
-  return null;
-}
-
 function getAccessDeniedRedirect(frontendBase: string | null): string {
   if (!frontendBase) return "/login?error=access_denied";
   return `${frontendBase}/login?error=access_denied`;
@@ -384,6 +380,7 @@ async function handleMe(req: Request, res: Response) {
       orgName: organizationsTable.name,
       orgSlug: organizationsTable.slug,
       role: orgMembershipsTable.role,
+      appId: organizationsTable.appId,
     })
     .from(orgMembershipsTable)
     .innerJoin(organizationsTable, eq(orgMembershipsTable.orgId, organizationsTable.id))
@@ -391,8 +388,45 @@ async function handleMe(req: Request, res: Response) {
 
   let activeOrg = null;
   if (authenticatedUser.activeOrgId) {
-    activeOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, authenticatedUser.activeOrgId) });
+    const activeOrgCandidate = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, authenticatedUser.activeOrgId) });
+    if (activeOrgCandidate?.appId) {
+      const activeApp = await db.query.appsTable.findFirst({ where: eq(appsTable.id, activeOrgCandidate.appId) });
+      if (
+        activeApp &&
+        isSessionGroupCompatible(
+          sessionGroup,
+          resolveSessionGroupForApp({ slug: activeApp.slug, metadata: activeApp.metadata ?? {} }),
+        )
+      ) {
+        activeOrg = activeOrgCandidate;
+      }
+    }
   }
+
+  type MembershipRow = (typeof memberships)[number];
+  const scopedMemberships = (
+    await Promise.all(
+      memberships.map(async (membership: MembershipRow) => {
+        if (!membership.appId) return null;
+        const membershipApp = await db.query.appsTable.findFirst({ where: eq(appsTable.id, membership.appId) });
+        if (!membershipApp) return null;
+        if (
+          !isSessionGroupCompatible(
+            sessionGroup,
+            resolveSessionGroupForApp({ slug: membershipApp.slug, metadata: membershipApp.metadata ?? {} }),
+          )
+        ) {
+          return null;
+        }
+        return membership;
+      }),
+    )
+  )
+    .filter((membership: MembershipRow | null): membership is MembershipRow => Boolean(membership))
+    .map((membership: MembershipRow) => {
+      const { appId: _appId, ...scopedMembership } = membership;
+      return scopedMembership;
+    });
 
   logAuthCheckTrace({
     sessionExists: Boolean(req.session),
@@ -410,9 +444,9 @@ async function handleMe(req: Request, res: Response) {
     name: authenticatedUser.name,
     avatarUrl: authenticatedUser.avatarUrl,
     isSuperAdmin: authenticatedUser.isSuperAdmin,
-    activeOrgId: authenticatedUser.activeOrgId,
+    activeOrgId: activeOrg?.id ?? null,
     activeOrg: activeOrg,
-    memberships,
+    memberships: scopedMemberships,
   });
 }
 
@@ -470,7 +504,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const returnTo = getRequestFrontendOrigin(req);
-  const authIntent = normalizeAuthIntent(req.body?.intent);
   if (!returnTo) {
     logGoogleUrlBranch(req, "origin_invalid", { turnstileVerificationPassed: Boolean(req.turnstileVerified) });
     logAuthFailure(req, "google-url-origin-invalid");
@@ -502,7 +535,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
   req.session.oauthReturnTo = returnTo;
   req.session.oauthSessionGroup = oauthSessionGroup;
   req.session.oauthAppSlug = appSlug;
-  req.session.oauthIntent = authIntent ?? undefined;
   logSuperadminTrace("OAUTH START", {
     appSlug,
     returnTo,
@@ -675,7 +707,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
     const oauthReturnTo = parsedStateContext.returnTo;
     const stateSessionGroupCandidate = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
-    const oauthIntent = normalizeAuthIntent(req.session.oauthIntent);
     const appSlug = parsedStateContext.appSlug;
     const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
     callbackSessionGroup = oauthSessionGroup;
@@ -696,7 +727,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthReturnTo;
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
-    delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
@@ -1148,7 +1178,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
       isSuperAdmin: user.isSuperAdmin,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       requiredOnboarding: effectiveContext.requiredOnboarding,
-      authIntent: oauthIntent,
     });
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,

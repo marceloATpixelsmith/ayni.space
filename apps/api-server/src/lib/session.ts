@@ -282,7 +282,6 @@ declare module "express-session" {
     oauthReturnTo?: string;
     oauthSessionGroup?: string;
     oauthAppSlug?: string;
-    oauthIntent?: "sign_in" | "create_account";
     sessionGroup?: string;
     sessionCreatedAt?: number;
     sessionAuthenticatedAt?: number;

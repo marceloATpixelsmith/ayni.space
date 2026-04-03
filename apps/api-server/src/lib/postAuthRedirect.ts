@@ -7,7 +7,6 @@ export function getPostAuthRedirectPath(options: {
   isSuperAdmin: boolean;
   normalizedAccessProfile: NormalizedAccessProfile;
   requiredOnboarding: "none" | "organization";
-  authIntent?: "sign_in" | "create_account" | null;
 }): string {
   const { appSlug, isSuperAdmin, normalizedAccessProfile, requiredOnboarding } = options;
 

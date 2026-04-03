@@ -6,7 +6,7 @@
 ## Confirmed
 - OAuth callback authorization now resolves active app context and normalized access profile before redirecting, then performs group-scoped denial cleanup on `access_denied` (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/appAccess.ts`).
 - OAuth state now carries an encoded payload (`appSlug`, `returnTo`, `sessionGroup`, nonce) and callback validation fails closed when `appSlug` is missing or malformed, preventing callback authorization with incomplete app context (`apps/api-server/src/routes/auth.ts`).
-- OAuth initiation now preserves explicit auth intent (`sign_in` vs `create_account`) in session state for callback-time routing decisions (`apps/api-server/src/routes/auth.ts`).
+- OAuth initiation accepts `intent` input, but callback redirect behavior is now explicitly intent-agnostic (no session `oauthIntent` plumbing).
 - OAuth callback identity resolution now logs callback identity details, resolves users by `google_subject` first and email second, binds `google_subject` onto pre-provisioned rows when null, and denies unknown identities in `superadmin` access mode without auto-provisioning (`apps/api-server/src/routes/auth.ts`).
 
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.

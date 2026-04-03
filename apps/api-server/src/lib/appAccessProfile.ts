@@ -23,7 +23,8 @@ export function getAuthRoutePolicyForProfile(
     return {
       allowOnboarding: true,
       allowInvitations: organizationCapabilities.staffInvitesEnabled,
-      allowCustomerRegistration: organizationCapabilities.customerRegistrationEnabled,
+      // Customer registration APIs are not implemented yet; keep policy fail-closed.
+      allowCustomerRegistration: false,
     };
   }
 

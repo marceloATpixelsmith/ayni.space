@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const MISSING_ORIGIN_REFERER_EXCEPTIONS: Array<{ method: string; pattern: RegExp }> = [
+  { method: "POST", pattern: /^\/api\/billing\/webhook\/?$/ },
+];
 
 function ensureSessionCsrfToken(req: any): string {
   if (!req.session.csrfToken || typeof req.session.csrfToken !== "string") {
@@ -44,6 +47,15 @@ export function originRefererProtection(allowedOrigins: string[]): RequestHandle
     const origin = req.get("origin");
     const referer = req.get("referer");
     if (!origin && !referer) {
+      if (!SAFE_METHODS.has(req.method.toUpperCase())) {
+        const exceptionMatch = MISSING_ORIGIN_REFERER_EXCEPTIONS.some(
+          (entry) => entry.method === req.method.toUpperCase() && entry.pattern.test(req.path),
+        );
+        if (!exceptionMatch) {
+          res.status(403).json({ error: "Origin or referer header required for unsafe requests" });
+          return;
+        }
+      }
       next();
       return;
     }
