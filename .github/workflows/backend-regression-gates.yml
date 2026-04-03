@@ -82,29 +82,58 @@ jobs:
           pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
           exit ${PIPESTATUS[0]}
 
-      - name: Backend test failure summary (api-server suite)
+      - name: Backend gate failure summary (action output + step summary)
         if: always()
         run: |
-          if [ "${{ steps.api_tests.outcome }}" = "success" ]; then
-            echo "api-server test suite passed; no failure summary required."
-            exit 0
-          fi
+          summarize_if_failed() {
+            local outcome="$1"
+            local log_path="$2"
+            local output_path="$3"
+            local step_name="$4"
+            local command="$5"
 
-          node scripts/ci/summarize-backend-test-failures.mjs \
+            if [ "$outcome" = "success" ]; then
+              return
+            fi
+
+            node scripts/ci/summarize-backend-test-failures.mjs \
+              "$log_path" \
+              "$output_path" \
+              --step-name "$step_name" \
+              --command "$command" \
+              --step-summary "$GITHUB_STEP_SUMMARY"
+          }
+
+          summarize_if_failed "${{ steps.typecheck.outcome }}" \
+            artifacts/backend-gates/backend-typecheck.log \
+            artifacts/backend-gates/backend-typecheck-failure-summary.txt \
+            "Typecheck workspace" \
+            "pnpm -w typecheck"
+
+          summarize_if_failed "${{ steps.build.outcome }}" \
+            artifacts/backend-gates/backend-build.log \
+            artifacts/backend-gates/backend-build-failure-summary.txt \
+            "Build api-server" \
+            "pnpm --filter @workspace/api-server build"
+
+          summarize_if_failed "${{ steps.api_tests.outcome }}" \
             artifacts/backend-gates/backend-test.log \
-            artifacts/backend-gates/backend-test-failure-summary.txt
+            artifacts/backend-gates/backend-test-failure-summary.txt \
+            "Run api-server test suite" \
+            "pnpm --filter @workspace/api-server run test:ci"
 
-      - name: Backend test failure summary (regression suite)
-        if: always()
-        run: |
-          if [ "${{ steps.regression.outcome }}" = "success" ]; then
-            echo "Phase A regression suite passed; no failure summary required."
-            exit 0
-          fi
-
-          node scripts/ci/summarize-backend-test-failures.mjs \
+          summarize_if_failed "${{ steps.regression.outcome }}" \
             artifacts/backend-gates/backend-regression.log \
-            artifacts/backend-gates/backend-regression-failure-summary.txt
+            artifacts/backend-gates/backend-regression-failure-summary.txt \
+            "Run dedicated Phase A API regression suite" \
+            "pnpm --filter @workspace/api-server run test:regression:ci"
+
+          if [ "${{ steps.typecheck.outcome }}" = "success" ] && \
+             [ "${{ steps.build.outcome }}" = "success" ] && \
+             [ "${{ steps.api_tests.outcome }}" = "success" ] && \
+             [ "${{ steps.regression.outcome }}" = "success" ]; then
+            echo "All backend gate steps passed; no failure summary required." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload backend gate logs
         if: always()
@@ -144,26 +173,11 @@ jobs:
         with:
           name: backend-failure-summaries
           path: |
+            artifacts/backend-gates/backend-typecheck-failure-summary.txt
+            artifacts/backend-gates/backend-build-failure-summary.txt
             artifacts/backend-gates/backend-test-failure-summary.txt
             artifacts/backend-gates/backend-regression-failure-summary.txt
           if-no-files-found: warn
-
-      - name: Compact backend failure summary (non-test gates)
-        if: failure()
-        run: |
-          for log in artifacts/backend-gates/*.log; do
-            case "$log" in
-              *backend-test.log|*backend-regression.log)
-                continue
-                ;;
-            esac
-            if [ ! -f "$log" ]; then
-              continue
-            fi
-            echo ""
-            echo "===== Failure summary from ${log} ====="
-            grep -nE "^(not ok|FAIL|Error:|\\s+at |\\# fail |\\# tests |\\# pass )|ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL|Test Suites?:|Failed Tests?:|AssertionError|UnhandledPromiseRejection|ELIFECYCLE" "$log" | tail -n 120 || true
-          done
 
       - name: Fail job if any backend gate failed
         if: always()
