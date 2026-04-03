@@ -10,15 +10,23 @@ import type {
 import { sanitizeSnapshot } from "../sanitization";
 
 const MAILCHIMP_TX_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send.json";
+const MAILCHIMP_TX_TEMPLATE_ENDPOINT = "https://mandrillapp.com/api/1.0/messages/send-template.json";
 const MAILCHIMP_TX_PING_ENDPOINT = "https://mandrillapp.com/api/1.0/users/ping2.json";
 
 function mapMailchimpPayload(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest): Record<string, unknown> {
+  const headers: Record<string, string> = { ...(request.headers ?? {}) };
+  if (request.replyTo?.email) {
+    headers["Reply-To"] = request.replyTo.name
+      ? `${request.replyTo.name} <${request.replyTo.email}>`
+      : request.replyTo.email;
+  }
+
   return {
     key: connection.credentials.apiKey,
     message: {
       from_email: request.fromEmail,
       from_name: request.fromName,
-      headers: request.headers,
+      headers,
       subject: request.subject,
       text: request.textBody,
       html: request.htmlBody,
@@ -48,6 +56,8 @@ function mapMailchimpPayload(connection: Lane2ProviderConnection, request: Lane2
         ?.filter((a) => a.inline)
         .map((a) => ({ type: a.contentType, name: a.filename, content: a.contentBase64 })),
     },
+    template_name: request.templateRef ?? undefined,
+    template_content: request.templateRef ? [] : undefined,
     send_at: request.scheduledAt,
     ip_pool: request.providerOptions?.["ipPool"],
   };
@@ -59,7 +69,8 @@ export class MailchimpTransactionalEmailAdapter implements EmailProviderAdapter 
 
   async send(connection: Lane2ProviderConnection, request: Lane2TransactionalEmailRequest, fetcher: FetchLike = fetch): Promise<Lane2SendResult> {
     const payload = mapMailchimpPayload(connection, request);
-    const response = await fetcher(MAILCHIMP_TX_ENDPOINT, {
+    const endpoint = request.templateRef ? MAILCHIMP_TX_TEMPLATE_ENDPOINT : MAILCHIMP_TX_ENDPOINT;
+    const response = await fetcher(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",

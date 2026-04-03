@@ -45,6 +45,10 @@ Defined in `lib/integrations/transactional-email/src/capabilities.ts` and enforc
 
 Unsupported requested features fail closed with explicit validation errors; functionality is not silently dropped.
 
+Current provider-specific capability notes:
+- Brevo: metadata is currently **not** exposed as a normalized provider capability (`supportsMetadata=false`) because the adapter does not map normalized metadata to a first-class Brevo metadata field.
+- Mailchimp Transactional: metadata is supported through the Mandrill `message.metadata` field.
+
 ## Normalized send result
 Defined as `Lane2SendResult` with:
 - status (`accepted`, `queued`, `rejected`, `failed`)
@@ -108,7 +112,9 @@ The persistence model is intentionally queryable for future superadmin tooling:
   - Connection validation via `GET https://api.brevo.com/v3/account`.
   - Webhook normalization map includes: sent, delivered, open, click, hard/soft bounce, blocked, spam, deferred, unsubscribed, invalid.
 - Mailchimp Transactional adapter (`adapters/mailchimp-transactional.ts`):
-  - Sends via `POST https://mandrillapp.com/api/1.0/messages/send.json`.
+  - Sends via:
+    - `POST https://mandrillapp.com/api/1.0/messages/send.json` (non-template sends)
+    - `POST https://mandrillapp.com/api/1.0/messages/send-template.json` (template sends)
   - Connection validation via `POST https://mandrillapp.com/api/1.0/users/ping2.json`.
   - Webhook normalization map includes: send, deferral, hard/soft bounce, open, click, spam, unsub, reject.
 

@@ -4,7 +4,7 @@ export const PROVIDER_CAPABILITIES: Record<EmailProvider, ProviderCapabilities> 
   brevo: {
     supportsTemplates: true,
     supportsScheduling: true,
-    supportsMetadata: true,
+    supportsMetadata: false,
     supportsTags: true,
     supportsInlineAttachments: true,
     supportsBatchSend: true,
