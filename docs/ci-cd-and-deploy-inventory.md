@@ -7,7 +7,9 @@
 ## Confirmed
 - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs **admin frontend PR tests only** for `apps/admin/**` changes and does not deploy.
 - `.github/workflows/backend-regression-gates.yml` runs **backend PR regression gates only** for API/package/workspace changes and does not deploy.
-- Backend regression gates now capture raw logs to `artifacts/backend-gates/*.log`, upload them as workflow artifacts, and print a compact failure summary when any backend gate step fails.
+- Backend regression gates now capture raw logs to `artifacts/backend-gates/*.log`, upload them as workflow artifacts, and print step-labeled failure summaries in action output for any failed gate step (typecheck/build/test/regression).
+- The same backend failure summary content is appended to `$GITHUB_STEP_SUMMARY` so failing error details are visible on the run summary page without downloading artifacts.
+- If structured parsing cannot extract explicit failures, backend failure summaries explicitly report parse failure and print a raw fallback excerpt selected from marker-based failure blocks or the final meaningful log tail.
 - Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.
 - `.github/workflows/linear-history-enforcement.yml` blocks PRs with merge commits (rebase-only history).
