@@ -71,6 +71,13 @@
       "when": 1743685200000,
       "tag": "20260403_lane2_webhook_correlation_status",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1743692400000,
+      "tag": "20260403_lane1_invitation_email_config",
+      "breakpoints": true
     }
   ]
 }

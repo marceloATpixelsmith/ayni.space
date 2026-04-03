@@ -9,6 +9,7 @@ import { requireOrganizationAppSession } from "../middlewares/requireOrganizatio
 import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAccess.js";
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
 import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
+import { InvitationEmailConfigError, sendLane1InvitationEmail } from "../lib/invitationEmail.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -162,6 +163,42 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
     req,
   });
 
+  try {
+    await sendLane1InvitationEmail({
+      req,
+      appId: organizationAppContext.app.id,
+      orgId,
+      invitationId: invitation.id,
+      invitationToken: rawInvitationToken,
+      invitationExpiresAt: invitation.expiresAt,
+      inviteeEmail: invitation.email,
+      invitedByUserId: userId,
+      actorUserId: userId,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invitation email delivery failed";
+    console.error("[invitations] lane1 invitation email send failed", {
+      invitationId: invitation.id,
+      orgId,
+      appId: organizationAppContext.app.id,
+      error: message,
+    });
+    writeAuditLog({
+      orgId,
+      userId,
+      action: "org.member.invited.email.failed",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: {
+        error: message,
+        failureKind: error instanceof InvitationEmailConfigError ? "config" : "provider",
+      },
+      req,
+    });
+    res.status(500).json({ error: message });
+    return;
+  }
+
   res.status(201).json({
     id: invitation.id,
     email: invitation.email,
@@ -229,6 +266,42 @@ async function resendInvitation(req: Request<{ orgId: string; invitationId: stri
     .update(invitationsTable)
     .set({ token: tokenHash, expiresAt: invitationExpiresAt, invitationStatus: "pending" })
     .where(eq(invitationsTable.id, invitationId));
+
+  try {
+    await sendLane1InvitationEmail({
+      req,
+      appId: invitation.appId,
+      orgId,
+      invitationId,
+      invitationToken: rawInvitationToken,
+      invitationExpiresAt,
+      inviteeEmail: invitation.email,
+      invitedByUserId: invitation.invitedByUserId ?? req.session.userId ?? "",
+      actorUserId: req.session.userId ?? "",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invitation email delivery failed";
+    console.error("[invitations] lane1 invitation resend failed", {
+      invitationId,
+      orgId,
+      appId: invitation.appId,
+      error: message,
+    });
+    writeAuditLog({
+      orgId,
+      userId: req.session.userId,
+      action: "org.invitation.resent.email.failed",
+      resourceType: "invitation",
+      resourceId: invitationId,
+      metadata: {
+        error: message,
+        failureKind: error instanceof InvitationEmailConfigError ? "config" : "provider",
+      },
+      req,
+    });
+    res.status(500).json({ error: message });
+    return;
+  }
 
   writeAuditLog({
     orgId,
