@@ -37,10 +37,11 @@ type Lane1SendRequest = {
 type EmailAddress = { email: string; name?: string };
 
 type Lane1SendResult = {
-  status: "accepted" | "failed";
+  status: "accepted" | "queued" | "rejected" | "failed";
   provider: "brevo";
-  deliveryState: "accepted" | "failed";
+  deliveryState: "accepted" | "scheduled" | "rejected" | "failed";
   providerMessageId?: string;
+  providerRequestId?: string;
   error?: { code: string; message: string };
   rawResponseSnapshot?: Record<string, unknown>;
 };

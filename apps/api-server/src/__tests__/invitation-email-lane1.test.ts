@@ -122,8 +122,8 @@ test("lane1 invitation sender uses app sender/template config and logs lane1 out
     assert.equal(outboundLogLane, "lane1");
     assert.equal(outboundRequestedFrom, "invites@ayni.space");
     assert.equal(outboundRequestedSubject, "Join Org One on Ayni");
-    assert.equal((brevoBody?.sender as any)?.email, "invites@ayni.space");
-    assert.equal((brevoBody?.to as any)?.[0]?.email, "invitee@example.com");
+    assert.equal(((brevoBody as any)?.["sender"] as any)?.email, "invites@ayni.space");
+    assert.equal(((brevoBody as any)?.["to"] as any)?.[0]?.email, "invitee@example.com");
   } finally {
     globalThis.fetch = originalFetch;
     restores.reverse().forEach((restore) => restore());
