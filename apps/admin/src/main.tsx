@@ -11,5 +11,5 @@ initFrontendMonitoring({
   ingestEndpoint: "/api/monitoring/events",
 });
 
-// Deployment marker: intentionally no-op change to exercise admin app rollout.
+// Deployment marker (2026-04-03): intentionally no-op change to exercise admin app rollout.
 createRoot(document.getElementById("root")!).render(<App />);
