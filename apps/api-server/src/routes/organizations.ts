@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import {
   db,
   appsTable,
+  orgAppAccessTable,
   organizationsTable,
   orgMembershipsTable,
   usersTable,
@@ -43,27 +44,54 @@ router.get("/", requireAuth, async (req, res) => {
   const scoped = (
     await Promise.all(
       result.map(async (organization: OrganizationRow) => {
-        const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, organization.appId) });
-        if (!app) return null;
-        if (
-          !isSessionGroupCompatible(
-            currentSessionGroup,
-            resolveSessionGroupForApp({
-              slug: app.slug,
-              metadata: app.metadata ?? {},
+        let orgAccessRows: Array<typeof orgAppAccessTable.$inferSelect> = [];
+        try {
+          orgAccessRows = await db.query.orgAppAccessTable.findMany({
+            where: and(eq(orgAppAccessTable.orgId, organization.id), eq(orgAppAccessTable.enabled, true)),
+          });
+        } catch {
+          orgAccessRows = [];
+        }
+        if (orgAccessRows.length === 0 && organization.appId) {
+          orgAccessRows.push({
+            id: `legacy-${organization.id}-${organization.appId}`,
+            orgId: organization.id,
+            appId: organization.appId,
+            enabled: true,
+            createdAt: organization.createdAt,
+            updatedAt: organization.createdAt,
+          });
+        }
+        if (orgAccessRows.length === 0) return null;
+
+        const hasCompatibleApp = (
+          await Promise.all(
+            orgAccessRows.map(async (accessRow) => {
+              if (accessRow.appId === "admin") {
+                return isSessionGroupCompatible(currentSessionGroup, "admin");
+              }
+              const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, accessRow.appId), eq(appsTable.isActive, true)) });
+              if (!app) return false;
+              return isSessionGroupCompatible(
+                currentSessionGroup,
+                resolveSessionGroupForApp({
+                  slug: app.slug,
+                  metadata: app.metadata ?? {},
+                }),
+              );
             }),
           )
-        ) {
-          return null;
-        }
+        ).some(Boolean);
+
+        if (!hasCompatibleApp) return null;
         return organization;
       }),
     )
   )
     .filter((organization: OrganizationRow | null): organization is OrganizationRow => Boolean(organization))
     .map((organization: OrganizationRow) => {
-      const { appId: _appId, ...scopedOrganization } = organization;
-      return { ...scopedOrganization, memberCount: 0 };
+      const { appId: _appId, ...publicOrganization } = organization;
+      return { ...publicOrganization, memberCount: 0 };
     });
 
   res.json(scoped);
@@ -100,6 +128,13 @@ router.post("/", requireAuth, requireOrganizationAppSession, validateBody(create
     .insert(organizationsTable)
     .values({ id: orgId, name, slug, website: website ?? null, appId: app.id, ownerUserId: userId })
     .returning();
+
+  await db.insert(orgAppAccessTable).values({
+    id: randomUUID(),
+    orgId,
+    appId: app.id,
+    enabled: true,
+  });
 
   // Add creator as owner
   await db.insert(orgMembershipsTable).values({

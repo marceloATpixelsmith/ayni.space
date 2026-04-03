@@ -6,13 +6,13 @@
 
 ## Confirmed
 - Session group is the portability boundary for authenticated continuity: apps in the same session group may share identity continuity; apps in different session groups are isolated.
-- `platform.organizations.app_id` remains the authoritative app binding for org-scoped resources, and invitation writes must inherit that org-bound app id.
+- `platform.org_app_access` is the authoritative org-to-app binding for org-scoped resources. `platform.organizations.app_id` is now transitional compatibility metadata and is not used for live org authorization decisions.
 - Request authorization for org-scoped resources now requires both:
   1. active org membership/role checks, and
   2. session-group compatibility between current session and the org's bound app.
-- Session-group compatibility resolution is centralized in `apps/api-server/src/lib/sessionGroupCompatibility.ts` and consumed by org access middleware/routes.
+- Session-group compatibility resolution is centralized in `apps/api-server/src/lib/sessionGroupCompatibility.ts` and consumed by org access middleware/routes. Compatibility is evaluated from enabled org app grants in `platform.org_app_access`.
 - Active-org switching (`POST /api/users/me/switch-org`) now denies cross-session-group targets even when membership exists.
-- Invitation creation now fails closed unless org/app context is resolvable, and invitation `appId` is derived from the target organization rather than hard-coded.
+- Invitation creation now fails closed unless org/app context is resolvable, and invitation `appId` is derived from the current session app only when the organization has matching enabled org-app access.
 - `GET /api/organizations` and `/api/auth/me` now scope memberships/org visibility to the current session group.
 - Superadmin remains an explicit route-level privilege boundary (`/api/admin/*` and explicitly classified privileged routes).
 

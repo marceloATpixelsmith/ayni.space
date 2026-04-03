@@ -61,13 +61,19 @@ export const appPlansTable = platform.table("app_plans", {
 });
 
 export const orgAppAccessTable = platform.table("org_app_access", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull(),
-  appId: text("app_id").notNull(),
-  enabled: boolean("enabled").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+    id: text("id").primaryKey(),
+    orgId: text("org_id").notNull(),
+    appId: text("app_id").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("org_app_access_org_app_unique").on(t.orgId, t.appId),
+    index("org_app_access_org_id_idx").on(t.orgId),
+    index("org_app_access_app_id_idx").on(t.appId),
+  ]
+);
 
 export const insertAppSchema = createInsertSchema(appsTable).omit({ createdAt: true, updatedAt: true });
 export const insertAppPlanSchema = createInsertSchema(appPlansTable).omit({ createdAt: true });

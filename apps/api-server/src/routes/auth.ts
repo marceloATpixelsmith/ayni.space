@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
-import { eq, sql } from "drizzle-orm";
-import { appsTable, db, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import { appsTable, db, orgAppAccessTable, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
@@ -380,7 +380,6 @@ async function handleMe(req: Request, res: Response) {
       orgName: organizationsTable.name,
       orgSlug: organizationsTable.slug,
       role: orgMembershipsTable.role,
-      appId: organizationsTable.appId,
     })
     .from(orgMembershipsTable)
     .innerJoin(organizationsTable, eq(orgMembershipsTable.orgId, organizationsTable.id))
@@ -389,17 +388,39 @@ async function handleMe(req: Request, res: Response) {
   let activeOrg = null;
   if (authenticatedUser.activeOrgId) {
     const activeOrgCandidate = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, authenticatedUser.activeOrgId) });
-    if (activeOrgCandidate?.appId) {
-      const activeApp = await db.query.appsTable.findFirst({ where: eq(appsTable.id, activeOrgCandidate.appId) });
-      if (
-        activeApp &&
-        isSessionGroupCompatible(
-          sessionGroup,
-          resolveSessionGroupForApp({ slug: activeApp.slug, metadata: activeApp.metadata ?? {} }),
-        )
-      ) {
-        activeOrg = activeOrgCandidate;
+    if (activeOrgCandidate) {
+      let activeOrgAppAccessRows: Array<typeof orgAppAccessTable.$inferSelect> = [];
+      try {
+        activeOrgAppAccessRows = await db.query.orgAppAccessTable.findMany({
+          where: and(eq(orgAppAccessTable.orgId, activeOrgCandidate.id), eq(orgAppAccessTable.enabled, true)),
+        });
+      } catch {
+        activeOrgAppAccessRows = [];
       }
+      if (activeOrgAppAccessRows.length === 0 && activeOrgCandidate.appId) {
+        activeOrgAppAccessRows.push({
+          id: `legacy-${activeOrgCandidate.id}-${activeOrgCandidate.appId}`,
+          orgId: activeOrgCandidate.id,
+          appId: activeOrgCandidate.appId,
+          enabled: true,
+          createdAt: activeOrgCandidate.createdAt,
+          updatedAt: activeOrgCandidate.updatedAt,
+        });
+      }
+      const activeOrgVisible = (
+        await Promise.all(
+          activeOrgAppAccessRows.map(async (orgAppAccess) => {
+            const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, orgAppAccess.appId), eq(appsTable.isActive, true)) });
+            if (!app) return false;
+            return isSessionGroupCompatible(
+              sessionGroup,
+              resolveSessionGroupForApp({ slug: app.slug, metadata: app.metadata ?? {} }),
+            );
+          }),
+        )
+      ).some(Boolean);
+
+      if (activeOrgVisible) activeOrg = activeOrgCandidate;
     }
   }
 
@@ -407,26 +428,45 @@ async function handleMe(req: Request, res: Response) {
   const scopedMemberships = (
     await Promise.all(
       memberships.map(async (membership: MembershipRow) => {
-        if (!membership.appId) return null;
-        const membershipApp = await db.query.appsTable.findFirst({ where: eq(appsTable.id, membership.appId) });
-        if (!membershipApp) return null;
-        if (
-          !isSessionGroupCompatible(
-            sessionGroup,
-            resolveSessionGroupForApp({ slug: membershipApp.slug, metadata: membershipApp.metadata ?? {} }),
-          )
-        ) {
-          return null;
+        let membershipOrgAppAccessRows: Array<typeof orgAppAccessTable.$inferSelect> = [];
+        try {
+          membershipOrgAppAccessRows = await db.query.orgAppAccessTable.findMany({
+            where: and(eq(orgAppAccessTable.orgId, membership.orgId), eq(orgAppAccessTable.enabled, true)),
+          });
+        } catch {
+          membershipOrgAppAccessRows = [];
         }
+        if (membershipOrgAppAccessRows.length === 0) {
+          const membershipOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, membership.orgId) });
+          if (membershipOrg?.appId) {
+            membershipOrgAppAccessRows.push({
+              id: `legacy-${membershipOrg.id}-${membershipOrg.appId}`,
+              orgId: membershipOrg.id,
+              appId: membershipOrg.appId,
+              enabled: true,
+              createdAt: membershipOrg.createdAt,
+              updatedAt: membershipOrg.updatedAt,
+            });
+          }
+        }
+        const membershipVisible = (
+          await Promise.all(
+            membershipOrgAppAccessRows.map(async (orgAppAccess) => {
+              const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, orgAppAccess.appId), eq(appsTable.isActive, true)) });
+              if (!app) return false;
+              return isSessionGroupCompatible(
+                sessionGroup,
+                resolveSessionGroupForApp({ slug: app.slug, metadata: app.metadata ?? {} }),
+              );
+            }),
+          )
+        ).some(Boolean);
+        if (!membershipVisible) return null;
         return membership;
       }),
     )
   )
-    .filter((membership: MembershipRow | null): membership is MembershipRow => Boolean(membership))
-    .map((membership: MembershipRow) => {
-      const { appId: _appId, ...scopedMembership } = membership;
-      return scopedMembership;
-    });
+    .filter((membership: MembershipRow | null): membership is MembershipRow => Boolean(membership));
 
   logAuthCheckTrace({
     sessionExists: Boolean(req.session),
