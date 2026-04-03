@@ -339,3 +339,99 @@ test("Optional: starter tenant/app access checks for ayni + shipibo", async () =
     teardown(restores);
   }
 });
+
+test("E: organization onboarding grants immediate app authorization in /api/auth/me", async () => {
+  const createdOrgId = "org-onboard";
+  const createdOrgSlug = "onboard-org";
+  let userActiveOrgId: string | null = null;
+  let orgCreated = false;
+
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => user("user-onboard", { activeOrgId: userActiveOrgId })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      metadata: {},
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => {
+      if (!orgCreated) return null;
+      return { id: createdOrgId, slug: createdOrgSlug, name: "Onboard Org", appId: "app-1" };
+    }),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => {
+      if (!orgCreated || !userActiveOrgId) return null;
+      return {
+        id: "membership-onboard",
+        userId: "user-onboard",
+        orgId: userActiveOrgId,
+        membershipStatus: "active",
+        role: "org_owner",
+      };
+    }),
+    patchProperty(db, "select", () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () =>
+            orgCreated
+              ? [{ orgId: createdOrgId, orgName: "Onboard Org", orgSlug: createdOrgSlug, role: "org_owner", appId: "app-1" }]
+              : [],
+        }),
+      }),
+    } as never)),
+    patchProperty(db, "insert", (() => {
+      let insertCall = 0;
+      return () => ({
+        values: () => {
+          insertCall += 1;
+          if (insertCall === 1) {
+            orgCreated = true;
+            return {
+              returning: async () => [{ id: createdOrgId, slug: createdOrgSlug, name: "Onboard Org", appId: "app-1" }],
+            };
+          }
+          return Promise.resolve();
+        },
+      });
+    })() as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => {
+          userActiveOrgId = createdOrgId;
+          return undefined;
+        },
+      }),
+    } as never)),
+  ];
+
+  try {
+    const app = createMountedSessionApp(
+      [
+        { path: "/api/organizations", router: organizationsRouter },
+        { path: "/api/auth", router: authRouter },
+      ],
+      {
+        userId: "user-onboard",
+        appSlug: "ayni",
+        sessionGroup: "default",
+        regenerate: (cb) => cb?.(),
+        save: (cb) => cb?.(),
+      },
+    );
+
+    const onboard = await performJsonRequest(app, "POST", "/api/organizations/", { name: "Onboard Org", slug: createdOrgSlug });
+    assert.equal(onboard.status, 201);
+
+    const me = await performJsonRequest(app, "GET", "/api/auth/me");
+    assert.equal(me.status, 200);
+    assert.equal(me.body.activeOrgId, createdOrgId);
+    assert.equal(me.body.appAccess?.canAccess, true);
+    assert.equal(me.body.appAccess?.requiredOnboarding, "none");
+    assert.equal(me.body.appAccess?.normalizedAccessProfile, "organization");
+  } finally {
+    teardown(restores);
+  }
+});

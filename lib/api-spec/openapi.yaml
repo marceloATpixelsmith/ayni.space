@@ -968,7 +968,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrgMembershipSummary"
+        appAccess:
+          $ref: "#/components/schemas/AuthAppAccess"
       required: [id, email, isSuperAdmin]
+
+    AuthAppAccess:
+      type: object
+      properties:
+        appSlug:
+          type: string
+        canAccess:
+          type: boolean
+        requiredOnboarding:
+          type: string
+          enum: [none, organization]
+        defaultRoute:
+          type: string
+        normalizedAccessProfile:
+          type: string
+          enum: [superadmin, solo, organization]
+      required: [appSlug, canAccess, requiredOnboarding, defaultRoute, normalizedAccessProfile]
 
     AuthUrlResponse:
       type: object

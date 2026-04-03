@@ -32,6 +32,37 @@ const queryClient = new QueryClient({
 
 const CURRENT_APP_SLUG = import.meta.env.VITE_APP_SLUG ?? "admin";
 
+type AuthAppAccessSnapshot = {
+  appSlug: string;
+  canAccess: boolean;
+  requiredOnboarding: "none" | "organization";
+  defaultRoute: string;
+  normalizedAccessProfile: "superadmin" | "solo" | "organization";
+};
+
+function getCurrentAppAccess(user: ReturnType<typeof useAuth>["user"]): AuthAppAccessSnapshot | null {
+  const candidate = (user as (typeof user & { appAccess?: unknown }) | null)?.appAccess;
+  if (!candidate || typeof candidate !== "object") return null;
+  const record = candidate as Record<string, unknown>;
+  if (record["appSlug"] !== CURRENT_APP_SLUG) return null;
+  if (typeof record["canAccess"] !== "boolean") return null;
+  if (record["requiredOnboarding"] !== "none" && record["requiredOnboarding"] !== "organization") return null;
+  if (typeof record["defaultRoute"] !== "string") return null;
+  if (
+    record["normalizedAccessProfile"] !== "superadmin" &&
+    record["normalizedAccessProfile"] !== "solo" &&
+    record["normalizedAccessProfile"] !== "organization"
+  ) return null;
+
+  return {
+    appSlug: record["appSlug"],
+    canAccess: record["canAccess"],
+    requiredOnboarding: record["requiredOnboarding"],
+    defaultRoute: record["defaultRoute"],
+    normalizedAccessProfile: record["normalizedAccessProfile"],
+  };
+}
+
 function AuthLoading() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
@@ -52,7 +83,23 @@ function Home() {
         return;
       }
 
-      setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
+      const appAccess = getCurrentAppAccess(auth.user);
+      if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
+        setLocation("/onboarding/organization");
+        return;
+      }
+
+      if (appAccess?.normalizedAccessProfile === "superadmin") {
+        setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
+        return;
+      }
+
+      if (appAccess && !appAccess.canAccess) {
+        setLocation(adminAccessDeniedLoginPath());
+        return;
+      }
+
+      setLocation("/dashboard");
     }
   }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
 
@@ -135,8 +182,18 @@ function ProtectedSuperAdmin({ children }: { children: React.ReactNode }) {
     return <AuthRedirect to="/login" />;
   }
 
-  // Fail closed: if auth is not explicitly super admin, deny route rendering.
-  if (!auth.user?.isSuperAdmin) {
+  const appAccess = getCurrentAppAccess(auth.user);
+
+  if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
+    return <AuthRedirect to="/onboarding/organization" />;
+  }
+
+  // Fail closed for super-admin profiles: if auth is not explicitly super admin, deny route rendering.
+  if (appAccess?.normalizedAccessProfile === "superadmin" && !auth.user?.isSuperAdmin) {
+    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
+  }
+
+  if (appAccess && !appAccess.canAccess) {
     return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
   }
 

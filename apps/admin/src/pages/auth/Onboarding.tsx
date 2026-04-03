@@ -48,9 +48,10 @@ export default function Onboarding() {
 
   const { mutate: createOrg, isPending } = useCreateOrganization({
     mutation: {
-      onSuccess: () => {
+      onSuccess: async () => {
         toast({ title: "Organization created successfully" });
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        await queryClient.refetchQueries({ queryKey: getGetMeQueryKey(), type: "active" });
         setLocation("/dashboard");
       },
       onError: (error: unknown, variables: { data: { name: string; slug: string } }) => {
