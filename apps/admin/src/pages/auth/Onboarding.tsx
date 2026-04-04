@@ -161,7 +161,7 @@ export default function Onboarding() {
                 )}
               </Button>
               {turnstile.enabled && (
-                <div className="space-y-2 pt-2">
+                <div className="mt-6 space-y-2">
                   <turnstile.TurnstileWidget />
                   {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
                 </div>

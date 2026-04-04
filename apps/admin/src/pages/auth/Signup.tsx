@@ -103,7 +103,11 @@ export default function Signup() {
               <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
             </div>
 
-            {turnstile.enabled ? <turnstile.TurnstileWidget /> : null}
+            {turnstile.enabled ? (
+              <div className="mt-6">
+                <turnstile.TurnstileWidget />
+              </div>
+            ) : null}
             {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
             {turnstile.error ? <p className="mt-4 text-sm text-destructive">{turnstile.error}</p> : null}
           </Card>

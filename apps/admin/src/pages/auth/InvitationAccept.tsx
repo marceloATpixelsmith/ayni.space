@@ -107,7 +107,7 @@ export default function InvitationAccept() {
         <h1 className="text-xl font-semibold">Invitation</h1>
         <p className="text-sm text-muted-foreground">{message}</p>
         {turnstile.enabled && status !== "done" && (
-          <div className="space-y-2 pt-1">
+          <div className="mt-6 space-y-2">
             <turnstile.TurnstileWidget />
             {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
           </div>

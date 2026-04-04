@@ -145,7 +145,7 @@ export default function Invitations() {
             </form>
             {error && <p className="text-destructive text-sm mt-2">{error}</p>}
             {turnstile.enabled && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-6 space-y-2">
                 <turnstile.TurnstileWidget />
                 {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
               </div>
