@@ -15,6 +15,7 @@
 - OAuth denial and logout are group-scoped in `apps/api-server/src/routes/auth.ts` (admin denial destroys/clears admin-group session state only).
 - Session persistence table is `platform.sessions` and is owned by DB migrations.
 - Session revocation for `/api/users/logout-others` is group-aware (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/users.ts`) and does not wipe unrelated session groups.
+- Password-reset completion revokes all other sessions for the recovered user across session groups, then clears the current group cookie/session (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/auth.ts`).
 - Frontend auth provider/route gate: `lib/frontend-security/src/index.tsx`.
 - CSRF-aware API fetch path: `lib/api-client-react/src/custom-fetch.ts`.
 - OAuth start origin derivation in auth route resolves trusted `origin`/`referer` and trusted forwarded host/proto headers before allowlist checks (`apps/api-server/src/routes/auth.ts`).

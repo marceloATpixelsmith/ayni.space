@@ -97,6 +97,10 @@ export function getDeleteOtherSessionsSql() {
   return `DELETE FROM ${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME} WHERE sess::jsonb->>'userId' = $1 AND sid != $2 AND COALESCE(sess::jsonb->>'sessionGroup', '${SESSION_GROUPS.DEFAULT}') = $3`;
 }
 
+export function getDeleteAllOtherSessionsForUserSql() {
+  return `DELETE FROM ${SESSION_STORE_SCHEMA_NAME}.${SESSION_STORE_TABLE_NAME} WHERE sess::jsonb->>'userId' = $1 AND sid != $2`;
+}
+
 export async function revokeOtherSessionsForUser(userId: string, currentSid: string, sessionGroup: string) {
   await pool.query(getDeleteOtherSessionsSql(), [userId, currentSid, sessionGroup]);
 }

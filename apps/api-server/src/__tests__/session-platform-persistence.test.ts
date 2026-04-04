@@ -41,6 +41,11 @@ test("logout-others query targets platform.sessions via shared helper", () => {
   assert.match(sessionLib.getDeleteOtherSessionsSql(), /sessionGroup/);
 });
 
+test("password reset global revoke query targets platform.sessions across session groups", () => {
+  assert.match(sessionLib.getDeleteAllOtherSessionsForUserSql(), /DELETE FROM platform\.sessions/);
+  assert.equal(sessionLib.getDeleteAllOtherSessionsForUserSql().includes("sessionGroup"), false);
+});
+
 test("session store infrastructure bootstrap creates schema/table/index if missing", async () => {
   const { pool } = await import("@workspace/db");
   const capturedSql: string[] = [];

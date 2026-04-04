@@ -28,6 +28,24 @@ export type RateLimitOptions = {
   skip?: (req: Parameters<RequestHandler>[0]) => boolean;
 };
 
+function consumeRateLimitBucket(key: string, now: number, windowMs: number, max: number) {
+  const current = buckets.get(key);
+  if (!current || current.resetAt <= now) {
+    buckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { limited: false as const };
+  }
+
+  if (current.count >= max) {
+    return {
+      limited: true as const,
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+    };
+  }
+
+  current.count += 1;
+  return { limited: false as const };
+}
+
 export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
   if (!RATE_LIMIT_ENABLED && (!IS_PRODUCTION || RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION)) {
     return (_req, _res, next) => next();
@@ -46,16 +64,10 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
 
     const now = Date.now();
     const key = `${keyPrefix}:${getClientKey(req)}`;
-    const current = buckets.get(key);
+    const result = consumeRateLimitBucket(key, now, windowMs, max);
 
-    if (!current || current.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + windowMs });
-      next();
-      return;
-    }
-
-    if (current.count >= max) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    if (result.limited) {
+      const retryAfterSeconds = result.retryAfterSeconds;
       res.setHeader("Retry-After", String(retryAfterSeconds));
       if (keyPrefix === "auth-google-url" || keyPrefix.startsWith("test-auth-google-url")) {
         infoVerboseTrace("[auth/google/url]", {
@@ -74,7 +86,6 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
       return;
     }
 
-    current.count += 1;
     next();
   };
 }
@@ -85,4 +96,42 @@ export function authRateLimiter(options: RateLimitOptions = {}): RequestHandler 
     windowMs: options.windowMs ?? DEFAULT_WINDOW_MS,
     keyPrefix: options.keyPrefix ?? "auth",
   });
+}
+
+export type AuthRateLimiterWithIdentifierOptions = RateLimitOptions & {
+  opaqueIdentifier?: (req: Parameters<RequestHandler>[0]) => string | null;
+};
+
+export function authRateLimiterWithIdentifier(options: AuthRateLimiterWithIdentifierOptions = {}): RequestHandler {
+  const ipLimiter = authRateLimiter(options);
+  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
+  const max = options.max ?? DEFAULT_AUTH_MAX;
+  const keyPrefix = options.keyPrefix ?? "auth";
+  const opaqueIdentifier = options.opaqueIdentifier;
+  const skip = options.skip;
+
+  return (req, res, next) => {
+    if (skip?.(req)) {
+      next();
+      return;
+    }
+
+    ipLimiter(req, res, () => {
+      const opaqueId = opaqueIdentifier?.(req);
+      if (!opaqueId) {
+        next();
+        return;
+      }
+
+      const key = `${keyPrefix}:opaque:${opaqueId}`;
+      const result = consumeRateLimitBucket(key, Date.now(), windowMs, max);
+      if (result.limited) {
+        res.setHeader("Retry-After", String(result.retryAfterSeconds));
+        res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
+        return;
+      }
+
+      next();
+    });
+  };
 }

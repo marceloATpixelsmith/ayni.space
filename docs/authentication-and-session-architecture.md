@@ -61,7 +61,10 @@
 ### Confirmed
 - Email/password is now additive to Google OAuth, with credentials and auth tokens split from `platform.users` into `platform.user_credentials` and `platform.auth_tokens` (`lib/db/src/schema/auth_credentials.ts`, `lib/db/migrations/20260404_email_password_auth.sql`).
 - New auth endpoints were added for `signup`, `login`, `forgot-password`, `reset-password`, and `verify-email` in `apps/api-server/src/routes/auth.ts`.
-- Password hashing now uses strong salted key-derivation with hashed opaque reset/verification tokens and single-use consumption.
+- Password hashing now uses an explicit versioned `scrypt-v2$N=...,r=...,p=...$salt$digest` format for all new/updated credentials, and legacy temporary `scrypt$...` hashes are still verified and transparently upgraded to `scrypt-v2` on successful login (`apps/api-server/src/lib/passwordAuth.ts`, `apps/api-server/src/routes/auth.ts`).
+- Password reset now revokes all other sessions for the user (cross-group) before clearing the current group cookie/session, reflecting account-recovery security scope rather than routine group-local logout scope (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/auth.ts`).
+- Password auth rate limiting now applies both IP-keyed limits and opaque normalized-email keyed limits for signup/login/forgot-password without changing response shapes, so account enumeration posture is preserved while abuse resistance is stronger (`apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/passwordAuth.ts`).
+- The case-insensitive users-email uniqueness migration now performs a deterministic preflight collision check and aborts with explicit remediation guidance when `lower(email)` duplicates exist, instead of failing unpredictably during index creation (`lib/db/migrations/20260404_users_email_case_insensitive_unique.sql`).
 - Frontend auth UI now supports email/password in addition to Google OAuth (`apps/admin/src/pages/auth/*`) while preserving `lib/frontend-security` as the single auth state authority.
 
 ### Do not break
