@@ -5,6 +5,7 @@ import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chrome, ActivitySquare } from "lucide-react";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   ADMIN_ACCESS_DENIED_ERROR,
   ADMIN_ACCESS_DENIED_MESSAGE,
@@ -43,6 +44,7 @@ export default function Login() {
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [emailInput, setEmailInput] = React.useState("");
   const [passwordInput, setPasswordInput] = React.useState("");
+  const [stayLoggedIn, setStayLoggedIn] = React.useState(false);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
@@ -192,8 +194,13 @@ export default function Login() {
   }
 
   const handlePasswordLogin = () => {
+    if (turnstileEnabled && !turnstileToken) {
+      setLoginError("Please complete the verification challenge.");
+      return;
+    }
+
     setLoginError(null);
-    auth.loginWithPassword(emailInput, passwordInput).catch((error) => {
+    auth.loginWithPassword(emailInput, passwordInput, turnstileToken, stayLoggedIn).catch((error) => {
       setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
     });
   };
@@ -209,7 +216,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithGoogle(turnstileToken, intent, nextPath).catch((error) => {
+    auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn).catch((error) => {
       console.error("Google sign-in failed", error);
       const message = error instanceof Error
         ? ((error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message))
@@ -278,8 +285,12 @@ export default function Login() {
 
             <div className="my-4 space-y-3">
               <input className="w-full border rounded px-3 py-2" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} />
-              <input className="w-full border rounded px-3 py-2" placeholder="Password" type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
-              <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput}>Sign in with email</Button>
+              <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
+                Stay logged in for 2 weeks
+              </label>
+              <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
               <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
             </div>
 

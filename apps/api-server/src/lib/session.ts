@@ -11,6 +11,7 @@ const PgStore = connectPgSimple(session);
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour inactivity timeout
 const DEFAULT_ABSOLUTE_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hour absolute cap
+const STAY_LOGGED_IN_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 const DEFAULT_PRUNE_INTERVAL_SECONDS = 15 * 60; // every 15 minutes
 export const SESSION_STORE_SCHEMA_NAME = "platform";
 export const SESSION_STORE_TABLE_NAME = "sessions";
@@ -91,6 +92,18 @@ export async function ensureSessionStoreInfrastructure() {
   await pool.query(ENSURE_SESSION_SCHEMA_SQL);
   await pool.query(ENSURE_SESSION_TABLE_SQL);
   await pool.query(ENSURE_SESSION_EXPIRE_INDEX_SQL);
+}
+
+export function getStayLoggedInMaxAgeMs() {
+  return STAY_LOGGED_IN_MAX_AGE_MS;
+}
+
+export function applySessionPersistence(req: Request, stayLoggedIn: boolean) {
+  req.session.stayLoggedIn = stayLoggedIn;
+  if (!req.session.cookie) {
+    (req.session as { cookie?: { maxAge?: number } }).cookie = {};
+  }
+  req.session.cookie.maxAge = stayLoggedIn ? STAY_LOGGED_IN_MAX_AGE_MS : getSessionPolicy().idleTimeoutMs;
 }
 
 export function getDeleteOtherSessionsSql() {
@@ -290,6 +303,9 @@ declare module "express-session" {
     pendingUserId?: string;
     pendingAppSlug?: string;
     pendingMfaReason?: "enrollment_required" | "challenge_required";
+    pendingStayLoggedIn?: boolean;
+    oauthStayLoggedIn?: boolean;
+    stayLoggedIn?: boolean;
     sessionGroup?: string;
     sessionCreatedAt?: number;
     sessionAuthenticatedAt?: number;

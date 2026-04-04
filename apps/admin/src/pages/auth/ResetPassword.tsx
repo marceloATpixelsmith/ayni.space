@@ -1,6 +1,7 @@
 import React from "react";
 import { useSearch, useLocation } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export default function ResetPassword() {
   const auth = useAuth();
@@ -15,5 +16,5 @@ export default function ResetPassword() {
     setTimeout(() => setLocation("/login"), 800);
   }).catch((err) => setMessage(err instanceof Error ? err.message : "Unable to reset password."));
 
-  return <div className="p-6 max-w-md mx-auto space-y-2"><h1 className="text-xl font-semibold">Reset password</h1><input type="password" className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password" /><button className="border rounded px-3 py-2" onClick={submit}>Reset password</button>{message ? <p className="text-sm">{message}</p> : null}</div>;
+  return <div className="p-6 max-w-md mx-auto space-y-2"><h1 className="text-xl font-semibold">Reset password</h1><PasswordInput className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="New password" autoComplete="new-password" /><button className="border rounded px-3 py-2" onClick={submit}>Reset password</button>{message ? <p className="text-sm">{message}</p> : null}</div>;
 }

@@ -5,6 +5,7 @@
 - Canonical companion: `docs/authentication-and-session-architecture.md`.
 
 ## Confirmed
+- Login requests can now opt into 14-day persistence (`stayLoggedIn`) and backend session cookies are adjusted authoritatively in `apps/api-server/src/lib/session.ts`/`apps/api-server/src/routes/auth.ts` (including Google OAuth state handoff).
 - Backend auth implementation location: `apps/api-server/src/lib/auth.ts`.
 - Backend auth/session route wiring: `apps/api-server/src/routes/auth.ts`.
 - Session lifecycle/rotation helpers and canonical session destruction/cookie clearing/logout-others helpers: `apps/api-server/src/lib/session.ts`.

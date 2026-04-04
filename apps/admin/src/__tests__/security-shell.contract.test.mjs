@@ -8,6 +8,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appPath = path.resolve(__dirname, "../App.tsx");
 const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
+const signupPath = path.resolve(__dirname, "../pages/auth/Signup.tsx");
+const resetPasswordPath = path.resolve(__dirname, "../pages/auth/ResetPassword.tsx");
 const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
 const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
@@ -18,6 +20,8 @@ const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAc
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
+const signupSource = fs.readFileSync(signupPath, "utf8");
+const resetPasswordSource = fs.readFileSync(resetPasswordPath, "utf8");
 const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
 const turnstileSource = fs.readFileSync(turnstilePath, "utf8");
@@ -524,7 +528,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
+    "auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn)",
     "Login should pass turnstile token and continuation path into OAuth URL request.",
   );
 
@@ -750,5 +754,91 @@ test("app-access snapshot allows organization users into dashboard after onboard
     onboardingSource,
     "await auth.refreshSession();",
     "Onboarding success should refresh shared auth state so dashboard authorization is immediate.",
+  );
+});
+
+
+test("auth password forms use shared password visibility toggle component", () => {
+  expectIncludes(
+    loginSource,
+    "<PasswordInput",
+    "Login should use shared PasswordInput so users can reveal/hide passwords accessibly.",
+  );
+
+  expectIncludes(
+    signupSource,
+    "<PasswordInput",
+    "Signup should use shared PasswordInput so users can reveal/hide passwords accessibly.",
+  );
+
+  expectIncludes(
+    resetPasswordSource,
+    "<PasswordInput",
+    "Reset password should use shared PasswordInput so users can reveal/hide passwords accessibly.",
+  );
+});
+
+test("login forwards stay-logged-in intent and signup enforces turnstile readiness", () => {
+  expectIncludes(
+    loginSource,
+    "Stay logged in for 2 weeks",
+    "Login should offer a 2-week stay-logged-in control.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn)",
+    "Google auth initiation should carry stay-logged-in preference.",
+  );
+
+  expectIncludes(
+    loginSource,
+    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken, stayLoggedIn)",
+    "Password login should carry turnstile token and stay-logged-in preference.",
+  );
+
+  expectIncludes(
+    signupSource,
+    "const turnstile = useTurnstileToken();",
+    "Signup should render through shared turnstile hook.",
+  );
+
+  expectIncludes(
+    signupSource,
+    "{turnstile.enabled ? <turnstile.TurnstileWidget /> : null}",
+    "Signup should render Turnstile widget when enabled.",
+  );
+
+  expectIncludes(
+    signupSource,
+    "disabled={!name || !email || !password || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}",
+    "Signup should block submission until Turnstile is ready and solved.",
+  );
+
+  expectIncludes(
+    turnstileSource,
+    'theme: "light"',
+    "Turnstile should be configured to use light theme across auth flows.",
+  );
+});
+
+
+test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
+  expectIncludes(
+    authProviderSource,
+    'body: JSON.stringify({ email, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn })',
+    "Password login request should include turnstile token and stay-logged-in flag.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    'body: JSON.stringify({ email, password, name, "cf-turnstile-response": turnstileToken ?? undefined })',
+    "Signup request should include turnstile token payload for central enforcement.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "stayLoggedIn,",
+    "Google OAuth start payload should include stay-logged-in flag.",
   );
 });

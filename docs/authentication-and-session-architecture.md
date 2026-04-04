@@ -4,6 +4,7 @@
 - This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
+- Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - OAuth callback authorization now resolves active app context and normalized access profile before redirecting, then performs group-scoped denial cleanup on `access_denied` (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/appAccess.ts`).
 - OAuth start/callback continuation now supports a sanitized root-relative `returnToPath` (for example invitation acceptance URLs), carries it inside signed OAuth state, and prioritizes that continuation after successful callback session establishment (`apps/api-server/src/routes/auth.ts`, `apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`).
 - OAuth state now carries an encoded payload (`appSlug`, `returnTo`, `sessionGroup`, nonce) and callback validation fails closed when `appSlug` is missing or malformed, preventing callback authorization with incomplete app context (`apps/api-server/src/routes/auth.ts`).
@@ -59,6 +60,7 @@
 ## 2026-04-04 update — Email/password credential lane
 
 ### Confirmed
+- Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - Email/password is now additive to Google OAuth, with credentials and auth tokens split from `platform.users` into `platform.user_credentials` and `platform.auth_tokens` (`lib/db/src/schema/auth_credentials.ts`, `lib/db/migrations/20260404_email_password_auth.sql`).
 - New auth endpoints were added for `signup`, `login`, `forgot-password`, `reset-password`, and `verify-email` in `apps/api-server/src/routes/auth.ts`.
 - Password hashing now uses an explicit versioned `scrypt-v2$N=...,r=...,p=...$salt$digest` format for all new/updated credentials, and legacy temporary `scrypt$...` hashes are still verified and transparently upgraded to `scrypt-v2` on successful login (`apps/api-server/src/lib/passwordAuth.ts`, `apps/api-server/src/routes/auth.ts`).
@@ -74,6 +76,7 @@
 ## 2026-04-04 update — Signup anti-abuse + MFA step-up architecture
 
 ### Confirmed
+- Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - Signup now performs backend-only IPQS email risk scoring in `apps/api-server/src/lib/ipqs.ts` and applies decisioning (`allow` | `step_up` | `block`) inside `POST /api/auth/signup` (`apps/api-server/src/routes/auth.ts`).
 - IPQS provider errors/timeouts are fail-soft: signup continues as `step_up` (never blocked due to provider outage), and user is marked for MFA enrollment at first login.
 - Disposable and undeliverable email signals from IPQS are handled server-side and can block signup with generic safe messaging.
