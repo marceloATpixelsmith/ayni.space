@@ -45,7 +45,7 @@ test("legacy scrypt login transparently upgrades stored hash to current versione
           where: async () => undefined,
         };
       },
-    })) as typeof db.update),
+    })) as unknown as typeof db.update),
   ];
 
   try {
