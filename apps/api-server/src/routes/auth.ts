@@ -1659,6 +1659,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     await sendLane1AuthVerificationEmail({
       req,
       appId: signupApp.id,
+      appSlug: signupApp.slug,
       userId: user.id,
       userEmail: email,
       verificationToken,
@@ -1821,7 +1822,22 @@ async function handleResetPassword(req: Request, res: Response) {
 async function handleVerifyEmail(req: Request, res: Response) {
   const token = String(req.body?.token ?? "").trim();
   const appSlug = String(req.body?.appSlug ?? "").trim();
+  const correlationId = req.correlationId;
+  const logVerifyEmailOutcome = async (outcome: string, metadata?: Record<string, unknown>) => {
+    await writeAuditLog({
+      action: "auth.verify_email",
+      resourceType: "auth_verification",
+      req,
+      metadata: {
+        outcome,
+        appSlug: appSlug || null,
+        correlationId: correlationId ?? null,
+        ...metadata,
+      },
+    });
+  };
   if (!token) {
+    await logVerifyEmailOutcome("invalid_request", { reasonCode: "missing_token" });
     res.status(400).json({ error: "Invalid verification token." });
     return;
   }
@@ -1829,31 +1845,40 @@ async function handleVerifyEmail(req: Request, res: Response) {
   const consumed = await consumeAuthToken(token, "email_verification");
   if (consumed.status !== "consumed") {
     if (consumed.status === "expired") {
+      await logVerifyEmailOutcome("token_rejected", { reasonCode: "expired" });
       res.status(400).json({ error: "Verification token has expired.", code: "VERIFICATION_TOKEN_EXPIRED" });
       return;
     }
     if (consumed.status === "already_used") {
+      await logVerifyEmailOutcome("token_rejected", { reasonCode: "already_used" });
       res.status(409).json({ error: "Verification token was already used.", code: "VERIFICATION_TOKEN_ALREADY_USED" });
       return;
     }
+    await logVerifyEmailOutcome("token_rejected", { reasonCode: "invalid" });
     res.status(400).json({ error: "Verification token is invalid.", code: "VERIFICATION_TOKEN_INVALID" });
     return;
   }
 
   await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.token.userId));
   if (!appSlug) {
+    await logVerifyEmailOutcome("verified_no_app_slug", { userId: consumed.token.userId });
     res.json({ success: true });
     return;
   }
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, consumed.token.userId) });
   if (!user || !user.active || user.suspended || user.deletedAt) {
+    await logVerifyEmailOutcome("account_unavailable", { userId: consumed.token.userId });
     res.status(403).json({ error: "Account is unavailable." });
     return;
   }
 
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, false);
   if (mfaGate.required) {
+    await logVerifyEmailOutcome("verified_mfa_required", {
+      userId: user.id,
+      needsEnrollment: mfaGate.needsEnrollment,
+    });
     res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
     return;
   }
@@ -1861,6 +1886,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
   await establishPasswordSession(req, user.id, appSlug, false);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
   const nextPath = await resolveNextPathForEstablishedSession(user.id, appSlug) ?? "/dashboard";
+  await logVerifyEmailOutcome("verified_session_established", { userId: user.id, nextPath });
   res.json({ success: true, nextPath });
 }
 

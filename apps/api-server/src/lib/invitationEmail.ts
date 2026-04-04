@@ -314,6 +314,7 @@ export class AuthVerificationEmailConfigError extends Error {}
 export async function sendLane1AuthVerificationEmail(params: {
   req: Request;
   appId: string;
+  appSlug: string;
   userId: string;
   userEmail: string;
   verificationToken: string;
@@ -329,7 +330,11 @@ export async function sendLane1AuthVerificationEmail(params: {
   const provider = resolveLane1Provider();
   const correlationId = randomUUID();
   const logId = randomUUID();
-  const verificationUrl = `${resolveLane1BaseUrl(params.req)}/verify-email?token=${encodeURIComponent(params.verificationToken)}`;
+  const query = new URLSearchParams({
+    token: params.verificationToken,
+    appSlug: params.appSlug,
+  });
+  const verificationUrl = `${resolveLane1BaseUrl(params.req)}/verify-email?${query.toString()}`;
   const subject = `Verify your email for ${app.name}`;
   const htmlBody = `<p>Please verify your email to continue.</p><p><a href="${escapeHtml(verificationUrl)}">Verify email</a></p>`;
   const request: Lane1SendRequest = {

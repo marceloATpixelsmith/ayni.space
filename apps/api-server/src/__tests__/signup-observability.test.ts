@@ -486,6 +486,10 @@ test("signup returns appSlug and routes verification email through lane1 outboun
     const row = outboundRows.find((entry) => entry.lane === "lane1");
     const payload = row?.requestedPayloadSnapshot as Record<string, unknown>;
     assert.equal((payload?.metadata as Record<string, unknown>)?.email_kind, "email_verification");
+    assert.equal(
+      typeof payload?.htmlBody === "string" && payload.htmlBody.includes("appSlug=admin"),
+      true,
+    );
     assert.equal(auditRows.some((entry) => entry.action === "auth.signup.decision"), true);
   } finally {
     restores.reverse().forEach((restore) => restore());

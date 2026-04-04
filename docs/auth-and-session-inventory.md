@@ -24,6 +24,9 @@
 - Auth/session middleware integration lives in `apps/api-server/src/app.ts`.
 - `/api/auth/verify-email` remains a public, rate-limited endpoint but is exempt from Turnstile because emailed link possession is the verification proof and must not require an extra interactive challenge (`apps/api-server/src/lib/securityPolicy.ts`, `apps/api-server/src/routes/auth.ts`).
 - Verification-link consumption now distinguishes token failure states (`invalid`, `expired`, `already_used`) at the API layer and frontend verification calls now acquire CSRF state before posting, preventing initial CSRF race failures from being mislabeled as token-invalid errors (`apps/api-server/src/routes/auth.ts`, `lib/frontend-security/src/index.tsx`, `apps/admin/src/pages/auth/VerifyEmail.tsx`).
+- Verification-link emails now include `appSlug` so verify completion can continue through backend post-auth/MFA routing when appropriate, rather than defaulting to token-only completion (`apps/api-server/src/lib/invitationEmail.ts`, `apps/api-server/src/routes/auth.ts`).
+- Verify-email UI now uses explicit completion/error/redirecting states and avoids stale effect-cancel dead-ends that could leave users stuck on "Verifying your email..." (`apps/admin/src/pages/auth/VerifyEmail.tsx`).
+- Verify-email backend outcomes are now audit-logged through the existing `writeAuditLog` pipeline (`auth.verify_email`) for branch-level traceability (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/audit.ts`).
 - Login/signup/forgot-password email field validation now defers inline errors until blur/touch or submit, while signup password feedback renders progressively after typing by showing only missing policy requirements (8+ chars, uppercase, lowercase, number) (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/admin/src/pages/auth/authValidation.ts`).
 
 ## Inferred
