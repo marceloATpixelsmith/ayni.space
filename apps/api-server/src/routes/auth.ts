@@ -1349,7 +1349,7 @@ type SignupDecisionReasonCode =
   | "signup_not_allowed_by_access_policy"
   | "validation_failed"
   | "internal_exception"
-  | "ipqs_step_up_threshold"
+  | "ipqs_advisory_step_up"
   | "signup_allowed";
 
 type SignupDecisionLog = {
@@ -1626,7 +1626,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
         ? "ipqs_provider_failure_step_up"
         : ipqsAssessment.reason === "undeliverable_email"
           ? "undeliverable_email"
-          : "ipqs_step_up_threshold";
+          : "ipqs_advisory_step_up";
       await logSignupDecision(req, {
         category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
         reasonCode: stepUpReasonCode,
