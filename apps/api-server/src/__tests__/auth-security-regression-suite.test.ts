@@ -289,6 +289,24 @@ test("PART 3E+3F+3G: callback-established admin session is reused by next auth c
         googleSubject: "super-sub",
       }]),
     }) as never),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "active-mfa-factor",
+      userId: "super-user-id",
+      factorType: "totp",
+      status: "active",
+      secretCiphertext: "ciphertext",
+      secretIv: "iv",
+      secretTag: "tag",
+    })),
+    patchProperty(db.query.trustedDevicesTable, "findFirst", async () => ({
+      id: "trusted-device-row",
+      userId: "super-user-id",
+      tokenHash: "hashed-token",
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      lastSeenAt: new Date(),
+    })),
   ];
 
   const sessionState: { session: any } = {
@@ -316,7 +334,7 @@ test("PART 3E+3F+3G: callback-established admin session is reused by next auth c
 
     const callbackResp = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`, "GET", {
       origin: "http://admin.local",
-      cookie: "saas.admin.sid=admin-cookie",
+      cookie: "saas.admin.sid=admin-cookie; ayni_trusted_device=trusted-device-cookie",
     });
     assert.equal(callbackResp.status, 302);
 
