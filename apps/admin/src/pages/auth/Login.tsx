@@ -301,7 +301,11 @@ export default function Login() {
               Stay logged in for 2 weeks
             </label>
 
-            {turnstileEnabled ? <TurnstileWidget /> : null}
+            {turnstileEnabled ? (
+              <div className="mt-6">
+                <TurnstileWidget />
+              </div>
+            ) : null}
 
             {accessError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">
