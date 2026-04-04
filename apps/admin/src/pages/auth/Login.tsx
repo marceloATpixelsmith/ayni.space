@@ -298,10 +298,10 @@ export default function Login() {
 
             <label className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
-              Keep me logged in for 2 weeks
+              Stay logged in for 2 weeks
             </label>
 
-            {turnstileEnabled ? <div className="mt-2"><TurnstileWidget /></div> : null}
+            {turnstileEnabled ? <TurnstileWidget /> : null}
 
             {accessError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">
