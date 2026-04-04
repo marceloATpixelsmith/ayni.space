@@ -19,6 +19,8 @@ import Signup from "./pages/auth/Signup";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import VerifyEmail from "./pages/auth/VerifyEmail";
+import MfaEnroll from "./pages/auth/MfaEnroll";
+import MfaChallenge from "./pages/auth/MfaChallenge";
 import Onboarding from "./pages/auth/Onboarding";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import DashboardHome from "./pages/dashboard/DashboardHome";
@@ -282,7 +284,9 @@ function Router() {
             <Route path="/signup" component={Signup} />
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/reset-password" component={ResetPassword} />
-            <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/mfa/enroll" component={MfaEnroll} />
+        <Route path="/mfa/challenge" component={MfaChallenge} />
       <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
       <Route path="/onboarding">{() => <AuthRedirect to="/onboarding/organization" />}</Route>
       <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>

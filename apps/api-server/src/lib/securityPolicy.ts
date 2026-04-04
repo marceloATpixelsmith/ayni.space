@@ -62,6 +62,19 @@ export function getSecurityConfig(): SecurityConfig {
         },
       },
       {
+        method: "POST",
+        pattern: /^\/api\/auth\/(signup|login|forgot-password|reset-password|verify-email|mfa\/challenge|mfa\/recovery)\/?$/,
+        category: "PUBLIC",
+        rateLimit: { type: "auth", options: { keyPrefix: "auth-public" } },
+      },
+      {
+        method: "POST",
+        pattern: /^\/api\/auth\/mfa\/enroll\/(start|verify)\/?$/,
+        category: "PUBLIC",
+        disableTurnstileReason: "MFA enrollment uses authenticated or pre-auth session state.",
+        rateLimit: { type: "auth", options: { keyPrefix: "auth-mfa-enroll" } },
+      },
+      {
         method: "GET",
         pattern: /^\/api\/csrf-token\/?$/,
         category: "PUBLIC",

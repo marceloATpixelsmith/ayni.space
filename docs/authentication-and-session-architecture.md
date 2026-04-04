@@ -70,3 +70,17 @@
 ### Do not break
 - Keep credential secrets out of `platform.users` going forward.
 - Keep reset/verification tokens one-time and expiring.
+
+## 2026-04-04 update — Signup anti-abuse + MFA step-up architecture
+
+### Confirmed
+- Signup now performs backend-only IPQS email risk scoring in `apps/api-server/src/lib/ipqs.ts` and applies decisioning (`allow` | `step_up` | `block`) inside `POST /api/auth/signup` (`apps/api-server/src/routes/auth.ts`).
+- IPQS provider errors/timeouts are fail-soft: signup continues as `step_up` (never blocked due to provider outage), and user is marked for MFA enrollment at first login.
+- Disposable and undeliverable email signals from IPQS are handled server-side and can block signup with generic safe messaging.
+- MFA is now first-class and TOTP-based (`apps/api-server/src/lib/mfa.ts`) with enrollment, challenge, and recovery-code flows under `/api/auth/mfa/*`.
+- Trusted devices are server-authoritative (`platform.trusted_devices`) with hashed token storage, secure cookie transport, and 20-day expiry.
+- MFA issuer now derives from session-group authority (not app name/env): canonical display names are sourced from `platform.session_groups` and resolved by `apps/api-server/src/lib/sessionGroupDisplay.ts`.
+- Required MFA enforcement now includes:
+  - super admins (`platform.users.is_super_admin=true`),
+  - org leadership roles mapped to real roles (`org_owner`, `org_admin`),
+  - org client-registration pathways (organization apps with customer registration enabled).

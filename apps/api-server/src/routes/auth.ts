@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
+import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable, userAuthSecurityTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie, getDeleteAllOtherSessionsForUserSql, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
@@ -16,6 +16,9 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 import { generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, hashPassword, isStrongEnoughPassword, normalizeEmail as normalizeEmailAddress, verifyPassword } from "../lib/passwordAuth.js";
+import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
+import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
+import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -302,6 +305,17 @@ function getTurnstileToken(req: Request): string {
   return bodyToken ?? headerToken ?? "";
 }
 
+
+function getCookieValue(req: Request, cookieName: string): string | null {
+  const cookieHeader = req.headers["cookie"];
+  if (typeof cookieHeader !== "string") return null;
+  for (const entry of cookieHeader.split(";")) {
+    const [name, value] = entry.split("=");
+    if (name?.trim() === cookieName) return (value ?? "").trim();
+  }
+  return null;
+}
+
 function logAuthFailure(req: Request, reason: string, metadata: Record<string, unknown> = {}) {
   const signal = recordAbuseSignal(`auth:${reason}:${getAbuseClientKey(req)}`);
   writeAuditLog({
@@ -495,6 +509,8 @@ async function handleMe(req: Request, res: Response) {
   const appAccessContext = sessionAppSlug
     ? await getAppContext(authenticatedUser.id, sessionAppSlug)
     : null;
+  const mfaRequired = await isMfaRequiredForUser(authenticatedUser.id, authenticatedUser.activeOrgId);
+  const mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
 
   res.json({
     id: authenticatedUser.id,
@@ -505,6 +521,8 @@ async function handleMe(req: Request, res: Response) {
     activeOrgId: activeOrg?.id ?? null,
     activeOrg: activeOrg,
     memberships: scopedMemberships,
+    mfaRequired,
+    mfaEnrolled,
     appAccess: appAccessContext
       ? {
           appSlug: sessionAppSlug,
@@ -520,6 +538,7 @@ async function handleMe(req: Request, res: Response) {
 async function handleLogout(req: Request, res: Response) {
   try {
     await destroySessionAndClearCookie(req, res, getCurrentRequestSessionGroup(req));
+    res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("session_group_resolution_failed:")) {
@@ -1114,6 +1133,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
+    const oauthMfaGate = await beginMfaPendingSession(req, user.id, activeAppSlug);
+    if (oauthMfaGate.required) {
+      const mfaPath = oauthMfaGate.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      res.redirect(`${frontendBase}${mfaPath}`);
+      return;
+    }
+
     req.session.userId = user.id;
     req.session.isSuperAdmin = Boolean(user.isSuperAdmin);
     req.session.activeOrgId = user.activeOrgId ?? undefined;
@@ -1340,12 +1366,62 @@ async function establishPasswordSession(req: Request, userId: string, appSlug: s
   });
 }
 
+
+
+type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean };
+
+async function beginMfaPendingSession(req: Request, userId: string, appSlug: string): Promise<MfaStartResult> {
+  const activeOrgId = req.session.activeOrgId ?? null;
+  const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
+  const hasFactor = await hasActiveMfaFactor(userId);
+  const trustedCookieToken = getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
+  const trusted = await isTrustedDevice(userId, trustedCookieToken);
+  const security = await getUserAuthSecurity(userId);
+  const needsStepUp = Boolean(security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt);
+  const needsEnrollment = mfaRequired && !hasFactor;
+  const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
+
+  if (!mustChallenge && !needsEnrollment) {
+    return { required: false };
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
+  });
+  req.session.pendingUserId = userId;
+  req.session.pendingAppSlug = appSlug;
+  req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+
+  return { required: true, needsEnrollment };
+}
+
+async function completePendingMfaSession(req: Request) {
+  const pendingUserId = req.session.pendingUserId;
+  const pendingAppSlug = req.session.pendingAppSlug;
+  if (!pendingUserId || !pendingAppSlug) return null;
+
+  await establishPasswordSession(req, pendingUserId, pendingAppSlug);
+  delete req.session.pendingUserId;
+  delete req.session.pendingAppSlug;
+  delete req.session.pendingMfaReason;
+  await clearFirstAuthAfterReset(pendingUserId);
+  return { userId: pendingUserId };
+}
 async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
   if (!email || !password || !isStrongEnoughPassword(password)) {
     res.status(400).json({ error: "Invalid signup input." });
+    return;
+  }
+
+  const ipqsAssessment = await assessSignupRiskWithIpqs(email, req.ip);
+  if (ipqsAssessment.decision === "block") {
+    res.status(400).json({ error: "We couldn't create this account. Please use a different email and try again." });
     return;
   }
 
@@ -1382,6 +1458,22 @@ async function handlePasswordSignup(req: Request, res: Response) {
   });
 
   const verificationToken = await createAuthToken(user.id, "email_verification", 60);
+
+  const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
+  const signupApp = await getAppBySlug(signupAppSlug);
+  if (signupApp?.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
+    await db.insert(userAuthSecurityTable).values({
+      userId: user.id,
+      mfaRequired: true,
+      forceMfaEnrollment: true,
+      riskReason: "org_client_registration",
+    }).onConflictDoUpdate({ target: userAuthSecurityTable.userId, set: { mfaRequired: true, forceMfaEnrollment: true, riskReason: "org_client_registration", updatedAt: new Date() } });
+  }
+
+  if (ipqsAssessment.decision === "step_up") {
+    await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
+  }
+
   res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
 }
 
@@ -1422,6 +1514,12 @@ async function handlePasswordLogin(req: Request, res: Response) {
   }
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
+  const mfaGate = await beginMfaPendingSession(req, user.id, appSlug);
+  if (mfaGate.required) {
+    res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
+    return;
+  }
+
   await establishPasswordSession(req, user.id, appSlug);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
   res.json({ success: true });
@@ -1462,8 +1560,10 @@ async function handleResetPassword(req: Request, res: Response) {
     await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.userId, credentialType: "password", passwordHash: hash });
   }
 
+  await markPasswordResetSecurityEvent(consumed.userId);
   await pool.query(getDeleteAllOtherSessionsForUserSql(), [consumed.userId, req.session.id ?? ""]);
   await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
+  res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
   res.json({ success: true });
 }
 
@@ -1484,6 +1584,103 @@ async function handleVerifyEmail(req: Request, res: Response) {
   res.json({ success: true });
 }
 
+
+
+async function handleMfaEnrollStart(req: Request, res: Response) {
+  const userId = req.session.userId ?? req.session.pendingUserId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const factor = await beginTotpEnrollment(userId);
+  const issuer = await getMfaIssuerForSessionGroup(req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT);
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  const otpauthUrl = buildTotpOtpauthUrl({ issuer, accountName: user?.email ?? userId, secret: factor.secret });
+  res.json({ factorId: factor.factorId, secret: factor.secret, otpauthUrl, issuer });
+}
+
+async function handleMfaEnrollVerify(req: Request, res: Response) {
+  const userId = req.session.userId ?? req.session.pendingUserId;
+  const factorId = String(req.body?.factorId ?? "").trim();
+  const code = String(req.body?.code ?? "").trim();
+  if (!userId || !factorId || !code) {
+    res.status(400).json({ error: "Invalid MFA enrollment verification request." });
+    return;
+  }
+  const activated = await activateTotpEnrollment(userId, factorId, code);
+  if (!activated) {
+    res.status(400).json({ error: "Invalid MFA code." });
+    return;
+  }
+  res.json({ success: true, recoveryCodes: activated.recoveryCodes });
+}
+
+async function handleMfaChallenge(req: Request, res: Response) {
+  const userId = req.session.pendingUserId;
+  const code = String(req.body?.code ?? "").trim();
+  const rememberDevice = req.body?.rememberDevice === true;
+  if (!userId || !code) {
+    res.status(400).json({ error: "Invalid MFA challenge request." });
+    return;
+  }
+
+  const ok = await verifyMfaChallenge(userId, code);
+  if (!ok) {
+    res.status(401).json({ error: "Invalid MFA code." });
+    return;
+  }
+
+  const completed = await completePendingMfaSession(req);
+  if (!completed) {
+    res.status(400).json({ error: "MFA session is not active." });
+    return;
+  }
+
+  if (rememberDevice) {
+    const token = await rememberTrustedDevice(userId);
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
+  }
+
+  res.json({ success: true });
+}
+
+async function handleMfaRecovery(req: Request, res: Response) {
+  const userId = req.session.pendingUserId;
+  const recoveryCode = String(req.body?.recoveryCode ?? "").trim();
+  const rememberDevice = req.body?.rememberDevice === true;
+  if (!userId || !recoveryCode) {
+    res.status(400).json({ error: "Invalid MFA recovery request." });
+    return;
+  }
+  const ok = await verifyMfaChallenge(userId, recoveryCode);
+  if (!ok) {
+    res.status(401).json({ error: "Invalid recovery code." });
+    return;
+  }
+  const completed = await completePendingMfaSession(req);
+  if (!completed) {
+    res.status(400).json({ error: "MFA session is not active." });
+    return;
+  }
+  if (rememberDevice) {
+    const token = await rememberTrustedDevice(userId);
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
+  }
+  res.json({ success: true });
+}
+
+async function handleMfaDisable(req: Request, res: Response) {
+  const userId = req.session.userId;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  await db.update(userAuthSecurityTable).set({ forceMfaEnrollment: true, mfaRequired: true, updatedAt: new Date() }).where(eq(userAuthSecurityTable.userId, userId));
+  await revokeTrustedDevicesForUser(userId, "mfa_reset");
+  res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
+  res.json({ success: true });
+}
+
 router.get("/me", requireAuth, handleMe);
 router.post("/logout", handleLogout);
 router.post("/google/url", authRateLimiter({ keyPrefix: "auth-google-url" }), handleGoogleUrl);
@@ -1501,6 +1698,11 @@ router.post("/forgot-password", authRateLimiterWithIdentifier({
 }), handleForgotPassword);
 router.post("/reset-password", authRateLimiter({ keyPrefix: "auth-reset-password" }), handleResetPassword);
 router.post("/verify-email", authRateLimiter({ keyPrefix: "auth-verify-email" }), handleVerifyEmail);
+router.post("/mfa/enroll/start", authRateLimiter({ keyPrefix: "auth-mfa-enroll-start" }), handleMfaEnrollStart);
+router.post("/mfa/enroll/verify", authRateLimiter({ keyPrefix: "auth-mfa-enroll-verify" }), handleMfaEnrollVerify);
+router.post("/mfa/challenge", authRateLimiter({ keyPrefix: "auth-mfa-challenge" }), handleMfaChallenge);
+router.post("/mfa/recovery", authRateLimiter({ keyPrefix: "auth-mfa-recovery" }), handleMfaRecovery);
+router.post("/mfa/disable", requireAuth, authRateLimiter({ keyPrefix: "auth-mfa-disable" }), handleMfaDisable);
 router.get("/google/callback", handleGoogleCallback);
 
 export default router;
