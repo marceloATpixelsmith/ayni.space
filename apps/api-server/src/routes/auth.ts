@@ -1603,6 +1603,7 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   const userId = req.session.userId ?? req.session.pendingUserId;
   const factorId = String(req.body?.factorId ?? "").trim();
   const code = String(req.body?.code ?? "").trim();
+  const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !factorId || !code) {
     res.status(400).json({ error: "Invalid MFA enrollment verification request." });
     return;
@@ -1612,7 +1613,18 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
     res.status(400).json({ error: "Invalid MFA code." });
     return;
   }
-  res.json({ success: true, recoveryCodes: activated.recoveryCodes });
+
+  const completed = await completePendingMfaSession(req);
+  if (completed && rememberDevice) {
+    const token = await rememberTrustedDevice(userId);
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
+  }
+
+  res.json({
+    success: true,
+    recoveryCodes: activated.recoveryCodes,
+    sessionEstablished: Boolean(completed),
+  });
 }
 
 async function handleMfaChallenge(req: Request, res: Response) {

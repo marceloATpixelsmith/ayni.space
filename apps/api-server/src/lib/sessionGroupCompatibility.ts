@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { and, eq } from "drizzle-orm";
 import { appsTable, db, orgAppAccessTable, organizationsTable, type App } from "@workspace/db";
-import { SESSION_GROUPS } from "./sessionGroup.js";
+import { getKnownSessionGroups, SESSION_GROUPS } from "./sessionGroup.js";
 
 export type OrgSessionGroupContext = {
   orgId: string;
@@ -24,7 +24,9 @@ function readSessionGroupFromAppMetadata(app: Pick<App, "metadata">): string | n
 
 export function resolveSessionGroupForApp(app: Pick<App, "slug" | "metadata">): string {
   const metadataSessionGroup = readSessionGroupFromAppMetadata(app);
-  if (metadataSessionGroup) return metadataSessionGroup;
+  if (metadataSessionGroup && getKnownSessionGroups().includes(metadataSessionGroup)) {
+    return metadataSessionGroup;
+  }
   if (app.slug === "admin") return SESSION_GROUPS.ADMIN;
   return SESSION_GROUPS.DEFAULT;
 }
@@ -55,7 +57,7 @@ export async function resolveOrgSessionGroupContext(orgId: string): Promise<OrgS
   }
   if (orgAppAccessRows.length === 0) return null;
 
-  const apps = (
+  const apps: Array<NonNullable<Awaited<ReturnType<typeof db.query.appsTable.findFirst>>>> = (
     await Promise.all(
       orgAppAccessRows.map((accessRow) =>
         db.query.appsTable.findFirst({

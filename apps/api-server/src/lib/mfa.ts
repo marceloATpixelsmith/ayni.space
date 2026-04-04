@@ -231,7 +231,7 @@ export async function markPasswordResetSecurityEvent(userId: string) {
   await revokeTrustedDevicesForUser(userId, "password_reset");
 }
 
-export async function isMfaRequiredForUser(userId: string, activeOrgId?: string | null): Promise<boolean> {
+export async function isMfaRequiredForUser(userId: string, _activeOrgId?: string | null): Promise<boolean> {
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user) return false;
   if (user.isSuperAdmin) return true;
@@ -239,13 +239,17 @@ export async function isMfaRequiredForUser(userId: string, activeOrgId?: string 
   const security = await getUserAuthSecurity(userId);
   if (security?.mfaRequired || security?.forceMfaEnrollment) return true;
 
-  if (activeOrgId) {
-    try {
-      const orgRole = await db.query.orgMembershipsTable.findFirst({ where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, activeOrgId), eq(orgMembershipsTable.membershipStatus, "active"), sql`${orgMembershipsTable.role} in ('org_owner','org_admin')`) });
-      if (orgRole) return true;
-    } catch {
-      // fail open for role read outages
-    }
+  try {
+    const orgRole = await db.query.orgMembershipsTable.findFirst({
+      where: and(
+        eq(orgMembershipsTable.userId, userId),
+        eq(orgMembershipsTable.membershipStatus, "active"),
+        sql`${orgMembershipsTable.role} in ('org_owner','org_admin')`,
+      ),
+    });
+    if (orgRole) return true;
+  } catch {
+    // fail open for role read outages
   }
 
   return false;
