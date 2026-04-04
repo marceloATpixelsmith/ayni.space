@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { promisify } from "node:util";
-import { hashPassword, verifyPassword, generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken } from "../lib/passwordAuth.js";
+import { hashPassword, verifyPassword, generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, isStrongEnoughPassword } from "../lib/passwordAuth.js";
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -49,4 +49,12 @@ test("password auth opaque identifier is deterministic and normalized", () => {
   const b = getPasswordAuthOpaqueIdentifier("user@example.com");
   assert.equal(a, b);
   assert.equal(typeof a, "string");
+});
+
+test("password strength policy requires length/upper/lower/number", () => {
+  assert.equal(isStrongEnoughPassword("Abc12345"), true);
+  assert.equal(isStrongEnoughPassword("abc12345"), false);
+  assert.equal(isStrongEnoughPassword("ABC12345"), false);
+  assert.equal(isStrongEnoughPassword("Abcdefgh"), false);
+  assert.equal(isStrongEnoughPassword("Abc1234"), false);
 });

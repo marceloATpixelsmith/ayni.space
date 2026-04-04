@@ -92,6 +92,10 @@ function resolveInvitationBaseUrl(req: Request): string {
   return "http://localhost:5173";
 }
 
+function resolveLane1BaseUrl(req: Request): string {
+  return resolveInvitationBaseUrl(req);
+}
+
 function resolveLane1Provider(): "brevo" {
   const configured = process.env["PLATFORM_TRANSACTIONAL_EMAIL_PROVIDER"] ?? "brevo";
   if (configured !== "brevo") {
@@ -278,24 +282,128 @@ export async function sendLane1InvitationEmail(params: {
     };
   }
 
-  await db
-    .update(outboundEmailLogsTable)
-    .set({
-      attemptResult: result.status,
-      deliveryState: result.deliveryState,
-      providerMessageId: result.providerMessageId ?? null,
-      providerRequestId: result.providerRequestId ?? null,
-      normalizedErrorCode: result.error?.code ?? null,
-      normalizedErrorMessage: result.error?.message ?? null,
-      providerResponseSnapshot: sanitizeSnapshot(result.rawResponseSnapshot ?? {}),
-      acceptedAt: result.status === "accepted" || result.status === "queued" ? new Date() : null,
-      failedAt: result.status === "failed" || result.status === "rejected" ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(outboundEmailLogsTable.id, logId));
+  try {
+    await db
+      .update(outboundEmailLogsTable)
+      .set({
+        attemptResult: result.status,
+        deliveryState: result.deliveryState,
+        providerMessageId: result.providerMessageId ?? null,
+        providerRequestId: result.providerRequestId ?? null,
+        normalizedErrorCode: result.error?.code ?? null,
+        normalizedErrorMessage: result.error?.message ?? null,
+        providerResponseSnapshot: sanitizeSnapshot(result.rawResponseSnapshot ?? {}),
+        acceptedAt: result.status === "accepted" || result.status === "queued" ? new Date() : null,
+        failedAt: result.status === "failed" || result.status === "rejected" ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(outboundEmailLogsTable.id, logId));
+  } catch (error) {
+    console.error("[lane1-auth-verification-email] failed to update outbound log", { logId, error: error instanceof Error ? error.message : String(error) });
+  }
 
   if (result.status === "failed" || result.status === "rejected") {
     throw new Error(result.error?.message ?? "Invitation email send failed");
+  }
+
+  return { logId, correlationId, provider, result };
+}
+
+export class AuthVerificationEmailConfigError extends Error {}
+
+export async function sendLane1AuthVerificationEmail(params: {
+  req: Request;
+  appId: string;
+  userId: string;
+  userEmail: string;
+  verificationToken: string;
+}) {
+  const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, params.appId), eq(appsTable.isActive, true)) });
+  if (!app) {
+    throw new AuthVerificationEmailConfigError("App context for auth verification email was not found");
+  }
+  if (!app.transactionalFromEmail) {
+    throw new AuthVerificationEmailConfigError("Missing app transactional_from_email configuration");
+  }
+
+  const provider = resolveLane1Provider();
+  const correlationId = randomUUID();
+  const logId = randomUUID();
+  const verificationUrl = `${resolveLane1BaseUrl(params.req)}/verify-email?token=${encodeURIComponent(params.verificationToken)}`;
+  const subject = `Verify your email for ${app.name}`;
+  const htmlBody = `<p>Please verify your email to continue.</p><p><a href="${escapeHtml(verificationUrl)}">Verify email</a></p>`;
+  const request: Lane1SendRequest = {
+    orgId: "platform",
+    appId: params.appId,
+    actorUserId: params.userId,
+    correlationId,
+    fromEmail: app.transactionalFromEmail,
+    fromName: app.transactionalFromName ?? undefined,
+    replyTo: app.transactionalReplyToEmail ? { email: app.transactionalReplyToEmail } : undefined,
+    to: [{ email: params.userEmail }],
+    subject,
+    htmlBody,
+    metadata: {
+      email_kind: "email_verification",
+      lane: "lane1",
+    },
+  };
+
+  await db.insert(outboundEmailLogsTable).values({
+    id: logId,
+    lane: "lane1",
+    orgId: null,
+    appId: params.appId,
+    provider,
+    providerConnectionId: null,
+    correlationId,
+    actorUserId: params.userId,
+    requestedPayloadSnapshot: sanitizeSnapshot(request),
+    requestedSubject: subject,
+    requestedFrom: app.transactionalFromEmail,
+    requestedTo: [params.userEmail],
+    requestedTemplateReference: "system.email_verification_default",
+    attemptResult: "failed",
+    deliveryState: "pending",
+  });
+
+  let result: Lane1SendResult;
+  try {
+    result = await sendViaPlatformBrevo(request, resolveLane1ProviderApiKey(provider));
+  } catch (error) {
+    result = {
+      status: "failed",
+      provider,
+      deliveryState: "failed",
+      error: {
+        code: "provider_request_exception",
+        message: error instanceof Error ? error.message : "provider request failed",
+      },
+    };
+  }
+
+  try {
+    await db
+      .update(outboundEmailLogsTable)
+      .set({
+        attemptResult: result.status,
+        deliveryState: result.deliveryState,
+        providerMessageId: result.providerMessageId ?? null,
+        providerRequestId: result.providerRequestId ?? null,
+        normalizedErrorCode: result.error?.code ?? null,
+        normalizedErrorMessage: result.error?.message ?? null,
+        providerResponseSnapshot: sanitizeSnapshot(result.rawResponseSnapshot ?? {}),
+        acceptedAt: result.status === "accepted" || result.status === "queued" ? new Date() : null,
+        failedAt: result.status === "failed" || result.status === "rejected" ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(outboundEmailLogsTable.id, logId));
+  } catch (error) {
+    console.error("[lane1-auth-verification-email] failed to update outbound log", { logId, error: error instanceof Error ? error.message : String(error) });
+  }
+
+  if (result.status === "failed" || result.status === "rejected") {
+    throw new Error(result.error?.message ?? "Verification email send failed");
   }
 
   return { logId, correlationId, provider, result };

@@ -59,7 +59,7 @@ test("signup denial logs disposable_email reason code", async () => {
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -106,7 +106,7 @@ test("signup step-up logs undeliverable_email reason code", async () => {
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -149,7 +149,7 @@ test("signup step-up logs ipqs_advisory_step_up reason code for high fraud score
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -192,7 +192,7 @@ test("signup duplicate-email denial logs duplicate_existing_email reason code", 
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "duplicate@example.com" })),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({ id: "cred-1", userId: "user-1", credentialType: "password" })),
   ];
@@ -232,7 +232,7 @@ test("signup policy denial logs signup_not_allowed_by_access_policy reason code"
   const auditRows: InsertPayload[] = [];
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-2", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-2", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
   ];
 
   try {
@@ -262,7 +262,7 @@ test("signup provider-failure step-up logs ipqs_provider_failure_step_up reason 
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "provider@example.com" })),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -373,7 +373,7 @@ test("signup internal exception path logs internal_exception reason code", async
   const auditRows: InsertPayload[] = [];
   const previousFetch = globalThis.fetch;
   const restores = [
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
   ];
 
@@ -425,5 +425,71 @@ test("signup internal exception path logs internal_exception reason code", async
     restores.reverse().forEach((restore) => restore());
     if (prevIpqsKey === undefined) delete process.env["IPQS_API_KEY"];
     else process.env["IPQS_API_KEY"] = prevIpqsKey;
+  }
+});
+
+test("signup returns appSlug and routes verification email through lane1 outbound logging", async () => {
+  const prevNodeEnv = process.env["NODE_ENV"];
+  process.env["NODE_ENV"] = "test";
+
+  const auditRows: InsertPayload[] = [];
+  const outboundRows: InsertPayload[] = [];
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "admin",
+      name: "Admin",
+      accessMode: "superadmin",
+      isActive: true,
+      customerRegistrationEnabled: false,
+      transactionalFromEmail: "no-reply@example.com",
+      transactionalFromName: "Ayni",
+      transactionalReplyToEmail: "support@example.com",
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+    patchProperty(db, "insert", ((table: unknown) => {
+      if (table === auditLogsTable) {
+        return { values: async (payload: InsertPayload) => { auditRows.push(payload); } };
+      }
+      if (table === usersTable) {
+        return { values: (_payload: InsertPayload) => ({ returning: async () => [{ id: "user-created", email: "new@example.com", name: "New User" }] }) };
+      }
+      if (table === userAuthSecurityTable) {
+        return { values: (_payload: InsertPayload) => ({ onConflictDoUpdate: async () => undefined }) };
+      }
+      if (table === authTokensTable || table === userCredentialsTable) {
+        return { values: async () => undefined };
+      }
+      return { values: async (payload: InsertPayload) => { outboundRows.push(payload); } };
+    }) as never),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: () => ({
+          returning: async () => [] as unknown[],
+        }),
+      }),
+    })) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: "new@example.com",
+      password: "Password123",
+      name: "New User",
+    });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body?.appSlug, "admin");
+    assert.equal(outboundRows.some((row) => row.lane === "lane1"), true);
+    const row = outboundRows.find((entry) => entry.lane === "lane1");
+    const payload = row?.requestedPayloadSnapshot as Record<string, unknown>;
+    assert.equal((payload?.metadata as Record<string, unknown>)?.email_kind, "email_verification");
+    assert.equal(auditRows.some((entry) => entry.action === "auth.signup.decision"), true);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = prevNodeEnv;
   }
 });

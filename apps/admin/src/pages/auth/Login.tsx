@@ -11,6 +11,7 @@ import {
   ADMIN_ACCESS_DENIED_MESSAGE,
   adminAccessDeniedLoginPath,
 } from "./accessDenied";
+import { validateEmailInput } from "./authValidation";
 
 const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
 
@@ -194,6 +195,11 @@ export default function Login() {
   }
 
   const handlePasswordLogin = () => {
+    const emailError = validateEmailInput(emailInput);
+    if (emailError) {
+      setLoginError(emailError);
+      return;
+    }
     if (turnstileEnabled && !turnstileToken) {
       setLoginError("Please complete the verification challenge.");
       return;
@@ -291,8 +297,9 @@ export default function Login() {
 
             <div className="space-y-3">
               <input className="w-full border rounded px-3 py-2" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} />
+              {validateEmailInput(emailInput) ? <p className="text-xs text-destructive">{validateEmailInput(emailInput)}</p> : null}
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
-              <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
+              <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
               <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
             </div>
 
