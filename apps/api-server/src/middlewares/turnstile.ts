@@ -1,6 +1,8 @@
 import type { Request, RequestHandler } from "express";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
+import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
+import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 function isProduction(): boolean {
   return process.env["NODE_ENV"] === "production";
@@ -79,6 +81,24 @@ function getTokenFromRequest(req: Request): string {
   return bodyToken ?? headerToken ?? "";
 }
 
+function getSignupAuditContext(req: Request): Record<string, unknown> {
+  if (req.path !== "/api/auth/signup") return {};
+
+  const emailRaw = typeof req.body?.email === "string" ? req.body.email : "";
+  const normalizedEmail = normalizeEmail(emailRaw);
+  const normalizedEmailHash = normalizedEmail ? hashOpaqueToken(`signup-email:${normalizedEmail}`) : null;
+  const sessionGroup = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const appSlugFromBody = typeof req.body?.appSlug === "string" ? req.body.appSlug.trim() : "";
+  const appSlugFromSession = typeof req.session?.appSlug === "string" ? req.session.appSlug : "";
+  const appSlug = appSlugFromBody || appSlugFromSession || "admin";
+
+  return {
+    sessionGroup,
+    appSlug,
+    normalizedEmailHash,
+  };
+}
+
 function getSignupTurnstileDecisionDetails(path: string, reason: string): Record<string, unknown> {
   if (path !== "/api/auth/signup") return {};
 
@@ -106,6 +126,7 @@ function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: type
       method: req.method,
       path: req.path,
       correlationId: req.correlationId ?? null,
+      ...getSignupAuditContext(req),
       ...getSignupTurnstileDecisionDetails(req.path, reason),
       ...metadata,
     },
