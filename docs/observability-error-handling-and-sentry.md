@@ -9,7 +9,7 @@
 - Signup denial/internal decision reason codes are recorded as structured metadata (`reasonCode`, `decisionCategory`) in `platform.audit_logs` via `writeAuditLog`, including:
   - `disposable_email`
   - `undeliverable_email`
-  - `ipqs_block_threshold`
+  - `ipqs_step_up_threshold`
   - `ipqs_provider_failure_step_up`
   - `turnstile_missing_or_invalid`
   - `duplicate_existing_email`
