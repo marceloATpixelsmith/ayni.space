@@ -216,7 +216,9 @@ export function createSessionMiddleware(overrideHandlers?: Map<string, RequestHa
   };
 }
 
-export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof writeAuditLog } = {}) {
+export function sessionSecurityMiddleware(
+  deps: { writeAuditLogFn?: (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void> } = {},
+) {
   const policy = getSessionPolicy();
 
   return function sessionSecurity(req: Request, res: Response, next: NextFunction) {
@@ -254,7 +256,7 @@ export function sessionSecurityMiddleware(deps: { writeAuditLogFn?: typeof write
 
       if (ipChanged || userAgentChanged) {
         const writeAuditLogFn = deps.writeAuditLogFn ?? writeAuditLog;
-        writeAuditLogFn({
+        void writeAuditLogFn({
           userId: req.session.userId,
           action: "session.anomaly_observed",
           resourceType: "session",

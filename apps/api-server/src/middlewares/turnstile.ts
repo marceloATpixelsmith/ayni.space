@@ -4,6 +4,8 @@ import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
+type AuditWriter = (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void>;
+
 function isProduction(): boolean {
   return process.env["NODE_ENV"] === "production";
 }
@@ -87,6 +89,11 @@ function getSignupAuditContext(req: Request): Record<string, unknown> {
   const emailRaw = typeof req.body?.email === "string" ? req.body.email : "";
   const normalizedEmail = normalizeEmail(emailRaw);
   const normalizedEmailHash = normalizedEmail ? hashOpaqueToken(`signup-email:${normalizedEmail}`) : null;
+  const atIndex = normalizedEmail.indexOf("@");
+  const localPart = atIndex > 0 ? normalizedEmail.slice(0, atIndex) : normalizedEmail;
+  const domain = atIndex > 0 ? normalizedEmail.slice(atIndex + 1) : null;
+  const maskedLocalPart = localPart.length <= 2 ? localPart : `${localPart.slice(0, 2)}***`;
+  const normalizedEmailMasked = normalizedEmail ? (domain ? `${maskedLocalPart}@${domain}` : `${maskedLocalPart}***`) : null;
   const sessionGroup = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
   const appSlugFromBody = typeof req.body?.appSlug === "string" ? req.body.appSlug.trim() : "";
   const appSlugFromSession = typeof req.session?.appSlug === "string" ? req.session.appSlug : "";
@@ -96,6 +103,8 @@ function getSignupAuditContext(req: Request): Record<string, unknown> {
     sessionGroup,
     appSlug,
     normalizedEmailHash,
+    normalizedEmailMasked,
+    normalizedEmailDomain: domain,
   };
 }
 
@@ -109,12 +118,17 @@ function getSignupTurnstileDecisionDetails(path: string, reason: string): Record
   };
 }
 
-function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: typeof writeAuditLog, metadata: Record<string, unknown> = {}) {
+async function logTurnstileFailure(
+  req: Request,
+  reason: string,
+  writeAuditLogFn: AuditWriter,
+  metadata: Record<string, unknown> = {},
+) {
   const userId = req.session?.userId;
   const key = `${req.path}:${getAbuseClientKey(req)}`;
   const signal = recordAbuseSignal(`turnstile:${key}`);
 
-  writeAuditLogFn({
+  await writeAuditLogFn({
     userId,
     action: signal.repeated ? "turnstile.failed.repeated" : "turnstile.failed",
     resourceType: "security",
@@ -134,9 +148,9 @@ function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: type
   });
 }
 
-export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnstileToken; writeAuditLogFn?: typeof writeAuditLog } = {}): RequestHandler {
+export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnstileToken; writeAuditLogFn?: AuditWriter } = {}): RequestHandler {
   const verifyFn = deps.verifyFn ?? verifyTurnstileToken;
-  const writeAuditLogFn = deps.writeAuditLogFn ?? writeAuditLog;
+  const writeAuditLogFn: AuditWriter = deps.writeAuditLogFn ?? writeAuditLog;
 
   return (req, res, next) => {
     if (!isTurnstileEnabled()) {
@@ -146,8 +160,10 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
 
     const token = getTokenFromRequest(req);
     if (!token) {
-      logTurnstileFailure(req, "missing-token", writeAuditLogFn);
-      res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
+      logTurnstileFailure(req, "missing-token", writeAuditLogFn)
+        .finally(() => {
+          res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
+        });
       return;
     }
 
@@ -159,33 +175,35 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
       .then((result) => {
         if (!result.ok) {
           const reason = result.reason ?? "verification-failed";
-          logTurnstileFailure(req, reason, writeAuditLogFn, { errorCodes: result.errorCodes ?? [] });
-          if (reason === "missing-token") {
-            res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
-            return;
-          }
-          if (reason === "missing-secret") {
-            res.status(500).json({
-              error: "Turnstile verification is misconfigured. Please contact support.",
-              code: "TURNSTILE_MISCONFIGURED",
+          logTurnstileFailure(req, reason, writeAuditLogFn, { errorCodes: result.errorCodes ?? [] })
+            .finally(() => {
+              if (reason === "missing-token") {
+                res.status(403).json({ error: "Please complete the verification challenge.", code: "TURNSTILE_MISSING_TOKEN" });
+                return;
+              }
+              if (reason === "missing-secret") {
+                res.status(500).json({
+                  error: "Turnstile verification is misconfigured. Please contact support.",
+                  code: "TURNSTILE_MISCONFIGURED",
+                });
+                return;
+              }
+              if (reason === "verification-error") {
+                res.status(503).json({
+                  error: "Verification service is temporarily unavailable. Please try again.",
+                  code: "TURNSTILE_UNAVAILABLE",
+                });
+                return;
+              }
+              if (reason === "token-expired") {
+                res.status(403).json({
+                  error: "Verification expired. Please complete the challenge again.",
+                  code: "TURNSTILE_TOKEN_EXPIRED",
+                });
+                return;
+              }
+              res.status(403).json({ error: "Security verification failed. Please try again.", code: "TURNSTILE_INVALID_TOKEN" });
             });
-            return;
-          }
-          if (reason === "verification-error") {
-            res.status(503).json({
-              error: "Verification service is temporarily unavailable. Please try again.",
-              code: "TURNSTILE_UNAVAILABLE",
-            });
-            return;
-          }
-          if (reason === "token-expired") {
-            res.status(403).json({
-              error: "Verification expired. Please complete the challenge again.",
-              code: "TURNSTILE_TOKEN_EXPIRED",
-            });
-            return;
-          }
-          res.status(403).json({ error: "Security verification failed. Please try again.", code: "TURNSTILE_INVALID_TOKEN" });
           return;
         }
 
@@ -193,18 +211,24 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
         next();
       })
       .catch(() => {
-        logTurnstileFailure(req, "verification-error", writeAuditLogFn);
-        res.status(503).json({
-          error: "Verification service is temporarily unavailable. Please try again.",
-          code: "TURNSTILE_UNAVAILABLE",
-        });
+        logTurnstileFailure(req, "verification-error", writeAuditLogFn)
+          .finally(() => {
+            res.status(503).json({
+              error: "Verification service is temporarily unavailable. Please try again.",
+              code: "TURNSTILE_UNAVAILABLE",
+            });
+          });
       });
   };
 }
 
-export function logTurnstileVerificationResult(req: Request, result: TurnstileVerificationResult, writeAuditLogFn: typeof writeAuditLog = writeAuditLog) {
+export async function logTurnstileVerificationResult(
+  req: Request,
+  result: TurnstileVerificationResult,
+  writeAuditLogFn: AuditWriter = writeAuditLog,
+) {
   if (result.ok) return;
-  logTurnstileFailure(req, result.reason ?? "verification-failed", writeAuditLogFn, {
+  await logTurnstileFailure(req, result.reason ?? "verification-failed", writeAuditLogFn, {
     errorCodes: result.errorCodes ?? [],
   });
 }
