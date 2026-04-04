@@ -4,18 +4,18 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
+import { destroySessionAndClearCookie, getDeleteAllOtherSessionsForUserSql, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
 import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
 import { isSessionGroupCompatible, resolveSessionGroupForApp } from "../lib/sessionGroupCompatibility.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
-import { authRateLimiter } from "../middlewares/rateLimit.js";
+import { authRateLimiter, authRateLimiterWithIdentifier } from "../middlewares/rateLimit.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
-import { generateOpaqueToken, hashOpaqueToken, hashPassword, isStrongEnoughPassword, normalizeEmail as normalizeEmailAddress, verifyPassword } from "../lib/passwordAuth.js";
+import { generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, hashPassword, isStrongEnoughPassword, normalizeEmail as normalizeEmailAddress, verifyPassword } from "../lib/passwordAuth.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -1398,10 +1398,18 @@ async function handlePasswordLogin(req: Request, res: Response) {
     ? await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")) })
     : null;
 
-  const ok = Boolean(user && credential && await verifyPassword(credential.passwordHash, password));
-  if (!ok || !user) {
+  const verification = user && credential
+    ? await verifyPassword(credential.passwordHash, password)
+    : { ok: false, needsRehash: false };
+  if (!verification.ok || !user || !credential) {
     res.status(401).json({ error: "Invalid email or password." });
     return;
+  }
+
+  if (verification.needsRehash && verification.upgradedHash) {
+    await db.update(userCredentialsTable)
+      .set({ passwordHash: verification.upgradedHash, updatedAt: new Date() })
+      .where(eq(userCredentialsTable.id, credential.id));
   }
 
   if (!user.active || user.suspended || user.deletedAt) {
@@ -1454,7 +1462,7 @@ async function handleResetPassword(req: Request, res: Response) {
     await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.userId, credentialType: "password", passwordHash: hash });
   }
 
-  await pool.query(getDeleteOtherSessionsSql(), [consumed.userId, req.session.id ?? "", req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT]);
+  await pool.query(getDeleteAllOtherSessionsForUserSql(), [consumed.userId, req.session.id ?? ""]);
   await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
   res.json({ success: true });
 }
@@ -1479,9 +1487,18 @@ async function handleVerifyEmail(req: Request, res: Response) {
 router.get("/me", requireAuth, handleMe);
 router.post("/logout", handleLogout);
 router.post("/google/url", authRateLimiter({ keyPrefix: "auth-google-url" }), handleGoogleUrl);
-router.post("/signup", authRateLimiter({ keyPrefix: "auth-signup" }), handlePasswordSignup);
-router.post("/login", authRateLimiter({ keyPrefix: "auth-login" }), handlePasswordLogin);
-router.post("/forgot-password", authRateLimiter({ keyPrefix: "auth-forgot-password" }), handleForgotPassword);
+router.post("/signup", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-signup",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handlePasswordSignup);
+router.post("/login", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-login",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handlePasswordLogin);
+router.post("/forgot-password", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-forgot-password",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handleForgotPassword);
 router.post("/reset-password", authRateLimiter({ keyPrefix: "auth-reset-password" }), handleResetPassword);
 router.post("/verify-email", authRateLimiter({ keyPrefix: "auth-verify-email" }), handleVerifyEmail);
 router.get("/google/callback", handleGoogleCallback);
