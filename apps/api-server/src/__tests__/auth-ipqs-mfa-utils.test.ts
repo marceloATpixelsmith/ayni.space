@@ -37,6 +37,32 @@ test("IPQS disposable email is blocked", async () => {
   }
 });
 
+test("IPQS high fraud score is advisory step_up and not block", async () => {
+  const restore = patchProperty(globalThis, "fetch", (async () => new Response(JSON.stringify({ disposable: false, valid: true, fraud_score: 99 }), { status: 200 })) as typeof fetch);
+
+  try {
+    process.env["IPQS_API_KEY"] = "test-key";
+    const result = await ipqs.assessSignupRiskWithIpqs("user@example.com", "127.0.0.1");
+    assert.equal(result.decision, "step_up");
+    assert.equal(result.reason, "score");
+  } finally {
+    restore();
+  }
+});
+
+test("IPQS undeliverable signal is advisory step_up and not block", async () => {
+  const restore = patchProperty(globalThis, "fetch", (async () => new Response(JSON.stringify({ disposable: false, valid: false, fraud_score: 10, smtp_score: 0.1 }), { status: 200 })) as typeof fetch);
+
+  try {
+    process.env["IPQS_API_KEY"] = "test-key";
+    const result = await ipqs.assessSignupRiskWithIpqs("user@example.com", "127.0.0.1");
+    assert.equal(result.decision, "step_up");
+    assert.equal(result.reason, "undeliverable_email");
+  } finally {
+    restore();
+  }
+});
+
 test("MFA trusted-device cookie policy uses 20 day max-age", () => {
   const options = mfa.getTrustedDeviceCookieOptions();
   assert.equal(options.maxAge, 20 * 24 * 60 * 60 * 1000);

@@ -60,6 +60,8 @@ test("signup denial logs disposable_email reason code", async () => {
   const restores = [
     setupDbInsertCapture(auditRows),
     patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
 
   globalThis.fetch = (async (input, init) => {
@@ -96,7 +98,7 @@ test("signup denial logs disposable_email reason code", async () => {
   }
 });
 
-test("signup denial logs undeliverable_email reason code", async () => {
+test("signup step-up logs undeliverable_email reason code", async () => {
   const prevIpqsKey = process.env["IPQS_API_KEY"];
   process.env["IPQS_API_KEY"] = "test-key";
 
@@ -105,6 +107,8 @@ test("signup denial logs undeliverable_email reason code", async () => {
   const restores = [
     setupDbInsertCapture(auditRows),
     patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
 
   globalThis.fetch = (async (input, init) => {
@@ -123,10 +127,12 @@ test("signup denial logs undeliverable_email reason code", async () => {
       name: "Undeliverable",
     });
 
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 201);
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
-    assert.equal((row.metadata as Record<string, unknown>).reasonCode, "undeliverable_email");
+    const metadata = row.metadata as Record<string, unknown>;
+    assert.equal(metadata.reasonCode, "undeliverable_email");
+    assert.equal(metadata.decisionCategory, "step_up");
   } finally {
     globalThis.fetch = previousFetch;
     restores.reverse().forEach((restore) => restore());
@@ -135,7 +141,7 @@ test("signup denial logs undeliverable_email reason code", async () => {
   }
 });
 
-test("signup denial logs ipqs_block_threshold reason code", async () => {
+test("signup step-up logs ipqs_step_up_threshold reason code for high fraud score", async () => {
   const prevIpqsKey = process.env["IPQS_API_KEY"];
   process.env["IPQS_API_KEY"] = "test-key";
 
@@ -144,6 +150,8 @@ test("signup denial logs ipqs_block_threshold reason code", async () => {
   const restores = [
     setupDbInsertCapture(auditRows),
     patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
 
   globalThis.fetch = (async (input, init) => {
@@ -162,10 +170,12 @@ test("signup denial logs ipqs_block_threshold reason code", async () => {
       name: "Threshold",
     });
 
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 201);
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
-    assert.equal((row.metadata as Record<string, unknown>).reasonCode, "ipqs_block_threshold");
+    const metadata = row.metadata as Record<string, unknown>;
+    assert.equal(metadata.reasonCode, "ipqs_step_up_threshold");
+    assert.equal(metadata.decisionCategory, "step_up");
   } finally {
     globalThis.fetch = previousFetch;
     restores.reverse().forEach((restore) => restore());

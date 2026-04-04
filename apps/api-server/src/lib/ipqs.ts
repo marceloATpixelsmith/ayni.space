@@ -34,7 +34,6 @@ function parseIpqsResponse(payload: Record<string, unknown>) {
 export async function assessSignupRiskWithIpqs(email: string, ipAddress: string | null | undefined): Promise<SignupRiskAssessment> {
   const apiKey = process.env["IPQS_API_KEY"]?.trim();
   const timeoutMs = parsePositive(process.env["IPQS_TIMEOUT_MS"], 2000);
-  const blockThreshold = parsePositive(process.env["IPQS_BLOCK_THRESHOLD"], 90);
   const stepUpThreshold = parsePositive(process.env["IPQS_STEP_UP_THRESHOLD"], 75);
 
   if (!apiKey) {
@@ -65,10 +64,7 @@ export async function assessSignupRiskWithIpqs(email: string, ipAddress: string 
       return { decision: "block", reason: "disposable_email", score: parsed.fraudScore, disposable: true, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
     }
     if (parsed.undeliverable) {
-      return { decision: "block", reason: "undeliverable_email", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: true, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
-    }
-    if ((parsed.fraudScore ?? 0) >= blockThreshold) {
-      return { decision: "block", reason: "score", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
+      return { decision: "step_up", reason: "undeliverable_email", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: true, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
     }
     if ((parsed.fraudScore ?? 0) >= stepUpThreshold || parsed.suspiciousIp) {
       return { decision: "step_up", reason: parsed.suspiciousIp ? "suspicious_ip" : "score", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };

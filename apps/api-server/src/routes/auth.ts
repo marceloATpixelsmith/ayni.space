@@ -1343,7 +1343,6 @@ type SignupDecisionCategory =
 type SignupDecisionReasonCode =
   | "disposable_email"
   | "undeliverable_email"
-  | "ipqs_block_threshold"
   | "ipqs_provider_failure_step_up"
   | "turnstile_missing_or_invalid"
   | "duplicate_existing_email"
@@ -1541,14 +1540,9 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
     const ipqsAssessment = await assessSignupRiskWithIpqs(email, req.ip);
     if (ipqsAssessment.decision === "block") {
-      const ipqsReasonCode: SignupDecisionReasonCode = ipqsAssessment.reason === "disposable_email"
-        ? "disposable_email"
-        : ipqsAssessment.reason === "undeliverable_email"
-          ? "undeliverable_email"
-          : "ipqs_block_threshold";
       await logSignupDecision(req, {
         category: "block",
-        reasonCode: ipqsReasonCode,
+        reasonCode: "disposable_email",
         email,
         appSlug: signupAppSlug,
         metadata: {
@@ -1628,9 +1622,14 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
     if (ipqsAssessment.decision === "step_up") {
       await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
+      const stepUpReasonCode: SignupDecisionReasonCode = ipqsAssessment.providerFailed
+        ? "ipqs_provider_failure_step_up"
+        : ipqsAssessment.reason === "undeliverable_email"
+          ? "undeliverable_email"
+          : "ipqs_step_up_threshold";
       await logSignupDecision(req, {
         category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
-        reasonCode: ipqsAssessment.providerFailed ? "ipqs_provider_failure_step_up" : "ipqs_step_up_threshold",
+        reasonCode: stepUpReasonCode,
         email,
         appSlug: signupAppSlug,
         metadata: {
