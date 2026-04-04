@@ -55,3 +55,15 @@
 - Do not move auth/session logic outside the API server auth/session modules without updating route/middleware integration.
 - Do not break CSRF/session coupling between `lib/frontend-security` and `lib/api-client-react/src/custom-fetch.ts`.
 - Do not change middleware sequencing in `apps/api-server/src/app.ts` in ways that weaken auth/session enforcement.
+
+## 2026-04-04 update — Email/password credential lane
+
+### Confirmed
+- Email/password is now additive to Google OAuth, with credentials and auth tokens split from `platform.users` into `platform.user_credentials` and `platform.auth_tokens` (`lib/db/src/schema/auth_credentials.ts`, `lib/db/migrations/20260404_email_password_auth.sql`).
+- New auth endpoints were added for `signup`, `login`, `forgot-password`, `reset-password`, and `verify-email` in `apps/api-server/src/routes/auth.ts`.
+- Password hashing now uses strong salted key-derivation with hashed opaque reset/verification tokens and single-use consumption.
+- Frontend auth UI now supports email/password in addition to Google OAuth (`apps/admin/src/pages/auth/*`) while preserving `lib/frontend-security` as the single auth state authority.
+
+### Do not break
+- Keep credential secrets out of `platform.users` going forward.
+- Keep reset/verification tokens one-time and expiring.

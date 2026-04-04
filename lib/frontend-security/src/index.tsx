@@ -30,6 +30,11 @@ type AuthContextValue = {
     token: string,
     turnstileToken?: string | null,
   ) => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  signupWithPassword: (email: string, password: string, name?: string) => Promise<{ verifyToken?: string }>;
+  forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
+  resetPassword: (token: string, password: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -608,6 +613,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshSession],
   );
 
+
+
+  const loginWithPassword = React.useCallback(async (email: string, password: string) => {
+    const response = await secureApiFetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }, csrfTokenRef.current);
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+      throw new Error(payload?.error ?? "Invalid email or password.");
+    }
+    await refreshSession();
+  }, [refreshSession]);
+
+  const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string) => {
+    const response = await secureApiFetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password, name }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string } & ApiErrorPayload);
+    if (!response.ok) {
+      throw new Error(payload?.error ?? "Unable to sign up.");
+    }
+    await refreshSession();
+    return { verifyToken: payload?.verifyToken };
+  }, [refreshSession]);
+
+  const forgotPassword = React.useCallback(async (email: string) => {
+    const response = await secureApiFetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ({ resetToken?: string } & ApiErrorPayload);
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to process request.");
+    return { resetToken: payload?.resetToken };
+  }, []);
+
+  const resetPassword = React.useCallback(async (token: string, password: string) => {
+    const response = await secureApiFetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to reset password.");
+    await refreshSession();
+  }, [refreshSession]);
+
+  const verifyEmail = React.useCallback(async (token: string) => {
+    const response = await secureApiFetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify email.");
+    await refreshSession();
+  }, [refreshSession]);
+
   const status: AuthStatus = sessionRevoked
     ? "unauthenticated"
     : authBootstrapping || meQuery.isLoading
@@ -630,6 +697,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       switchOrganization,
       acceptInvitation,
+      loginWithPassword,
+      signupWithPassword,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
     }),
     [
       status,
@@ -642,6 +714,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       switchOrganization,
       acceptInvitation,
+      loginWithPassword,
+      signupWithPassword,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
     ],
   );
 

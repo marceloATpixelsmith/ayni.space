@@ -15,6 +15,10 @@ import {
 import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
 
 import Login from "./pages/auth/Login";
+import Signup from "./pages/auth/Signup";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
+import VerifyEmail from "./pages/auth/VerifyEmail";
 import Onboarding from "./pages/auth/Onboarding";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import DashboardHome from "./pages/dashboard/DashboardHome";
@@ -275,6 +279,10 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+            <Route path="/signup" component={Signup} />
+            <Route path="/forgot-password" component={ForgotPassword} />
+            <Route path="/reset-password" component={ResetPassword} />
+            <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
       <Route path="/onboarding">{() => <AuthRedirect to="/onboarding/organization" />}</Route>
       <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>

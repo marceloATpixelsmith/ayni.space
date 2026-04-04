@@ -11,3 +11,4 @@ export * from "./shipibo";
 export * from "./ayni";
 export * from "./stripe_webhook_events";
 export * from "./transactional_email";
+export * from "./auth_credentials";
