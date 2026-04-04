@@ -10,6 +10,7 @@
 - OAuth initiation accepts `intent` input, but callback redirect behavior is now explicitly intent-agnostic (no session `oauthIntent` plumbing).
 - OAuth callback identity resolution now logs callback identity details, resolves users by `google_subject` first and email second, binds `google_subject` onto pre-provisioned rows when null, and denies unknown identities in `superadmin` access mode without auto-provisioning (`apps/api-server/src/routes/auth.ts`).
 - Invitation acceptance UI now prevents duplicate turnstile-backed submissions for the same solved challenge and only resets the widget on turnstile-specific backend errors, preventing silent re-challenge loops (`apps/admin/src/pages/auth/InvitationAccept.tsx`, `lib/frontend-security/src/index.tsx`).
+- Invitation acceptance route (`/invitations/:token/accept`) is intentionally reachable while unauthenticated: `ConfigDrivenAuthRoute` no longer pre-redirects invitation paths to `/login`, and invitation-specific next-step/login continuation handling is owned by `InvitationAccept` itself (`apps/admin/src/App.tsx`, `apps/admin/src/pages/auth/InvitationAccept.tsx`).
 
 - Backend authentication core is implemented in `apps/api-server/src/lib/auth.ts`.
 - Authentication routes/session binding are implemented in `apps/api-server/src/routes/auth.ts`.
