@@ -10,7 +10,7 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
   const [isVisible, setIsVisible] = React.useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <Input
         {...props}
         type={isVisible ? "text" : "password"}
@@ -20,7 +20,7 @@ export function PasswordInput({ className, ...props }: PasswordInputProps) {
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+        className="absolute right-1 top-1/2 z-10 h-7 w-7 -translate-y-1/2"
         onClick={() => setIsVisible((previous) => !previous)}
         aria-label={isVisible ? "Hide password" : "Show password"}
         aria-pressed={isVisible}

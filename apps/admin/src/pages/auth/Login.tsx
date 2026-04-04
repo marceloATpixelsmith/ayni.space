@@ -283,18 +283,25 @@ export default function Login() {
               {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
             </Button>
 
-            <div className="my-4 space-y-3">
+            <div className="my-5 flex items-center gap-4">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-sm text-muted-foreground">or</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="space-y-3">
               <input className="w-full border rounded px-3 py-2" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} />
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
-                Stay logged in for 2 weeks
-              </label>
               <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
               <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
             </div>
 
-            {turnstileEnabled ? <TurnstileWidget /> : null}
+            <label className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
+              Keep me logged in for 2 weeks
+            </label>
+
+            {turnstileEnabled ? <div className="mt-2"><TurnstileWidget /></div> : null}
 
             {accessError ? (
               <p className="mt-4 text-sm text-destructive text-center" role="alert">

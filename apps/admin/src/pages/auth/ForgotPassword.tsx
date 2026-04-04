@@ -1,4 +1,8 @@
 import React from "react";
+import { Link } from "wouter";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useAuth } from "@workspace/frontend-security";
 
 export default function ForgotPassword() {
@@ -12,5 +16,49 @@ export default function ForgotPassword() {
     });
   };
 
-  return <div className="p-6 max-w-md mx-auto space-y-2"><h1 className="text-xl font-semibold">Forgot password</h1><input className="w-full border rounded px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" /><button className="border rounded px-3 py-2" onClick={submit}>Send reset link</button>{message ? <p className="text-sm">{message}</p> : null}</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center relative bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <img
+          src={`${import.meta.env.BASE_URL}images/auth-bg.png`}
+          alt="Abstract background"
+          className="w-full h-full object-cover opacity-60 mix-blend-multiply"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-md p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <div className="flex justify-center mb-8">
+            <img
+              src={`${import.meta.env.BASE_URL}images/logo.png`}
+              alt="Logo"
+              className="w-16 h-16 object-contain drop-shadow-xl"
+            />
+          </div>
+
+          <Card className="p-8 backdrop-blur-xl bg-card/90 border-white/20 shadow-2xl shadow-primary/5">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Forgot password</h1>
+              <p className="text-muted-foreground">Enter your email and we&apos;ll send reset instructions.</p>
+            </div>
+
+            <div className="space-y-3">
+              <input className="w-full border rounded px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+              <Button className="w-full" onClick={submit} disabled={!email}>Send reset link</Button>
+            </div>
+
+            {message ? <p className="mt-4 text-sm">{message}</p> : null}
+            <p className="mt-4 text-sm text-muted-foreground">
+              Remembered your password? <Link href="/login" className="underline">Back to sign in</Link>
+            </p>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
 }
