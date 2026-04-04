@@ -372,7 +372,7 @@ test("admin oauth start derives admin context from forwarded host when origin/re
   }
 });
 
-test("super admin oauth callback in admin group lands on /dashboard", async () => {
+test("super admin oauth callback in admin group redirects to /mfa/enroll", async () => {
   const restore: Array<() => void> = [
     patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({ sub: "sub", email: "super@example.com", name: "Super" })),
     ...stubDbForCallback(true),
@@ -392,7 +392,7 @@ test("super admin oauth callback in admin group lands on /dashboard", async () =
 
     const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
+    assert.equal(response.headers.get("location"), "http://admin.local/mfa/enroll");
     assert.equal(destroyed, false);
   } finally {
     for (const undo of restore.reverse()) undo();
@@ -502,7 +502,7 @@ test("pre-provisioned superadmin with null google_subject binds successfully on 
 
     const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://admin.local/dashboard");
+    assert.equal(response.headers.get("location"), "http://admin.local/mfa/enroll");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
     assert.equal(updatedSets.some((values) => values.googleSubject === "google-super-sub"), true);
@@ -1003,7 +1003,7 @@ test("second login matches by subject directly for pre-provisioned superadmin", 
   }
 });
 
-test("superadmin callback + downstream admin check emit trace checkpoints and allow protected route", async () => {
+test("superadmin callback + downstream admin check emits trace checkpoints and redirects to MFA enrollment", async () => {
   const logs: unknown[][] = [];
   const prevTraceVerbose = process.env["BACKEND_TRACE_VERBOSE"];
   process.env["BACKEND_TRACE_VERBOSE"] = "1";
@@ -1051,7 +1051,7 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
 
     const callbackResponse = await request(authApp, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(callbackResponse.status, 302);
-    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/dashboard");
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/enroll");
 
     const adminApp = createMountedSessionApp([], {
       userId: "super-user",
@@ -1071,29 +1071,18 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
     assert.equal(traceLogs.some((line) => line.includes("B. APP LOOKUP RESULT")), true);
     assert.equal(traceLogs.some((line) => line.includes("D1. SUBJECT LOOKUP AFTER")), true);
     assert.equal(traceLogs.some((line) => line.includes("G. FINAL USER CHOSEN FOR AUTH")), true);
-    assert.equal(traceLogs.some((line) => line.includes("H. ACCESS PROFILE DECISION")), true);
-    assert.equal(traceLogs.some((line) => line.includes("G0. SESSION WRITE BEFORE")), true);
-    assert.equal(traceLogs.some((line) => line.includes("G1. SESSION WRITE AFTER")), true);
-    assert.equal(traceLogs.some((line) => line.includes("J. CALLBACK EXIT")), true);
+    assert.equal(traceLogs.some((line) => line.includes("G0. SESSION WRITE BEFORE")), false);
+    assert.equal(traceLogs.some((line) => line.includes("G1. SESSION WRITE AFTER")), false);
 
     const callbackBefore = authCheckLogs
       .map((entry) => String(entry[0]))
       .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE"));
-    assert.ok(callbackBefore);
-    assert.match(callbackBefore, /sessionGroup=admin/);
-    assert.match(callbackBefore, /userId=super-user/);
-    assert.match(callbackBefore, /isSuperAdmin=true/);
-    assert.match(callbackBefore, /appSlug=admin/);
-    assert.match(callbackBefore, /sessionKeys=.*userId/);
+    assert.equal(callbackBefore, undefined);
 
     const callbackAfter = authCheckLogs
       .map((entry) => String(entry[0]))
       .find((line) => line.includes("[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE"));
-    assert.ok(callbackAfter);
-    assert.match(callbackAfter, /sessionGroup=admin/);
-    assert.match(callbackAfter, /userId=super-user/);
-    assert.match(callbackAfter, /appSlug=admin/);
-    assert.match(callbackAfter, /sessionKeys=.*userId/);
+    assert.equal(callbackAfter, undefined);
 
     const firstAuthRequest = authCheckLogs
       .map((entry) => String(entry[0]))
@@ -1120,7 +1109,7 @@ test("superadmin callback + downstream admin check emit trace checkpoints and al
 
 
 
-test("superadmin callback persists identity fields across next request and allows admin guard", async () => {
+test("superadmin callback stores pending MFA identity and blocks admin guard until MFA is completed", async () => {
   const logs: unknown[][] = [];
   const persistedSession: Record<string, unknown> = {
     oauthState: ADMIN_OAUTH_STATE,
@@ -1196,27 +1185,30 @@ test("superadmin callback persists identity fields across next request and allow
 
     const callbackResponse = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`);
     assert.equal(callbackResponse.status, 302);
-    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/dashboard");
-    assert.equal(persistedSession.userId, "super-user");
-    assert.equal(persistedSession.isSuperAdmin, true);
-    assert.equal(persistedSession.sessionGroup, "admin");
-    assert.equal(persistedSession.appSlug, "admin");
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/enroll");
+    assert.equal(persistedSession.pendingUserId, "super-user");
+    assert.equal(persistedSession.pendingAppSlug, "admin");
+    assert.equal(persistedSession.pendingMfaReason, "enrollment_required");
+    assert.equal(persistedSession.userId, undefined);
 
     const adminResponse = await request(app, "/api/admin/stats", {
       headers: {
         cookie: "saas.admin.sid=admin-cookie",
       },
     });
-    assert.equal(adminResponse.status, 200);
+    assert.equal(adminResponse.status, 401);
 
     const authCheckLines = logs
       .filter((entry) => typeof entry[0] === "string" && entry[0].includes("[AUTH-CHECK-TRACE]"))
       .map((entry) => String(entry[0]));
 
+    const firstAuth = authCheckLines.find((line) => line.includes("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST"));
+    assert.ok(firstAuth);
+    assert.match(firstAuth, /userId=null/);
+    assert.match(firstAuth, /allow=false/);
+
     const adminGuard = authCheckLines.find((line) => line.includes("[AUTH-CHECK-TRACE] ADMIN GUARD"));
-    assert.ok(adminGuard);
-    assert.match(adminGuard, /userId=super-user/);
-    assert.match(adminGuard, /allow=true/);
+    assert.equal(adminGuard, undefined);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
