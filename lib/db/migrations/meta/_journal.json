@@ -85,6 +85,13 @@
       "when": 1743696000000,
       "tag": "20260403_invitation_name_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1743724800000,
+      "tag": "20260404_email_password_auth",
+      "breakpoints": true
     }
   ]
 }

@@ -41,6 +41,8 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const [loginError, setLoginError] = React.useState<string | null>(null);
+  const [emailInput, setEmailInput] = React.useState("");
+  const [passwordInput, setPasswordInput] = React.useState("");
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
@@ -189,6 +191,13 @@ export default function Login() {
     );
   }
 
+  const handlePasswordLogin = () => {
+    setLoginError(null);
+    auth.loginWithPassword(emailInput, passwordInput).catch((error) => {
+      setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
+    });
+  };
+
   const handleGoogleLogin = (intent: "sign_in" | "create_account") => {
     if (auth.loginInFlight) {
       return;
@@ -266,6 +275,13 @@ export default function Login() {
               <Chrome className="w-5 h-5 mr-3" />
               {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
             </Button>
+
+            <div className="my-4 space-y-3">
+              <input className="w-full border rounded px-3 py-2" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} />
+              <input className="w-full border rounded px-3 py-2" placeholder="Password" type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
+              <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput}>Sign in with email</Button>
+              <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
+            </div>
 
             {turnstileEnabled ? <TurnstileWidget /> : null}
 

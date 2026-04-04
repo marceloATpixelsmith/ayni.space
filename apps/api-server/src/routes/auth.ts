@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
-import { and, eq, sql } from "drizzle-orm";
-import { appsTable, db, orgAppAccessTable, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
 import { destroySessionAndClearCookie, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
@@ -14,6 +14,7 @@ import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificat
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
+import { generateOpaqueToken, hashOpaqueToken, hashPassword, isStrongEnoughPassword, normalizeEmail as normalizeEmailAddress, verifyPassword } from "../lib/passwordAuth.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -1285,9 +1286,202 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
+
+
+function getRequestedEmailPasswordAppSlug(req: Request): string {
+  const origin = getRequestFrontendOrigin(req) ?? null;
+  const group = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  return resolveActiveAppSlugForAuth(req, origin ?? "", group) ?? "admin";
+}
+
+function getGenericAuthResponseMessage() {
+  return "If an account exists, we sent further instructions.";
+}
+
+async function createAuthToken(userId: string, tokenType: "email_verification" | "password_reset", ttlMinutes: number) {
+  const token = generateOpaqueToken();
+  const tokenHash = hashOpaqueToken(token);
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+  await db.insert(authTokensTable).values({
+    id: randomUUID(),
+    userId,
+    tokenType,
+    tokenHash,
+    expiresAt,
+  });
+  return token;
+}
+
+async function consumeAuthToken(token: string, tokenType: "email_verification" | "password_reset") {
+  const tokenHash = hashOpaqueToken(token);
+  const now = new Date();
+  const rows = await db
+    .update(authTokensTable)
+    .set({ consumedAt: now })
+    .where(and(eq(authTokensTable.tokenHash, tokenHash), eq(authTokensTable.tokenType, tokenType), isNull(authTokensTable.consumedAt)))
+    .returning();
+
+  const consumed = rows[0] ?? null;
+  if (!consumed) return null;
+  if (consumed.expiresAt < now) return null;
+  return consumed;
+}
+
+async function establishPasswordSession(req: Request, userId: string, appSlug: string) {
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
+  });
+  req.session.userId = userId;
+  req.session.appSlug = appSlug;
+  req.session.sessionAuthenticatedAt = Date.now();
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+}
+
+async function handlePasswordSignup(req: Request, res: Response) {
+  const email = normalizeEmailAddress(String(req.body?.email ?? ""));
+  const password = String(req.body?.password ?? "");
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
+  if (!email || !password || !isStrongEnoughPassword(password)) {
+    res.status(400).json({ error: "Invalid signup input." });
+    return;
+  }
+
+  let user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
+  if (!user) {
+    const [created] = await db.insert(usersTable).values({
+      id: randomUUID(),
+      email,
+      name: name || null,
+    }).returning();
+    user = created ?? null;
+  }
+
+  if (!user) {
+    res.status(500).json({ error: "Unable to create account." });
+    return;
+  }
+
+  const existingCredential = await db.query.userCredentialsTable.findFirst({
+    where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
+  });
+
+  if (existingCredential) {
+    res.status(409).json({ error: "An account with this email already exists." });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await db.insert(userCredentialsTable).values({
+    id: randomUUID(),
+    userId: user.id,
+    credentialType: "password",
+    passwordHash,
+  });
+
+  const verificationToken = await createAuthToken(user.id, "email_verification", 60);
+  const appSlug = getRequestedEmailPasswordAppSlug(req);
+  await establishPasswordSession(req, user.id, appSlug);
+
+  res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
+}
+
+async function handlePasswordLogin(req: Request, res: Response) {
+  const email = normalizeEmailAddress(String(req.body?.email ?? ""));
+  const password = String(req.body?.password ?? "");
+  if (!email || !password) {
+    res.status(401).json({ error: "Invalid email or password." });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
+  const credential = user
+    ? await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")) })
+    : null;
+
+  const ok = Boolean(user && credential && await verifyPassword(credential.passwordHash, password));
+  if (!ok || !user) {
+    res.status(401).json({ error: "Invalid email or password." });
+    return;
+  }
+
+  if (!user.active || user.suspended || user.deletedAt) {
+    res.status(403).json({ error: "Account is unavailable." });
+    return;
+  }
+
+  const appSlug = getRequestedEmailPasswordAppSlug(req);
+  await establishPasswordSession(req, user.id, appSlug);
+  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+  res.json({ success: true });
+}
+
+async function handleForgotPassword(req: Request, res: Response) {
+  const email = normalizeEmailAddress(String(req.body?.email ?? ""));
+  let token: string | undefined;
+  if (email) {
+    const user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
+    if (user) {
+      token = await createAuthToken(user.id, "password_reset", 30);
+    }
+  }
+
+  res.json({ success: true, message: getGenericAuthResponseMessage(), resetToken: process.env["NODE_ENV"] === "test" ? token : undefined });
+}
+
+async function handleResetPassword(req: Request, res: Response) {
+  const token = String(req.body?.token ?? "").trim();
+  const password = String(req.body?.password ?? "");
+  if (!token || !isStrongEnoughPassword(password)) {
+    res.status(400).json({ error: "Invalid reset request." });
+    return;
+  }
+
+  const consumed = await consumeAuthToken(token, "password_reset");
+  if (!consumed) {
+    res.status(400).json({ error: "Reset token is invalid or expired." });
+    return;
+  }
+
+  const hash = await hashPassword(password);
+  const existingCredential = await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, consumed.userId), eq(userCredentialsTable.credentialType, "password")) });
+  if (existingCredential) {
+    await db.update(userCredentialsTable).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(userCredentialsTable.id, existingCredential.id));
+  } else {
+    await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.userId, credentialType: "password", passwordHash: hash });
+  }
+
+  await pool.query(getDeleteOtherSessionsSql(), [consumed.userId, req.session.id ?? "", req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT]);
+  await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
+  res.json({ success: true });
+}
+
+async function handleVerifyEmail(req: Request, res: Response) {
+  const token = String(req.body?.token ?? "").trim();
+  if (!token) {
+    res.status(400).json({ error: "Invalid verification token." });
+    return;
+  }
+
+  const consumed = await consumeAuthToken(token, "email_verification");
+  if (!consumed) {
+    res.status(400).json({ error: "Verification token is invalid or expired." });
+    return;
+  }
+
+  await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.userId));
+  res.json({ success: true });
+}
+
 router.get("/me", requireAuth, handleMe);
 router.post("/logout", handleLogout);
-router.post("/google/url", handleGoogleUrl);
+router.post("/google/url", authRateLimiter({ keyPrefix: "auth-google-url" }), handleGoogleUrl);
+router.post("/signup", authRateLimiter({ keyPrefix: "auth-signup" }), handlePasswordSignup);
+router.post("/login", authRateLimiter({ keyPrefix: "auth-login" }), handlePasswordLogin);
+router.post("/forgot-password", authRateLimiter({ keyPrefix: "auth-forgot-password" }), handleForgotPassword);
+router.post("/reset-password", authRateLimiter({ keyPrefix: "auth-reset-password" }), handleResetPassword);
+router.post("/verify-email", authRateLimiter({ keyPrefix: "auth-verify-email" }), handleVerifyEmail);
 router.get("/google/callback", handleGoogleCallback);
 
 export default router;
