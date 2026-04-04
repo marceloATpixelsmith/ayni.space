@@ -1382,9 +1382,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
   });
 
   const verificationToken = await createAuthToken(user.id, "email_verification", 60);
-  const appSlug = getRequestedEmailPasswordAppSlug(req);
-  await establishPasswordSession(req, user.id, appSlug);
-
   res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
 }
 
@@ -1409,6 +1406,10 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   if (!user.active || user.suspended || user.deletedAt) {
     res.status(403).json({ error: "Account is unavailable." });
+    return;
+  }
+  if (!user.emailVerifiedAt) {
+    res.status(403).json({ error: "Email verification required." });
     return;
   }
 
