@@ -32,10 +32,10 @@ type AuthContextValue = {
     turnstileToken?: string | null,
   ) => Promise<void>;
   loginWithPassword: (email: string, password: string, turnstileToken?: string | null, stayLoggedIn?: boolean) => Promise<void>;
-  signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string }>;
+  signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string; appSlug?: string }>;
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  verifyEmail: (token: string, appSlug?: string) => Promise<{ mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string }>;
   startMfaEnrollment: () => Promise<{ factorId: string; secret: string; otpauthUrl: string; issuer: string }>;
   verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[] }>;
   completeMfaChallenge: (code: string, rememberDevice: boolean) => Promise<void>;
@@ -70,6 +70,10 @@ function normalizeReturnToPath(path: string | null | undefined): string | null {
   const trimmed = path.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
   return trimmed;
+}
+
+function normalizeEmailForSubmission(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function toApiUrl(path: string): string {
@@ -623,13 +627,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null, stayLoggedIn = false) => {
+    const normalizedEmail = normalizeEmailForSubmission(email);
     const response = await secureApiFetch("/api/auth/login", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
-      body: JSON.stringify({ email, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
+      body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string });
     if (!response.ok) {
@@ -648,27 +653,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string, turnstileToken?: string | null) => {
+    const normalizedEmail = normalizeEmailForSubmission(email);
     const response = await secureApiFetch("/api/auth/signup", {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
-      body: JSON.stringify({ email, password, name, "cf-turnstile-response": turnstileToken ?? undefined }),
+      body: JSON.stringify({ email: normalizedEmail, password, name, "cf-turnstile-response": turnstileToken ?? undefined }),
     }, csrfTokenRef.current);
-    const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string } & ApiErrorPayload);
+    const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string; appSlug?: string } & ApiErrorPayload);
     if (!response.ok) {
       throw new Error(payload?.error ?? "Unable to sign up.");
     }
     await refreshSession();
-    return { verifyToken: payload?.verifyToken };
+    return { verifyToken: payload?.verifyToken, appSlug: payload?.appSlug };
   }, [refreshSession]);
 
   const forgotPassword = React.useCallback(async (email: string) => {
+    const normalizedEmail = normalizeEmailForSubmission(email);
     const response = await secureApiFetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email: normalizedEmail }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as ({ resetToken?: string } & ApiErrorPayload);
     if (!response.ok) throw new Error(payload?.error ?? "Unable to process request.");
@@ -686,15 +693,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshSession();
   }, [refreshSession]);
 
-  const verifyEmail = React.useCallback(async (token: string) => {
+  const verifyEmail = React.useCallback(async (token: string, appSlug?: string) => {
     const response = await secureApiFetch("/api/auth/verify-email", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, appSlug: appSlug?.trim() || undefined }),
     }, csrfTokenRef.current);
-    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to verify email.");
+    if (payload?.mfaRequired) {
+      const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      window.location.assign(target);
+      return payload;
+    }
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      window.location.assign(payload.nextPath);
+      return payload;
+    }
     await refreshSession();
+    return payload;
   }, [refreshSession]);
 
   const startMfaEnrollment = React.useCallback(async () => {

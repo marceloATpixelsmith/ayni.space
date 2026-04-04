@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@workspace/frontend-security";
+import { validateEmailInput } from "./authValidation";
 
 export default function ForgotPassword() {
   const auth = useAuth();
@@ -11,6 +12,11 @@ export default function ForgotPassword() {
   const [message, setMessage] = React.useState<string | null>(null);
 
   const submit = () => {
+    const emailError = validateEmailInput(email);
+    if (emailError) {
+      setMessage(emailError);
+      return;
+    }
     auth.forgotPassword(email).then((result) => {
       setMessage(result.resetToken ? `Test reset token: ${result.resetToken}` : "If an account exists, a reset email has been sent.");
     });
@@ -49,7 +55,8 @@ export default function ForgotPassword() {
 
             <div className="space-y-3">
               <input className="w-full border rounded px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-              <Button className="w-full" onClick={submit} disabled={!email}>Send reset link</Button>
+              {validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
+              <Button className="w-full" onClick={submit} disabled={!email || Boolean(validateEmailInput(email))}>Send reset link</Button>
             </div>
 
             {message ? <p className="mt-4 text-sm">{message}</p> : null}

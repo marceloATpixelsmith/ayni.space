@@ -19,6 +19,7 @@ import { generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, 
 import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
 import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
+import { sendLane1AuthVerificationEmail } from "../lib/invitationEmail.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -1500,19 +1501,23 @@ async function completePendingMfaSession(req: Request) {
 }
 
 async function resolveNextPathForEstablishedSession(userId: string, appSlug: string): Promise<string | null> {
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  const app = await getAppBySlug(appSlug);
-  if (!user || !app) return null;
-  const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
-  if (!normalizedAccessProfile) return null;
+  try {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+    const app = await getAppBySlug(appSlug);
+    if (!user || !app) return null;
+    const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
+    if (!normalizedAccessProfile) return null;
 
-  const flow = await resolvePostAuthFlowDecision({
-    userId,
-    appSlug: app.slug,
-    isSuperAdmin: Boolean(user.isSuperAdmin),
-    normalizedAccessProfile,
-  });
-  return flow?.destination ?? null;
+    const flow = await resolvePostAuthFlowDecision({
+      userId,
+      appSlug: app.slug,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      normalizedAccessProfile,
+    });
+    return flow?.destination ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function handlePasswordSignup(req: Request, res: Response) {
@@ -1626,6 +1631,13 @@ async function handlePasswordSignup(req: Request, res: Response) {
     });
 
     const verificationToken = await createAuthToken(user.id, "email_verification", 60);
+    await sendLane1AuthVerificationEmail({
+      req,
+      appId: signupApp.id,
+      userId: user.id,
+      userEmail: email,
+      verificationToken,
+    });
 
     if (signupApp.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
       await db.insert(userAuthSecurityTable).values({
@@ -1674,7 +1686,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
       });
     }
 
-    res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
+    res.status(201).json({ success: true, appSlug: signupApp.slug, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
   } catch (error) {
     await logSignupDecision(req, {
       category: "internal_error",
@@ -1783,6 +1795,7 @@ async function handleResetPassword(req: Request, res: Response) {
 
 async function handleVerifyEmail(req: Request, res: Response) {
   const token = String(req.body?.token ?? "").trim();
+  const appSlug = String(req.body?.appSlug ?? "").trim();
   if (!token) {
     res.status(400).json({ error: "Invalid verification token." });
     return;
@@ -1795,7 +1808,27 @@ async function handleVerifyEmail(req: Request, res: Response) {
   }
 
   await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.userId));
-  res.json({ success: true });
+  if (!appSlug) {
+    res.json({ success: true });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, consumed.userId) });
+  if (!user || !user.active || user.suspended || user.deletedAt) {
+    res.status(403).json({ error: "Account is unavailable." });
+    return;
+  }
+
+  const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, false);
+  if (mfaGate.required) {
+    res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
+    return;
+  }
+
+  await establishPasswordSession(req, user.id, appSlug, false);
+  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+  const nextPath = await resolveNextPathForEstablishedSession(user.id, appSlug) ?? "/dashboard";
+  res.json({ success: true, nextPath });
 }
 
 

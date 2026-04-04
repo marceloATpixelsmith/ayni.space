@@ -6,6 +6,7 @@ import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PasswordInput } from "@/components/ui/password-input";
+import { normalizeEmailInput, validateEmailInput, validatePasswordInput } from "./authValidation";
 
 export default function Signup() {
   const auth = useAuth();
@@ -17,15 +18,27 @@ export default function Signup() {
   const turnstile = useTurnstileToken();
 
   const onSubmit = () => {
+    const emailError = validateEmailInput(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    const passwordError = validatePasswordInput(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     if (turnstile.enabled && !turnstile.token) {
       setError("Please complete the verification challenge.");
       return;
     }
 
     setError(null);
-    auth.signupWithPassword(email, password, name, turnstile.token).then((result) => {
+    const normalizedEmail = normalizeEmailInput(email);
+    auth.signupWithPassword(normalizedEmail, password, name, turnstile.token).then((result) => {
       const query = new URLSearchParams();
-      query.set("email", email);
+      query.set("email", normalizedEmail);
+      if (result.appSlug) query.set("appSlug", result.appSlug);
       if (result.verifyToken) query.set("token", result.verifyToken);
       setLocation(`/verify-email?${query.toString()}`);
     }).catch((err) => {
@@ -102,7 +115,10 @@ export default function Signup() {
               <input className="w-full border rounded px-3 py-2" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
               <input className="w-full border rounded px-3 py-2" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
+              <p className="text-xs text-muted-foreground">Password must be at least 8 characters and include uppercase, lowercase, and a number.</p>
+              {validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
+              {password ? (validatePasswordInput(password) ? <p className="text-xs text-destructive">{validatePasswordInput(password)}</p> : <p className="text-xs text-emerald-600">Password meets requirements.</p>) : null}
+              <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
             </div>
 
             <div className="mt-6">

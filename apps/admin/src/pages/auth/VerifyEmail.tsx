@@ -11,12 +11,17 @@ export default function VerifyEmail() {
     const params = new URLSearchParams(search);
     const token = params.get("token") ?? "";
     const email = params.get("email") ?? "";
+    const appSlug = params.get("appSlug") ?? "";
     if (!token) {
       const suffix = email ? ` for ${email}` : "";
       setMessage(`We sent a verification link${suffix}. After verification, sign in to continue onboarding.`);
       return;
     }
-    auth.verifyEmail(token).then(() => {
+    auth.verifyEmail(token, appSlug || undefined).then((result) => {
+      if (result?.nextPath || result?.mfaRequired) {
+        setMessage("Email verified. Redirecting...");
+        return;
+      }
       setMessage("Email verified. Redirecting to sign in...");
       window.setTimeout(() => setLocation("/login"), 800);
     })

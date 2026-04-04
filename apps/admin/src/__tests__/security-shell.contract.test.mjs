@@ -811,7 +811,7 @@ test("login forwards stay-logged-in intent and signup enforces turnstile readine
 
   expectIncludes(
     signupSource,
-    "disabled={!name || !email || !password || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}",
+    "Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))",
     "Signup should block submission until Turnstile is ready and solved.",
   );
 
@@ -826,13 +826,13 @@ test("login forwards stay-logged-in intent and signup enforces turnstile readine
 test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ email, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn })',
+    'body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn })',
     "Password login request should include turnstile token and stay-logged-in flag.",
   );
 
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ email, password, name, "cf-turnstile-response": turnstileToken ?? undefined })',
+    'body: JSON.stringify({ email: normalizedEmail, password, name, "cf-turnstile-response": turnstileToken ?? undefined })',
     "Signup request should include turnstile token payload for central enforcement.",
   );
 
