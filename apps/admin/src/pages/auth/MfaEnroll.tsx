@@ -24,6 +24,9 @@ export default function MfaEnroll() {
   const onVerify = () => {
     auth.verifyMfaEnrollment(factorId, code).then((payload) => {
       setRecovery(payload.recoveryCodes);
+      if (payload.nextPath) {
+        setLocation(payload.nextPath);
+      }
     }).catch((err) => setError(err instanceof Error ? err.message : "Unable to verify MFA."));
   };
 
@@ -34,6 +37,6 @@ export default function MfaEnroll() {
     <input className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} />
     {error ? <p className="text-sm text-destructive">{error}</p> : null}
     <Button className="w-full" onClick={onVerify}>Verify and activate MFA</Button>
-    {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/dashboard')}>Continue</Button></div> : null}
+    {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/')}>Continue</Button></div> : null}
   </div></div>;
 }

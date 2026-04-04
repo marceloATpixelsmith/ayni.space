@@ -61,6 +61,7 @@
 
 ### Confirmed
 - Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
+- Post-auth onboarding/access routing is auth-method agnostic: Google callback, password login, and post-MFA password completion all resolve their destination via one backend policy resolver (`apps/api-server/src/lib/postAuthFlow.ts`) that derives decisions from app context (`platform.apps` access profile + computed `requiredOnboarding`) and `getPostAuthRedirectPath` (`apps/api-server/src/lib/postAuthRedirect.ts`).
 - Email/password is now additive to Google OAuth, with credentials and auth tokens split from `platform.users` into `platform.user_credentials` and `platform.auth_tokens` (`lib/db/src/schema/auth_credentials.ts`, `lib/db/migrations/20260404_email_password_auth.sql`).
 - New auth endpoints were added for `signup`, `login`, `forgot-password`, `reset-password`, and `verify-email` in `apps/api-server/src/routes/auth.ts`.
 - Password hashing now uses an explicit versioned `scrypt-v2$N=...,r=...,p=...$salt$digest` format for all new/updated credentials, and legacy temporary `scrypt$...` hashes are still verified and transparently upgraded to `scrypt-v2` on successful login (`apps/api-server/src/lib/passwordAuth.ts`, `apps/api-server/src/routes/auth.ts`).
