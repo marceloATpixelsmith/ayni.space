@@ -12,10 +12,10 @@ export default function MfaChallenge() {
   const [error, setError] = React.useState<string | null>(null);
 
   const submitCode = () => {
-    auth.completeMfaChallenge(code, remember).then(() => setLocation('/dashboard')).catch((err) => setError(err instanceof Error ? err.message : 'Invalid MFA code.'));
+    auth.completeMfaChallenge(code, remember).then(() => setLocation("/")).catch((err) => setError(err instanceof Error ? err.message : "Invalid MFA code."));
   };
   const submitRecovery = () => {
-    auth.completeMfaRecovery(recoveryCode, remember).then(() => setLocation('/dashboard')).catch((err) => setError(err instanceof Error ? err.message : 'Invalid recovery code.'));
+    auth.completeMfaRecovery(recoveryCode, remember).then(() => setLocation("/")).catch((err) => setError(err instanceof Error ? err.message : "Invalid recovery code."));
   };
 
   return <div className="min-h-screen flex items-center justify-center"><div className="max-w-md w-full p-6 border rounded space-y-3">

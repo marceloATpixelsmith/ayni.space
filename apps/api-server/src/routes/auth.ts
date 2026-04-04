@@ -8,7 +8,7 @@ import { applySessionPersistence, destroySessionAndClearCookie, getDeleteAllOthe
 import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
-import { getPostAuthRedirectPath } from "../lib/postAuthRedirect.js";
+import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
 import { isSessionGroupCompatible, resolveSessionGroupForApp } from "../lib/sessionGroupCompatibility.js";
 import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
 import { authRateLimiter, authRateLimiterWithIdentifier } from "../middlewares/rateLimit.js";
@@ -1214,13 +1214,17 @@ async function handleGoogleCallback(req: Request, res: Response) {
       req,
     });
 
-    const effectiveContext = normalizedAccessProfile === "superadmin"
-      ? {
-          canAccess: Boolean(user.isSuperAdmin),
-          normalizedAccessProfile: "superadmin" as const,
-          requiredOnboarding: "none" as const,
-        }
-      : await getAppContext(user.id, activeAppSlug);
+    if (!normalizedAccessProfile) {
+      await denyWithAccessDenied();
+      return;
+    }
+
+    const effectiveContext = await resolvePostAuthFlowDecision({
+      userId: user.id,
+      appSlug: activeAppSlug,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      normalizedAccessProfile,
+    });
 
     if (!effectiveContext) {
       console.error("[auth/google/callback] unable to resolve app context", {
@@ -1280,12 +1284,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const destination = getPostAuthRedirectPath({
-      appSlug: activeAppSlug,
-      isSuperAdmin: user.isSuperAdmin,
-      normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
-      requiredOnboarding: effectiveContext.requiredOnboarding,
-    });
+    const destination = effectiveContext.destination;
     const continuationDestination = normalizeReturnToPath(oauthReturnToPath);
     const finalDestination = continuationDestination ?? destination;
     infoVerboseTrace("[auth/google/callback] final redirect path", {
@@ -1499,6 +1498,23 @@ async function completePendingMfaSession(req: Request) {
   await clearFirstAuthAfterReset(pendingUserId);
   return { userId: pendingUserId };
 }
+
+async function resolveNextPathForEstablishedSession(userId: string, appSlug: string): Promise<string | null> {
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  const app = await getAppBySlug(appSlug);
+  if (!user || !app) return null;
+  const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
+  if (!normalizedAccessProfile) return null;
+
+  const flow = await resolvePostAuthFlowDecision({
+    userId,
+    appSlug: app.slug,
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    normalizedAccessProfile,
+  });
+  return flow?.destination ?? null;
+}
+
 async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
@@ -1719,7 +1735,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   await establishPasswordSession(req, user.id, appSlug, stayLoggedIn);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-  res.json({ success: true });
+  const nextPath = await resolveNextPathForEstablishedSession(user.id, appSlug) ?? "/dashboard";
+  res.json({ success: true, nextPath });
 }
 
 async function handleForgotPassword(req: Request, res: Response) {
@@ -1817,10 +1834,17 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
     res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
 
+  let nextPath: string | undefined;
+  if (completed) {
+    const appSlug = req.session.appSlug;
+    if (appSlug) nextPath = await resolveNextPathForEstablishedSession(completed.userId, appSlug) ?? undefined;
+  }
+
   res.json({
     success: true,
     recoveryCodes: activated.recoveryCodes,
     sessionEstablished: Boolean(completed),
+    nextPath,
   });
 }
 
@@ -1849,8 +1873,12 @@ async function handleMfaChallenge(req: Request, res: Response) {
     const token = await rememberTrustedDevice(userId);
     res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
+  const appSlug = req.session.appSlug;
+  const nextPath = appSlug
+    ? await resolveNextPathForEstablishedSession(userId, appSlug) ?? undefined
+    : undefined;
 
-  res.json({ success: true });
+  res.json({ success: true, nextPath });
 }
 
 async function handleMfaRecovery(req: Request, res: Response) {
@@ -1875,7 +1903,11 @@ async function handleMfaRecovery(req: Request, res: Response) {
     const token = await rememberTrustedDevice(userId);
     res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
-  res.json({ success: true });
+  const appSlug = req.session.appSlug;
+  const nextPath = appSlug
+    ? await resolveNextPathForEstablishedSession(userId, appSlug) ?? undefined
+    : undefined;
+  res.json({ success: true, nextPath });
 }
 
 async function handleMfaDisable(req: Request, res: Response) {

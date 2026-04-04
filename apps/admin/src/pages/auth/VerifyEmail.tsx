@@ -1,16 +1,27 @@
 import React from "react";
-import { useSearch } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
 
 export default function VerifyEmail() {
   const auth = useAuth();
+  const [, setLocation] = useLocation();
   const search = useSearch();
-  const [message, setMessage] = React.useState("Verifying...");
+  const [message, setMessage] = React.useState("Check your inbox to verify your email.");
   React.useEffect(() => {
-    const token = new URLSearchParams(search).get("token") ?? "";
-    auth.verifyEmail(token).then(() => setMessage("Email verified."))
+    const params = new URLSearchParams(search);
+    const token = params.get("token") ?? "";
+    const email = params.get("email") ?? "";
+    if (!token) {
+      const suffix = email ? ` for ${email}` : "";
+      setMessage(`We sent a verification link${suffix}. After verification, sign in to continue onboarding.`);
+      return;
+    }
+    auth.verifyEmail(token).then(() => {
+      setMessage("Email verified. Redirecting to sign in...");
+      window.setTimeout(() => setLocation("/login"), 800);
+    })
       .catch((err) => setMessage(err instanceof Error ? err.message : "Verification failed."));
-  }, [auth, search]);
+  }, [auth, search, setLocation]);
 
   return <div className="p-6">{message}</div>;
 }

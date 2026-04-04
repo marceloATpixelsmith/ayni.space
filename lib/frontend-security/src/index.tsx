@@ -631,13 +631,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       body: JSON.stringify({ email, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
     }, csrfTokenRef.current);
-    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean });
+    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string });
     if (!response.ok) {
       throw new Error(payload?.error ?? "Invalid email or password.");
     }
     if (payload?.mfaRequired) {
       const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
       window.location.assign(target);
+      return;
+    }
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      window.location.assign(payload.nextPath);
       return;
     }
     await refreshSession();
@@ -709,9 +713,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ factorId, code }),
     }, csrfTokenRef.current);
-    const payload = (await response.json()) as { recoveryCodes: string[] } & ApiErrorPayload;
+    const payload = (await response.json()) as { recoveryCodes: string[]; nextPath?: string } & ApiErrorPayload;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to verify MFA enrollment.");
-    return { recoveryCodes: payload.recoveryCodes ?? [] };
+    return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
   }, []);
 
   const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
@@ -720,8 +724,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code, rememberDevice }),
     }, csrfTokenRef.current);
-    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete MFA challenge.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      window.location.assign(payload.nextPath);
+      return;
+    }
     await refreshSession();
   }, [refreshSession]);
 
@@ -731,8 +739,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ recoveryCode, rememberDevice }),
     }, csrfTokenRef.current);
-    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to recover MFA.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      window.location.assign(payload.nextPath);
+      return;
+    }
     await refreshSession();
   }, [refreshSession]);
 

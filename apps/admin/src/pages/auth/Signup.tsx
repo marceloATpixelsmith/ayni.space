@@ -24,8 +24,10 @@ export default function Signup() {
 
     setError(null);
     auth.signupWithPassword(email, password, name, turnstile.token).then((result) => {
-      if (result.verifyToken) setLocation(`/verify-email?token=${encodeURIComponent(result.verifyToken)}`);
-      else setLocation("/dashboard");
+      const query = new URLSearchParams();
+      query.set("email", email);
+      if (result.verifyToken) query.set("token", result.verifyToken);
+      setLocation(`/verify-email?${query.toString()}`);
     }).catch((err) => {
       setError(err instanceof Error ? err.message : "Unable to sign up.");
       if (turnstile.enabled) {
@@ -97,7 +99,7 @@ export default function Signup() {
             </div>
 
             <div className="space-y-3">
-              <input className="w-full border rounded px-3 py-2" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="w-full border rounded px-3 py-2" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
               <input className="w-full border rounded px-3 py-2" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
               <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
