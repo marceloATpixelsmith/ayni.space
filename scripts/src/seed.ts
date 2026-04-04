@@ -11,13 +11,19 @@
  * - Sample Ayni ceremony
  */
 
-import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable, type InsertApp } from "@workspace/db";
+import { db, usersTable, organizationsTable, orgMembershipsTable, appsTable, appPlansTable, subscriptionsTable, invitationsTable, shipiboCategoriesTable, userAppAccessTable, shipiboWordsTable, ayniCeremoniesTable, featureFlagsTable, sessionGroupsTable, type InsertApp } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { addDays } from "./seedHelpers.js";
 
 async function seed() {
   console.log("🌱 Starting seed...");
+
+  console.log("Ensuring required session groups...");
+  await db.insert(sessionGroupsTable).values([
+    { id: "default", displayName: "Ayni Workspace" },
+    { id: "admin", displayName: "Ayni Admin" },
+  ]).onConflictDoNothing();
 
   // ── SUPER ADMIN ────────────────────────────────────────────────────────────
   console.log("Creating super admin...");
