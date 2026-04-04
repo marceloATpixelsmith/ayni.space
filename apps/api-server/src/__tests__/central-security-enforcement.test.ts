@@ -9,7 +9,7 @@ process.env["ALLOWED_ORIGINS"] = "http://localhost:5173";
 
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
 const { getSecurityRuleForRequest } = await import("../lib/securityPolicy.js");
-const { db } = await import("@workspace/db");
+const { authTokensTable, db } = await import("@workspace/db");
 const { default: adminRouter } = await import("../routes/admin.js");
 const { default: usersRouter } = await import("../routes/users.js");
 const { default: authRouter } = await import("../routes/auth.js");
@@ -98,6 +98,73 @@ test("verify-email endpoint remains public without requiring turnstile token", a
   process.env["TURNSTILE_ENABLED"] = "true";
   const response = await requestJson(createApp({}, true), "POST", "/api/auth/verify-email", { token: "fake-token" });
   assert.notEqual(response.status, 403);
+});
+
+test("verify-email reports expired and already-used token states distinctly", async () => {
+  const originalUpdate = db.update.bind(db);
+  const restoreUpdate = patchProperty(
+    db,
+    "update",
+    ((table: unknown) => {
+      if (table === authTokensTable) {
+        return {
+          set: () => ({
+            where: () => ({
+              returning: async () => [],
+            }),
+          }),
+        } as never;
+      }
+      return originalUpdate(table as never);
+    }) as typeof db.update,
+  );
+
+  const restoreExpiredLookup = patchProperty(
+    db.query.authTokensTable,
+    "findFirst",
+    async () => ({
+      id: "token-expired",
+      userId: "user-1",
+      tokenType: "email_verification",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() - 60_000),
+      consumedAt: null,
+      createdAt: new Date(),
+    }),
+  );
+
+  try {
+    const expired = await requestJson(createApp({}), "POST", "/api/auth/verify-email", { token: "fake-token" });
+    const expiredBody = (await expired.json().catch(() => null)) as { code?: string } | null;
+    assert.equal(expired.status, 400);
+    assert.equal(expiredBody?.code, "VERIFICATION_TOKEN_EXPIRED");
+  } finally {
+    restoreExpiredLookup();
+  }
+
+  const restoreUsedLookup = patchProperty(
+    db.query.authTokensTable,
+    "findFirst",
+    async () => ({
+      id: "token-used",
+      userId: "user-1",
+      tokenType: "email_verification",
+      tokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      consumedAt: new Date(Date.now() - 60_000),
+      createdAt: new Date(),
+    }),
+  );
+
+  try {
+    const used = await requestJson(createApp({}), "POST", "/api/auth/verify-email", { token: "fake-token" });
+    const usedBody = (await used.json().catch(() => null)) as { code?: string } | null;
+    assert.equal(used.status, 409);
+    assert.equal(usedBody?.code, "VERIFICATION_TOKEN_ALREADY_USED");
+  } finally {
+    restoreUsedLookup();
+    restoreUpdate();
+  }
 });
 
 test("AUTHENTICATED routes require valid session by default", async () => {

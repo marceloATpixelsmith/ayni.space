@@ -1424,19 +1424,44 @@ async function createAuthToken(userId: string, tokenType: "email_verification" |
   return token;
 }
 
-async function consumeAuthToken(token: string, tokenType: "email_verification" | "password_reset") {
+type ConsumeAuthTokenResult =
+  | { status: "consumed"; token: typeof authTokensTable.$inferSelect }
+  | { status: "invalid" | "expired" | "already_used" };
+
+async function consumeAuthToken(token: string, tokenType: "email_verification" | "password_reset"): Promise<ConsumeAuthTokenResult> {
   const tokenHash = hashOpaqueToken(token);
   const now = new Date();
   const rows = await db
     .update(authTokensTable)
     .set({ consumedAt: now })
-    .where(and(eq(authTokensTable.tokenHash, tokenHash), eq(authTokensTable.tokenType, tokenType), isNull(authTokensTable.consumedAt)))
+    .where(
+      and(
+        eq(authTokensTable.tokenHash, tokenHash),
+        eq(authTokensTable.tokenType, tokenType),
+        isNull(authTokensTable.consumedAt),
+        sql`${authTokensTable.expiresAt} > ${now}`,
+      ),
+    )
     .returning();
 
   const consumed = rows[0] ?? null;
-  if (!consumed) return null;
-  if (consumed.expiresAt < now) return null;
-  return consumed;
+  if (consumed) {
+    return { status: "consumed", token: consumed };
+  }
+
+  const existing = await db.query.authTokensTable.findFirst({
+    where: and(eq(authTokensTable.tokenHash, tokenHash), eq(authTokensTable.tokenType, tokenType)),
+  });
+  if (!existing) {
+    return { status: "invalid" };
+  }
+  if (existing.consumedAt) {
+    return { status: "already_used" };
+  }
+  if (existing.expiresAt <= now) {
+    return { status: "expired" };
+  }
+  return { status: "invalid" };
 }
 
 async function establishPasswordSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean) {
@@ -1773,21 +1798,21 @@ async function handleResetPassword(req: Request, res: Response) {
   }
 
   const consumed = await consumeAuthToken(token, "password_reset");
-  if (!consumed) {
+  if (consumed.status !== "consumed") {
     res.status(400).json({ error: "Reset token is invalid or expired." });
     return;
   }
 
   const hash = await hashPassword(password);
-  const existingCredential = await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, consumed.userId), eq(userCredentialsTable.credentialType, "password")) });
+  const existingCredential = await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, consumed.token.userId), eq(userCredentialsTable.credentialType, "password")) });
   if (existingCredential) {
     await db.update(userCredentialsTable).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(userCredentialsTable.id, existingCredential.id));
   } else {
-    await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.userId, credentialType: "password", passwordHash: hash });
+    await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.token.userId, credentialType: "password", passwordHash: hash });
   }
 
-  await markPasswordResetSecurityEvent(consumed.userId);
-  await pool.query(getDeleteAllOtherSessionsForUserSql(), [consumed.userId, req.session.id ?? ""]);
+  await markPasswordResetSecurityEvent(consumed.token.userId);
+  await pool.query(getDeleteAllOtherSessionsForUserSql(), [consumed.token.userId, req.session.id ?? ""]);
   await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
   res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
   res.json({ success: true });
@@ -1802,18 +1827,26 @@ async function handleVerifyEmail(req: Request, res: Response) {
   }
 
   const consumed = await consumeAuthToken(token, "email_verification");
-  if (!consumed) {
-    res.status(400).json({ error: "Verification token is invalid or expired." });
+  if (consumed.status !== "consumed") {
+    if (consumed.status === "expired") {
+      res.status(400).json({ error: "Verification token has expired.", code: "VERIFICATION_TOKEN_EXPIRED" });
+      return;
+    }
+    if (consumed.status === "already_used") {
+      res.status(409).json({ error: "Verification token was already used.", code: "VERIFICATION_TOKEN_ALREADY_USED" });
+      return;
+    }
+    res.status(400).json({ error: "Verification token is invalid.", code: "VERIFICATION_TOKEN_INVALID" });
     return;
   }
 
-  await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.userId));
+  await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.token.userId));
   if (!appSlug) {
     res.json({ success: true });
     return;
   }
 
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, consumed.userId) });
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, consumed.token.userId) });
   if (!user || !user.active || user.suspended || user.deletedAt) {
     res.status(403).json({ error: "Account is unavailable." });
     return;
