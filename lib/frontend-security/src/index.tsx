@@ -169,6 +169,25 @@ export function mapGoogleSignInError(
   );
 }
 
+export function mapVerifyEmailError(
+  response: Response | null,
+  payload: ApiErrorPayload,
+): string {
+  if (payload?.code === "VERIFICATION_TOKEN_ALREADY_USED") {
+    return "This verification link was already used.";
+  }
+  if (payload?.code === "VERIFICATION_TOKEN_EXPIRED") {
+    return "This verification link has expired.";
+  }
+  if (payload?.code === "VERIFICATION_TOKEN_INVALID") {
+    return "This verification link is invalid.";
+  }
+  if (response?.status === 403 && payload?.error?.toLowerCase().includes("csrf")) {
+    return "Security check failed. Please retry the verification link.";
+  }
+  return payload?.error ?? "Unable to verify email.";
+}
+
 export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
 export type AuthRouteKind = "onboarding" | "invitation";
 
@@ -694,13 +713,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   const verifyEmail = React.useCallback(async (token: string, appSlug?: string) => {
+    const csrfToken = csrfTokenRef.current ?? (await refreshCsrfState());
+    if (!csrfToken) {
+      throw new Error("Security token is not ready. Please retry the verification link.");
+    }
     const response = await secureApiFetch("/api/auth/verify-email", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token, appSlug: appSlug?.trim() || undefined }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string };
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify email.");
+    if (!response.ok) throw new Error(mapVerifyEmailError(response, payload));
     if (payload?.mfaRequired) {
       const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
       window.location.assign(target);
@@ -712,7 +735,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await refreshSession();
     return payload;
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const startMfaEnrollment = React.useCallback(async () => {
     const response = await secureApiFetch("/api/auth/mfa/enroll/start", {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapGoogleSignInError } from "../index.tsx";
+import { mapGoogleSignInError, mapVerifyEmailError } from "../index.tsx";
 
 function makeResponse(status: number, retryAfter?: string): Response {
   const headers = new Headers();
@@ -37,4 +37,23 @@ test("maps origin rejection and oauth config errors to specific text", () => {
     error: "Google OAuth is not configured.",
   });
   assert.equal(configMessage, "Sign-in is temporarily unavailable due to configuration. Please contact support.");
+});
+
+test("maps verify-email token states and csrf failures distinctly", () => {
+  assert.equal(
+    mapVerifyEmailError(makeResponse(409), { code: "VERIFICATION_TOKEN_ALREADY_USED", error: "Verification token was already used." }),
+    "This verification link was already used.",
+  );
+  assert.equal(
+    mapVerifyEmailError(makeResponse(400), { code: "VERIFICATION_TOKEN_EXPIRED", error: "Verification token has expired." }),
+    "This verification link has expired.",
+  );
+  assert.equal(
+    mapVerifyEmailError(makeResponse(400), { code: "VERIFICATION_TOKEN_INVALID", error: "Verification token is invalid." }),
+    "This verification link is invalid.",
+  );
+  assert.equal(
+    mapVerifyEmailError(makeResponse(403), { error: "Invalid CSRF token" }),
+    "Security check failed. Please retry the verification link.",
+  );
 });
