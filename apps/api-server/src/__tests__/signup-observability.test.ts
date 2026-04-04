@@ -141,7 +141,7 @@ test("signup step-up logs undeliverable_email reason code", async () => {
   }
 });
 
-test("signup step-up logs ipqs_step_up_threshold reason code for high fraud score", async () => {
+test("signup step-up logs ipqs_advisory_step_up reason code for high fraud score", async () => {
   const prevIpqsKey = process.env["IPQS_API_KEY"];
   process.env["IPQS_API_KEY"] = "test-key";
 
@@ -174,7 +174,7 @@ test("signup step-up logs ipqs_step_up_threshold reason code for high fraud scor
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
     const metadata = row.metadata as Record<string, unknown>;
-    assert.equal(metadata.reasonCode, "ipqs_step_up_threshold");
+    assert.equal(metadata.reasonCode, "ipqs_advisory_step_up");
     assert.equal(metadata.decisionCategory, "step_up");
   } finally {
     globalThis.fetch = previousFetch;

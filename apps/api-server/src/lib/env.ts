@@ -61,6 +61,5 @@ export function validateEnv() {
   if ("MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY" in process.env && !process.env["MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY"]) throw new Error("MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY is set but empty.");
 
   validatePositiveIntEnv("IPQS_TIMEOUT_MS");
-  validatePositiveIntEnv("IPQS_BLOCK_THRESHOLD");
   validatePositiveIntEnv("IPQS_STEP_UP_THRESHOLD");
 }
