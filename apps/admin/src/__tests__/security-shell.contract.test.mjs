@@ -71,32 +71,34 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 
   expectIncludes(
     appSource,
-    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
-    "Invitation unauthenticated routing should be evaluated explicitly.",
-  );
-
-  expectIncludes(
-    appSource,
-    "const redirectTarget = `/login?next=${encodeURIComponent(location)}`;",
-    "Invitation unauthenticated redirect should include a continuation target.",
-  );
-
-  expectIncludes(
-    appSource,
-    "return <AuthRedirect to={redirectTarget} />;",
-    "Invitation auth route should preserve continuation path through login.",
-  );
-
-  expectIncludes(
-    appSource,
-    "console.info(\"[INVITATION-FLOW] redirecting unauthenticated invitation user to login with continuation\"",
-    "Invitation flow should emit diagnostics for unauthenticated continuation redirects.",
+    "if (routeKind === \"invitation\") {\n      console.info(\"[INVITATION-FLOW] allowing unauthenticated invitation route render\"",
+    "Invitation route should render pre-auth so invitation page controls the next step.",
   );
 
   expectIncludes(
     appSource,
     "return <AuthRedirect to=\"/login\" />;",
     "Allowed onboarding route should still route logged-out users to /login.",
+  );
+});
+
+test("invitation accept route remains reachable pre-auth and controls login continuation itself", () => {
+  expectNotIncludes(
+    appSource,
+    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
+    "App-level auth gate must not preemptively bounce invitation route to /login before page render.",
+  );
+
+  expectIncludes(
+    invitationAcceptSource,
+    "if (auth.status === \"unauthenticated\") {\n      inFlightRef.current = false;\n      setStatus(\"idle\");\n      setMessage(\"Sign in to continue accepting this invitation.\");",
+    "Invitation page should own the unauthenticated pre-auth state instead of auto-redirecting.",
+  );
+
+  expectIncludes(
+    invitationAcceptSource,
+    "<Button onClick={() => setLocation(`/login?next=${encodeURIComponent(`/invitations/${params.token}/accept`)}`)} className=\"w-full\">",
+    "Invitation page should provide explicit login continuation action after rendering.",
   );
 });
 

@@ -170,15 +170,6 @@ function ConfigDrivenAuthRoute({
 
   if (loading || auth.status === "loading") return <AuthLoading />;
 
-  if (auth.status === "unauthenticated" && routeKind === "invitation") {
-    const redirectTarget = `/login?next=${encodeURIComponent(location)}`;
-    console.info("[INVITATION-FLOW] redirecting unauthenticated invitation user to login with continuation", {
-      from: location,
-      to: redirectTarget,
-    });
-    return <AuthRedirect to={redirectTarget} />;
-  }
-
   if (!isAuthRouteAllowed(metadata, routeKind)) {
     console.info("[INVITATION-FLOW] auth route disallowed by metadata policy", {
       routeKind,
@@ -205,6 +196,12 @@ function ConfigDrivenAuthRoute({
   }
 
   if (auth.status === "unauthenticated") {
+    if (routeKind === "invitation") {
+      console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render", {
+        path: location,
+      });
+      return <>{children}</>;
+    }
     console.info("[INVITATION-FLOW] redirecting unauthenticated user to generic login", {
       routeKind,
       path: location,

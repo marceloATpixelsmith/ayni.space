@@ -36,11 +36,12 @@ export default function InvitationAccept() {
     }
 
     if (auth.status === "unauthenticated") {
-      const loginPath = `/login?next=${encodeURIComponent(`/invitations/${token}/accept`)}`;
-      console.info("[INVITATION-FLOW] invitation accept redirecting to login with continuation", {
-        target: loginPath,
+      inFlightRef.current = false;
+      setStatus("idle");
+      setMessage("Sign in to continue accepting this invitation.");
+      console.info("[INVITATION-FLOW] invitation accept awaiting explicit sign-in action", {
+        continuationPath: `/invitations/${token}/accept`,
       });
-      setLocation(loginPath);
       return;
     }
 
@@ -114,6 +115,11 @@ export default function InvitationAccept() {
         {status === "error" && (
           <Button onClick={() => setLocation("/dashboard")} className="w-full">
             Back to dashboard
+          </Button>
+        )}
+        {auth.status === "unauthenticated" && params.token && (
+          <Button onClick={() => setLocation(`/login?next=${encodeURIComponent(`/invitations/${params.token}/accept`)}`)} className="w-full">
+            Continue with Google
           </Button>
         )}
       </Card>
