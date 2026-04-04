@@ -1329,6 +1329,71 @@ function getGenericAuthResponseMessage() {
   return "If an account exists, we sent further instructions.";
 }
 
+
+type SignupDecisionCategory =
+  | "allow"
+  | "step_up"
+  | "block"
+  | "validation_error"
+  | "duplicate_email"
+  | "turnstile_failed"
+  | "provider_failure"
+  | "internal_error";
+
+type SignupDecisionReasonCode =
+  | "disposable_email"
+  | "undeliverable_email"
+  | "ipqs_block_threshold"
+  | "ipqs_provider_failure_step_up"
+  | "turnstile_missing_or_invalid"
+  | "duplicate_existing_email"
+  | "signup_not_allowed_by_access_policy"
+  | "validation_failed"
+  | "internal_exception"
+  | "ipqs_step_up_threshold"
+  | "signup_allowed";
+
+type SignupDecisionLog = {
+  category: SignupDecisionCategory;
+  reasonCode: SignupDecisionReasonCode;
+  email: string;
+  appSlug: string;
+  metadata?: Record<string, unknown>;
+};
+
+function getSignupEmailHash(email: string): string | null {
+  const normalized = normalizeEmailAddress(email);
+  if (!normalized) return null;
+  return hashOpaqueToken(`signup-email:${normalized}`);
+}
+
+function getSignupSessionGroup(req: Request): string {
+  const sessionGroup = req.resolvedSessionGroup;
+  if (typeof sessionGroup === "string" && sessionGroup.trim()) {
+    return sessionGroup;
+  }
+  return SESSION_GROUPS.DEFAULT;
+}
+
+function logSignupDecision(req: Request, details: SignupDecisionLog) {
+  writeAuditLog({
+    userId: req.session?.userId,
+    action: "auth.signup.decision",
+    resourceType: "auth",
+    resourceId: "signup",
+    metadata: {
+      decisionCategory: details.category,
+      reasonCode: details.reasonCode,
+      appSlug: details.appSlug,
+      sessionGroup: getSignupSessionGroup(req),
+      correlationId: req.correlationId ?? null,
+      normalizedEmailHash: getSignupEmailHash(details.email),
+      ...details.metadata,
+    },
+    req,
+  });
+}
+
 async function createAuthToken(userId: string, tokenType: "email_verification" | "password_reset", ttlMinutes: number) {
   const token = generateOpaqueToken();
   const tokenHash = hashOpaqueToken(token);
@@ -1422,67 +1487,174 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
+  const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
+
   if (!email || !password || !isStrongEnoughPassword(password)) {
+    logSignupDecision(req, {
+      category: "validation_error",
+      reasonCode: "validation_failed",
+      email,
+      appSlug: signupAppSlug,
+      metadata: {
+        passwordProvided: Boolean(password),
+        emailProvided: Boolean(email),
+      },
+    });
     res.status(400).json({ error: "Invalid signup input." });
     return;
   }
 
-  const ipqsAssessment = await assessSignupRiskWithIpqs(email, req.ip);
-  if (ipqsAssessment.decision === "block") {
-    res.status(400).json({ error: "We couldn't create this account. Please use a different email and try again." });
-    return;
-  }
+  try {
+    const signupApp = await getAppBySlug(signupAppSlug);
+    if (!signupApp || (signupApp.accessMode === "organization" && !signupApp.customerRegistrationEnabled)) {
+      logSignupDecision(req, {
+        category: "block",
+        reasonCode: "signup_not_allowed_by_access_policy",
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          appFound: Boolean(signupApp),
+          appAccessMode: signupApp?.accessMode ?? null,
+          customerRegistrationEnabled: signupApp?.customerRegistrationEnabled ?? null,
+        },
+      });
+      res.status(403).json({ error: "We couldn't create this account. Please use a different email and try again." });
+      return;
+    }
 
-  let user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
-  if (!user) {
-    const [created] = await db.insert(usersTable).values({
+    const ipqsAssessment = await assessSignupRiskWithIpqs(email, req.ip);
+    if (ipqsAssessment.decision === "block") {
+      const ipqsReasonCode: SignupDecisionReasonCode = ipqsAssessment.reason === "disposable_email"
+        ? "disposable_email"
+        : ipqsAssessment.reason === "undeliverable_email"
+          ? "undeliverable_email"
+          : "ipqs_block_threshold";
+      logSignupDecision(req, {
+        category: "block",
+        reasonCode: ipqsReasonCode,
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          ipqsDecision: ipqsAssessment.decision,
+          ipqsReason: ipqsAssessment.reason,
+          ipqsScore: ipqsAssessment.score,
+          ipqsDisposable: ipqsAssessment.disposable,
+          ipqsUndeliverable: ipqsAssessment.undeliverable,
+          ipqsSuspiciousIp: ipqsAssessment.suspiciousIp,
+          ipqsProviderFailed: ipqsAssessment.providerFailed,
+        },
+      });
+      res.status(400).json({ error: "We couldn't create this account. Please use a different email and try again." });
+      return;
+    }
+
+    let user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
+    if (!user) {
+      const [created] = await db.insert(usersTable).values({
+        id: randomUUID(),
+        email,
+        name: name || null,
+      }).returning();
+      user = created ?? null;
+    }
+
+    if (!user) {
+      logSignupDecision(req, {
+        category: "internal_error",
+        reasonCode: "internal_exception",
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          stage: "user_resolution",
+        },
+      });
+      res.status(500).json({ error: "Unable to create account." });
+      return;
+    }
+
+    const existingCredential = await db.query.userCredentialsTable.findFirst({
+      where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
+    });
+
+    if (existingCredential) {
+      logSignupDecision(req, {
+        category: "duplicate_email",
+        reasonCode: "duplicate_existing_email",
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          userId: user.id,
+        },
+      });
+      res.status(409).json({ error: "An account with this email already exists." });
+      return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    await db.insert(userCredentialsTable).values({
       id: randomUUID(),
-      email,
-      name: name || null,
-    }).returning();
-    user = created ?? null;
-  }
-
-  if (!user) {
-    res.status(500).json({ error: "Unable to create account." });
-    return;
-  }
-
-  const existingCredential = await db.query.userCredentialsTable.findFirst({
-    where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
-  });
-
-  if (existingCredential) {
-    res.status(409).json({ error: "An account with this email already exists." });
-    return;
-  }
-
-  const passwordHash = await hashPassword(password);
-  await db.insert(userCredentialsTable).values({
-    id: randomUUID(),
-    userId: user.id,
-    credentialType: "password",
-    passwordHash,
-  });
-
-  const verificationToken = await createAuthToken(user.id, "email_verification", 60);
-
-  const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
-  const signupApp = await getAppBySlug(signupAppSlug);
-  if (signupApp?.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
-    await db.insert(userAuthSecurityTable).values({
       userId: user.id,
-      mfaRequired: true,
-      forceMfaEnrollment: true,
-      riskReason: "org_client_registration",
-    }).onConflictDoUpdate({ target: userAuthSecurityTable.userId, set: { mfaRequired: true, forceMfaEnrollment: true, riskReason: "org_client_registration", updatedAt: new Date() } });
-  }
+      credentialType: "password",
+      passwordHash,
+    });
 
-  if (ipqsAssessment.decision === "step_up") {
-    await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
-  }
+    const verificationToken = await createAuthToken(user.id, "email_verification", 60);
 
-  res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
+    if (signupApp.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
+      await db.insert(userAuthSecurityTable).values({
+        userId: user.id,
+        mfaRequired: true,
+        forceMfaEnrollment: true,
+        riskReason: "org_client_registration",
+      }).onConflictDoUpdate({ target: userAuthSecurityTable.userId, set: { mfaRequired: true, forceMfaEnrollment: true, riskReason: "org_client_registration", updatedAt: new Date() } });
+    }
+
+    if (ipqsAssessment.decision === "step_up") {
+      await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
+      logSignupDecision(req, {
+        category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
+        reasonCode: ipqsAssessment.providerFailed ? "ipqs_provider_failure_step_up" : "ipqs_step_up_threshold",
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          userId: user.id,
+          ipqsDecision: ipqsAssessment.decision,
+          ipqsReason: ipqsAssessment.reason,
+          ipqsScore: ipqsAssessment.score,
+          ipqsDisposable: ipqsAssessment.disposable,
+          ipqsUndeliverable: ipqsAssessment.undeliverable,
+          ipqsSuspiciousIp: ipqsAssessment.suspiciousIp,
+          ipqsProviderFailed: ipqsAssessment.providerFailed,
+        },
+      });
+    } else {
+      logSignupDecision(req, {
+        category: "allow",
+        reasonCode: "signup_allowed",
+        email,
+        appSlug: signupAppSlug,
+        metadata: {
+          userId: user.id,
+          ipqsDecision: ipqsAssessment.decision,
+          ipqsReason: ipqsAssessment.reason,
+          ipqsScore: ipqsAssessment.score,
+        },
+      });
+    }
+
+    res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
+  } catch (error) {
+    logSignupDecision(req, {
+      category: "internal_error",
+      reasonCode: "internal_exception",
+      email,
+      appSlug: signupAppSlug,
+      metadata: {
+        errorName: error instanceof Error ? error.name : typeof error,
+      },
+    });
+    throw error;
+  }
 }
 
 async function handlePasswordLogin(req: Request, res: Response) {
