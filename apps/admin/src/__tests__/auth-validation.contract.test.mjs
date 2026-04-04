@@ -21,8 +21,26 @@ test("auth email validation trims/normalizes and blocks invalid input", () => {
 });
 
 test("auth password policy is visible in signup UI", () => {
-  assert.match(signupSource, /at least 8 characters/);
-  assert.match(signupSource, /uppercase/);
-  assert.match(signupSource, /lowercase/);
-  assert.match(signupSource, /number/);
+  assert.match(validationSource, /password\.length < 8/);
+  assert.match(validationSource, /\/\[A-Z\]\//);
+  assert.match(validationSource, /\/\[a-z\]\//);
+  assert.match(validationSource, /\/\\d\//);
+});
+
+test("login and signup gate email errors behind touch/submit interaction", () => {
+  assert.match(loginSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
+  assert.match(loginSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
+  assert.match(loginSource, /\(emailTouched \|\| submitted\) && validateEmailInput\(emailInput\)/);
+
+  assert.match(signupSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
+  assert.match(signupSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
+  assert.match(signupSource, /shouldShowEmailError && validateEmailInput\(email\)/);
+});
+
+test("signup password feedback is progressive and hidden before interaction", () => {
+  assert.match(signupSource, /const shouldShowPasswordFeedback = password\.length > 0;/);
+  assert.match(signupSource, /const missingPasswordRequirements = getMissingPasswordRequirements\(password\);/);
+  assert.match(signupSource, /shouldShowPasswordFeedback && missingPasswordRequirements\.length > 0/);
+  assert.doesNotMatch(signupSource, /Password meets requirements\./);
+  assert.doesNotMatch(signupSource, /Password must be at least 8 characters and include uppercase, lowercase, and a number\./);
 });

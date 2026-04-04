@@ -22,6 +22,8 @@
 - OAuth start origin derivation in auth route resolves trusted `origin`/`referer` and trusted forwarded host/proto headers before allowlist checks (`apps/api-server/src/routes/auth.ts`).
 - Shared frontend fetch layers force credentialed auth/session requests (`/api/auth/*`, `/api/csrf-token`) via `credentials: "include"` (`lib/api-client-react/src/custom-fetch.ts`, `lib/frontend-security/src/index.tsx`).
 - Auth/session middleware integration lives in `apps/api-server/src/app.ts`.
+- `/api/auth/verify-email` remains a public, rate-limited endpoint but is exempt from Turnstile because emailed link possession is the verification proof and must not require an extra interactive challenge (`apps/api-server/src/lib/securityPolicy.ts`, `apps/api-server/src/routes/auth.ts`).
+- Login/signup/forgot-password email field validation now defers inline errors until blur/touch or submit, while signup password feedback renders progressively after typing by showing only missing policy requirements (8+ chars, uppercase, lowercase, number) (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/admin/src/pages/auth/authValidation.ts`).
 
 ## Inferred
 - Session/auth is backend-authoritative, with frontend consuming session state via shared provider and API client.

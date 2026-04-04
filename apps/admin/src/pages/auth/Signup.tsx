@@ -6,18 +6,21 @@ import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PasswordInput } from "@/components/ui/password-input";
-import { normalizeEmailInput, validateEmailInput, validatePasswordInput } from "./authValidation";
+import { getMissingPasswordRequirements, normalizeEmailInput, validateEmailInput, validatePasswordInput } from "./authValidation";
 
 export default function Signup() {
   const auth = useAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [emailTouched, setEmailTouched] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
   const [name, setName] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const turnstile = useTurnstileToken();
 
   const onSubmit = () => {
+    setSubmitted(true);
     const emailError = validateEmailInput(email);
     if (emailError) {
       setError(emailError);
@@ -63,6 +66,10 @@ export default function Signup() {
       }
     });
   };
+
+  const shouldShowEmailError = emailTouched || submitted;
+  const shouldShowPasswordFeedback = password.length > 0;
+  const missingPasswordRequirements = getMissingPasswordRequirements(password);
 
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-slate-50 dark:bg-slate-950 overflow-hidden">
@@ -113,11 +120,16 @@ export default function Signup() {
 
             <div className="space-y-3">
               <input className="w-full border rounded px-3 py-2" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
-              <input className="w-full border rounded px-3 py-2" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="w-full border rounded px-3 py-2" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)} />
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Password must be at least 8 characters and include uppercase, lowercase, and a number.</p>
-              {validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
-              {password ? (validatePasswordInput(password) ? <p className="text-xs text-destructive">{validatePasswordInput(password)}</p> : <p className="text-xs text-emerald-600">Password meets requirements.</p>) : null}
+              {shouldShowEmailError && validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
+              {shouldShowPasswordFeedback && missingPasswordRequirements.length > 0 ? (
+                <ul className="text-xs text-destructive list-disc pl-5 space-y-1" aria-live="polite">
+                  {missingPasswordRequirements.map((requirement) => (
+                    <li key={requirement}>{requirement}</li>
+                  ))}
+                </ul>
+              ) : null}
               <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
             </div>
 

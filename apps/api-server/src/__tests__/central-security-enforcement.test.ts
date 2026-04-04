@@ -94,6 +94,12 @@ test("PUBLIC login endpoint accepts turnstile token from request body", async ()
   assert.notEqual(allowed.status, 403);
 });
 
+test("verify-email endpoint remains public without requiring turnstile token", async () => {
+  process.env["TURNSTILE_ENABLED"] = "true";
+  const response = await requestJson(createApp({}, true), "POST", "/api/auth/verify-email", { token: "fake-token" });
+  assert.notEqual(response.status, 403);
+});
+
 test("AUTHENTICATED routes require valid session by default", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-auth")),

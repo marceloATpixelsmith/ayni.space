@@ -63,8 +63,15 @@ export function getSecurityConfig(): SecurityConfig {
       },
       {
         method: "POST",
-        pattern: /^\/api\/auth\/(signup|login|forgot-password|reset-password|verify-email|mfa\/challenge|mfa\/recovery)\/?$/,
+        pattern: /^\/api\/auth\/(signup|login|forgot-password|reset-password|mfa\/challenge|mfa\/recovery)\/?$/,
         category: "PUBLIC",
+        rateLimit: { type: "auth", options: { keyPrefix: "auth-public" } },
+      },
+      {
+        method: "POST",
+        pattern: /^\/api\/auth\/verify-email\/?$/,
+        category: "PUBLIC",
+        disableTurnstileReason: "Email verification links are possession-factor proofs and must remain consumable without interactive CAPTCHA.",
         rateLimit: { type: "auth", options: { keyPrefix: "auth-public" } },
       },
       {
