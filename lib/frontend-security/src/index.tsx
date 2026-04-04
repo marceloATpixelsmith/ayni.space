@@ -35,6 +35,10 @@ type AuthContextValue = {
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
+  startMfaEnrollment: () => Promise<{ factorId: string; secret: string; otpauthUrl: string; issuer: string }>;
+  verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[] }>;
+  completeMfaChallenge: (code: string, rememberDevice: boolean) => Promise<void>;
+  completeMfaRecovery: (recoveryCode: string, rememberDevice: boolean) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -621,9 +625,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email, password }),
     }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
       throw new Error(payload?.error ?? "Invalid email or password.");
+    }
+    if (payload?.mfaRequired) {
+      const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      window.location.assign(target);
+      return;
     }
     await refreshSession();
   }, [refreshSession]);
@@ -675,6 +684,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshSession();
   }, [refreshSession]);
 
+  const startMfaEnrollment = React.useCallback(async () => {
+    const response = await secureApiFetch("/api/auth/mfa/enroll/start", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    }, csrfTokenRef.current);
+    const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string } & ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to start MFA enrollment.");
+    return payload;
+  }, []);
+
+  const verifyMfaEnrollment = React.useCallback(async (factorId: string, code: string) => {
+    const response = await secureApiFetch("/api/auth/mfa/enroll/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ factorId, code }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json()) as { recoveryCodes: string[] } & ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify MFA enrollment.");
+    return { recoveryCodes: payload.recoveryCodes ?? [] };
+  }, []);
+
+  const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
+    const response = await secureApiFetch("/api/auth/mfa/challenge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, rememberDevice }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete MFA challenge.");
+    await refreshSession();
+  }, [refreshSession]);
+
+  const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean) => {
+    const response = await secureApiFetch("/api/auth/mfa/recovery", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recoveryCode, rememberDevice }),
+    }, csrfTokenRef.current);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to recover MFA.");
+    await refreshSession();
+  }, [refreshSession]);
+
   const status: AuthStatus = sessionRevoked
     ? "unauthenticated"
     : authBootstrapping || meQuery.isLoading
@@ -702,6 +754,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       forgotPassword,
       resetPassword,
       verifyEmail,
+      startMfaEnrollment,
+      verifyMfaEnrollment,
+      completeMfaChallenge,
+      completeMfaRecovery,
     }),
     [
       status,
@@ -719,6 +775,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       forgotPassword,
       resetPassword,
       verifyEmail,
+      startMfaEnrollment,
+      verifyMfaEnrollment,
+      completeMfaChallenge,
+      completeMfaRecovery,
     ],
   );
 

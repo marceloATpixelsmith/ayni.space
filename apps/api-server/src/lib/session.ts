@@ -287,6 +287,9 @@ declare module "express-session" {
     oauthReturnToPath?: string;
     oauthSessionGroup?: string;
     oauthAppSlug?: string;
+    pendingUserId?: string;
+    pendingAppSlug?: string;
+    pendingMfaReason?: "enrollment_required" | "challenge_required";
     sessionGroup?: string;
     sessionCreatedAt?: number;
     sessionAuthenticatedAt?: number;

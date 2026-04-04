@@ -7,6 +7,7 @@ import { writeAuditLog } from "../lib/audit.js";
 import { destroySessionAndClearCookie, revokeOtherSessionsForUser } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
+import { revokeTrustedDevicesForUser } from "../lib/mfa.js";
 
 const router: IRouter = Router();
 
@@ -185,6 +186,7 @@ router.post("/logout-others", requireAuth, async (req, res) => {
 
   const sessionGroup = req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT;
   await revokeOtherSessionsForUser(userId, sid, sessionGroup);
+  await revokeTrustedDevicesForUser(userId, "sign_out_all");
   writeAuditLog({
     userId,
     action: "user.sessions.revoked_others",
