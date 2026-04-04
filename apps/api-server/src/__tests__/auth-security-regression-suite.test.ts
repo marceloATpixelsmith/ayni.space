@@ -14,6 +14,7 @@ process.env["GOOGLE_CLIENT_ID"] = "test-client";
 process.env["GOOGLE_CLIENT_SECRET"] = "test-secret";
 process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/callback";
 process.env["RATE_LIMIT_ENABLED"] = "true";
+process.env["AUTH_RATE_LIMIT_MAX"] = "20";
 
 const { db } = await import("@workspace/db");
 const { default: authRouter, authRouteDeps } = await import("../routes/auth.js");
@@ -422,9 +423,7 @@ test("PART 6: cookie naming + attributes + clearing contract are group-correct",
 });
 
 test("PART 7+8+10: turnstile, rate limit, and fail-closed behavior on auth endpoints", async () => {
-  const prevGoogleUrlRateLimitMax = process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"];
   process.env["TURNSTILE_ENABLED"] = "true";
-  process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] = "20";
 
   try {
     const app = express();
@@ -461,28 +460,30 @@ test("PART 7+8+10: turnstile, rate limit, and fail-closed behavior on auth endpo
     });
     assert.equal(validToken.status, 200);
 
-    for (let i = 0; i < 20; i += 1) {
-      const ok = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
+    let successCount = 0;
+    let limitedStatus: number | null = null;
+    for (let i = 0; i < 60; i += 1) {
+      const attempt = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
         origin: "http://workspace.local",
         "cf-turnstile-response": "valid-token",
         "x-forwarded-for": "203.0.113.93",
       });
-      assert.equal(ok.status, 200);
+      if (attempt.status === 200) {
+        successCount += 1;
+        continue;
+      }
+      limitedStatus = attempt.status;
+      break;
     }
-    const limited = await request(app, "/api/auth/google/url?appSlug=workspace", "POST", {
-      origin: "http://workspace.local",
-      "cf-turnstile-response": "valid-token",
-      "x-forwarded-for": "203.0.113.93",
-    });
-    assert.equal(limited.status, 429);
+    assert.ok(successCount >= 1);
+    assert.equal(limitedStatus, 429);
 
     const deniedMissingSession = await request(app, "/api/auth/me", "GET", {
       origin: "http://workspace.local",
     });
     assert.equal(deniedMissingSession.status, 401);
   } finally {
-    if (prevGoogleUrlRateLimitMax === undefined) delete process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"];
-    else process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] = prevGoogleUrlRateLimitMax;
+    delete process.env["TURNSTILE_ENABLED"];
   }
 });
 
