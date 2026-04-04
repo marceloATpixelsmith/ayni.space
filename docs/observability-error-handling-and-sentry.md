@@ -5,6 +5,7 @@
 
 ## Confirmed
 - Backend observability middleware lives in `apps/api-server/src/middlewares/observability.ts`.
+- Signup denial traceability is implemented through the existing audit pipeline (`apps/api-server/src/lib/audit.ts`) using structured `auth.signup.decision` metadata in `apps/api-server/src/routes/auth.ts` plus normalized Turnstile denial reason codes in `apps/api-server/src/middlewares/turnstile.ts`.
 - Backend middleware order (including Sentry request/error handlers and correlation ID flow) is defined in `apps/api-server/src/app.ts`.
 - Frontend monitoring boundary/capture is implemented in `lib/frontend-observability/src/index.tsx`.
 - API client error object parsing/handling behavior is implemented in `lib/api-client-react/src/custom-fetch.ts`.

@@ -79,6 +79,16 @@ function getTokenFromRequest(req: Request): string {
   return bodyToken ?? headerToken ?? "";
 }
 
+function getSignupTurnstileDecisionDetails(path: string, reason: string): Record<string, unknown> {
+  if (path !== "/api/auth/signup") return {};
+
+  const isMissingOrInvalid = reason === "missing-token" || reason === "verification-failed" || reason === "token-expired";
+  return {
+    decisionCategory: reason === "verification-error" ? "provider_failure" : "turnstile_failed",
+    reasonCode: isMissingOrInvalid ? "turnstile_missing_or_invalid" : "internal_exception",
+  };
+}
+
 function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: typeof writeAuditLog, metadata: Record<string, unknown> = {}) {
   const userId = req.session?.userId;
   const key = `${req.path}:${getAbuseClientKey(req)}`;
@@ -95,6 +105,8 @@ function logTurnstileFailure(req: Request, reason: string, writeAuditLogFn: type
       threshold: signal.threshold,
       method: req.method,
       path: req.path,
+      correlationId: req.correlationId ?? null,
+      ...getSignupTurnstileDecisionDetails(req.path, reason),
       ...metadata,
     },
     req,

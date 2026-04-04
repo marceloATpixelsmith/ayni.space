@@ -78,6 +78,7 @@
 ### Confirmed
 - Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - Signup now performs backend-only IPQS email risk scoring in `apps/api-server/src/lib/ipqs.ts` and applies decisioning (`allow` | `step_up` | `block`) inside `POST /api/auth/signup` (`apps/api-server/src/routes/auth.ts`).
+- Email/password signup now emits structured audit decisions via `auth.signup.decision` with machine-readable reason codes (including policy denial, duplicate-email denial, IPQS block reasons, provider-failure step-up, and validation/internal errors) while keeping UI responses generic; signup Turnstile failures are also tagged with normalized reason codes in Turnstile audit metadata (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/middlewares/turnstile.ts`).
 - IPQS provider errors/timeouts are fail-soft: signup continues as `step_up` (never blocked due to provider outage), and user is marked for MFA enrollment at first login.
 - Disposable and undeliverable email signals from IPQS are handled server-side and can block signup with generic safe messaging.
 - MFA is now first-class and TOTP-based (`apps/api-server/src/lib/mfa.ts`) with enrollment, challenge, and recovery-code flows under `/api/auth/mfa/*`.
