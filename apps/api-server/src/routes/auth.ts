@@ -566,7 +566,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     if (!turnstileResult.ok) {
       logGoogleUrlBranch(req, "turnstile_verification_failed", { reason: turnstileResult.reason, turnstileVerificationPassed: false });
       logAuthFailure(req, "google-url-turnstile-invalid");
-      logTurnstileVerificationResult(req, turnstileResult);
+      await logTurnstileVerificationResult(req, turnstileResult);
       if (turnstileResult.reason === "missing-token") {
         sendGoogleUrlError(req, res, 403, "TURNSTILE_MISSING_TOKEN", "Please complete the verification challenge.", "turnstile_missing_token");
         return;
@@ -1361,10 +1361,27 @@ type SignupDecisionLog = {
   metadata?: Record<string, unknown>;
 };
 
-function getSignupEmailHash(email: string): string | null {
+function getSignupEmailSearchMetadata(email: string): Record<string, unknown> {
   const normalized = normalizeEmailAddress(email);
-  if (!normalized) return null;
-  return hashOpaqueToken(`signup-email:${normalized}`);
+  if (!normalized) {
+    return {
+      normalizedEmailHash: null,
+      normalizedEmailMasked: null,
+      normalizedEmailDomain: null,
+    };
+  }
+
+  const atIndex = normalized.indexOf("@");
+  const localPart = atIndex > 0 ? normalized.slice(0, atIndex) : normalized;
+  const domain = atIndex > 0 ? normalized.slice(atIndex + 1) : null;
+  const visibleLocalPrefix = localPart.length <= 2 ? localPart : `${localPart.slice(0, 2)}***`;
+  const maskedEmail = domain ? `${visibleLocalPrefix}@${domain}` : `${visibleLocalPrefix}***`;
+
+  return {
+    normalizedEmailHash: hashOpaqueToken(`signup-email:${normalized}`),
+    normalizedEmailMasked: maskedEmail,
+    normalizedEmailDomain: domain,
+  };
 }
 
 function getSignupSessionGroup(req: Request): string {
@@ -1375,8 +1392,8 @@ function getSignupSessionGroup(req: Request): string {
   return SESSION_GROUPS.DEFAULT;
 }
 
-function logSignupDecision(req: Request, details: SignupDecisionLog) {
-  writeAuditLog({
+async function logSignupDecision(req: Request, details: SignupDecisionLog): Promise<void> {
+  await writeAuditLog({
     userId: req.session?.userId,
     action: "auth.signup.decision",
     resourceType: "auth",
@@ -1387,7 +1404,7 @@ function logSignupDecision(req: Request, details: SignupDecisionLog) {
       appSlug: details.appSlug,
       sessionGroup: getSignupSessionGroup(req),
       correlationId: req.correlationId ?? null,
-      normalizedEmailHash: getSignupEmailHash(details.email),
+      ...getSignupEmailSearchMetadata(details.email),
       ...details.metadata,
     },
     req,
@@ -1490,7 +1507,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
 
   if (!email || !password || !isStrongEnoughPassword(password)) {
-    logSignupDecision(req, {
+    await logSignupDecision(req, {
       category: "validation_error",
       reasonCode: "validation_failed",
       email,
@@ -1507,7 +1524,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
   try {
     const signupApp = await getAppBySlug(signupAppSlug);
     if (!signupApp || (signupApp.accessMode === "organization" && !signupApp.customerRegistrationEnabled)) {
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: "block",
         reasonCode: "signup_not_allowed_by_access_policy",
         email,
@@ -1529,7 +1546,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
         : ipqsAssessment.reason === "undeliverable_email"
           ? "undeliverable_email"
           : "ipqs_block_threshold";
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: "block",
         reasonCode: ipqsReasonCode,
         email,
@@ -1559,7 +1576,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     }
 
     if (!user) {
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: "internal_error",
         reasonCode: "internal_exception",
         email,
@@ -1577,7 +1594,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     });
 
     if (existingCredential) {
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: "duplicate_email",
         reasonCode: "duplicate_existing_email",
         email,
@@ -1611,7 +1628,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
     if (ipqsAssessment.decision === "step_up") {
       await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
         reasonCode: ipqsAssessment.providerFailed ? "ipqs_provider_failure_step_up" : "ipqs_step_up_threshold",
         email,
@@ -1628,7 +1645,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
         },
       });
     } else {
-      logSignupDecision(req, {
+      await logSignupDecision(req, {
         category: "allow",
         reasonCode: "signup_allowed",
         email,
@@ -1644,7 +1661,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
     res.status(201).json({ success: true, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
   } catch (error) {
-    logSignupDecision(req, {
+    await logSignupDecision(req, {
       category: "internal_error",
       reasonCode: "internal_exception",
       email,

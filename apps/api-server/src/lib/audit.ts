@@ -13,24 +13,25 @@ interface AuditOptions {
   req?: Request;
 }
 
-export function writeAuditLog(opts: AuditOptions): void {
+export async function writeAuditLog(opts: AuditOptions): Promise<void> {
   const ipAddress = opts.req?.ip;
   const userAgent = opts.req?.get("user-agent");
 
-  db.insert(auditLogsTable)
-    .values({
-      id: randomUUID(),
-      orgId: opts.orgId ?? null,
-      userId: opts.userId ?? null,
-      userEmail: opts.userEmail ?? null,
-      action: opts.action,
-      resourceType: opts.resourceType,
-      resourceId: opts.resourceId ?? null,
-      metadata: opts.metadata ?? null,
-      ipAddress: ipAddress ?? null,
-      userAgent: userAgent ?? null,
-    })
-    .catch((err: unknown) => {
-      console.error("Failed to write audit log:", err);
-    });
+  try {
+    await db.insert(auditLogsTable)
+      .values({
+        id: randomUUID(),
+        orgId: opts.orgId ?? null,
+        userId: opts.userId ?? null,
+        userEmail: opts.userEmail ?? null,
+        action: opts.action,
+        resourceType: opts.resourceType,
+        resourceId: opts.resourceId ?? null,
+        metadata: opts.metadata ?? null,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
+      });
+  } catch (err: unknown) {
+    console.error("Failed to write audit log:", err);
+  }
 }

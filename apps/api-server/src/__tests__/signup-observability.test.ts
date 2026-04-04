@@ -85,6 +85,8 @@ test("signup denial logs disposable_email reason code", async () => {
     assert.equal(metadata.reasonCode, "disposable_email");
     assert.equal(metadata.decisionCategory, "block");
     assert.equal(typeof metadata.normalizedEmailHash, "string");
+    assert.equal(metadata.normalizedEmailMasked, "di***@example.com");
+    assert.equal(metadata.normalizedEmailDomain, "example.com");
     assert.equal(metadata.normalizedEmailHash === "disposable@example.com", false);
   } finally {
     globalThis.fetch = previousFetch;
@@ -125,6 +127,45 @@ test("signup denial logs undeliverable_email reason code", async () => {
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
     assert.equal((row.metadata as Record<string, unknown>).reasonCode, "undeliverable_email");
+  } finally {
+    globalThis.fetch = previousFetch;
+    restores.reverse().forEach((restore) => restore());
+    if (prevIpqsKey === undefined) delete process.env["IPQS_API_KEY"];
+    else process.env["IPQS_API_KEY"] = prevIpqsKey;
+  }
+});
+
+test("signup denial logs ipqs_block_threshold reason code", async () => {
+  const prevIpqsKey = process.env["IPQS_API_KEY"];
+  process.env["IPQS_API_KEY"] = "test-key";
+
+  const auditRows: InsertPayload[] = [];
+  const previousFetch = globalThis.fetch;
+  const restores = [
+    setupDbInsertCapture(auditRows),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+  ];
+
+  globalThis.fetch = (async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("ipqualityscore.com")) {
+      return new Response(JSON.stringify({ fraud_score: 95, disposable: false, valid: true, smtp_score: 0.9 }), { status: 200 });
+    }
+    return previousFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: "threshold@example.com",
+      password: "SuperSecret123!",
+      name: "Threshold",
+    });
+
+    assert.equal(response.status, 400);
+    const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
+    assert.ok(row);
+    assert.equal((row.metadata as Record<string, unknown>).reasonCode, "ipqs_block_threshold");
   } finally {
     globalThis.fetch = previousFetch;
     restores.reverse().forEach((restore) => restore());
@@ -281,6 +322,8 @@ test("turnstile signup denial logs turnstile_missing_or_invalid reason code", as
     assert.equal(entry.metadata?.reasonCode, "turnstile_missing_or_invalid");
     assert.equal(entry.metadata?.decisionCategory, "turnstile_failed");
     assert.equal(typeof entry.metadata?.normalizedEmailHash, "string");
+    assert.equal(entry.metadata?.normalizedEmailMasked, "tu***@example.com");
+    assert.equal(entry.metadata?.normalizedEmailDomain, "example.com");
     assert.equal(entry.metadata?.appSlug, "admin");
     assert.equal(entry.metadata?.sessionGroup, "default");
   } finally {
@@ -288,5 +331,89 @@ test("turnstile signup denial logs turnstile_missing_or_invalid reason code", as
     else process.env["NODE_ENV"] = prevNodeEnv;
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+test("signup validation denial logs validation_failed reason code", async () => {
+  const auditRows: InsertPayload[] = [];
+  const restores = [setupDbInsertCapture(auditRows)];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: " ",
+      password: "short",
+      name: "Invalid",
+    });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.error, "Invalid signup input.");
+    const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
+    assert.ok(row);
+    assert.equal((row.metadata as Record<string, unknown>).reasonCode, "validation_failed");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("signup internal exception path logs internal_exception reason code", async () => {
+  const prevIpqsKey = process.env["IPQS_API_KEY"];
+  process.env["IPQS_API_KEY"] = "test-key";
+
+  const auditRows: InsertPayload[] = [];
+  const previousFetch = globalThis.fetch;
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+  ];
+
+  globalThis.fetch = (async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("ipqualityscore.com")) {
+      return new Response(JSON.stringify({ fraud_score: 5, disposable: false, valid: true, smtp_score: 0.8 }), { status: 200 });
+    }
+    return previousFetch(input, init);
+  }) as typeof fetch;
+
+  const originalInsert = db.insert;
+  const restoreInsert = patchProperty(db, "insert", ((table: unknown) => {
+    if (table === auditLogsTable) {
+      return {
+        values: (payload: InsertPayload) => {
+          auditRows.push(payload);
+          return Promise.resolve(undefined);
+        },
+      };
+    }
+    if (table === usersTable) {
+      return {
+        values: () => ({
+          returning: async () => {
+            throw new Error("insert failed");
+          },
+        }),
+      };
+    }
+    return originalInsert(table as never);
+  }) as never);
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: "explode@example.com",
+      password: "SuperSecret123!",
+      name: "Explode",
+    });
+
+    assert.equal(response.status, 500);
+    const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
+    assert.ok(row);
+    assert.equal((row.metadata as Record<string, unknown>).reasonCode, "internal_exception");
+  } finally {
+    restoreInsert();
+    globalThis.fetch = previousFetch;
+    restores.reverse().forEach((restore) => restore());
+    if (prevIpqsKey === undefined) delete process.env["IPQS_API_KEY"];
+    else process.env["IPQS_API_KEY"] = prevIpqsKey;
   }
 });
