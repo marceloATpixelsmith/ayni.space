@@ -9,9 +9,12 @@ import { validateEmailInput } from "./authValidation";
 export default function ForgotPassword() {
   const auth = useAuth();
   const [email, setEmail] = React.useState("");
+  const [emailTouched, setEmailTouched] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
   const submit = () => {
+    setSubmitted(true);
     const emailError = validateEmailInput(email);
     if (emailError) {
       setMessage(emailError);
@@ -54,8 +57,8 @@ export default function ForgotPassword() {
             </div>
 
             <div className="space-y-3">
-              <input className="w-full border rounded px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-              {validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
+              <input className="w-full border rounded px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)} placeholder="Email" />
+              {(emailTouched || submitted) && validateEmailInput(email) ? <p className="text-xs text-destructive">{validateEmailInput(email)}</p> : null}
               <Button className="w-full" onClick={submit} disabled={!email || Boolean(validateEmailInput(email))}>Send reset link</Button>
             </div>
 

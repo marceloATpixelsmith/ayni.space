@@ -45,6 +45,8 @@ export default function Login() {
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [emailInput, setEmailInput] = React.useState("");
   const [passwordInput, setPasswordInput] = React.useState("");
+  const [emailTouched, setEmailTouched] = React.useState(false);
+  const [submitted, setSubmitted] = React.useState(false);
   const [stayLoggedIn, setStayLoggedIn] = React.useState(false);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
@@ -195,6 +197,7 @@ export default function Login() {
   }
 
   const handlePasswordLogin = () => {
+    setSubmitted(true);
     const emailError = validateEmailInput(emailInput);
     if (emailError) {
       setLoginError(emailError);
@@ -296,8 +299,14 @@ export default function Login() {
             </div>
 
             <div className="space-y-3">
-              <input className="w-full border rounded px-3 py-2" placeholder="Email" value={emailInput} onChange={(e) => setEmailInput(e.target.value)} />
-              {validateEmailInput(emailInput) ? <p className="text-xs text-destructive">{validateEmailInput(emailInput)}</p> : null}
+              <input
+                className="w-full border rounded px-3 py-2"
+                placeholder="Email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onBlur={() => setEmailTouched(true)}
+              />
+              {(emailTouched || submitted) && validateEmailInput(emailInput) ? <p className="text-xs text-destructive">{validateEmailInput(emailInput)}</p> : null}
               <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
               <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
               <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
