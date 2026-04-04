@@ -1586,7 +1586,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
           userId: user.id,
         },
       });
-      res.status(409).json({ error: "An account with this email already exists." });
+      res.status(409).json({ error: "We couldn't create this account. Please use a different email and try again." });
       return;
     }
 

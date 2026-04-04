@@ -6,6 +6,17 @@
 ## Confirmed
 - Backend observability middleware lives in `apps/api-server/src/middlewares/observability.ts`.
 - Signup denial traceability is implemented through the existing audit pipeline (`apps/api-server/src/lib/audit.ts`) using structured `auth.signup.decision` metadata in `apps/api-server/src/routes/auth.ts` plus normalized Turnstile denial reason codes in `apps/api-server/src/middlewares/turnstile.ts`.
+- Signup denial/internal decision reason codes are recorded as structured metadata (`reasonCode`, `decisionCategory`) in `platform.audit_logs` via `writeAuditLog`, including:
+  - `disposable_email`
+  - `undeliverable_email`
+  - `ipqs_block_threshold`
+  - `ipqs_provider_failure_step_up`
+  - `turnstile_missing_or_invalid`
+  - `duplicate_existing_email`
+  - `signup_not_allowed_by_access_policy`
+  - `validation_failed`
+  - `internal_exception`
+- Signup-denial logs carry correlation-safe context (`correlationId`, `appSlug`, `sessionGroup`, `normalizedEmailHash`) while frontend error responses remain intentionally generic and do not expose internal denial reasons.
 - Backend middleware order (including Sentry request/error handlers and correlation ID flow) is defined in `apps/api-server/src/app.ts`.
 - Frontend monitoring boundary/capture is implemented in `lib/frontend-observability/src/index.tsx`.
 - API client error object parsing/handling behavior is implemented in `lib/api-client-react/src/custom-fetch.ts`.

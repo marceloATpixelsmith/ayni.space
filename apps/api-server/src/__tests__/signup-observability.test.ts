@@ -163,6 +163,7 @@ test("signup duplicate-email denial logs duplicate_existing_email reason code", 
     });
 
     assert.equal(response.status, 409);
+    assert.equal(response.body?.error, "We couldn't create this account. Please use a different email and try again.");
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
     const metadata = row.metadata as Record<string, unknown>;
@@ -279,6 +280,9 @@ test("turnstile signup denial logs turnstile_missing_or_invalid reason code", as
     assert.ok(entry);
     assert.equal(entry.metadata?.reasonCode, "turnstile_missing_or_invalid");
     assert.equal(entry.metadata?.decisionCategory, "turnstile_failed");
+    assert.equal(typeof entry.metadata?.normalizedEmailHash, "string");
+    assert.equal(entry.metadata?.appSlug, "admin");
+    assert.equal(entry.metadata?.sessionGroup, "default");
   } finally {
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
     else process.env["NODE_ENV"] = prevNodeEnv;
