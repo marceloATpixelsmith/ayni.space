@@ -314,3 +314,43 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
+
+
+test("google oauth url stores stayLoggedIn preference in session for callback persistence", async () => {
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+
+  const state: { session: Record<string, unknown> } = {
+    session: {
+      id: "google-stay-session",
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+      destroy: (cb?: (err?: unknown) => void) => cb?.(),
+      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+    },
+  };
+
+  const expressMod = await import("express");
+  const app = expressMod.default();
+  app.use(expressMod.default.json());
+  app.use((req, _res, next) => {
+    (req as unknown as { session: Record<string, unknown> }).session = state.session;
+    next();
+  });
+  app.use("/api/auth", authRouter);
+
+  try {
+    const response = await requestJson(
+      app,
+      "POST",
+      "/api/auth/google/url",
+      { stayLoggedIn: true },
+      { origin: "http://localhost:5173" },
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(state.session.oauthStayLoggedIn, true);
+  } finally {
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});

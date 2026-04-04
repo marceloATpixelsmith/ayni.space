@@ -23,6 +23,7 @@ type AuthContextValue = {
     turnstileToken?: string | null,
     intent?: "sign_in" | "create_account",
     returnToPath?: string | null,
+    stayLoggedIn?: boolean,
   ) => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
@@ -30,8 +31,8 @@ type AuthContextValue = {
     token: string,
     turnstileToken?: string | null,
   ) => Promise<void>;
-  loginWithPassword: (email: string, password: string) => Promise<void>;
-  signupWithPassword: (email: string, password: string, name?: string) => Promise<{ verifyToken?: string }>;
+  loginWithPassword: (email: string, password: string, turnstileToken?: string | null, stayLoggedIn?: boolean) => Promise<void>;
+  signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string }>;
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
@@ -472,6 +473,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       turnstileToken?: string | null,
       intent: "sign_in" | "create_account" = "sign_in",
       returnToPath?: string | null,
+      stayLoggedIn = false,
     ) => {
       if (loginRequestRef.current) {
       return loginRequestRef.current;
@@ -500,6 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               "cf-turnstile-response": normalizedTurnstileToken,
               intent,
               returnToPath: normalizedReturnToPath,
+              stayLoggedIn,
             }),
           },
           token,
@@ -619,11 +622,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
 
-  const loginWithPassword = React.useCallback(async (email: string, password: string) => {
+  const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null, stayLoggedIn = false) => {
     const response = await secureApiFetch("/api/auth/login", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      headers: {
+        "content-type": "application/json",
+        ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
+      },
+      body: JSON.stringify({ email, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean });
     if (!response.ok) {
@@ -637,11 +643,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshSession();
   }, [refreshSession]);
 
-  const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string) => {
+  const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string, turnstileToken?: string | null) => {
     const response = await secureApiFetch("/api/auth/signup", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password, name }),
+      headers: {
+        "content-type": "application/json",
+        ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
+      },
+      body: JSON.stringify({ email, password, name, "cf-turnstile-response": turnstileToken ?? undefined }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string } & ApiErrorPayload);
     if (!response.ok) {

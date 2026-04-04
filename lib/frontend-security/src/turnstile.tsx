@@ -136,6 +136,7 @@ export function useTurnstileToken() {
         }
         widgetIdRef.current = window.turnstile.render(containerNode, {
           sitekey: siteKey,
+          theme: "light",
           callback: (value: string) => {
             setToken(value);
             setError(null);

@@ -4,7 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable, userAuthSecurityTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import { destroySessionAndClearCookie, getDeleteAllOtherSessionsForUserSql, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
+import { applySessionPersistence, destroySessionAndClearCookie, getDeleteAllOtherSessionsForUserSql, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
 import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
@@ -621,6 +621,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   };
   const state = buildOAuthState(statePayload);
   req.session.oauthState = state;
+  req.session.oauthStayLoggedIn = req.body?.stayLoggedIn === true;
   req.session.oauthReturnTo = returnTo;
   req.session.oauthReturnToPath = returnToPath ?? undefined;
   req.session.oauthSessionGroup = oauthSessionGroup;
@@ -800,6 +801,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
     const oauthReturnTo = parsedStateContext.returnTo;
     const oauthReturnToPath = parsedStateContext.returnToPath ?? req.session.oauthReturnToPath ?? null;
+    const oauthStayLoggedIn = req.session.oauthStayLoggedIn === true;
     const stateSessionGroupCandidate = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const appSlug = parsedStateContext.appSlug;
     const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
@@ -823,6 +825,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthReturnToPath;
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
+    delete req.session.oauthStayLoggedIn;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
@@ -1133,7 +1136,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
-    const oauthMfaGate = await beginMfaPendingSession(req, user.id, activeAppSlug);
+    const oauthMfaGate = await beginMfaPendingSession(req, user.id, activeAppSlug, oauthStayLoggedIn);
     if (oauthMfaGate.required) {
       const mfaPath = oauthMfaGate.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
       res.redirect(`${frontendBase}${mfaPath}`);
@@ -1146,6 +1149,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     req.session.sessionAuthenticatedAt = Date.now();
     req.session.sessionGroup = oauthSessionGroup;
     req.session.appSlug = activeAppSlug;
+    applySessionPersistence(req, oauthStayLoggedIn);
     logSessionCookieConfig();
     logVerboseTrace(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE ` +
@@ -1354,13 +1358,14 @@ async function consumeAuthToken(token: string, tokenType: "email_verification" |
   return consumed;
 }
 
-async function establishPasswordSession(req: Request, userId: string, appSlug: string) {
+async function establishPasswordSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean) {
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
   });
   req.session.userId = userId;
   req.session.appSlug = appSlug;
   req.session.sessionAuthenticatedAt = Date.now();
+  applySessionPersistence(req, stayLoggedIn);
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
   });
@@ -1370,7 +1375,7 @@ async function establishPasswordSession(req: Request, userId: string, appSlug: s
 
 type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean };
 
-async function beginMfaPendingSession(req: Request, userId: string, appSlug: string): Promise<MfaStartResult> {
+async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
   const hasFactor = await hasActiveMfaFactor(userId);
@@ -1391,6 +1396,7 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   req.session.pendingUserId = userId;
   req.session.pendingAppSlug = appSlug;
   req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
+  req.session.pendingStayLoggedIn = stayLoggedIn;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
   });
@@ -1401,12 +1407,14 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
 async function completePendingMfaSession(req: Request) {
   const pendingUserId = req.session.pendingUserId;
   const pendingAppSlug = req.session.pendingAppSlug;
+  const pendingStayLoggedIn = req.session.pendingStayLoggedIn === true;
   if (!pendingUserId || !pendingAppSlug) return null;
 
-  await establishPasswordSession(req, pendingUserId, pendingAppSlug);
+  await establishPasswordSession(req, pendingUserId, pendingAppSlug, pendingStayLoggedIn);
   delete req.session.pendingUserId;
   delete req.session.pendingAppSlug;
   delete req.session.pendingMfaReason;
+  delete req.session.pendingStayLoggedIn;
   await clearFirstAuthAfterReset(pendingUserId);
   return { userId: pendingUserId };
 }
@@ -1514,13 +1522,14 @@ async function handlePasswordLogin(req: Request, res: Response) {
   }
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
-  const mfaGate = await beginMfaPendingSession(req, user.id, appSlug);
+  const stayLoggedIn = req.body?.stayLoggedIn === true;
+  const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
     res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
     return;
   }
 
-  await establishPasswordSession(req, user.id, appSlug);
+  await establishPasswordSession(req, user.id, appSlug, stayLoggedIn);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
   res.json({ success: true });
 }
