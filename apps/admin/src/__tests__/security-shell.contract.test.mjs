@@ -71,7 +71,7 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 
   expectIncludes(
     appSource,
-    "if (routeKind === \"invitation\") {\n      console.info(\"[INVITATION-FLOW] allowing unauthenticated invitation route render\"",
+    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {\n    console.info(\"[INVITATION-FLOW] allowing unauthenticated invitation route render\"",
     "Invitation route should render pre-auth so invitation page controls the next step.",
   );
 
@@ -83,12 +83,6 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 });
 
 test("invitation accept route remains reachable pre-auth and controls login continuation itself", () => {
-  expectNotIncludes(
-    appSource,
-    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
-    "App-level auth gate must not preemptively bounce invitation route to /login before page render.",
-  );
-
   expectIncludes(
     invitationAcceptSource,
     "if (auth.status === \"unauthenticated\") {\n      inFlightRef.current = false;\n      setStatus(\"idle\");\n      setMessage(\"Sign in to continue accepting this invitation.\");",
@@ -99,6 +93,17 @@ test("invitation accept route remains reachable pre-auth and controls login cont
     invitationAcceptSource,
     "<Button onClick={() => setLocation(`/login?next=${encodeURIComponent(`/invitations/${params.token}/accept`)}`)} className=\"w-full\">",
     "Invitation page should provide explicit login continuation action after rendering.",
+  );
+
+  const invitationAllowBranch = appSource.indexOf(
+    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
+  );
+  const disallowedRouteBranch = appSource.indexOf(
+    "if (!isAuthRouteAllowed(metadata, routeKind)) {",
+  );
+  assert.ok(
+    invitationAllowBranch !== -1 && disallowedRouteBranch !== -1 && invitationAllowBranch < disallowedRouteBranch,
+    "Invitation pre-auth allow branch must run before disallowed-route redirects to prevent plain /login bounce regressions.",
   );
 });
 
@@ -161,7 +166,7 @@ test("shared route policy enforces normalized access-profile onboarding and invi
   );
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };",
+    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };",
     "Organization profile should allow onboarding and invitation routes.",
   );
 

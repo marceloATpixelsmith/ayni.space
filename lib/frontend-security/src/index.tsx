@@ -182,7 +182,7 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "organization") {
-    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };
+    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
   }
 
   if (app.normalizedAccessProfile === "solo") {
