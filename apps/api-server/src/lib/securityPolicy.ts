@@ -140,11 +140,6 @@ export function getSecurityConfig(): SecurityConfig {
         category: "AUTHENTICATED",
         rateLimit: { type: "auth", options: { keyPrefix: "auth-logout", max: 15 } },
       },
-      {
-        method: "*",
-        pattern: /^\/api\/auth\/me\/?$/,
-        category: "AUTHENTICATED",
-      },
       ...PRIVILEGED_ROUTE_RULES.map((entry) => ({
         method: entry.method,
         pattern: entry.pattern,
