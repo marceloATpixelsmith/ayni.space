@@ -1535,6 +1535,9 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
   });
+  req.session.userId = userId;
+  req.session.appSlug = appSlug;
+  req.session.sessionAuthenticatedAt = Date.now();
   req.session.pendingUserId = userId;
   req.session.pendingAppSlug = appSlug;
   req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";

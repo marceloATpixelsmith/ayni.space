@@ -104,6 +104,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
+  const hasPendingMfaSession = Boolean(req.session?.pendingUserId || req.session?.pendingMfaReason);
+  const mfaPendingPathAllowed = req.path === "/me";
+
+  if (hasPendingMfaSession && !mfaPendingPathAllowed) {
+    logFirstAuthRequest({
+      req,
+      path: req.path,
+      method: req.method,
+      cookieHeaderPresent,
+      sessionExists: Boolean(req.session),
+      sessionId,
+      sessionGroup,
+      userId: userId ?? null,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "mfa_pending",
+      sessionKeys,
+    });
+    res.status(401).json({ error: "Two-step verification required.", code: "MFA_REQUIRED" });
+    return;
+  }
+
   const user = await db.query.usersTable.findFirst({
     where: eq(usersTable.id, userId),
   });

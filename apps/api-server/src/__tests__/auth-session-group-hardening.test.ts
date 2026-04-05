@@ -392,7 +392,7 @@ test("super admin oauth callback in admin group redirects to /mfa/enroll", async
 
     const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://admin.local/mfa/enroll");
+    assert.equal(response.headers.get("location"), "http://admin.local/mfa/challenge");
     assert.equal(destroyed, false);
   } finally {
     for (const undo of restore.reverse()) undo();
@@ -502,7 +502,7 @@ test("pre-provisioned superadmin with null google_subject binds successfully on 
 
     const response = await request(app, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://admin.local/mfa/enroll");
+    assert.equal(response.headers.get("location"), "http://admin.local/mfa/challenge");
     assert.deepEqual(lookupCalls, ["subject", "email"]);
     assert.equal(insertedRows.length, 0);
     assert.equal(updatedSets.some((values) => values.googleSubject === "google-super-sub"), true);
@@ -1003,7 +1003,7 @@ test("second login matches by subject directly for pre-provisioned superadmin", 
   }
 });
 
-test("superadmin callback + downstream admin check emits trace checkpoints and redirects to MFA enrollment", async () => {
+test("superadmin callback + downstream admin check emits trace checkpoints and redirects to MFA challenge", async () => {
   const logs: unknown[][] = [];
   const prevTraceVerbose = process.env["BACKEND_TRACE_VERBOSE"];
   process.env["BACKEND_TRACE_VERBOSE"] = "1";
@@ -1051,7 +1051,7 @@ test("superadmin callback + downstream admin check emits trace checkpoints and r
 
     const callbackResponse = await request(authApp, "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9");
     assert.equal(callbackResponse.status, 302);
-    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/enroll");
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/challenge");
 
     const adminApp = createMountedSessionApp([], {
       userId: "super-user",
@@ -1185,11 +1185,11 @@ test("superadmin callback stores pending MFA identity and blocks admin guard unt
 
     const callbackResponse = await request(app, `/api/auth/google/callback?code=ok&state=${ADMIN_OAUTH_STATE}`);
     assert.equal(callbackResponse.status, 302);
-    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/enroll");
+    assert.equal(callbackResponse.headers.get("location"), "http://admin.local/mfa/challenge");
     assert.equal(persistedSession.pendingUserId, "super-user");
     assert.equal(persistedSession.pendingAppSlug, "admin");
-    assert.equal(persistedSession.pendingMfaReason, "enrollment_required");
-    assert.equal(persistedSession.userId, undefined);
+    assert.equal(persistedSession.pendingMfaReason, "challenge_required");
+    assert.equal(persistedSession.userId, "super-user");
 
     const adminResponse = await request(app, "/api/admin/stats", {
       headers: {
@@ -1204,8 +1204,9 @@ test("superadmin callback stores pending MFA identity and blocks admin guard unt
 
     const firstAuth = authCheckLines.find((line) => line.includes("[AUTH-CHECK-TRACE] FIRST AUTH REQUEST"));
     assert.ok(firstAuth);
-    assert.match(firstAuth, /userId=null/);
+    assert.match(firstAuth, /userId=super-user/);
     assert.match(firstAuth, /allow=false/);
+    assert.match(firstAuth, /denyReason=mfa_pending/);
 
     const adminGuard = authCheckLines.find((line) => line.includes("[AUTH-CHECK-TRACE] ADMIN GUARD"));
     assert.equal(adminGuard, undefined);
