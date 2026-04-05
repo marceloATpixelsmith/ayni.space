@@ -192,8 +192,11 @@ export async function requireCsrfToken(
   currentToken: string | null | undefined,
   refreshCsrfState: () => Promise<string | null>,
   missingTokenMessage: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<string> {
-  const token = currentToken ?? (await refreshCsrfState());
+  const token = options?.forceRefresh
+    ? await refreshCsrfState()
+    : (currentToken ?? (await refreshCsrfState()));
   if (!token) {
     throw new Error(missingTokenMessage);
   }
@@ -755,6 +758,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       csrfTokenRef.current,
       refreshCsrfState,
       "Security token is not ready. Please refresh and try two-step verification setup again.",
+      { forceRefresh: true },
     );
     const response = await secureApiFetch("/api/auth/mfa/enroll/start", {
       method: "POST",
@@ -770,6 +774,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       csrfTokenRef.current,
       refreshCsrfState,
       "Security token is not ready. Please refresh and try two-step verification again.",
+      { forceRefresh: true },
     );
     const response = await secureApiFetch("/api/auth/mfa/enroll/verify", {
       method: "POST",
@@ -782,11 +787,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshCsrfState]);
 
   const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try two-step verification again.",
+      { forceRefresh: true },
+    );
     const response = await secureApiFetch("/api/auth/mfa/challenge", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code, rememberDevice }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
@@ -794,14 +805,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     await refreshSession();
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try recovery again.",
+      { forceRefresh: true },
+    );
     const response = await secureApiFetch("/api/auth/mfa/recovery", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ recoveryCode, rememberDevice }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
@@ -809,7 +826,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     await refreshSession();
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const status: AuthStatus = sessionRevoked
     ? "unauthenticated"

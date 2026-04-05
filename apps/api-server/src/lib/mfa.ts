@@ -15,6 +15,7 @@ import { hashOpaqueToken } from "./passwordAuth.js";
 const TRUSTED_DEVICE_COOKIE_NAME = "ayni_trusted_device";
 const TRUSTED_DEVICE_TTL_MS = 20 * 24 * 60 * 60 * 1000;
 const TOTP_ALLOWED_WINDOW_STEPS = 2;
+const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
 
 function normalizeTotpCode(value: string): string {
   return value.replace(/[^0-9]/g, "");
@@ -105,19 +106,58 @@ export function buildTotpOtpauthUrl({ issuer, accountName, secret }: { issuer: s
 }
 
 export async function beginTotpEnrollment(userId: string) {
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  if (!user) return null;
-
   const secret = base32Encode(crypto.randomBytes(20));
   const encrypted = encryptSecret(secret);
-  const existing = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.factorType, "totp")) });
-  if (existing) {
-    await db.update(mfaFactorsTable).set({ status: "pending", secretCiphertext: encrypted.ciphertext, secretIv: encrypted.iv, secretTag: encrypted.tag }).where(eq(mfaFactorsTable.id, existing.id));
-    return { factorId: existing.id, secret };
+  const insertedFactorId = randomUUID();
+  try {
+    return await db.transaction(async (tx) => {
+      const lockedUser = await tx.execute<{ id: string }>(
+        sql`select id from platform.users where id = ${userId} for update`,
+      );
+      if (lockedUser.rows.length === 0) {
+        return null;
+      }
+
+      const upserted = await tx
+        .insert(mfaFactorsTable)
+        .values({
+          id: insertedFactorId,
+          userId,
+          factorType: "totp",
+          status: "pending",
+          secretCiphertext: encrypted.ciphertext,
+          secretIv: encrypted.iv,
+          secretTag: encrypted.tag,
+        })
+        .onConflictDoUpdate({
+          target: [mfaFactorsTable.userId, mfaFactorsTable.factorType],
+          set: {
+            status: "pending",
+            secretCiphertext: encrypted.ciphertext,
+            secretIv: encrypted.iv,
+            secretTag: encrypted.tag,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ id: mfaFactorsTable.id });
+
+      const factorId = upserted[0]?.id ?? insertedFactorId;
+      return { factorId, secret };
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" &&
+      error !== null &&
+      "cause" in error &&
+      typeof (error as { cause?: unknown }).cause === "object" &&
+      (error as { cause?: { code?: string } }).cause?.code
+        ? (error as { cause?: { code?: string } }).cause?.code
+        : undefined;
+    if (code === POSTGRES_FOREIGN_KEY_VIOLATION) {
+      return null;
+    }
+    throw error;
   }
-  const factorId = randomUUID();
-  await db.insert(mfaFactorsTable).values({ id: factorId, userId, factorType: "totp", status: "pending", secretCiphertext: encrypted.ciphertext, secretIv: encrypted.iv, secretTag: encrypted.tag });
-  return { factorId, secret };
 }
 
 function generateRecoveryCodes() {
