@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useSearch } from "wouter";
-import { useAuth } from "@workspace/frontend-security";
+import { useAuth, logAuthDebug } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
 
@@ -24,6 +24,7 @@ export default function VerifyEmail() {
       setPhase("idle");
       return;
     }
+    logAuthDebug("verify_email_attempt_started", { appSlug: appSlug || null, tokenPresent: Boolean(token) });
     const attemptKey = `${token}:${appSlug}`;
     if (verifiedAttemptRef.current === attemptKey) return;
     verifiedAttemptRef.current = attemptKey;
@@ -33,6 +34,11 @@ export default function VerifyEmail() {
 
     auth.verifyEmail(token, appSlug || undefined).then((result) => {
       if (activeAttemptRef.current !== attemptKey) return;
+      logAuthDebug("verify_email_final_step_summary", {
+        mfaRequired: Boolean(result?.mfaRequired),
+        needsEnrollment: Boolean(result?.needsEnrollment),
+        nextPath: result?.nextPath ?? null,
+      });
       if (result?.nextPath || result?.mfaRequired) {
         setPhase("redirecting");
         setMessage("Email verified. Redirecting...");

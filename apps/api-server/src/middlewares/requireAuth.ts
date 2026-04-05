@@ -3,8 +3,10 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { destroySessionAndClearCookie } from "../lib/session.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
+import { logAuthDebug } from "../lib/authDebug.js";
 
 function logFirstAuthRequest(payload: {
+  req: Request;
   path: string;
   method: string;
   cookieHeaderPresent: boolean;
@@ -17,23 +19,36 @@ function logFirstAuthRequest(payload: {
   denyReason: string | null;
   sessionKeys: string;
 }) {
-  const { path, method, cookieHeaderPresent, sessionExists, sessionId, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
+  logAuthDebug(payload.req, "require_auth_decision", {
+    path: payload.path,
+    method: payload.method,
+    cookieHeaderPresent: payload.cookieHeaderPresent,
+    sessionExists: payload.sessionExists,
+    sessionIdPresent: Boolean(payload.sessionId),
+    sessionGroup: payload.sessionGroup,
+    userId: payload.userId,
+    isSuperAdmin: payload.isSuperAdmin,
+    allow: payload.allow,
+    denyReason: payload.denyReason,
+    sessionKeys: payload.sessionKeys,
+  });
   console.log(
     `[AUTH-CHECK-TRACE] FIRST AUTH REQUEST ` +
-    `path=${path} method=${method} ` +
-    `cookieHeaderPresent=${cookieHeaderPresent} ` +
-    `sessionExists=${sessionExists} ` +
-    `sessionId=${sessionId} ` +
-    `sessionGroup=${sessionGroup} ` +
-    `userId=${userId} ` +
-    `isSuperAdmin=${isSuperAdmin} ` +
-    `allow=${allow} ` +
-    `denyReason=${denyReason} ` +
-    `sessionKeys=${sessionKeys}`
+    `path=${payload.path} method=${payload.method} ` +
+    `cookieHeaderPresent=${payload.cookieHeaderPresent} ` +
+    `sessionExists=${payload.sessionExists} ` +
+    `sessionId=${payload.sessionId} ` +
+    `sessionGroup=${payload.sessionGroup} ` +
+    `userId=${payload.userId} ` +
+    `isSuperAdmin=${payload.isSuperAdmin} ` +
+    `allow=${payload.allow} ` +
+    `denyReason=${payload.denyReason} ` +
+    `sessionKeys=${payload.sessionKeys}`
   );
 }
 
 function logAdminGuard(payload: {
+  req: Request;
   path: string;
   sessionExists: boolean;
   sessionGroup: string | null;
@@ -42,16 +57,24 @@ function logAdminGuard(payload: {
   allow: boolean;
   denyReason: string | null;
 }) {
-  const { path, sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason } = payload;
+  logAuthDebug(payload.req, "require_super_admin_decision", {
+    path: payload.path,
+    sessionExists: payload.sessionExists,
+    sessionGroup: payload.sessionGroup,
+    userId: payload.userId,
+    isSuperAdmin: payload.isSuperAdmin,
+    allow: payload.allow,
+    denyReason: payload.denyReason,
+  });
   console.log(
     `[AUTH-CHECK-TRACE] ADMIN GUARD ` +
-    `path=${path} ` +
-    `sessionExists=${sessionExists} ` +
-    `sessionGroup=${sessionGroup} ` +
-    `userId=${userId} ` +
-    `isSuperAdmin=${isSuperAdmin} ` +
-    `allow=${allow} ` +
-    `denyReason=${denyReason}`
+    `path=${payload.path} ` +
+    `sessionExists=${payload.sessionExists} ` +
+    `sessionGroup=${payload.sessionGroup} ` +
+    `userId=${payload.userId} ` +
+    `isSuperAdmin=${payload.isSuperAdmin} ` +
+    `allow=${payload.allow} ` +
+    `denyReason=${payload.denyReason}`
   );
 }
 
@@ -64,6 +87,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (!userId) {
     logFirstAuthRequest({
+      req,
       path: req.path,
       method: req.method,
       cookieHeaderPresent,
@@ -86,6 +110,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (!user) {
     logFirstAuthRequest({
+      req,
       path: req.path,
       method: req.method,
       cookieHeaderPresent,
@@ -105,6 +130,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (user.suspended || user.deletedAt || !user.active) {
     logFirstAuthRequest({
+      req,
       path: req.path,
       method: req.method,
       cookieHeaderPresent,
@@ -123,6 +149,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   logFirstAuthRequest({
+    req,
     path: req.path,
     method: req.method,
     cookieHeaderPresent,
@@ -149,6 +176,7 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
 
     if (!user?.isSuperAdmin) {
       logAdminGuard({
+        req,
         path: req.path,
         sessionExists: Boolean(req.session),
         sessionGroup,
@@ -162,6 +190,7 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
     }
 
     logAdminGuard({
+      req,
       path: req.path,
       sessionExists: Boolean(req.session),
       sessionGroup,
