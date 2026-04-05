@@ -777,6 +777,18 @@ test("mfa enrollment bootstraps csrf before enrollment start and verify", () => 
     "\"Security token is not ready. Please refresh and try two-step verification again.\"",
     "Two-step verification should surface explicit bootstrap retry guidance.",
   );
+
+  expectIncludes(
+    mfaEnrollSource,
+    "const startMfaEnrollment = auth.startMfaEnrollment;",
+    "MFA enrollment page should bind the start callback explicitly so setup bootstrap does not rerun from unrelated auth object changes.",
+  );
+
+  expectIncludes(
+    mfaEnrollSource,
+    "}, [startMfaEnrollment]);",
+    "MFA enrollment startup effect must depend on the stable start callback instead of the full auth object.",
+  );
 });
 
 test("mfa enrollment page renders qr code primary with manual fallback key", () => {

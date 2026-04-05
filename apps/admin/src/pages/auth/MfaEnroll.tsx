@@ -7,6 +7,7 @@ import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
 export default function MfaEnroll() {
   const auth = useAuth();
+  const startMfaEnrollment = auth.startMfaEnrollment;
   const enrollmentStartRef = React.useRef<Promise<Awaited<ReturnType<typeof auth.startMfaEnrollment>>> | null>(null);
   const [phase, setPhase] = React.useState<"initializing" | "ready" | "submitting" | "success" | "init-error">("initializing");
   const [factorId, setFactorId] = React.useState("");
@@ -24,7 +25,7 @@ export default function MfaEnroll() {
     setInitError(null);
     setSubmitError(null);
 
-    const startRequest = enrollmentStartRef.current ?? auth.startMfaEnrollment();
+    const startRequest = enrollmentStartRef.current ?? startMfaEnrollment();
     enrollmentStartRef.current = startRequest;
     startRequest.then(async (payload) => {
       if (!active) return;
@@ -47,7 +48,7 @@ export default function MfaEnroll() {
     return () => {
       active = false;
     };
-  }, [auth]);
+  }, [startMfaEnrollment]);
 
   const onVerify = () => {
     if (!factorId) return;

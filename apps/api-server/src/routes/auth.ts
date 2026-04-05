@@ -1914,6 +1914,11 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+  const alreadyEnrolled = await hasActiveMfaFactor(userId);
+  if (alreadyEnrolled) {
+    res.status(409).json({ error: "Two-step verification is already active for this account. Use your authenticator code to continue." });
+    return;
+  }
   const factor = await beginTotpEnrollment(userId);
   if (!factor) {
     delete req.session.pendingUserId;
