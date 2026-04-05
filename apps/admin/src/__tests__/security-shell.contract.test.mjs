@@ -17,6 +17,7 @@ const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboar
 const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
 const invitationsDashboardPath = path.resolve(__dirname, "../pages/dashboard/Invitations.tsx");
 const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx");
+const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -31,6 +32,7 @@ const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
 const onboardingSource = fs.readFileSync(onboardingPath, "utf8");
 const invitationsDashboardSource = fs.readFileSync(invitationsDashboardPath, "utf8");
 const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
+const mfaEnrollSource = fs.readFileSync(mfaEnrollPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -754,6 +756,52 @@ test("app-access snapshot allows organization users into dashboard after onboard
     onboardingSource,
     "await auth.refreshSession();",
     "Onboarding success should refresh shared auth state so dashboard authorization is immediate.",
+  );
+});
+
+test("mfa enrollment bootstraps csrf before enrollment start and verify", () => {
+  expectIncludes(
+    authProviderSource,
+    "const csrfToken = await requireCsrfToken(",
+    "MFA enrollment mutations should require CSRF bootstrap before POST requests.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "\"Security token is not ready. Please refresh and try MFA enrollment again.\"",
+    "MFA enrollment start should surface explicit bootstrap retry guidance.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "\"Security token is not ready. Please refresh and try MFA verification again.\"",
+    "MFA enrollment verify should surface explicit bootstrap retry guidance.",
+  );
+});
+
+test("mfa enrollment page renders qr code primary with manual fallback key", () => {
+  expectIncludes(
+    mfaEnrollSource,
+    "https://api.qrserver.com/v1/create-qr-code/",
+    "MFA enrollment should generate a QR code source for authenticator scanning.",
+  );
+
+  expectIncludes(
+    mfaEnrollSource,
+    "alt=\"MFA enrollment QR code\"",
+    "MFA enrollment should render a QR image as the primary setup UI.",
+  );
+
+  expectIncludes(
+    mfaEnrollSource,
+    "enter this setup key manually",
+    "MFA enrollment should preserve manual setup key fallback.",
+  );
+
+  expectIncludes(
+    mfaEnrollSource,
+    "Preparing your authenticator setup…",
+    "MFA enrollment should show initialization state instead of immediate error.",
   );
 });
 
