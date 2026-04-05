@@ -12,7 +12,12 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { beginAuthDebugFlow, getAuthFlowId, logAuthDebug } from "./authDebug";
 
-type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+export type AuthStatus =
+  | "loading"
+  | "unauthenticated"
+  | "authenticated_fully"
+  | "authenticated_mfa_pending_enrolled"
+  | "authenticated_mfa_pending_unenrolled";
 
 type AuthContextValue = {
   status: AuthStatus;
@@ -66,6 +71,27 @@ const AUTH_TRANSITION_STORAGE_KEY = "auth:session-transition-at";
 const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
 const OAUTH_STARTUP_DELAY_MS = 120;
 const OAUTH_POST_REDIRECT_RETRY_DELAY_MS = 450;
+
+export function isMfaPendingStatus(status: AuthStatus): boolean {
+  return (
+    status === "authenticated_mfa_pending_enrolled" ||
+    status === "authenticated_mfa_pending_unenrolled"
+  );
+}
+
+export function isFullyAuthenticatedStatus(status: AuthStatus): boolean {
+  return status === "authenticated_fully";
+}
+
+export function getMfaPendingRoute(status: AuthStatus): "/mfa/challenge" | "/mfa/enroll" | null {
+  if (status === "authenticated_mfa_pending_enrolled") {
+    return "/mfa/challenge";
+  }
+  if (status === "authenticated_mfa_pending_unenrolled") {
+    return "/mfa/enroll";
+  }
+  return null;
+}
 
 function normalizeReturnToPath(path: string | null | undefined): string | null {
   if (typeof path !== "string") return null;
@@ -264,14 +290,20 @@ export function getDisallowedAuthRouteRedirect({
   deniedLoginPath?: string;
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
-    if (authStatus === "authenticated") {
+    if (isFullyAuthenticatedStatus(authStatus)) {
       return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
+    }
+    if (isMfaPendingStatus(authStatus)) {
+      return getMfaPendingRoute(authStatus) ?? "/login";
     }
     return "/login";
   }
 
-  if (authStatus === "authenticated") {
+  if (isFullyAuthenticatedStatus(authStatus)) {
     return "/dashboard";
+  }
+  if (isMfaPendingStatus(authStatus)) {
+    return getMfaPendingRoute(authStatus) ?? "/login";
   }
 
   return "/login";
@@ -977,20 +1009,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshCsrfState();
   }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
-  const status: AuthStatus = sessionRevoked
-    ? "unauthenticated"
-    : authBootstrapping || meQuery.isLoading
-      ? "loading"
-      : meQuery.isError
-        ? "unauthenticated"
-        : meQuery.data
-          ? "authenticated"
-          : "unauthenticated";
+  const status: AuthStatus = React.useMemo(() => {
+    if (sessionRevoked) return "unauthenticated";
+    if (authBootstrapping || meQuery.isLoading) return "loading";
+    if (meQuery.isError || !meQuery.data) return "unauthenticated";
+
+    if (meQuery.data.mfaPending) {
+      const enrolled =
+        meQuery.data.nextStep === "mfa_challenge" ||
+        (meQuery.data.nextStep !== "mfa_enroll" &&
+          Boolean(meQuery.data.mfaEnrolled));
+
+      return enrolled
+        ? "authenticated_mfa_pending_enrolled"
+        : "authenticated_mfa_pending_unenrolled";
+    }
+
+    return "authenticated_fully";
+  }, [authBootstrapping, meQuery.data, meQuery.isError, meQuery.isLoading, sessionRevoked]);
 
   const value: AuthContextValue = React.useMemo(
     () => ({
       status,
-      user: status === "authenticated" ? (meQuery.data ?? null) : null,
+      user: status === "loading" || status === "unauthenticated" ? null : (meQuery.data ?? null),
       csrfToken,
       csrfReady,
       loginInFlight,
@@ -1055,7 +1096,9 @@ export function RequireAuth({
   const auth = useAuth();
 
   if (auth.status === "loading") return <>{loadingFallback}</>;
-  if (auth.status === "unauthenticated") return <>{unauthenticatedFallback}</>;
+  if (auth.status === "unauthenticated" || isMfaPendingStatus(auth.status)) {
+    return <>{unauthenticatedFallback}</>;
+  }
 
   return <>{children}</>;
 }

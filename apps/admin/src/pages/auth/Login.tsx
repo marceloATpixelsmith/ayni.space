@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
-import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
+import { isFullyAuthenticatedStatus, useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Chrome, ActivitySquare } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -26,7 +26,7 @@ export function getLoginDisabledReasons(input: {
   turnstileTokenPresent: boolean;
 }) {
   const reasons: string[] = [];
-  if (input.authStatus === "authenticated") reasons.push("auth.status===authenticated");
+  if (input.authStatus === "authenticated_fully") reasons.push("auth.status===authenticated_fully");
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
@@ -70,7 +70,7 @@ export default function Login() {
       deniedCleanupAttemptedRef.current = false;
       return;
     }
-    if (auth.status !== "authenticated") return;
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
     if (deniedCleanupAttemptedRef.current) return;
 
     deniedCleanupAttemptedRef.current = true;
@@ -86,7 +86,7 @@ export default function Login() {
   }, []);
 
   React.useEffect(() => {
-    if (auth.status === "authenticated") {
+    if (isFullyAuthenticatedStatus(auth.status)) {
       if (isInvitationContinuationPath(nextPath)) {
         setLocation(nextPath);
         return;

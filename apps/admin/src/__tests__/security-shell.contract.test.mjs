@@ -212,8 +212,8 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
 
   expectIncludes(
     authProviderSource,
-    "if (authStatus === \"authenticated\") {\n    return \"/dashboard\";",
-    "Non-superadmin-profile disallowed routes should redirect authenticated users to /dashboard.",
+    "if (isFullyAuthenticatedStatus(authStatus)) {\n    return \"/dashboard\";",
+    "Non-superadmin-profile disallowed routes should redirect fully-authenticated users to /dashboard.",
   );
 });
 
@@ -373,7 +373,7 @@ test("login screen has stable inline access-denied message state", () => {
 test("superadmin access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
   expectIncludes(
     loginSource,
-    "if (auth.status !== \"authenticated\") return;",
+    "if (!isFullyAuthenticatedStatus(auth.status)) return;",
     "Denied-login cleanup should only run when stale authenticated state is detected.",
   );
 
@@ -490,13 +490,13 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
-    'const status: AuthStatus = sessionRevoked',
+    "const status: AuthStatus = React.useMemo(() => {",
     "Auth status should fail closed after logout.",
   );
 
   expectIncludes(
     authProviderSource,
-    ': meQuery.isError\n        ? "unauthenticated"',
+    "if (meQuery.isError || !meQuery.data) return \"unauthenticated\";",
     "Bootstrap/query errors must fail closed to unauthenticated.",
   );
 });

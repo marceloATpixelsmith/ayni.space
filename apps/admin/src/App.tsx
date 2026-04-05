@@ -8,6 +8,8 @@ import {
   useAuth,
   fetchPlatformAppMetadataBySlug,
   getDisallowedAuthRouteRedirect,
+  getMfaPendingRoute,
+  isMfaPendingStatus,
   isAuthRouteAllowed,
   logAuthDebug,
   type AuthRouteKind,
@@ -95,6 +97,12 @@ function Home() {
       if (auth.status === "unauthenticated") {
         setLocation("/login");
         logAuthDebug("guard_redirect", { from: "/", to: "/login", reason: "home_unauthenticated" });
+        return;
+      }
+      if (isMfaPendingStatus(auth.status)) {
+        const route = getMfaPendingRoute(auth.status) ?? "/login";
+        logAuthDebug("guard_redirect", { from: "/", to: route, reason: "home_mfa_pending" });
+        setLocation(route);
         return;
       }
 
@@ -194,6 +202,10 @@ function ConfigDrivenAuthRoute({
     return <>{children}</>;
   }
 
+  if (isMfaPendingStatus(auth.status)) {
+    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
+  }
+
   if (!isAuthRouteAllowed(metadata, routeKind)) {
     console.info("[INVITATION-FLOW] auth route disallowed by metadata policy", {
       routeKind,
@@ -237,6 +249,9 @@ function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
 
   if (auth.status === "unauthenticated") {
     return <AuthRedirect to="/login" />;
+  }
+  if (isMfaPendingStatus(auth.status)) {
+    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
   }
 
   const appAccess = getCurrentAppAccess(auth.user);
@@ -288,6 +303,8 @@ function DashboardRoute() {
 }
 
 function Router() {
+  const auth = useAuth();
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -296,8 +313,20 @@ function Router() {
             <Route path="/forgot-password" component={ForgotPassword} />
             <Route path="/reset-password" component={ResetPassword} />
         <Route path="/verify-email" component={VerifyEmail} />
-        <Route path="/mfa/enroll" component={MfaEnroll} />
-        <Route path="/mfa/challenge" component={MfaChallenge} />
+      <Route path="/mfa/enroll">{() => {
+        if (auth.status === "loading") return <AuthLoading />;
+        if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
+        if (auth.status === "authenticated_fully") return <AuthRedirect to="/dashboard" />;
+        if (auth.status === "authenticated_mfa_pending_enrolled") return <AuthRedirect to="/mfa/challenge" />;
+        return <MfaEnroll />;
+      }}</Route>
+      <Route path="/mfa/challenge">{() => {
+        if (auth.status === "loading") return <AuthLoading />;
+        if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
+        if (auth.status === "authenticated_fully") return <AuthRedirect to="/dashboard" />;
+        if (auth.status === "authenticated_mfa_pending_unenrolled") return <AuthRedirect to="/mfa/enroll" />;
+        return <MfaChallenge />;
+      }}</Route>
       <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
       <Route path="/onboarding">{() => <AuthRedirect to="/onboarding/organization" />}</Route>
       <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
