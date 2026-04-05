@@ -846,6 +846,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return payload;
   }, [refreshCsrfState]);
 
+  const finalizePostAuthNavigation = React.useCallback(async (nextPath: string) => {
+    markAuthTransition();
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+    window.location.assign(nextPath);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
+
   const verifyMfaEnrollment = React.useCallback(async (factorId: string, code: string) => {
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
@@ -860,8 +867,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, csrfToken);
     const payload = (await response.json()) as { recoveryCodes: string[]; nextPath?: string } & ApiErrorPayload;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to verify two-step verification setup.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      await finalizePostAuthNavigation(payload.nextPath);
+    }
     return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
-  }, [refreshCsrfState]);
+  }, [finalizePostAuthNavigation, refreshCsrfState]);
 
   const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
     const csrfToken = await requireCsrfToken(
@@ -878,13 +888,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
-      markAuthTransition();
-      await refreshCsrfState();
-      window.location.assign(payload.nextPath);
+      await finalizePostAuthNavigation(payload.nextPath);
       return;
     }
-    await refreshSession();
-  }, [markAuthTransition, refreshCsrfState, refreshSession]);
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+  }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
   const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean) => {
     const csrfToken = await requireCsrfToken(
@@ -901,13 +910,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
-      markAuthTransition();
-      await refreshCsrfState();
-      window.location.assign(payload.nextPath);
+      await finalizePostAuthNavigation(payload.nextPath);
       return;
     }
-    await refreshSession();
-  }, [markAuthTransition, refreshCsrfState, refreshSession]);
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+  }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
   const status: AuthStatus = sessionRevoked
     ? "unauthenticated"

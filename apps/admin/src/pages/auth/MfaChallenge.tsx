@@ -1,5 +1,4 @@
 import React from "react";
-import { useLocation } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
@@ -7,7 +6,6 @@ import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
 export default function MfaChallenge() {
   const auth = useAuth();
-  const [, setLocation] = useLocation();
   const [code, setCode] = React.useState("");
   const [recoveryCode, setRecoveryCode] = React.useState("");
   const [remember, setRemember] = React.useState(true);
@@ -16,11 +14,11 @@ export default function MfaChallenge() {
 
   const submitCode = () => {
     setCodeError(null);
-    auth.completeMfaChallenge(code, remember).then(() => setLocation("/")).catch((err) => setCodeError(err instanceof Error ? err.message : "Invalid two-step verification code."));
+    auth.completeMfaChallenge(code, remember).catch((err) => setCodeError(err instanceof Error ? err.message : "Invalid two-step verification code."));
   };
   const submitRecovery = () => {
     setRecoveryError(null);
-    auth.completeMfaRecovery(recoveryCode, remember).then(() => setLocation("/")).catch((err) => setRecoveryError(err instanceof Error ? err.message : "Invalid recovery code."));
+    auth.completeMfaRecovery(recoveryCode, remember).catch((err) => setRecoveryError(err instanceof Error ? err.message : "Invalid recovery code."));
   };
 
   return (
