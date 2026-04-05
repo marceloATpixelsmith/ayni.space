@@ -449,9 +449,19 @@ async function handleMe(req: Request, res: Response) {
     mfaStateReadFailed = true;
   }
 
+  const pendingReason = req.session.pendingMfaReason;
   const pendingNextStep: "mfa_enroll" | "mfa_challenge" | null = hasPendingMfaSession
-    ? (mfaEnrolled && !mfaStateReadFailed ? "mfa_challenge" : "mfa_enroll")
+    ? pendingReason === "enrollment_required"
+      ? "mfa_enroll"
+      : "mfa_challenge"
     : null;
+  const pendingMfaEnrolled = hasPendingMfaSession
+    ? pendingReason === "enrollment_required"
+      ? false
+      : pendingReason === "challenge_required"
+        ? true
+        : pendingNextStep === "mfa_challenge"
+    : mfaEnrolled;
 
   if (hasPendingMfaSession) {
     logAuthCheckTrace(req, {
@@ -469,8 +479,9 @@ async function handleMe(req: Request, res: Response) {
       appSlug: req.session.appSlug ?? null,
       mfaRequired: true,
       mfaPending: true,
-      mfaEnrolled,
+      mfaEnrolled: pendingMfaEnrolled,
       mfaStateReadFailed,
+      pendingReason: pendingReason ?? null,
       nextStep: pendingNextStep,
       hasPendingMfaSession: true,
     });
@@ -484,7 +495,7 @@ async function handleMe(req: Request, res: Response) {
       isSuperAdmin: authenticatedUser.isSuperAdmin,
       mfaRequired: true,
       mfaPending: true,
-      mfaEnrolled,
+      mfaEnrolled: pendingMfaEnrolled,
       nextStep: pendingNextStep,
       activeOrgId: null,
       activeOrg: null,
