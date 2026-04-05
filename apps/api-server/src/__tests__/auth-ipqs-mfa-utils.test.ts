@@ -214,3 +214,22 @@ test("MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret",
     restore.reverse().forEach((undo) => undo());
   }
 });
+
+test("MFA considers legacy enrolled factor rows active when enrolledAt is set", async () => {
+  const restore = [
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-legacy",
+      userId: "user-legacy",
+      factorType: "totp",
+      status: "pending",
+      enrolledAt: new Date("2026-04-01T00:00:00.000Z"),
+    })),
+  ];
+
+  try {
+    const hasFactor = await mfa.hasActiveMfaFactor("user-legacy");
+    assert.equal(hasFactor, true);
+  } finally {
+    restore.reverse().forEach((undo) => undo());
+  }
+});

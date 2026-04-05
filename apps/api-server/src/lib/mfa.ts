@@ -1,5 +1,5 @@
 import crypto, { randomUUID } from "node:crypto";
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
 import {
   db,
   mfaFactorsTable,
@@ -200,7 +200,14 @@ async function verifyTotpCode(userId: string, factorId: string, secret: string, 
 
 export async function hasActiveMfaFactor(userId: string): Promise<boolean> {
   try {
-    const row = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.status, "active"), eq(mfaFactorsTable.factorType, "totp")) });
+    const row = await db.query.mfaFactorsTable.findFirst({
+      where: and(
+        eq(mfaFactorsTable.userId, userId),
+        eq(mfaFactorsTable.factorType, "totp"),
+        ne(mfaFactorsTable.status, "disabled"),
+        or(eq(mfaFactorsTable.status, "active"), sql`${mfaFactorsTable.enrolledAt} is not null`),
+      ),
+    });
     return Boolean(row);
   } catch {
     return false;
@@ -208,7 +215,14 @@ export async function hasActiveMfaFactor(userId: string): Promise<boolean> {
 }
 
 export async function verifyMfaChallenge(userId: string, code: string): Promise<boolean> {
-  const factor = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.status, "active"), eq(mfaFactorsTable.factorType, "totp")) });
+  const factor = await db.query.mfaFactorsTable.findFirst({
+    where: and(
+      eq(mfaFactorsTable.userId, userId),
+      eq(mfaFactorsTable.factorType, "totp"),
+      ne(mfaFactorsTable.status, "disabled"),
+      or(eq(mfaFactorsTable.status, "active"), sql`${mfaFactorsTable.enrolledAt} is not null`),
+    ),
+  });
   if (!factor) return false;
   const normalizedTotp = normalizeTotpCode(code);
   if (/^[0-9]{6}$/.test(normalizedTotp)) {

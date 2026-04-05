@@ -722,12 +722,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
     }, csrfToken);
-    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string });
+    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string });
     if (!response.ok) {
       throw new Error(payload?.error ?? "Invalid email or password.");
     }
     if (payload?.mfaRequired) {
-      const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+        ? "/mfa/enroll"
+        : "/mfa/challenge";
       markAuthTransition();
       await refreshCsrfState();
       window.location.assign(target);
@@ -809,10 +811,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token, appSlug: appSlug?.trim() || undefined }),
     }, csrfToken);
-    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string };
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string };
     if (!response.ok) throw new Error(mapVerifyEmailError(response, payload));
     if (payload?.mfaRequired) {
-      const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+        ? "/mfa/enroll"
+        : "/mfa/challenge";
       markAuthTransition();
       await refreshSession({ retryAfterDelay: true });
       await refreshCsrfState();
