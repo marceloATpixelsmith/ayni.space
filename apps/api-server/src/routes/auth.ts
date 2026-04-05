@@ -1139,7 +1139,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     const oauthMfaGate = await beginMfaPendingSession(req, user.id, activeAppSlug, oauthStayLoggedIn);
     if (oauthMfaGate.required) {
-      const mfaPath = oauthMfaGate.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      const mfaPath = oauthMfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge";
       res.redirect(`${frontendBase}${mfaPath}`);
       return;
     }
@@ -1479,7 +1479,7 @@ async function establishPasswordSession(req: Request, userId: string, appSlug: s
 
 
 
-type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean };
+type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean; nextStep: "mfa_enroll" | "mfa_challenge" };
 
 async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
   const activeOrgId = req.session.activeOrgId ?? null;
@@ -1507,7 +1507,11 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
   });
 
-  return { required: true, needsEnrollment };
+  return {
+    required: true,
+    needsEnrollment,
+    nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge",
+  };
 }
 
 async function completePendingMfaSession(req: Request) {
@@ -1769,7 +1773,12 @@ async function handlePasswordLogin(req: Request, res: Response) {
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
-    res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
+    res.status(202).json({
+      success: true,
+      mfaRequired: true,
+      needsEnrollment: mfaGate.needsEnrollment,
+      nextStep: mfaGate.nextStep,
+    });
     return;
   }
 
@@ -1895,7 +1904,12 @@ async function handleVerifyEmail(req: Request, res: Response) {
       userId: user.id,
       needsEnrollment: mfaGate.needsEnrollment,
     });
-    res.status(202).json({ success: true, mfaRequired: true, needsEnrollment: mfaGate.needsEnrollment });
+    res.status(202).json({
+      success: true,
+      mfaRequired: true,
+      needsEnrollment: mfaGate.needsEnrollment,
+      nextStep: mfaGate.nextStep,
+    });
     return;
   }
 
