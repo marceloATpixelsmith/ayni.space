@@ -37,7 +37,7 @@ type AuthContextValue = {
   resetPassword: (token: string, password: string) => Promise<void>;
   verifyEmail: (token: string, appSlug?: string) => Promise<{ mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string }>;
   startMfaEnrollment: () => Promise<{ factorId: string; secret: string; otpauthUrl: string; issuer: string }>;
-  verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[] }>;
+  verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[]; nextPath?: string }>;
   completeMfaChallenge: (code: string, rememberDevice: boolean) => Promise<void>;
   completeMfaRecovery: (recoveryCode: string, rememberDevice: boolean) => Promise<void>;
 };
@@ -186,6 +186,18 @@ export function mapVerifyEmailError(
     return "Security check failed. Please retry the verification link.";
   }
   return payload?.error ?? "Unable to verify email.";
+}
+
+export async function requireCsrfToken(
+  currentToken: string | null | undefined,
+  refreshCsrfState: () => Promise<string | null>,
+  missingTokenMessage: string,
+): Promise<string> {
+  const token = currentToken ?? (await refreshCsrfState());
+  if (!token) {
+    throw new Error(missingTokenMessage);
+  }
+  return token;
 }
 
 export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
@@ -713,10 +725,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   const verifyEmail = React.useCallback(async (token: string, appSlug?: string) => {
-    const csrfToken = csrfTokenRef.current ?? (await refreshCsrfState());
-    if (!csrfToken) {
-      throw new Error("Security token is not ready. Please retry the verification link.");
-    }
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please retry the verification link.",
+    );
     const response = await secureApiFetch("/api/auth/verify-email", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -738,25 +751,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshCsrfState, refreshSession]);
 
   const startMfaEnrollment = React.useCallback(async () => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try MFA enrollment again.",
+    );
     const response = await secureApiFetch("/api/auth/mfa/enroll/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string } & ApiErrorPayload;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to start MFA enrollment.");
     return payload;
-  }, []);
+  }, [refreshCsrfState]);
 
   const verifyMfaEnrollment = React.useCallback(async (factorId: string, code: string) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try MFA verification again.",
+    );
     const response = await secureApiFetch("/api/auth/mfa/enroll/verify", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ factorId, code }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json()) as { recoveryCodes: string[]; nextPath?: string } & ApiErrorPayload;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to verify MFA enrollment.");
     return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
-  }, []);
+  }, [refreshCsrfState]);
 
   const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
     const response = await secureApiFetch("/api/auth/mfa/challenge", {
