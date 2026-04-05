@@ -533,7 +533,8 @@ async function handleMe(req: Request, res: Response) {
       hasPendingMfaSession: true,
     });
     res.json({
-      authenticated: true,
+      authenticated: false,
+      authState: "mfa_pending",
       userId: authenticatedUser.id,
       id: authenticatedUser.id,
       email: authenticatedUser.email,
@@ -544,6 +545,7 @@ async function handleMe(req: Request, res: Response) {
       mfaPending: true,
       mfaEnrolled: pendingMfaEnrolled,
       nextStep: pendingNextStep,
+      needsEnrollment: pendingNextStep === "mfa_enroll",
       activeOrgId: null,
       activeOrg: null,
       memberships: [],

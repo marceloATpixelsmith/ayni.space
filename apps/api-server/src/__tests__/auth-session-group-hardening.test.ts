@@ -1310,12 +1310,13 @@ test("mfa-pending /api/auth/me returns safe pending contract with nextStep=chall
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["userId"], "pending-user");
     assert.equal(payload["id"], "pending-user");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["needsEnrollment"], false);
     assert.equal(payload["appAccess"], null);
     assert.deepEqual(payload["memberships"], []);
   } finally {
@@ -1363,11 +1364,12 @@ test("mfa-pending /api/auth/me fails closed to challenge when factor state read 
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["userId"], "pending-user-read-failure");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["needsEnrollment"], false);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -1411,12 +1413,13 @@ test("mfa-pending /api/auth/me returns nextStep=enroll when active factor is mis
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["userId"], "pending-user-no-factor");
     assert.equal(payload["id"], "pending-user-no-factor");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], false);
     assert.equal(payload["nextStep"], "mfa_enroll");
+    assert.equal(payload["needsEnrollment"], true);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -1465,11 +1468,12 @@ test("mfa-pending /api/auth/me overrides stale enrollment_required to challenge 
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["userId"], "pending-user-stale-enroll");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["needsEnrollment"], false);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -1527,11 +1531,81 @@ test("mfa-pending /api/auth/me evaluates factor state against pendingUserId when
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
     assert.equal(lookedUpPendingUser, true);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("mfa-pending /api/auth/me returns pending payload when central security middleware runs before auth router", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "pending-central-path",
+      email: "pending-central@example.com",
+      name: "Pending Central Path",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-central",
+      userId: "pending-central-path",
+      factorType: "totp",
+      status: "active",
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({}),
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = express();
+    app.use((req, _res, next) => {
+      (req as unknown as { session: Record<string, unknown> }).session = {
+        id: "central-security-session",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save: (cb?: (err?: unknown) => void) => cb?.(),
+        regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+        pendingUserId: "pending-central-path",
+        pendingAppSlug: "admin",
+        pendingMfaReason: "challenge_required",
+        sessionGroup: "admin",
+      };
+      next();
+    });
+    app.use(createSecurityEnforcementMiddleware());
+    app.use("/api/auth", authRouter);
+
+    const server = app.listen(0);
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Failed to bind server");
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/auth/me`, {
+        method: "GET",
+        headers: {
+          origin: "http://admin.local",
+          cookie: "saas.admin.sid=admin-cookie",
+        },
+      });
+      assert.equal(response.status, 200);
+      const payload = await response.json() as Record<string, unknown>;
+      assert.equal(payload["authenticated"], false);
+      assert.equal(payload["mfaPending"], true);
+      assert.equal(payload["mfaEnrolled"], true);
+      assert.equal(payload["nextStep"], "mfa_challenge");
+      assert.equal(payload["needsEnrollment"], false);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    }
   } finally {
     for (const undo of restore.reverse()) undo();
   }
@@ -1580,10 +1654,11 @@ test("mfa-pending /api/auth/me/ with trailing slash remains allowed and returns 
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
-    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["authenticated"], false);
     assert.equal(payload["userId"], "pending-user-slash");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["needsEnrollment"], false);
   } finally {
     for (const undo of restore.reverse()) undo();
   }

@@ -88,7 +88,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const hasPendingMfaSession = Boolean(req.session?.pendingUserId || req.session?.pendingMfaReason);
   const normalizedPath = req.path.replace(/\/+$/, "") || "/";
   const normalizedOriginalPath = req.originalUrl.split("?", 1)[0]?.replace(/\/+$/, "") || "/";
-  const mfaPendingPathAllowed = normalizedPath === "/me" || normalizedOriginalPath.endsWith("/auth/me");
+  const normalizedMountedPath = `${req.baseUrl ?? ""}${req.path ?? ""}`.replace(/\/+$/, "") || "/";
+  const mfaPendingPathAllowed =
+    normalizedPath === "/me"
+    || normalizedPath === "/api/auth/me"
+    || normalizedMountedPath.endsWith("/auth/me")
+    || normalizedOriginalPath.endsWith("/auth/me");
   const effectiveUserId = userId ?? (hasPendingMfaSession && mfaPendingPathAllowed ? pendingUserId : null);
 
   if (!effectiveUserId) {
