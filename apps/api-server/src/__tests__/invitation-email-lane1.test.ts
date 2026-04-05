@@ -5,7 +5,8 @@ import { createSessionApp, ensureTestDatabaseEnv, patchProperty, performJsonRequ
 ensureTestDatabaseEnv();
 
 const { db } = await import("@workspace/db");
-const { deriveInviteeName, renderInvitationTemplate, sendLane1InvitationEmail } = await import("../lib/invitationEmail.js");
+const { deriveInviteeName, renderInvitationTemplate, sendLane1InvitationEmail, sendLane1PasswordResetEmail } = await import("../lib/invitationEmail.js");
+const { validateTemplateTokens } = await import("../lib/emailTemplates.js");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
 
 test("invitation token renderer replaces allowlisted tokens and preserves unknown tokens", () => {
@@ -77,6 +78,15 @@ test("lane1 invitation sender uses app sender/template config and logs lane1 out
       invitationEmailSubject: "Join {{invitee_name}} at {{organization_name}} on {{app_name}}",
       invitationEmailHtml: "<p>Hello {{invitee_name}}</p><a href='{{invitation_url}}'>Accept</a>",
       metadata: {},
+    })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tpl-inv-1",
+      appId: "app-1",
+      templateType: "invitation",
+      subjectTemplate: "Join {{invitee_name}} at {{organization_name}} on {{app_name}}",
+      htmlTemplate: "<p>Hello {{invitee_name}}</p><a href='{{invitation_url}}'>Accept</a>",
+      textTemplate: null,
+      isActive: true,
     })),
     patchProperty(db, "insert", ((_: unknown) => ({
       values: (payload: Record<string, unknown>) => {
@@ -246,6 +256,15 @@ test("invitation create persists invitee first and last name", async () => {
       invitationEmailHtml: "<p>Hello {{invitee_name}}</p>",
       metadata: {},
     })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tpl-inv-2",
+      appId: "app-1",
+      templateType: "invitation",
+      subjectTemplate: "Join {{invitee_name}}",
+      htmlTemplate: "<p>Hello {{invitee_name}}</p>",
+      textTemplate: null,
+      isActive: true,
+    })),
     patchProperty(db, "insert", ((_: unknown) => ({
       values: (payload: Record<string, unknown>) => {
         if ("action" in payload || "lane" in payload) return Promise.resolve([]);
@@ -295,6 +314,86 @@ test("invitation create persists invitee first and last name", async () => {
     assert.equal(response.status, 201);
     assert.equal(insertedInvitation?.["firstName"], "Jordan");
     assert.equal(insertedInvitation?.["lastName"], "Miles");
+  } finally {
+    globalThis.fetch = originalFetch;
+    restores.reverse().forEach((restore) => restore());
+    delete process.env["PLATFORM_BREVO_API_KEY"];
+  }
+});
+
+
+test("template validation rejects unsupported tokens for template type", () => {
+  const unsupported = validateTemplateTokens("password_reset", {
+    subjectTemplate: "Reset {{password_reset_url}}",
+    htmlTemplate: "<p>{{unknown_token}}</p>",
+    textTemplate: null,
+  });
+  assert.deepEqual(unsupported, ["unknown_token"]);
+});
+
+test("password reset sender resolves lane1 template and logs lane1 outcome", async () => {
+  process.env["PLATFORM_BREVO_API_KEY"] = "test-key";
+  process.env["ALLOWED_ORIGINS"] = "https://app.example";
+  let outboundRequestedSubject: string | null = null;
+  let brevoBody: Record<string, unknown> | null = null;
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "ayni",
+      name: "Ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      transactionalFromEmail: "invites@ayni.space",
+      transactionalFromName: "Ayni Team",
+      transactionalReplyToEmail: "support@ayni.space",
+      invitationEmailSubject: "Join {{invitee_name}} at {{organization_name}} on {{app_name}}",
+      invitationEmailHtml: "<p>Hello {{invitee_name}}</p>",
+      metadata: {},
+    })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tpl-app-1",
+      appId: "app-1",
+      templateType: "password_reset",
+      subjectTemplate: "Reset your password for {{app_name}}",
+      htmlTemplate: "<p>Hello {{full_name}}</p><a href='{{password_reset_url}}'>Reset</a>",
+      textTemplate: "Reset link: {{password_reset_url}}",
+      isActive: true,
+    })),
+    patchProperty(db, "insert", ((_: unknown) => ({
+      values: (payload: Record<string, unknown>) => {
+        if ("lane" in payload) {
+          outboundRequestedSubject = String(payload["requestedSubject"]);
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([]);
+      },
+    })) as never),
+    patchProperty(db, "update", (() => ({
+      set: () => ({ where: async () => undefined }),
+    })) as never),
+  ];
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    brevoBody = JSON.parse(String(init?.body ?? "{}"));
+    return new Response(JSON.stringify({ messageId: "brevo-msg-reset" }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    await sendLane1PasswordResetEmail({
+      req: { headers: { origin: "https://app.example" } } as any,
+      appId: "app-1",
+      appSlug: "ayni",
+      userId: "user-1",
+      userEmail: "user@example.com",
+      userFullName: "Reset User",
+      resetToken: "reset-token-123",
+      expirationDateTime: "2026-04-10T00:00:00.000Z",
+    });
+
+    assert.equal(outboundRequestedSubject, "Reset your password for Ayni");
+    assert.match(String((brevoBody as any)?.["htmlContent"] ?? ""), /reset-password\?token=reset-token-123/);
   } finally {
     globalThis.fetch = originalFetch;
     restores.reverse().forEach((restore) => restore());

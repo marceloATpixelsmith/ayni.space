@@ -10,7 +10,7 @@
 - Request path is implemented as: frontend -> API client/fetch layer -> API routes -> `@workspace/db` -> PostgreSQL.
 - The API server is the single active backend gateway in current repository state.
 - Lane 2 transactional email foundation is implemented as a shared backend integration package at `lib/integrations/transactional-email` with provider-agnostic contracts and adapter scaffolding for Brevo and Mailchimp Transactional.
-- Lane 1 invitation-email delivery is implemented in `apps/api-server/src/routes/invitations.ts` + `apps/api-server/src/lib/invitationEmail.ts` using app-level config on `platform.apps` and platform-owned provider credentials from environment variables.
+- Lane 1 notification email delivery (invitation + email verification + password reset) is implemented in `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/auth.ts`, and `apps/api-server/src/lib/invitationEmail.ts` using template resolution from `platform.email_templates` with app-level override + platform-default fallback and platform-owned provider credentials from environment variables.
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
 ## Inferred
