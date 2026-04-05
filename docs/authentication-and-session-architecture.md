@@ -95,6 +95,7 @@
 - IPQS is advisory-only for non-definitive risk: high score, undeliverable, SMTP uncertainty, and other score-derived signals trigger `step_up` (email verification + MFA on first login) rather than hard-blocking signup.
 - Hard-blocking based on IPQS is limited to definitive disposable-email detection; malformed/invalid input remains governed by existing validation logic.
 - MFA is now first-class and TOTP-based (`apps/api-server/src/lib/mfa.ts`) with enrollment, challenge, and recovery-code flows under `/api/auth/mfa/*`.
+- TOTP verification now decodes Base32 secrets with bit-buffer masking (preventing stale-bit corruption), applies identical verification logic in enrollment/challenge paths, and enforces a ±1 time-step acceptance window with replay-step rejection via `platform.used_mfa_totp_codes` (`apps/api-server/src/lib/mfa.ts`).
 - Trusted devices are server-authoritative (`platform.trusted_devices`) with hashed token storage, secure cookie transport, and 20-day expiry.
 - MFA issuer now derives from session-group authority (not app name/env): canonical display names are sourced from `platform.session_groups` and resolved by `apps/api-server/src/lib/sessionGroupDisplay.ts`.
 - Required MFA enforcement now includes:

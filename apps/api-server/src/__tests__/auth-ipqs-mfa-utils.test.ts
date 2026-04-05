@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
 
 ensureTestDatabaseEnv();
@@ -134,6 +135,82 @@ test("MFA enrollment start returns factor id and secret for valid users", async 
     if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
     else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
     restoreInsert();
+    restore.reverse().forEach((undo) => undo());
+  }
+});
+
+function generateTotpCodeFromBase32Secret(secret: string, timeStep: number): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const normalized = secret.replace(/=+$/g, "").toUpperCase();
+  let bits = "";
+  for (const char of normalized) {
+    const index = alphabet.indexOf(char);
+    if (index < 0) continue;
+    bits += index.toString(2).padStart(5, "0");
+  }
+  const bytes: number[] = [];
+  for (let offset = 0; offset + 8 <= bits.length; offset += 8) {
+    bytes.push(Number.parseInt(bits.slice(offset, offset + 8), 2));
+  }
+  const key = Buffer.from(bytes);
+
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(timeStep));
+
+  const hmac = crypto.createHmac("sha1", key).update(counter).digest();
+  const dynamicOffset = hmac[hmac.length - 1]! & 0x0f;
+  const binary =
+    ((hmac[dynamicOffset]! & 0x7f) << 24) |
+    ((hmac[dynamicOffset + 1]! & 0xff) << 16) |
+    ((hmac[dynamicOffset + 2]! & 0xff) << 8) |
+    (hmac[dynamicOffset + 3]! & 0xff);
+  return String(binary % 1_000_000).padStart(6, "0");
+}
+
+test("MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret", async () => {
+  const secret = "JBSWY3DPEHPK3PXP";
+  const nowMs = Date.UTC(2026, 3, 5, 12, 0, 0);
+  const step = Math.floor(nowMs / 30_000);
+  const validCode = generateTotpCodeFromBase32Secret(secret, step);
+
+  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
+  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(process.env["MFA_TOTP_ENCRYPTION_KEY"], "hex"), iv);
+  const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const restore = [
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "user-1",
+      factorType: "totp",
+      status: "active",
+      secretCiphertext: ciphertext.toString("base64"),
+      secretIv: iv.toString("base64"),
+      secretTag: tag.toString("base64"),
+    })),
+    patchProperty(db.query.usedMfaTotpCodesTable, "findFirst", async () => null),
+    patchProperty(db, "insert", ((_table: unknown) => ({
+      values: async () => {
+        return [];
+      },
+    })) as typeof db.insert),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: async () => [],
+      }),
+    })) as typeof db.update),
+    patchProperty(Date, "now", () => nowMs),
+  ];
+
+  try {
+    const ok = await mfa.verifyMfaChallenge("user-1", validCode);
+    assert.equal(ok, true);
+  } finally {
+    if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
+    else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
     restore.reverse().forEach((undo) => undo());
   }
 });

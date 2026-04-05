@@ -77,7 +77,7 @@ export default function MfaEnroll() {
           <p className="text-sm text-muted-foreground">Account issuer: {issuer}</p>
           {qrCodeUrl ? <div className="rounded border p-3 bg-white w-fit mx-auto"><img src={qrCodeUrl} alt="Two-step verification QR code" className="h-60 w-60" /></div> : null}
           <p className="text-sm">Can&apos;t scan the QR code? Enter this setup key manually in your app: <code className="break-all">{secret}</code></p>
-          <input className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(submitError)} aria-describedby={submitError ? "twostep-enroll-error" : undefined} />
+          <input autoFocus className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(submitError)} aria-describedby={submitError ? "twostep-enroll-error" : undefined} />
           <FieldValidationMessage id="twostep-enroll-error" message={submitError} />
           <Button className="w-full" onClick={onVerify} disabled={phase === "submitting" || phase === "initializing" || !code.trim()}>{phase === "submitting" ? "Verifying…" : "Verify and activate two-step verification"}</Button>
           {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/')}>Continue</Button></div> : null}
