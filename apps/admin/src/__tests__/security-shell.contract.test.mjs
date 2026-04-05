@@ -781,6 +781,12 @@ test("mfa enrollment bootstraps csrf before enrollment start and verify", () => 
   );
 
   expectIncludes(
+    authProviderSource,
+    "if (response.status === 409 && payload?.nextStep === \"mfa_challenge\") {",
+    "MFA enrollment bootstrap should fail closed back to challenge when backend indicates the account is already enrolled.",
+  );
+
+  expectIncludes(
     mfaEnrollSource,
     "const startMfaEnrollment = auth.startMfaEnrollment;",
     "MFA enrollment page should bind the start callback explicitly so setup bootstrap does not rerun from unrelated auth object changes.",

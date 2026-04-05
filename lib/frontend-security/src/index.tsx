@@ -842,10 +842,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: "POST",
       headers: { "content-type": "application/json" },
     }, csrfToken);
-    const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string } & ApiErrorPayload;
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to start two-step verification setup.");
+    const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string; nextStep?: "mfa_enroll" | "mfa_challenge" } & ApiErrorPayload;
+    if (!response.ok) {
+      if (response.status === 409 && payload?.nextStep === "mfa_challenge") {
+        markAuthTransition();
+        window.location.assign("/mfa/challenge");
+        throw new Error("Redirecting to two-step verification challenge.");
+      }
+      throw new Error(payload?.error ?? "Unable to start two-step verification setup.");
+    }
     return payload;
-  }, [refreshCsrfState]);
+  }, [markAuthTransition, refreshCsrfState]);
 
   const finalizePostAuthNavigation = React.useCallback(async (nextPath: string) => {
     markAuthTransition();

@@ -172,3 +172,36 @@ test("login fails closed to mfa_challenge when active factor lookup errors", asy
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("mfa enroll start returns mfa_challenge hint when pending session already has an active factor", async () => {
+  const restores = [
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "user-1",
+      factorType: "totp",
+      status: "active",
+      secretCiphertext: "cipher",
+      secretIv: "iv",
+      secretTag: "tag",
+    })),
+  ];
+
+  try {
+    const app = createMountedSessionApp(
+      [{ path: "/api/auth", router: authRouter }],
+      {
+        pendingUserId: "user-1",
+        pendingAppSlug: "admin",
+        pendingMfaReason: "challenge_required",
+      },
+    );
+    const response = await performJsonRequest(app, "POST", "/api/auth/mfa/enroll/start", {});
+
+    assert.equal(response.status, 409);
+    assert.equal(response.body?.mfaRequired, true);
+    assert.equal(response.body?.needsEnrollment, false);
+    assert.equal(response.body?.nextStep, "mfa_challenge");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});

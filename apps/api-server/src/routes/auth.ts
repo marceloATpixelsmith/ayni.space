@@ -1947,7 +1947,17 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     return;
   }
   if (alreadyEnrolled) {
-    res.status(409).json({ error: "Two-step verification is already active for this account. Use your authenticator code to continue." });
+    const shouldChallenge = req.session.pendingMfaReason === "challenge_required" || Boolean(req.session.pendingUserId);
+    res.status(409).json({
+      error: "Two-step verification is already active for this account. Use your authenticator code to continue.",
+      ...(shouldChallenge
+        ? {
+            mfaRequired: true,
+            needsEnrollment: false,
+            nextStep: "mfa_challenge" as const,
+          }
+        : {}),
+    });
     return;
   }
   const factor = await beginTotpEnrollment(userId);
