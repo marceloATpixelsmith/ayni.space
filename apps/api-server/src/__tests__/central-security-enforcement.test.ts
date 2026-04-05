@@ -100,6 +100,12 @@ test("verify-email endpoint remains public without requiring turnstile token", a
   assert.notEqual(response.status, 403);
 });
 
+test("mfa challenge endpoint does not require turnstile token", async () => {
+  process.env["TURNSTILE_ENABLED"] = "true";
+  const response = await requestJson(createApp({}, true), "POST", "/api/auth/mfa/challenge", { code: "123456" });
+  assert.notEqual(response.status, 403);
+});
+
 test("verify-email reports expired and already-used token states distinctly", async () => {
   const originalUpdate = db.update.bind(db);
   const restoreUpdate = patchProperty(

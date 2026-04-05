@@ -137,6 +137,7 @@ export function useTurnstileToken() {
         widgetIdRef.current = window.turnstile.render(containerNode, {
           sitekey: siteKey,
           theme: "light",
+          size: "flexible",
           callback: (value: string) => {
             setToken(value);
             setError(null);
@@ -182,7 +183,7 @@ export function useTurnstileToken() {
   }, []);
 
   const TurnstileWidget = React.useCallback(
-    () => <div ref={setContainerNode} className="min-h-16" />,
+    () => <div ref={setContainerNode} className="min-h-16 w-full" />,
     [],
   );
 

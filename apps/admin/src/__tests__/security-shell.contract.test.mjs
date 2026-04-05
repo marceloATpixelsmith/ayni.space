@@ -18,6 +18,7 @@ const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
 const invitationsDashboardPath = path.resolve(__dirname, "../pages/dashboard/Invitations.tsx");
 const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx");
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
+const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -33,6 +34,7 @@ const onboardingSource = fs.readFileSync(onboardingPath, "utf8");
 const invitationsDashboardSource = fs.readFileSync(invitationsDashboardPath, "utf8");
 const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
 const mfaEnrollSource = fs.readFileSync(mfaEnrollPath, "utf8");
+const mfaChallengeSource = fs.readFileSync(mfaChallengePath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -530,7 +532,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn)",
+    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
     "Login should pass turnstile token and continuation path into OAuth URL request.",
   );
 
@@ -728,7 +730,7 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
 
   expectIncludes(
     turnstileSource,
-    "() => <div ref={setContainerNode} className=\"min-h-16\" />",
+    "() => <div ref={setContainerNode} className=\"min-h-16 w-full\" />",
     "Turnstile widget should use callback ref state so container mount triggers render flow.",
   );
 
@@ -838,23 +840,29 @@ test("auth password forms use shared password visibility toggle component", () =
   );
 });
 
-test("login forwards stay-logged-in intent and signup enforces turnstile readiness", () => {
-  expectIncludes(
+test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile readiness", () => {
+  expectNotIncludes(
     loginSource,
     "Stay logged in for 2 weeks",
-    "Login should offer a 2-week stay-logged-in control.",
+    "Login should not offer stay-logged-in control on the primary credential step.",
+  );
+
+  expectIncludes(
+    mfaChallengeSource,
+    "Keep me logged in for 2 weeks",
+    "MFA challenge should own the stay-logged-in control.",
   );
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn)",
-    "Google auth initiation should carry stay-logged-in preference.",
+    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
+    "Google auth initiation should not collect stay-logged-in on login screen.",
   );
 
   expectIncludes(
     loginSource,
-    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken, stayLoggedIn)",
-    "Password login should carry turnstile token and stay-logged-in preference.",
+    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken)",
+    "Password login should carry turnstile token without stay-logged-in preference on login screen.",
   );
 
   expectIncludes(
@@ -883,6 +891,12 @@ test("login forwards stay-logged-in intent and signup enforces turnstile readine
 
   expectIncludes(
     turnstileSource,
+    'size: "flexible"',
+    "Turnstile should use flexible sizing for full-width auth form alignment.",
+  );
+
+  expectIncludes(
+    turnstileSource,
     'theme: "light"',
     "Turnstile should be configured to use light theme across auth flows.",
   );
@@ -892,8 +906,8 @@ test("login forwards stay-logged-in intent and signup enforces turnstile readine
 test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn })',
-    "Password login request should include turnstile token and stay-logged-in flag.",
+    'body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined })',
+    "Password login request should include turnstile token without stay-logged-in flag.",
   );
 
   expectIncludes(
@@ -904,8 +918,14 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
 
   expectIncludes(
     authProviderSource,
-    "stayLoggedIn,",
-    "Google OAuth start payload should include stay-logged-in flag.",
+    'body: JSON.stringify({ code, rememberDevice, stayLoggedIn })',
+    "MFA challenge request should include stay-logged-in intent.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    'body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn })',
+    "MFA recovery request should include stay-logged-in intent.",
   );
 
   expectIncludes(

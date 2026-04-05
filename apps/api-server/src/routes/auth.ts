@@ -1988,6 +1988,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
   const userId = req.session.pendingUserId;
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
+  const stayLoggedIn = req.body?.stayLoggedIn === true;
   if (!userId || !code) {
     res.status(400).json({ error: "Invalid two-step verification challenge request." });
     return;
@@ -1999,6 +2000,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
     return;
   }
 
+  req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
     res.status(400).json({ error: "Two-step verification session is not active." });
@@ -2021,6 +2023,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
   const userId = req.session.pendingUserId;
   const recoveryCode = String(req.body?.recoveryCode ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
+  const stayLoggedIn = req.body?.stayLoggedIn === true;
   if (!userId || !recoveryCode) {
     res.status(400).json({ error: "Invalid two-step recovery request." });
     return;
@@ -2030,6 +2033,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
     res.status(401).json({ error: "Invalid recovery code." });
     return;
   }
+  req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
     res.status(400).json({ error: "Two-step verification session is not active." });

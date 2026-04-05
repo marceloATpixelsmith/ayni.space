@@ -63,8 +63,15 @@ export function getSecurityConfig(): SecurityConfig {
       },
       {
         method: "POST",
-        pattern: /^\/api\/auth\/(signup|login|forgot-password|reset-password|mfa\/challenge|mfa\/recovery)\/?$/,
+        pattern: /^\/api\/auth\/(signup|login|forgot-password|reset-password)\/?$/,
         category: "PUBLIC",
+        rateLimit: { type: "auth", options: { keyPrefix: "auth-public" } },
+      },
+      {
+        method: "POST",
+        pattern: /^\/api\/auth\/mfa\/(challenge|recovery)\/?$/,
+        category: "PUBLIC",
+        disableTurnstileReason: "MFA challenge and recovery use server-issued pre-auth session state; avoid requiring interactive CAPTCHA on second-factor completion.",
         rateLimit: { type: "auth", options: { keyPrefix: "auth-public" } },
       },
       {
