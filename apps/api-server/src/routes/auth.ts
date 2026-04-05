@@ -20,7 +20,7 @@ import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
 import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
 import { sendLane1AuthVerificationEmail, sendLane1PasswordResetEmail } from "../lib/invitationEmail.js";
-import { ensureAuthFlowId, logAuthDebug } from "../lib/authDebug.js";
+import { ensureAuthFlowId, getRequestCookieValue, getSetCookieValueForName, logAuthDebug, toVisibleSessionId } from "../lib/authDebug.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -28,6 +28,31 @@ const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
 export const authRouteDeps = {
   exchangeCodeForUserFn: exchangeCodeForUser,
 };
+
+function attachAuthResponseDiagnostics(req: Request, res: Response, route: string) {
+  if (process.env["AUTH_DEBUG"] !== "true") return;
+  if ((res.locals as { __authDiagAttached?: boolean }).__authDiagAttached) return;
+  (res.locals as { __authDiagAttached?: boolean }).__authDiagAttached = true;
+
+  res.on("finish", () => {
+    const sessionGroup = req.resolvedSessionGroup ?? req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const cookieName = getSessionCookieName(sessionGroup);
+    const requestCookieValue = getRequestCookieValue(req, cookieName);
+    const responseCookieValue = getSetCookieValueForName(res, cookieName);
+    logAuthDebug(req, "session_cookie_response", {
+      route,
+      status: res.statusCode,
+      cookieName,
+      requestCookieSessionId: toVisibleSessionId(requestCookieValue),
+      responseSetCookieSessionId: toVisibleSessionId(responseCookieValue),
+      responseSetCookiePresent: Boolean(responseCookieValue),
+      requestSessionId: req.sessionID ?? null,
+      sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
+      userId: req.session?.userId ?? null,
+      pendingUserId: req.session?.pendingUserId ?? null,
+    });
+  });
+}
 
 function getRequestFrontendOrigin(req: Request): string | null {
   const allowedOrigins = getAllowedOrigins();
@@ -387,6 +412,14 @@ function getGoogleConfigValidation() {
 
 async function handleMe(req: Request, res: Response) {
   ensureAuthFlowId(req);
+  attachAuthResponseDiagnostics(req, res, "/api/auth/me");
+  logAuthDebug(req, "auth_me_request", {
+    requestSessionId: req.sessionID ?? null,
+    sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
+    userId: req.session?.userId ?? null,
+    pendingUserId: req.session?.pendingUserId ?? null,
+  });
   const authenticatedUser = (req as Request & { user?: typeof usersTable.$inferSelect }).user;
   const userId = authenticatedUser?.id ?? req.session.userId;
   const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
@@ -1552,6 +1585,7 @@ type MfaStartResult = { required: false } | { required: true; needsEnrollment: b
 
 async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
   ensureAuthFlowId(req);
+  const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
   let hasFactor = false;
@@ -1585,6 +1619,7 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
   });
+  const sessionIdAfterRegenerate = req.sessionID ?? null;
   req.session.userId = userId;
   req.session.appSlug = appSlug;
   req.session.sessionAuthenticatedAt = Date.now();
@@ -1594,6 +1629,18 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   req.session.pendingStayLoggedIn = stayLoggedIn;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+
+  logAuthDebug(req, "mfa_pending_session_saved", {
+    sessionIdBeforeRegenerate,
+    sessionIdAfterRegenerate,
+    sessionIdAfterSave: req.sessionID ?? null,
+    userId: req.session.userId ?? null,
+    pendingUserId: req.session.pendingUserId ?? null,
+    pendingAppSlug: req.session.pendingAppSlug ?? null,
+    pendingMfaReason: req.session.pendingMfaReason ?? null,
+    pendingStayLoggedIn: req.session.pendingStayLoggedIn ?? null,
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
   });
 
   logAuthDebug(req, "mfa_gate_result", {
@@ -1844,6 +1891,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
 async function handlePasswordLogin(req: Request, res: Response) {
   ensureAuthFlowId(req);
+  attachAuthResponseDiagnostics(req, res, "/api/auth/login");
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   if (!email || !password) {
@@ -1881,6 +1929,14 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
   const stayLoggedIn = req.body?.stayLoggedIn === true;
+  logAuthDebug(req, "password_login_request", {
+    requestSessionId: req.sessionID ?? null,
+    sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
+    authUserId: user.id,
+    appSlug,
+    stayLoggedIn,
+  });
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
     logAuthDebug(req, "login_result", {

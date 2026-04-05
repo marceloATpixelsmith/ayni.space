@@ -747,6 +747,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : "/mfa/challenge";
       logAuthDebug("route_selected", { route: target, reason: "login_response" });
       markAuthTransition();
+      logAuthDebug("post_login_bootstrap_start", { firstEndpoint: "/api/auth/me", reason: "mfa_required" });
+      await refreshSession({ retryAfterDelay: true });
+      logAuthDebug("post_login_bootstrap_end", { firstEndpoint: "/api/auth/me", reason: "mfa_required" });
       await refreshCsrfState();
       window.location.assign(target);
       return;
