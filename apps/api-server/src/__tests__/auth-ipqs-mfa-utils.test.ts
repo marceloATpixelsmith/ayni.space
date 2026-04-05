@@ -102,6 +102,15 @@ test("apps with unknown metadata sessionGroup fail closed to default group", () 
 
 
 test("MFA enrollment start refuses unknown users before factor insert", async () => {
+  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
+  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  const restoreTx = patchProperty(db, "transaction", (async (fn: (tx: unknown) => Promise<unknown>) => fn({
+    execute: async () => ({ rows: [] }),
+    query: { mfaFactorsTable: { findFirst: async () => null } },
+    update: () => ({ set: () => ({ where: async () => [] }) }),
+    insert: () => ({ values: async () => [] }),
+  })) as typeof db.transaction);
   const restore = [
     patchProperty(db.query.usersTable, "findFirst", async () => null),
   ];
@@ -110,22 +119,27 @@ test("MFA enrollment start refuses unknown users before factor insert", async ()
     const started = await mfa.beginTotpEnrollment("missing-user");
     assert.equal(started, null);
   } finally {
+    if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
+    else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
+    restoreTx();
     restore.reverse().forEach((undo) => undo());
   }
 });
 
 test("MFA enrollment start returns factor id and secret for valid users", async () => {
+  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
+  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  const restoreTx = patchProperty(db, "transaction", (async (fn: (tx: unknown) => Promise<unknown>) => fn({
+    execute: async () => ({ rows: [{ id: "user-1" }] }),
+    query: { mfaFactorsTable: { findFirst: async () => null } },
+    update: () => ({ set: () => ({ where: async () => [] }) }),
+    insert: () => ({ values: async () => [] }),
+  })) as typeof db.transaction);
   const restore = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "user@example.com" })),
     patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
   ];
-
-  const restoreInsert = patchProperty(db, "insert", (() => ({
-    values: async () => [],
-  })) as typeof db.insert);
-
-  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
-  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
   try {
     const started = await mfa.beginTotpEnrollment("user-1");
@@ -134,7 +148,7 @@ test("MFA enrollment start returns factor id and secret for valid users", async 
   } finally {
     if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
     else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
-    restoreInsert();
+    restoreTx();
     restore.reverse().forEach((undo) => undo());
   }
 });
@@ -215,21 +229,33 @@ test("MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret",
   }
 });
 
-test("MFA considers legacy enrolled factor rows active when enrolledAt is set", async () => {
+test("MFA challenge does not accept pending factor rows", async () => {
+  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
+  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", Buffer.from(process.env["MFA_TOTP_ENCRYPTION_KEY"], "hex"), iv);
+  const ciphertext = Buffer.concat([cipher.update("JBSWY3DPEHPK3PXP", "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
   const restore = [
     patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
       id: "factor-legacy",
       userId: "user-legacy",
       factorType: "totp",
       status: "pending",
+      secretCiphertext: ciphertext.toString("base64"),
+      secretIv: iv.toString("base64"),
+      secretTag: tag.toString("base64"),
       enrolledAt: new Date("2026-04-01T00:00:00.000Z"),
     })),
   ];
 
   try {
-    const hasFactor = await mfa.hasActiveMfaFactor("user-legacy");
-    assert.equal(hasFactor, true);
+    const ok = await mfa.verifyMfaChallenge("user-legacy", "123456");
+    assert.equal(ok, false);
   } finally {
+    if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
+    else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
     restore.reverse().forEach((undo) => undo());
   }
 });

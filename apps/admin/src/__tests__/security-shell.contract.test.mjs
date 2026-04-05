@@ -849,7 +849,7 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     mfaChallengeSource,
-    "Keep me logged in for 2 weeks",
+    "Keep this session signed in for up to 2 weeks.",
     "MFA challenge should own the stay-logged-in control.",
   );
 

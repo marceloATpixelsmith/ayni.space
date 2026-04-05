@@ -25,8 +25,16 @@ export default function MfaChallenge() {
   return (
     <AuthShell title="Two-step verification required" subtitle="Enter the code from your authenticator app to continue.">
       <div className="space-y-3">
-        <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember this device for 20 days</label>
-        <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} /> Keep me logged in for 2 weeks</label>
+        <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-2">
+          <label className="text-sm flex items-center gap-2">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Remember this browser for 20 days (skip MFA challenge on this browser).
+          </label>
+          <label className="text-sm flex items-center gap-2">
+            <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
+            Keep this session signed in for up to 2 weeks.
+          </label>
+        </div>
         <input autoFocus className="w-full border rounded px-3 py-2" placeholder="6-digit authenticator code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(codeError)} aria-describedby={codeError ? "twostep-code-error" : undefined} />
         <FieldValidationMessage id="twostep-code-error" message={codeError} />
         <Button className="w-full" onClick={submitCode}>Verify code</Button>
