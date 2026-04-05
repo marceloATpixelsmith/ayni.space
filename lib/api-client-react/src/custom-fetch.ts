@@ -12,11 +12,25 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const API_BASE = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL ?? "";
 
 let csrfTokenProvider: (() => string | null | undefined) | null = null;
+let csrfTokenRefresher: (() => Promise<string | null | undefined>) | null = null;
 
 export function setCsrfTokenProvider(
   provider: (() => string | null | undefined) | null,
 ): void {
   csrfTokenProvider = provider;
+}
+
+export function setCsrfTokenRefresher(
+  refresher: (() => Promise<string | null | undefined>) | null,
+): void {
+  csrfTokenRefresher = refresher;
+}
+
+function isInvalidCsrfError(response: Response, data: unknown): boolean {
+  if (response.status !== 403) return false;
+  if (!data || typeof data !== "object") return false;
+  const error = (data as Record<string, unknown>)["error"];
+  return typeof error === "string" && /csrf/i.test(error);
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -337,15 +351,29 @@ export async function customFetch<T = unknown>(
     `credentialsMode=${credentialsMode}`
   );
 
-  const response = await fetch(requestUrl, {
+  const makeRequest = (requestHeaders: Headers) => fetch(requestUrl, {
     ...init,
     method,
-    headers,
+    headers: requestHeaders,
     credentials: credentialsMode,
   });
+  let response = await makeRequest(headers);
 
   if (!response.ok) {
-    const errorData = await parseErrorBody(response, method);
+    let errorData = await parseErrorBody(response, method);
+    if (!SAFE_METHODS.has(method) && isInvalidCsrfError(response, errorData) && csrfTokenRefresher) {
+      const refreshedToken = await csrfTokenRefresher();
+      if (refreshedToken) {
+        const retryHeaders = mergeHeaders(headers);
+        retryHeaders.set("x-csrf-token", refreshedToken);
+        response = await makeRequest(retryHeaders);
+        if (!response.ok) {
+          errorData = await parseErrorBody(response, method);
+        } else {
+          return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+        }
+      }
+    }
     throw new ApiError(response, errorData, requestInfo);
   }
 
