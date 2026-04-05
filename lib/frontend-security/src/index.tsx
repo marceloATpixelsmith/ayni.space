@@ -94,6 +94,27 @@ export function getMfaPendingRoute(status: AuthStatus): "/mfa/challenge" | "/mfa
   return null;
 }
 
+function classifyMfaPendingUser(payload: Pick<AuthUser, "mfaPending" | "mfaEnrolled" | "nextStep">) {
+  const mfaPending = payload.mfaPending === true;
+  const nextStep = payload.nextStep ?? null;
+  const mfaEnrolled = payload.mfaEnrolled === true;
+  const enrolled =
+    nextStep === "mfa_challenge" ||
+    (nextStep !== "mfa_enroll" && mfaEnrolled);
+
+  return {
+    mfaPending,
+    nextStep,
+    mfaEnrolled,
+    enrolled,
+    status: enrolled
+      ? "authenticated_mfa_pending_enrolled" as const
+      : "authenticated_mfa_pending_unenrolled" as const,
+    needsEnrollment: !enrolled,
+    route: enrolled ? "/mfa/challenge" as const : "/mfa/enroll" as const,
+  };
+}
+
 function normalizeReturnToPath(path: string | null | undefined): string | null {
   if (typeof path !== "string") return null;
   const trimmed = path.trim();
@@ -401,12 +422,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const request = (async () => {
         logAuthDebug("auth_bootstrap_check_start", { retryAfterDelay: Boolean(options?.retryAfterDelay) });
         const firstAttempt = await meQuery.refetch();
-        const firstUserId = firstAttempt.data?.id ?? null;
-        const firstAllow = firstAttempt.isSuccess && Boolean(firstAttempt.data);
+        const firstData = firstAttempt.data ?? null;
+        const firstUserId = firstData?.id ?? null;
+        const firstAllow = firstAttempt.isSuccess && Boolean(firstData);
+        const firstMfaClassification = firstData
+          ? classifyMfaPendingUser({
+            mfaPending: firstData.mfaPending,
+            mfaEnrolled: firstData.mfaEnrolled,
+            nextStep: firstData.nextStep,
+          })
+          : null;
         logAuthDebug("auth_bootstrap_check_result", {
           attempt: "initial",
           userId: firstUserId,
           allow: firstAllow,
+          authenticated: firstData ? firstData.authenticated === true : false,
+          mfaPending: firstData ? firstData.mfaPending === true : false,
+          mfaEnrolled: firstData ? firstData.mfaEnrolled === true : false,
+          nextStep: firstData?.nextStep ?? null,
+          bootstrapStatus: firstData?.mfaPending ? firstMfaClassification?.status ?? null : null,
+          needsEnrollment: firstData?.mfaPending ? firstMfaClassification?.needsEnrollment ?? null : null,
+          route: firstData?.mfaPending ? firstMfaClassification?.route ?? null : null,
         });
 
         if (!options?.retryAfterDelay || firstAttempt.data) {
@@ -418,12 +454,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
         logAuthDebug("auth_bootstrap_check_start", { attempt: "retry" });
         const retryAttempt = await meQuery.refetch();
-        const retryUserId = retryAttempt.data?.id ?? null;
-        const retryAllow = retryAttempt.isSuccess && Boolean(retryAttempt.data);
+        const retryData = retryAttempt.data ?? null;
+        const retryUserId = retryData?.id ?? null;
+        const retryAllow = retryAttempt.isSuccess && Boolean(retryData);
+        const retryMfaClassification = retryData
+          ? classifyMfaPendingUser({
+            mfaPending: retryData.mfaPending,
+            mfaEnrolled: retryData.mfaEnrolled,
+            nextStep: retryData.nextStep,
+          })
+          : null;
         logAuthDebug("auth_bootstrap_check_result", {
           attempt: "retry",
           userId: retryUserId,
           allow: retryAllow,
+          authenticated: retryData ? retryData.authenticated === true : false,
+          mfaPending: retryData ? retryData.mfaPending === true : false,
+          mfaEnrolled: retryData ? retryData.mfaEnrolled === true : false,
+          nextStep: retryData?.nextStep ?? null,
+          bootstrapStatus: retryData?.mfaPending ? retryMfaClassification?.status ?? null : null,
+          needsEnrollment: retryData?.mfaPending ? retryMfaClassification?.needsEnrollment ?? null : null,
+          route: retryData?.mfaPending ? retryMfaClassification?.route ?? null : null,
         });
       })();
 
@@ -1016,14 +1067,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (meQuery.isError || !meQuery.data) return "unauthenticated";
 
     if (meQuery.data.mfaPending) {
-      const enrolled =
-        meQuery.data.nextStep === "mfa_challenge" ||
-        (meQuery.data.nextStep !== "mfa_enroll" &&
-          Boolean(meQuery.data.mfaEnrolled));
-
-      return enrolled
-        ? "authenticated_mfa_pending_enrolled"
-        : "authenticated_mfa_pending_unenrolled";
+      return classifyMfaPendingUser({
+        mfaPending: meQuery.data.mfaPending,
+        mfaEnrolled: meQuery.data.mfaEnrolled,
+        nextStep: meQuery.data.nextStep,
+      }).status;
     }
 
     return "authenticated_fully";

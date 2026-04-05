@@ -1421,6 +1421,59 @@ test("mfa-pending /api/auth/me returns nextStep=enroll when active factor is mis
   }
 });
 
+test("mfa-pending /api/auth/me overrides stale enrollment_required to challenge when active factor exists", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "pending-user-stale-enroll",
+      email: "pending-stale-enroll@example.com",
+      name: "Pending User Stale Enroll",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-stale-enroll",
+      userId: "pending-user-stale-enroll",
+      factorType: "totp",
+      status: "active",
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      pendingUserId: "pending-user-stale-enroll",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "enrollment_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["userId"], "pending-user-stale-enroll");
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["mfaEnrolled"], true);
+    assert.equal(payload["nextStep"], "mfa_challenge");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
 test("mfa-pending /api/auth/me/ with trailing slash remains allowed and returns pending contract", async () => {
   const restore = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({
