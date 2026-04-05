@@ -405,6 +405,60 @@ async function handleMe(req: Request, res: Response) {
     return;
   }
 
+  const hasPendingMfaSession = Boolean(req.session.pendingUserId || req.session.pendingMfaReason);
+
+  let mfaEnrolled = false;
+  let mfaStateReadFailed = false;
+  try {
+    mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
+  } catch {
+    mfaEnrolled = false;
+    mfaStateReadFailed = true;
+  }
+
+  const pendingNextStep: "mfa_enroll" | "mfa_challenge" | null = hasPendingMfaSession
+    ? (mfaEnrolled && !mfaStateReadFailed ? "mfa_challenge" : "mfa_enroll")
+    : null;
+
+  if (hasPendingMfaSession) {
+    logAuthCheckTrace(req, {
+      sessionExists: Boolean(req.session),
+      sessionGroup,
+      userId: authenticatedUser.id,
+      isSuperAdmin: Boolean(authenticatedUser.isSuperAdmin),
+      allow: true,
+      denyReason: null,
+      sessionKeys,
+    });
+    logAuthDebug(req, "auth_me_result", {
+      userId: authenticatedUser.id,
+      sessionGroup,
+      appSlug: req.session.appSlug ?? null,
+      mfaRequired: true,
+      mfaPending: true,
+      mfaEnrolled,
+      mfaStateReadFailed,
+      nextStep: pendingNextStep,
+      hasPendingMfaSession: true,
+    });
+    res.json({
+      id: authenticatedUser.id,
+      email: authenticatedUser.email,
+      name: authenticatedUser.name,
+      avatarUrl: authenticatedUser.avatarUrl,
+      isSuperAdmin: authenticatedUser.isSuperAdmin,
+      mfaRequired: true,
+      mfaPending: true,
+      mfaEnrolled,
+      nextStep: pendingNextStep,
+      activeOrgId: null,
+      activeOrg: null,
+      memberships: [],
+      appAccess: null,
+    });
+    return;
+  }
+
   const memberships = await db
     .select({
       orgId: orgMembershipsTable.orgId,
@@ -514,22 +568,16 @@ async function handleMe(req: Request, res: Response) {
     ? await getAppContext(authenticatedUser.id, sessionAppSlug)
     : null;
   const mfaRequired = await isMfaRequiredForUser(authenticatedUser.id, authenticatedUser.activeOrgId);
-  let mfaEnrolled = false;
-  let mfaStateReadFailed = false;
-  try {
-    mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
-  } catch {
-    mfaEnrolled = false;
-    mfaStateReadFailed = true;
-  }
   logAuthDebug(req, "auth_me_result", {
     userId: authenticatedUser.id,
     sessionGroup,
     appSlug: req.session.appSlug ?? null,
     mfaRequired,
+    mfaPending: false,
     mfaEnrolled,
     mfaStateReadFailed,
-    hasPendingMfaSession: Boolean(req.session.pendingUserId),
+    nextStep: null,
+    hasPendingMfaSession: false,
   });
 
   res.json({
@@ -542,7 +590,9 @@ async function handleMe(req: Request, res: Response) {
     activeOrg: activeOrg,
     memberships: scopedMemberships,
     mfaRequired,
+    mfaPending: false,
     mfaEnrolled,
+    nextStep: null,
     appAccess: appAccessContext
       ? {
           appSlug: sessionAppSlug,

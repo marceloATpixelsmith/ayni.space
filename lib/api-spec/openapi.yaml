@@ -1092,8 +1092,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrgMembershipSummary"
+        mfaPending:
+          type: boolean
+        mfaEnrolled:
+          type: boolean
+        nextStep:
+          type: ["string", "null"]
+          enum: [mfa_enroll, mfa_challenge, null]
         appAccess:
-          $ref: "#/components/schemas/AuthAppAccess"
+          oneOf:
+            - $ref: "#/components/schemas/AuthAppAccess"
+            - type: "null"
       required: [id, email, isSuperAdmin]
 
     AuthAppAccess:

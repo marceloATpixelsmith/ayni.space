@@ -80,12 +80,16 @@ function logAdminGuard(payload: {
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const userId = req.session?.userId;
+  const pendingUserId = req.session?.pendingUserId;
   const sessionGroup = req.session?.sessionGroup ?? null;
   const sessionId = req.session?.id ?? null;
   const cookieHeaderPresent = typeof req.headers["cookie"] === "string" && req.headers["cookie"].trim().length > 0;
   const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
+  const hasPendingMfaSession = Boolean(req.session?.pendingUserId || req.session?.pendingMfaReason);
+  const mfaPendingPathAllowed = req.path === "/me";
+  const effectiveUserId = userId ?? (hasPendingMfaSession && mfaPendingPathAllowed ? pendingUserId : null);
 
-  if (!userId) {
+  if (!effectiveUserId) {
     logFirstAuthRequest({
       req,
       path: req.path,
@@ -103,9 +107,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: "Unauthorized. Please sign in." });
     return;
   }
-
-  const hasPendingMfaSession = Boolean(req.session?.pendingUserId || req.session?.pendingMfaReason);
-  const mfaPendingPathAllowed = req.path === "/me";
 
   if (hasPendingMfaSession && !mfaPendingPathAllowed) {
     logFirstAuthRequest({
@@ -127,7 +128,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   const user = await db.query.usersTable.findFirst({
-    where: eq(usersTable.id, userId),
+    where: eq(usersTable.id, effectiveUserId),
   });
 
   if (!user) {
@@ -139,7 +140,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       sessionExists: Boolean(req.session),
       sessionId,
       sessionGroup,
-      userId,
+      userId: effectiveUserId,
       isSuperAdmin: false,
       allow: false,
       denyReason: "user_not_found",
@@ -159,7 +160,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       sessionExists: Boolean(req.session),
       sessionId,
       sessionGroup,
-      userId,
+      userId: effectiveUserId,
       isSuperAdmin: Boolean(user.isSuperAdmin),
       allow: false,
       denyReason: "inactive_or_suspended",
@@ -178,13 +179,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     sessionExists: Boolean(req.session),
     sessionId,
     sessionGroup,
-    userId,
+    userId: effectiveUserId,
     isSuperAdmin: Boolean(user.isSuperAdmin),
     allow: true,
     denyReason: null,
     sessionKeys,
   });
-  await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, userId));
+  await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, effectiveUserId));
   (req as Request & { user: typeof user }).user = user;
   next();
 }

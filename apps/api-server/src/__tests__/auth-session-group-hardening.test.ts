@@ -1242,6 +1242,107 @@ test("logout clears only the current request session-group cookie (admin)", asyn
   assert.doesNotMatch(setCookie, /saas\.workspace\.sid=;/i);
 });
 
+test("mfa-pending /api/auth/me returns safe pending contract with nextStep=challenge", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "pending-user",
+      email: "pending@example.com",
+      name: "Pending User",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "pending-user",
+      factorType: "totp",
+      status: "active",
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      pendingUserId: "pending-user",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "challenge_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["id"], "pending-user");
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["mfaEnrolled"], true);
+    assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["appAccess"], null);
+    assert.deepEqual(payload["memberships"], []);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("mfa-pending /api/auth/me returns nextStep=enroll when active factor is missing", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "pending-user-no-factor",
+      email: "pending2@example.com",
+      name: "Pending User 2",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      pendingUserId: "pending-user-no-factor",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "enrollment_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["id"], "pending-user-no-factor");
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["mfaEnrolled"], false);
+    assert.equal(payload["nextStep"], "mfa_enroll");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
 test("logout fails closed for ambiguous multi-group cookies when origin context is missing", async () => {
   const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
     userId: "mixed-user",
