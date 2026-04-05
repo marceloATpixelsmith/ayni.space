@@ -322,7 +322,7 @@ declare global {
   namespace Express {
     interface Request {
       resolvedSessionGroup?: string;
-      sessionGroupResolutionSource?: "origin" | "cookie" | "state" | "default";
+      sessionGroupResolutionSource?: "origin" | "cookie" | "state" | "app" | "default";
     }
   }
 }
