@@ -18,6 +18,7 @@
 - Session revocation for `/api/users/logout-others` is group-aware (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/users.ts`) and does not wipe unrelated session groups.
 - Password-reset completion revokes all other sessions for the recovered user across session groups, then clears the current group cookie/session (`apps/api-server/src/lib/session.ts`, `apps/api-server/src/routes/auth.ts`).
 - Frontend auth provider/route gate: `lib/frontend-security/src/index.tsx`.
+- Frontend auth state machine now distinguishes `authenticated_fully` from MFA-pending sub-states and routes pending sessions directly to challenge vs enrollment using backend `/api/auth/me` signals (`mfaPending`, `mfaEnrolled`, `nextStep`) so dashboard routes do not render before MFA completion (`lib/frontend-security/src/index.tsx`, `apps/admin/src/App.tsx`, `apps/admin/src/pages/auth/MfaEnroll.tsx`).
 - CSRF-aware API fetch path: `lib/api-client-react/src/custom-fetch.ts`.
 - OAuth start origin derivation in auth route resolves trusted `origin`/`referer` and trusted forwarded host/proto headers before allowlist checks (`apps/api-server/src/routes/auth.ts`).
 - Shared frontend fetch layers force credentialed auth/session requests (`/api/auth/*`, `/api/csrf-token`) via `credentials: "include"` (`lib/api-client-react/src/custom-fetch.ts`, `lib/frontend-security/src/index.tsx`).

@@ -38,8 +38,12 @@ export default function MfaEnroll() {
         return;
       }
 
-      const payload = (await response.json().catch(() => null)) as { mfaPending?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" } | null;
-      if (payload?.mfaPending && payload?.nextStep === "mfa_challenge") {
+      const payload = (await response.json().catch(() => null)) as { mfaPending?: boolean; mfaEnrolled?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" | null } | null;
+      const shouldChallenge =
+        payload?.mfaPending &&
+        (payload?.nextStep === "mfa_challenge" ||
+          (payload?.nextStep !== "mfa_enroll" && payload?.mfaEnrolled === true));
+      if (shouldChallenge) {
         logAuthDebug("mfa_screen_mode_selected", { mode: "challenge", reason: "auth_me_next_step" });
         window.location.assign("/mfa/challenge");
         return;
