@@ -22,6 +22,7 @@ export type AuthStatus =
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
+  authBootstrapping: boolean;
   csrfToken: string | null;
   csrfReady: boolean;
   loginInFlight: boolean;
@@ -1032,6 +1033,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       status,
       user: status === "loading" || status === "unauthenticated" ? null : (meQuery.data ?? null),
+      authBootstrapping,
       csrfToken,
       csrfReady,
       loginInFlight,
@@ -1053,6 +1055,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [
       status,
       meQuery.data,
+      authBootstrapping,
       csrfToken,
       csrfReady,
       loginInFlight,

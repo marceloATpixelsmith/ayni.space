@@ -5,10 +5,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import React from "react";
 import {
   AuthProvider,
+  getLastAuthDebugEventSummary,
   useAuth,
   fetchPlatformAppMetadataBySlug,
   getDisallowedAuthRouteRedirect,
   getMfaPendingRoute,
+  isAuthDebugEnabled,
   isMfaPendingStatus,
   isAuthRouteAllowed,
   logAuthDebug,
@@ -302,6 +304,70 @@ function DashboardRoute() {
   }
 }
 
+function AuthDebugOverlay() {
+  const auth = useAuth();
+  const [location] = useLocation();
+  const [lastEventSummary, setLastEventSummary] = React.useState<string | null>(() =>
+    getLastAuthDebugEventSummary(),
+  );
+
+  React.useEffect(() => {
+    const update = () => {
+      setLastEventSummary(getLastAuthDebugEventSummary());
+    };
+    update();
+    const interval = window.setInterval(update, 500);
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  if (!isAuthDebugEnabled()) {
+    return null;
+  }
+
+  const shortUserId = auth.user?.id ? `${auth.user.id.slice(0, 8)}…` : "none";
+  const isAuthenticated = auth.status === "authenticated_fully";
+  const needsEnrollment = auth.status === "authenticated_mfa_pending_unenrolled";
+  const parsedEvent = (() => {
+    if (!lastEventSummary) return null;
+    try {
+      return JSON.parse(lastEventSummary) as {
+        event?: string;
+        flowId?: string;
+        ts?: number;
+        fields?: Record<string, unknown>;
+      };
+    } catch {
+      return null;
+    }
+  })();
+  const eventSummary = parsedEvent?.event ?? "none";
+  const eventTs = parsedEvent?.ts ? new Date(parsedEvent.ts).toISOString() : null;
+
+  return (
+    <aside className="fixed right-3 top-3 z-[10000] max-h-[80vh] w-[min(360px,calc(100vw-1.5rem))] overflow-auto rounded-md border border-zinc-700 bg-zinc-950/95 p-3 text-xs text-zinc-100 shadow-lg">
+      <div className="mb-2 text-[11px] font-semibold tracking-wide text-amber-300">AUTH DEBUG</div>
+      <dl className="space-y-1">
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">route</dt><dd className="text-right">{location}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">status</dt><dd className="text-right">{auth.status}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">authenticated</dt><dd>{String(isAuthenticated)}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">userId</dt><dd>{shortUserId}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">mfaPending</dt><dd>{String(auth.user?.mfaPending ?? false)}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">mfaEnrolled</dt><dd>{String(auth.user?.mfaEnrolled ?? false)}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">nextStep</dt><dd>{auth.user?.nextStep ?? "none"}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">needsEnrollment</dt><dd>{String(needsEnrollment)}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-zinc-400">authBootstrapping</dt><dd>{String(auth.authBootstrapping)}</dd></div>
+      </dl>
+      <div className="mt-2 border-t border-zinc-700 pt-2">
+        <div className="text-zinc-400">lastEvent</div>
+        <div className="break-words">{eventSummary}</div>
+        {eventTs ? <div className="text-[10px] text-zinc-500">{eventTs}</div> : null}
+      </div>
+    </aside>
+  );
+}
+
 function Router() {
   const auth = useAuth();
 
@@ -350,6 +416,7 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AuthDebugOverlay />
               <Router />
             </WouterRouter>
             <Toaster />
