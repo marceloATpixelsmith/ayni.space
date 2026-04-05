@@ -12,6 +12,7 @@ const loginSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/Login
 const signupSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/Signup.tsx"), "utf8");
 const forgotSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/ForgotPassword.tsx"), "utf8");
 
+
 test("auth email validation trims/normalizes and blocks invalid input", () => {
   assert.match(validationSource, /trim\(\)\.toLowerCase\(\)/);
   assert.match(validationSource, /\^\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+\$/);
@@ -25,16 +26,17 @@ test("auth password policy is visible in signup UI", () => {
   assert.match(validationSource, /\/\[A-Z\]\//);
   assert.match(validationSource, /\/\[a-z\]\//);
   assert.match(validationSource, /\/\\d\//);
+  assert.match(validationSource, /\/\[\^A-Za-z0-9\]\//);
 });
 
 test("login and signup gate email errors behind touch/submit interaction", () => {
   assert.match(loginSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
   assert.match(loginSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
-  assert.match(loginSource, /\(emailTouched \|\| submitted\) && validateEmailInput\(emailInput\)/);
+  assert.match(loginSource, /const emailError = \(emailTouched \|\| submitted\) \? validateEmailInput\(emailInput\) : null;/);
 
   assert.match(signupSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
   assert.match(signupSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
-  assert.match(signupSource, /shouldShowEmailError && validateEmailInput\(email\)/);
+  assert.match(signupSource, /const emailError = \(emailTouched \|\| submitted\) \? validateEmailInput\(email\) : null;/);
 });
 
 test("signup password feedback is progressive and hidden before interaction", () => {

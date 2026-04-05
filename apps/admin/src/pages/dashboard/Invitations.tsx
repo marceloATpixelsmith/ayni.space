@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, X, Send } from "lucide-react";
 import { useTurnstileToken } from "@workspace/frontend-security";
+import { validateEmailInput } from "@/pages/auth/authValidation";
+import { FieldValidationMessage } from "@/pages/auth/components/FieldValidationMessage";
 
 export default function Invitations() {
   const [, setLocation] = useLocation();
@@ -29,6 +31,7 @@ export default function Invitations() {
   const [lastName, setLastName] = React.useState("");
   const [role, setRole] = React.useState("member");
   const [error, setError] = React.useState("");
+  const [emailTouched, setEmailTouched] = React.useState(false);
 
   const orgId = user?.activeOrgId ?? "";
   const { data: invitations, isLoading } = useGetOrgInvitations(orgId, {
@@ -45,7 +48,11 @@ export default function Invitations() {
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!email.trim()) return;
+    const emailError = validateEmailInput(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
     if (turnstile.enabled && !turnstile.token) {
       setError("Please complete Turnstile verification before sending an invitation.");
       return;
@@ -104,7 +111,11 @@ export default function Invitations() {
                   placeholder="colleague@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setEmailTouched(true)}
+                  aria-invalid={Boolean((emailTouched || Boolean(error)) && validateEmailInput(email))}
+                  aria-describedby={(emailTouched || Boolean(error)) && validateEmailInput(email) ? "invitation-email-error" : undefined}
                 />
+                <FieldValidationMessage id="invitation-email-error" message={(emailTouched || Boolean(error)) ? validateEmailInput(email) : null} />
               </div>
               <div className="min-w-40">
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">First name</label>

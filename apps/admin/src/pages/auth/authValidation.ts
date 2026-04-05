@@ -22,5 +22,6 @@ export function getMissingPasswordRequirements(password: string): string[] {
   if (!/[A-Z]/.test(password)) missing.push("Password must include at least 1 uppercase letter.");
   if (!/[a-z]/.test(password)) missing.push("Password must include at least 1 lowercase letter.");
   if (!/\d/.test(password)) missing.push("Password must include at least 1 number.");
+  if (!/[^A-Za-z0-9]/.test(password)) missing.push("Password must include at least 1 special character.");
   return missing;
 }

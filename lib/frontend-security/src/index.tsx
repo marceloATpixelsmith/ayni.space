@@ -754,14 +754,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
       refreshCsrfState,
-      "Security token is not ready. Please refresh and try MFA enrollment again.",
+      "Security token is not ready. Please refresh and try two-step verification setup again.",
     );
     const response = await secureApiFetch("/api/auth/mfa/enroll/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
     }, csrfToken);
     const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string } & ApiErrorPayload;
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to start MFA enrollment.");
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to start two-step verification setup.");
     return payload;
   }, [refreshCsrfState]);
 
@@ -769,7 +769,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
       refreshCsrfState,
-      "Security token is not ready. Please refresh and try MFA verification again.",
+      "Security token is not ready. Please refresh and try two-step verification again.",
     );
     const response = await secureApiFetch("/api/auth/mfa/enroll/verify", {
       method: "POST",
@@ -777,7 +777,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ factorId, code }),
     }, csrfToken);
     const payload = (await response.json()) as { recoveryCodes: string[]; nextPath?: string } & ApiErrorPayload;
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify MFA enrollment.");
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify two-step verification setup.");
     return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
   }, [refreshCsrfState]);
 
@@ -788,7 +788,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ code, rememberDevice }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete MFA challenge.");
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
       window.location.assign(payload.nextPath);
       return;
@@ -803,7 +803,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ recoveryCode, rememberDevice }),
     }, csrfTokenRef.current);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
-    if (!response.ok) throw new Error(payload?.error ?? "Unable to recover MFA.");
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
       window.location.assign(payload.nextPath);
       return;

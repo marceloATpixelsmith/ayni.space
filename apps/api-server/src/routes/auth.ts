@@ -1915,6 +1915,15 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     return;
   }
   const factor = await beginTotpEnrollment(userId);
+  if (!factor) {
+    delete req.session.pendingUserId;
+    delete req.session.pendingAppSlug;
+    delete req.session.pendingMfaReason;
+    delete req.session.pendingStayLoggedIn;
+    res.status(401).json({ error: "Two-step verification session is no longer valid. Please sign in again." });
+    return;
+  }
+
   const issuer = await getMfaIssuerForSessionGroup(req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT);
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   const otpauthUrl = buildTotpOtpauthUrl({ issuer, accountName: user?.email ?? userId, secret: factor.secret });
@@ -1927,12 +1936,12 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !factorId || !code) {
-    res.status(400).json({ error: "Invalid MFA enrollment verification request." });
+    res.status(400).json({ error: "Invalid two-step verification setup request." });
     return;
   }
   const activated = await activateTotpEnrollment(userId, factorId, code);
   if (!activated) {
-    res.status(400).json({ error: "Invalid MFA code." });
+    res.status(400).json({ error: "Invalid two-step verification code." });
     return;
   }
 
@@ -1961,19 +1970,19 @@ async function handleMfaChallenge(req: Request, res: Response) {
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !code) {
-    res.status(400).json({ error: "Invalid MFA challenge request." });
+    res.status(400).json({ error: "Invalid two-step verification challenge request." });
     return;
   }
 
   const ok = await verifyMfaChallenge(userId, code);
   if (!ok) {
-    res.status(401).json({ error: "Invalid MFA code." });
+    res.status(401).json({ error: "Invalid two-step verification code." });
     return;
   }
 
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res.status(400).json({ error: "MFA session is not active." });
+    res.status(400).json({ error: "Two-step verification session is not active." });
     return;
   }
 
@@ -1994,7 +2003,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
   const recoveryCode = String(req.body?.recoveryCode ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !recoveryCode) {
-    res.status(400).json({ error: "Invalid MFA recovery request." });
+    res.status(400).json({ error: "Invalid two-step recovery request." });
     return;
   }
   const ok = await verifyMfaChallenge(userId, recoveryCode);
@@ -2004,7 +2013,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
   }
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res.status(400).json({ error: "MFA session is not active." });
+    res.status(400).json({ error: "Two-step verification session is not active." });
     return;
   }
   if (rememberDevice) {
