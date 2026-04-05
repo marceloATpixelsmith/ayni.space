@@ -215,18 +215,14 @@ async function verifyTotpCode(userId: string, factorId: string, secret: string, 
 }
 
 export async function hasActiveMfaFactor(userId: string): Promise<boolean> {
-  try {
-    const row = await db.query.mfaFactorsTable.findFirst({
-      where: and(
-        eq(mfaFactorsTable.userId, userId),
-        eq(mfaFactorsTable.factorType, "totp"),
-        eq(mfaFactorsTable.status, "active"),
-      ),
-    });
-    return Boolean(row);
-  } catch {
-    return false;
-  }
+  const row = await db.query.mfaFactorsTable.findFirst({
+    where: and(
+      eq(mfaFactorsTable.userId, userId),
+      eq(mfaFactorsTable.factorType, "totp"),
+      eq(mfaFactorsTable.status, "active"),
+    ),
+  });
+  return Boolean(row);
 }
 
 export async function verifyMfaChallenge(userId: string, code: string): Promise<boolean> {
