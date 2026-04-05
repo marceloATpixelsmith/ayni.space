@@ -1,9 +1,61 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
-import { useAuth, logAuthDebug } from "@workspace/frontend-security";
+import { useAuth, logAuthDebug, secureApiFetch } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
+
+type MfaModeDecision = {
+  mode: "enroll" | "challenge";
+  reason:
+    | "auth_context_pending_enrolled"
+    | "auth_me_payload_next_step_challenge"
+    | "auth_me_payload_enrolled_pending"
+    | "auth_me_request_failed_challenge_fail_closed"
+    | "auth_me_payload_missing_challenge_fail_closed"
+    | "auth_me_payload_enroll";
+};
+
+function decideMfaScreenModeFromInputs(params: {
+  authStatus: string;
+  authUserId: string | null;
+  authMfaPending: boolean;
+  authMfaEnrolled: boolean;
+  authNextStep: "mfa_enroll" | "mfa_challenge" | null;
+  meResponseOk: boolean;
+  mePayload: { mfaPending?: boolean; mfaEnrolled?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" | null } | null;
+  mePayloadReadable: boolean;
+}): MfaModeDecision {
+  if (
+    params.authStatus === "authenticated_mfa_pending_enrolled" ||
+    (params.authMfaPending && params.authNextStep === "mfa_challenge") ||
+    (params.authMfaPending && params.authMfaEnrolled && params.authNextStep !== "mfa_enroll")
+  ) {
+    return { mode: "challenge", reason: "auth_context_pending_enrolled" };
+  }
+
+  if (!params.meResponseOk) {
+    return { mode: "challenge", reason: "auth_me_request_failed_challenge_fail_closed" };
+  }
+
+  if (!params.mePayloadReadable) {
+    return { mode: "challenge", reason: "auth_me_payload_missing_challenge_fail_closed" };
+  }
+
+  if (params.mePayload?.mfaPending && params.mePayload.nextStep === "mfa_challenge") {
+    return { mode: "challenge", reason: "auth_me_payload_next_step_challenge" };
+  }
+
+  if (
+    params.mePayload?.mfaPending &&
+    params.mePayload.nextStep !== "mfa_enroll" &&
+    params.mePayload.mfaEnrolled === true
+  ) {
+    return { mode: "challenge", reason: "auth_me_payload_enrolled_pending" };
+  }
+
+  return { mode: "enroll", reason: "auth_me_payload_enroll" };
+}
 
 export default function MfaEnroll() {
   const auth = useAuth();
@@ -18,19 +70,70 @@ export default function MfaEnroll() {
   const [recovery, setRecovery] = React.useState<string[]>([]);
   const [initError, setInitError] = React.useState<string | null>(null);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const authSnapshotRef = React.useRef({
+    status: auth.status,
+    userId: auth.user?.id ?? null as string | null,
+    mfaPending: auth.user?.mfaPending === true,
+    mfaEnrolled: auth.user?.mfaEnrolled === true,
+    nextStep: auth.user?.nextStep ?? null as "mfa_enroll" | "mfa_challenge" | null,
+  });
 
   React.useEffect(() => {
-    logAuthDebug("mfa_screen_mode_selected", { mode: "enroll", source: "MfaEnroll" });
+    authSnapshotRef.current = {
+      status: auth.status,
+      userId: auth.user?.id ?? null,
+      mfaPending: auth.user?.mfaPending === true,
+      mfaEnrolled: auth.user?.mfaEnrolled === true,
+      nextStep: auth.user?.nextStep ?? null,
+    };
+  }, [auth.status, auth.user?.id, auth.user?.mfaEnrolled, auth.user?.mfaPending, auth.user?.nextStep]);
+
+  React.useEffect(() => {
     let active = true;
     setPhase("initializing");
     setInitError(null);
     setSubmitError(null);
 
-    void fetch("/api/auth/me", {
+    void secureApiFetch("/api/auth/me", {
       method: "GET",
       credentials: "include",
     }).then(async (response) => {
       if (!active) return;
+
+      const payload = (await response.json().catch(() => null)) as { mfaPending?: boolean; mfaEnrolled?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" | null } | null;
+      const authSnapshot = authSnapshotRef.current;
+      const authMfaPending = authSnapshot.mfaPending;
+      const authMfaEnrolled = authSnapshot.mfaEnrolled;
+      const authNextStep = authSnapshot.nextStep;
+      const decision = decideMfaScreenModeFromInputs({
+        authStatus: authSnapshot.status,
+        authUserId: authSnapshot.userId,
+        authMfaPending,
+        authMfaEnrolled,
+        authNextStep,
+        meResponseOk: response.ok,
+        mePayload: payload,
+        mePayloadReadable: payload !== null,
+      });
+      logAuthDebug("mfa_screen_mode_selector_inputs", {
+        routePath: window.location.pathname,
+        authStatus: authSnapshot.status,
+        authUserId: authSnapshot.userId,
+        authMfaPending,
+        authMfaEnrolled,
+        authNextStep,
+        meStatus: response.status,
+        meOk: response.ok,
+        meMfaPending: payload?.mfaPending ?? null,
+        meMfaEnrolled: payload?.mfaEnrolled ?? null,
+        meNextStep: payload?.nextStep ?? null,
+        chosenMode: decision.mode,
+        branch: decision.reason,
+      });
+      logAuthDebug("mfa_screen_mode_selected", {
+        mode: decision.mode,
+        reason: decision.reason,
+      });
 
       if (response.status === 401) {
         setPhase("init-error");
@@ -38,13 +141,7 @@ export default function MfaEnroll() {
         return;
       }
 
-      const payload = (await response.json().catch(() => null)) as { mfaPending?: boolean; mfaEnrolled?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" | null } | null;
-      const shouldChallenge =
-        payload?.mfaPending &&
-        (payload?.nextStep === "mfa_challenge" ||
-          (payload?.nextStep !== "mfa_enroll" && payload?.mfaEnrolled === true));
-      if (shouldChallenge) {
-        logAuthDebug("mfa_screen_mode_selected", { mode: "challenge", reason: "auth_me_next_step" });
+      if (decision.mode === "challenge") {
         window.location.assign("/mfa/challenge");
         return;
       }
