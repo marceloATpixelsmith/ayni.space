@@ -79,9 +79,13 @@ export interface AuthUser {
   isSuperAdmin: boolean;
   /** @nullable */
   activeOrgId?: string | null;
+  mfaPending?: boolean;
+  mfaEnrolled?: boolean;
+  nextStep?: "mfa_enroll" | "mfa_challenge" | null;
   activeOrg?: Organization;
   memberships?: OrgMembershipSummary[];
-  appAccess?: AuthAppAccess;
+  /** @nullable */
+  appAccess?: AuthAppAccess | null;
 }
 
 export interface AuthUrlResponse {

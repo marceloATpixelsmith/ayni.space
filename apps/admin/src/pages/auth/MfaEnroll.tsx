@@ -26,24 +26,48 @@ export default function MfaEnroll() {
     setInitError(null);
     setSubmitError(null);
 
-    const startRequest = enrollmentStartRef.current ?? startMfaEnrollment();
-    enrollmentStartRef.current = startRequest;
-    startRequest.then(async (payload) => {
+    void fetch("/api/auth/me", {
+      method: "GET",
+      credentials: "include",
+    }).then(async (response) => {
       if (!active) return;
-      setFactorId(payload.factorId);
-      setSecret(payload.secret);
-      setIssuer(payload.issuer);
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(payload.otpauthUrl)}`;
-      setQrCodeUrl(qrUrl);
-      setPhase("ready");
+
+      if (response.status === 401) {
+        setPhase("init-error");
+        setInitError("Your session is no longer active. Please sign in again.");
+        return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as { mfaPending?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge" } | null;
+      if (payload?.mfaPending && payload?.nextStep === "mfa_challenge") {
+        logAuthDebug("mfa_screen_mode_selected", { mode: "challenge", reason: "auth_me_next_step" });
+        window.location.assign("/mfa/challenge");
+        return;
+      }
+
+      const startRequest = enrollmentStartRef.current ?? startMfaEnrollment();
+      enrollmentStartRef.current = startRequest;
+      startRequest.then(async (startPayload) => {
+        if (!active) return;
+        setFactorId(startPayload.factorId);
+        setSecret(startPayload.secret);
+        setIssuer(startPayload.issuer);
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(startPayload.otpauthUrl)}`;
+        setQrCodeUrl(qrUrl);
+        setPhase("ready");
+      }).catch((err) => {
+        if (!active) return;
+        setPhase("init-error");
+        setInitError(err instanceof Error ? err.message : "Unable to start two-step verification setup.");
+      }).finally(() => {
+        if (enrollmentStartRef.current === startRequest) {
+          enrollmentStartRef.current = null;
+        }
+      });
     }).catch((err) => {
       if (!active) return;
       setPhase("init-error");
       setInitError(err instanceof Error ? err.message : "Unable to start two-step verification setup.");
-    }).finally(() => {
-      if (enrollmentStartRef.current === startRequest) {
-        enrollmentStartRef.current = null;
-      }
     });
 
     return () => {
