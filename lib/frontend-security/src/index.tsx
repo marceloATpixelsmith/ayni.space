@@ -630,13 +630,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers["cf-turnstile-response"] = turnstileToken;
       }
 
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        "Security token is not ready. Please refresh and try accepting the invitation again.",
+      );
+
       const response = await secureApiFetch(
         `/api/invitations/${token}/accept`,
         {
           method: "POST",
           headers,
         },
-        csrfTokenRef.current,
+        csrfToken,
       );
 
       if (!response.ok) {
@@ -655,13 +661,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await refreshSession();
       console.info("[INVITATION-FLOW] auth.acceptInvitation session refresh complete");
     },
-    [refreshSession],
+    [refreshCsrfState, refreshSession],
   );
 
 
 
   const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null, stayLoggedIn = false) => {
     const normalizedEmail = normalizeEmailForSubmission(email);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try signing in again.",
+    );
     const response = await secureApiFetch("/api/auth/login", {
       method: "POST",
       headers: {
@@ -669,7 +680,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
       body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string });
     if (!response.ok) {
       throw new Error(payload?.error ?? "Invalid email or password.");
@@ -684,10 +695,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     await refreshSession();
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string, turnstileToken?: string | null) => {
     const normalizedEmail = normalizeEmailForSubmission(email);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try creating your account again.",
+    );
     const response = await secureApiFetch("/api/auth/signup", {
       method: "POST",
       headers: {
@@ -695,37 +711,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
       body: JSON.stringify({ email: normalizedEmail, password, name, "cf-turnstile-response": turnstileToken ?? undefined }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string; appSlug?: string } & ApiErrorPayload);
     if (!response.ok) {
       throw new Error(payload?.error ?? "Unable to sign up.");
     }
     await refreshSession();
     return { verifyToken: payload?.verifyToken, appSlug: payload?.appSlug };
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const forgotPassword = React.useCallback(async (email: string) => {
     const normalizedEmail = normalizeEmailForSubmission(email);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try again.",
+    );
     const response = await secureApiFetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: normalizedEmail }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ({ resetToken?: string } & ApiErrorPayload);
     if (!response.ok) throw new Error(payload?.error ?? "Unable to process request.");
     return { resetToken: payload?.resetToken };
-  }, []);
+  }, [refreshCsrfState]);
 
   const resetPassword = React.useCallback(async (token: string, password: string) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try resetting your password again.",
+    );
     const response = await secureApiFetch("/api/auth/reset-password", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token, password }),
-    }, csrfTokenRef.current);
+    }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to reset password.");
     await refreshSession();
-  }, [refreshSession]);
+  }, [refreshCsrfState, refreshSession]);
 
   const verifyEmail = React.useCallback(async (token: string, appSlug?: string) => {
     const csrfToken = await requireCsrfToken(

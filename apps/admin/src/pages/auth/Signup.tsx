@@ -26,6 +26,10 @@ export default function Signup() {
 
   const onSubmit = () => {
     setSubmitted(true);
+    if (!auth.csrfReady || !auth.csrfToken) {
+      setError("Security token is not ready. Please wait a moment and try again.");
+      return;
+    }
     if (emailError) {
       setError(emailError);
       return;
@@ -70,7 +74,7 @@ export default function Signup() {
   return (
     <AuthShell title="Create account" subtitle="Create your account to continue.">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
-        <Button size="lg" className="w-full h-12 text-base font-medium shadow-md transition-all group" onClick={onGoogleSignup} disabled={auth.loginInFlight || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>
+        <Button size="lg" className="w-full h-12 text-base font-medium shadow-md transition-all group" onClick={onGoogleSignup} disabled={auth.loginInFlight || !auth.csrfReady || !auth.csrfToken || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>
           <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
           {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
         </Button>
@@ -99,7 +103,7 @@ export default function Signup() {
               ))}
             </ul>
           ) : null}
-          <Button className="w-full" onClick={onSubmit} disabled={!name || !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
+          <Button className="w-full" onClick={onSubmit} disabled={!auth.csrfReady || !auth.csrfToken || !name || !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
         </div>
 
         <div className="mt-6">{turnstile.enabled ? <turnstile.TurnstileWidget /> : null}</div>
