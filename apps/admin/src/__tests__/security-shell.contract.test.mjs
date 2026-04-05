@@ -859,8 +859,14 @@ test("login forwards stay-logged-in intent and signup enforces turnstile readine
 
   expectIncludes(
     signupSource,
+    "!auth.csrfReady || !auth.csrfToken || !name || !email || !password",
+    "Signup should block submission until CSRF bootstrap is ready and required fields are present.",
+  );
+
+  expectIncludes(
+    signupSource,
     "Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))",
-    "Signup should block submission until Turnstile is ready and solved.",
+    "Signup should block submission until inputs are valid and Turnstile is ready and solved.",
   );
 
   expectIncludes(
@@ -888,5 +894,17 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
     authProviderSource,
     "stayLoggedIn,",
     "Google OAuth start payload should include stay-logged-in flag.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    "const csrfToken = await requireCsrfToken(",
+    "Auth provider should gate unsafe auth submissions on CSRF readiness.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    '"Security token is not ready. Please refresh and try creating your account again."',
+    "Signup should emit explicit CSRF readiness guidance when bootstrap has not completed.",
   );
 });
