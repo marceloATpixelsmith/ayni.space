@@ -332,6 +332,17 @@ test("D: members and invitations role/org checks and invitation acceptance state
     patchProperty(db.query.usersTable, "findFirst", async () => user("user-inv", { email: "member@example.com" })),
     patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-a", name: "Org A", slug: "org-a", appId: "app-1" })),
     patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", name: "Ayni", accessMode: "organization", staffInvitesEnabled: true, transactionalFromEmail: "invites@example.com", transactionalFromName: "Invites", transactionalReplyToEmail: "support@example.com", invitationEmailSubject: "Invite {{organization_name}}", invitationEmailHtml: "<p>{{invitee_email}}</p>" })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tpl-invitation",
+      appId: "app-1",
+      templateType: "invitation",
+      subjectTemplate: "Invite {{organization_name}}",
+      htmlTemplate: "<p>{{invitee_email}}</p>",
+      textTemplate: "Invite {{organization_name}}",
+      isActive: true,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    })),
     patchProperty(db.query.orgMembershipsTable, "findFirst", async () =>
       role
         ? (() => {
