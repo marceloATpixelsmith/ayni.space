@@ -440,10 +440,16 @@ async function handleMe(req: Request, res: Response) {
 
   const hasPendingMfaSession = Boolean(req.session.pendingUserId || req.session.pendingMfaReason);
 
+  const pendingMfaUserId =
+    hasPendingMfaSession && typeof req.session.pendingUserId === "string" && req.session.pendingUserId.trim().length > 0
+      ? req.session.pendingUserId
+      : null;
+  const mfaStateUserId = pendingMfaUserId ?? authenticatedUser.id;
+
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
   try {
-    mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
+    mfaEnrolled = await hasActiveMfaFactor(mfaStateUserId);
   } catch {
     mfaEnrolled = false;
     mfaStateReadFailed = true;
@@ -521,6 +527,8 @@ async function handleMe(req: Request, res: Response) {
       mfaStateReadFailed,
       pendingReason: pendingReason ?? null,
       pendingResolution,
+      mfaStateUserId,
+      pendingMfaUserId,
       nextStep: pendingNextStep,
       hasPendingMfaSession: true,
     });

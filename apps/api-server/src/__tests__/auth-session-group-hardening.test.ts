@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 import express from "express";
 import type { RequestHandler } from "express";
 
@@ -1469,6 +1470,68 @@ test("mfa-pending /api/auth/me overrides stale enrollment_required to challenge 
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
     assert.equal(payload["nextStep"], "mfa_challenge");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("mfa-pending /api/auth/me evaluates factor state against pendingUserId when session userId diverges", async () => {
+  let lookedUpPendingUser = false;
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "stale-user-id",
+      email: "stale@example.com",
+      name: "Stale User",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async (args: unknown) => {
+      const serializedArgs = inspect(args, { depth: 8 });
+      if (serializedArgs.includes("pending-user-enrolled")) {
+        lookedUpPendingUser = true;
+        return {
+          id: "factor-pending-user",
+          userId: "pending-user-enrolled",
+          factorType: "totp",
+          status: "active",
+        };
+      }
+      return null;
+    }),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      userId: "stale-user-id",
+      pendingUserId: "pending-user-enrolled",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "enrollment_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["mfaEnrolled"], true);
+    assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(lookedUpPendingUser, true);
   } finally {
     for (const undo of restore.reverse()) undo();
   }
