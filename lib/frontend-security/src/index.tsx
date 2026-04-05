@@ -24,7 +24,6 @@ type AuthContextValue = {
     turnstileToken?: string | null,
     intent?: "sign_in" | "create_account",
     returnToPath?: string | null,
-    stayLoggedIn?: boolean,
   ) => Promise<void>;
   logout: () => Promise<void>;
   switchOrganization: (orgId: string) => Promise<void>;
@@ -32,15 +31,15 @@ type AuthContextValue = {
     token: string,
     turnstileToken?: string | null,
   ) => Promise<void>;
-  loginWithPassword: (email: string, password: string, turnstileToken?: string | null, stayLoggedIn?: boolean) => Promise<void>;
+  loginWithPassword: (email: string, password: string, turnstileToken?: string | null) => Promise<void>;
   signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string; appSlug?: string }>;
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
   verifyEmail: (token: string, appSlug?: string) => Promise<{ mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string }>;
   startMfaEnrollment: () => Promise<{ factorId: string; secret: string; otpauthUrl: string; issuer: string }>;
   verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[]; nextPath?: string }>;
-  completeMfaChallenge: (code: string, rememberDevice: boolean) => Promise<void>;
-  completeMfaRecovery: (recoveryCode: string, rememberDevice: boolean) => Promise<void>;
+  completeMfaChallenge: (code: string, rememberDevice: boolean, stayLoggedIn?: boolean) => Promise<void>;
+  completeMfaRecovery: (recoveryCode: string, rememberDevice: boolean, stayLoggedIn?: boolean) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -552,7 +551,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       turnstileToken?: string | null,
       intent: "sign_in" | "create_account" = "sign_in",
       returnToPath?: string | null,
-      stayLoggedIn = false,
     ) => {
       if (loginRequestRef.current) {
       return loginRequestRef.current;
@@ -581,7 +579,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               "cf-turnstile-response": normalizedTurnstileToken,
               intent,
               returnToPath: normalizedReturnToPath,
-              stayLoggedIn,
             }),
           },
           token,
@@ -707,7 +704,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
 
-  const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null, stayLoggedIn = false) => {
+  const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null) => {
     const normalizedEmail = normalizeEmailForSubmission(email);
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
@@ -720,7 +717,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "content-type": "application/json",
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
-      body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined, stayLoggedIn }),
+      body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined }),
     }, csrfToken);
     const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string });
     if (!response.ok) {
@@ -877,7 +874,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
   }, [finalizePostAuthNavigation, refreshCsrfState]);
 
-  const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean) => {
+  const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean, stayLoggedIn = false) => {
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
       refreshCsrfState,
@@ -887,7 +884,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await secureApiFetch("/api/auth/mfa/challenge", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, rememberDevice }),
+      body: JSON.stringify({ code, rememberDevice, stayLoggedIn }),
     }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
@@ -899,7 +896,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshCsrfState();
   }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
-  const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean) => {
+  const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean, stayLoggedIn = false) => {
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
       refreshCsrfState,
@@ -909,7 +906,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await secureApiFetch("/api/auth/mfa/recovery", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ recoveryCode, rememberDevice }),
+      body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn }),
     }, csrfToken);
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");

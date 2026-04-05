@@ -48,7 +48,6 @@ export default function Login() {
   const [passwordInput, setPasswordInput] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
-  const [stayLoggedIn, setStayLoggedIn] = React.useState(false);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
@@ -169,7 +168,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithPassword(emailInput, passwordInput, turnstileToken, stayLoggedIn).catch((error) => {
+    auth.loginWithPassword(emailInput, passwordInput, turnstileToken).catch((error) => {
       setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
     });
   };
@@ -184,7 +183,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithGoogle(turnstileToken, intent, nextPath, stayLoggedIn).catch((error) => {
+    auth.loginWithGoogle(turnstileToken, intent, nextPath).catch((error) => {
       const message = error instanceof Error
         ? ((error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message))
             ? "Unable to reach the sign-in service. Please verify network/CORS configuration and try again."
@@ -225,11 +224,6 @@ export default function Login() {
           <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
           <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
         </div>
-
-        <label className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-          <input type="checkbox" checked={stayLoggedIn} onChange={(e) => setStayLoggedIn(e.target.checked)} />
-          Stay logged in for 2 weeks
-        </label>
 
         <div className="mt-6">{turnstileEnabled ? <TurnstileWidget /> : null}</div>
 
