@@ -1484,12 +1484,18 @@ type MfaStartResult = { required: false } | { required: true; needsEnrollment: b
 async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
-  const hasFactor = await hasActiveMfaFactor(userId);
+  let hasFactor = false;
+  let factorStateReadFailed = false;
+  try {
+    hasFactor = await hasActiveMfaFactor(userId);
+  } catch {
+    factorStateReadFailed = true;
+  }
   const trustedCookieToken = getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
   const trusted = await isTrustedDevice(userId, trustedCookieToken);
   const security = await getUserAuthSecurity(userId);
   const needsStepUp = Boolean(security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt);
-  const needsEnrollment = mfaRequired && !hasFactor;
+  const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
   const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
 
   if (!mustChallenge && !needsEnrollment) {
