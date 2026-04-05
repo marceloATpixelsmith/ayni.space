@@ -30,6 +30,8 @@
 - CSRF-aware shared fetch path is implemented in `lib/api-client-react/src/custom-fetch.ts`.
 - OAuth start return-origin resolution accepts trusted `origin`/`referer` and trusted forwarded host/proto headers (`x-forwarded-host`, `x-forwarded-proto`) before allowlist validation so reverse-proxied admin logins derive correct app context at initiation (`apps/api-server/src/routes/auth.ts`).
 - Frontend auth/session calls are hard-pinned to credentialed fetch mode in shared clients (`/api/auth/*` and `/api/csrf-token` always use `credentials: "include"` in `lib/api-client-react/src/custom-fetch.ts` and `lib/frontend-security/src/index.tsx`).
+- CSRF handling is now transition-aware and shared: `@workspace/api-client-react` retries one time on `403 Invalid CSRF token` after invoking a frontend-registered CSRF refresher, and `AuthProvider` registers that refresher while deduplicating in-flight `/api/csrf-token` requests (`lib/api-client-react/src/custom-fetch.ts`, `lib/frontend-security/src/index.tsx`).
+- Post-auth transition bootstrap is now explicit for password/verify-email/MFA continuation redirects: the frontend stamps an auth-transition marker before redirect and startup bootstrap treats that marker like OAuth grace, avoiding transient unauthenticated route decisions during session propagation (`lib/frontend-security/src/index.tsx`).
 - Backend app middleware composition runs through `apps/api-server/src/app.ts`, where session and security middleware ordering is centralized.
 - Session middleware runtime provisioning is explicitly migration-managed (`createTableIfMissing=false`) and pinned to schema-qualified persistence (`platform.sessions`).
 

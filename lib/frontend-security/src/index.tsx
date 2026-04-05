@@ -4,6 +4,7 @@ import {
   getMe,
   useLogout,
   setCsrfTokenProvider,
+  setCsrfTokenRefresher,
   useSwitchOrganization,
   type AuthUser,
   type SwitchOrgRequest,
@@ -61,6 +62,7 @@ type ApiErrorPayload = {
 } | null;
 
 const OAUTH_START_STORAGE_KEY = "auth:oauth-started-at";
+const AUTH_TRANSITION_STORAGE_KEY = "auth:session-transition-at";
 const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
 const OAUTH_STARTUP_DELAY_MS = 120;
 const OAUTH_POST_REDIRECT_RETRY_DELAY_MS = 450;
@@ -340,6 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [sessionRevoked, setSessionRevoked] = React.useState(false);
   const [authBootstrapping, setAuthBootstrapping] = React.useState(true);
   const csrfTokenRef = React.useRef<string | null>(null);
+  const csrfRefreshInFlightRef = React.useRef<Promise<string | null> | null>(null);
   const loginRequestRef = React.useRef<Promise<void> | null>(null);
   const authCheckRef = React.useRef<Promise<void> | null>(null);
   const startupAuthInitializedRef = React.useRef(false);
@@ -414,26 +417,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const markAuthTransition = React.useCallback(() => {
+    window.sessionStorage.setItem(AUTH_TRANSITION_STORAGE_KEY, String(Date.now()));
+  }, []);
+
   const refreshCsrfState = React.useCallback(async (): Promise<
     string | null
   > => {
+    if (csrfRefreshInFlightRef.current) {
+      return csrfRefreshInFlightRef.current;
+    }
     setCsrfReady(false);
+    const request = (async () => {
+      try {
+        const token = await fetchCsrfToken();
+        setCsrfToken(token);
+        csrfTokenRef.current = token;
+        return token;
+      } catch {
+        setCsrfToken(null);
+        csrfTokenRef.current = null;
+        return null;
+      } finally {
+        setCsrfReady(true);
+      }
+    })();
+    csrfRefreshInFlightRef.current = request;
     try {
-      const token = await fetchCsrfToken();
-      setCsrfToken(token);
-      csrfTokenRef.current = token;
-      return token;
-    } catch {
-      setCsrfToken(null);
-      csrfTokenRef.current = null;
-      return null;
+      return await request;
     } finally {
-      setCsrfReady(true);
+      if (csrfRefreshInFlightRef.current === request) {
+        csrfRefreshInFlightRef.current = null;
+      }
     }
   }, []);
 
   React.useEffect(() => {
     void refreshCsrfState();
+  }, [refreshCsrfState]);
+
+  React.useEffect(() => {
+    setCsrfTokenRefresher(() => refreshCsrfState);
+    return () => {
+      setCsrfTokenRefresher(null);
+    };
   }, [refreshCsrfState]);
 
   React.useEffect(() => {
@@ -455,15 +482,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         Number.isFinite(oauthStartedAt) &&
         now - oauthStartedAt >= 0 &&
         now - oauthStartedAt <= OAUTH_GRACE_WINDOW_MS;
+      const authTransitionStartedAtRaw = window.sessionStorage.getItem(
+        AUTH_TRANSITION_STORAGE_KEY,
+      );
+      const authTransitionStartedAt = authTransitionStartedAtRaw
+        ? Number.parseInt(authTransitionStartedAtRaw, 10)
+        : Number.NaN;
+      const recentlyTransitionedAuth =
+        Number.isFinite(authTransitionStartedAt) &&
+        now - authTransitionStartedAt >= 0 &&
+        now - authTransitionStartedAt <= OAUTH_GRACE_WINDOW_MS;
+      const shouldRetryAfterDelay = recentlyStartedOauth || recentlyTransitionedAuth;
 
       try {
         await new Promise((resolve) =>
           window.setTimeout(resolve, OAUTH_STARTUP_DELAY_MS),
         );
-        await runAuthCheck({ retryAfterDelay: recentlyStartedOauth });
+        await runAuthCheck({ retryAfterDelay: shouldRetryAfterDelay });
 
         if (recentlyStartedOauth) {
           window.sessionStorage.removeItem(OAUTH_START_STORAGE_KEY);
+        }
+        if (recentlyTransitionedAuth) {
+          window.sessionStorage.removeItem(AUTH_TRANSITION_STORAGE_KEY);
         }
       } finally {
         setAuthBootstrapping(false);
@@ -687,15 +728,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (payload?.mfaRequired) {
       const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(target);
       return;
     }
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(payload.nextPath);
       return;
     }
     await refreshSession();
-  }, [refreshCsrfState, refreshSession]);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
   const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string, turnstileToken?: string | null) => {
     const normalizedEmail = normalizeEmailForSubmission(email);
@@ -768,16 +813,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!response.ok) throw new Error(mapVerifyEmailError(response, payload));
     if (payload?.mfaRequired) {
       const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(target);
       return payload;
     }
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(payload.nextPath);
       return payload;
     }
     await refreshSession();
     return payload;
-  }, [refreshCsrfState, refreshSession]);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
   const startMfaEnrollment = React.useCallback(async () => {
     const csrfToken = await requireCsrfToken(
@@ -827,11 +876,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(payload.nextPath);
       return;
     }
     await refreshSession();
-  }, [refreshCsrfState, refreshSession]);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
   const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean) => {
     const csrfToken = await requireCsrfToken(
@@ -848,11 +899,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
     if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      markAuthTransition();
+      await refreshCsrfState();
       window.location.assign(payload.nextPath);
       return;
     }
     await refreshSession();
-  }, [refreshCsrfState, refreshSession]);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
   const status: AuthStatus = sessionRevoked
     ? "unauthenticated"

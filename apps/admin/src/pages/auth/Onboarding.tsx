@@ -81,6 +81,15 @@ export default function Onboarding() {
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    if (!auth.csrfReady || !auth.csrfToken) {
+      toast({
+        title: "Security token not ready",
+        description: "Please wait a moment and try submitting again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (turnstile.enabled && !turnstile.token) {
       toast({
         title: "Complete verification",
@@ -153,7 +162,7 @@ export default function Onboarding() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-12 text-base" disabled={isPending}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={isPending || !auth.csrfReady || !auth.csrfToken}>
                 {isPending ? "Creating..." : (
                   <>
                     Continue to Dashboard <ArrowRight className="ml-2 w-4 h-4" />
