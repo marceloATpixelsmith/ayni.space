@@ -29,6 +29,7 @@
 - Verification-link emails now include `appSlug` so verify completion can continue through backend post-auth/MFA routing when appropriate, rather than defaulting to token-only completion (`apps/api-server/src/lib/invitationEmail.ts`, `apps/api-server/src/routes/auth.ts`).
 - Verify-email UI now uses explicit completion/error/redirecting states and avoids stale effect-cancel dead-ends that could leave users stuck on "Verifying your email..." (`apps/admin/src/pages/auth/VerifyEmail.tsx`).
 - Verify-email continuation now performs a transition-aware session refresh before frontend navigation (`nextPath` or MFA routes), and root-fallback continuation uses `/` (home policy resolver) instead of hard-routing to `/login`, preventing pre-bootstrap login flashes after successful verification (`lib/frontend-security/src/index.tsx`, `apps/admin/src/pages/auth/VerifyEmail.tsx`).
+- MFA completion continuation now refreshes backend-authenticated session state and CSRF state before redirecting to resolved post-auth destinations, and MFA screens no longer force a local `/` fallback route after successful challenge/recovery (`lib/frontend-security/src/index.tsx`, `apps/admin/src/pages/auth/MfaChallenge.tsx`, `apps/admin/src/pages/auth/MfaEnroll.tsx`).
 - Verify-email backend outcomes are now audit-logged through the existing `writeAuditLog` pipeline (`auth.verify_email`) for branch-level traceability (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/audit.ts`).
 - Login/signup/forgot-password email field validation now defers inline errors until blur/touch or submit, while signup password feedback renders progressively after typing by showing only missing policy requirements (8+ chars, uppercase, lowercase, number) (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/admin/src/pages/auth/authValidation.ts`).
 
@@ -41,4 +42,3 @@
 ## Do not break
 - Do not introduce app-local auth/session flows that bypass `lib/frontend-security`.
 - Do not decouple auth/session handling from `apps/api-server` middleware pipeline.
-

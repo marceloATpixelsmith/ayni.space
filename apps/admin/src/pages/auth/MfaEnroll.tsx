@@ -1,6 +1,5 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
-import { useLocation } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
@@ -8,7 +7,6 @@ import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
 export default function MfaEnroll() {
   const auth = useAuth();
-  const [, setLocation] = useLocation();
   const enrollmentStartRef = React.useRef<Promise<Awaited<ReturnType<typeof auth.startMfaEnrollment>>> | null>(null);
   const [phase, setPhase] = React.useState<"initializing" | "ready" | "submitting" | "success" | "init-error">("initializing");
   const [factorId, setFactorId] = React.useState("");
@@ -58,7 +56,6 @@ export default function MfaEnroll() {
     auth.verifyMfaEnrollment(factorId, code).then((payload) => {
       setRecovery(payload.recoveryCodes);
       setPhase("success");
-      if (payload.nextPath) setLocation(payload.nextPath);
     }).catch((err) => {
       setPhase("ready");
       setSubmitError(err instanceof Error ? err.message : "Unable to verify two-step verification code.");
@@ -80,7 +77,7 @@ export default function MfaEnroll() {
           <input autoFocus className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(submitError)} aria-describedby={submitError ? "twostep-enroll-error" : undefined} />
           <FieldValidationMessage id="twostep-enroll-error" message={submitError} />
           <Button className="w-full" onClick={onVerify} disabled={phase === "submitting" || phase === "initializing" || !code.trim()}>{phase === "submitting" ? "Verifying…" : "Verify and activate two-step verification"}</Button>
-          {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/')}>Continue</Button></div> : null}
+          {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => window.location.assign("/")}>Continue</Button></div> : null}
         </>}
       </div>
     </AuthShell>
