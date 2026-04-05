@@ -306,6 +306,7 @@ declare module "express-session" {
     pendingAppSlug?: string;
     pendingMfaReason?: "enrollment_required" | "challenge_required";
     pendingStayLoggedIn?: boolean;
+    authFlowId?: string;
     oauthStayLoggedIn?: boolean;
     stayLoggedIn?: boolean;
     sessionGroup?: string;

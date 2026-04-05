@@ -1,5 +1,5 @@
 import React from "react";
-import { useAuth } from "@workspace/frontend-security";
+import { useAuth, logAuthDebug } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
@@ -12,6 +12,10 @@ export default function MfaChallenge() {
   const [stayLoggedIn, setStayLoggedIn] = React.useState(false);
   const [codeError, setCodeError] = React.useState<string | null>(null);
   const [recoveryError, setRecoveryError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    logAuthDebug("mfa_screen_mode_selected", { mode: "challenge", source: "MfaChallenge" });
+  }, []);
 
   const submitCode = () => {
     setCodeError(null);

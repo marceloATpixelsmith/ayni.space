@@ -20,6 +20,7 @@ import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
 import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
 import { sendLane1AuthVerificationEmail, sendLane1PasswordResetEmail } from "../lib/invitationEmail.js";
+import { ensureAuthFlowId, logAuthDebug } from "../lib/authDebug.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -245,7 +246,7 @@ function logSuperadminTrace(checkpoint: string, payload: Record<string, unknown>
   logVerboseTrace(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
 }
 
-function logAuthCheckTrace(payload: {
+function logAuthCheckTrace(req: Request, payload: {
   sessionExists: boolean;
   sessionGroup: string | null;
   userId: string | null;
@@ -254,6 +255,7 @@ function logAuthCheckTrace(payload: {
   denyReason: string | null;
   sessionKeys: string;
 }) {
+  logAuthDebug(req, "auth_me_guard_decision", payload);
   const { sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
   logVerboseTrace(
     `[AUTH-CHECK-TRACE] AUTH ROUTE CHECK ` +
@@ -384,12 +386,13 @@ function getGoogleConfigValidation() {
 }
 
 async function handleMe(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const authenticatedUser = (req as Request & { user?: typeof usersTable.$inferSelect }).user;
   const userId = authenticatedUser?.id ?? req.session.userId;
   const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
   const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
   if (!userId || !authenticatedUser) {
-    logAuthCheckTrace({
+    logAuthCheckTrace(req, {
       sessionExists: Boolean(req.session),
       sessionGroup,
       userId: userId ?? null,
@@ -496,7 +499,7 @@ async function handleMe(req: Request, res: Response) {
   )
     .filter((membership: MembershipRow | null): membership is MembershipRow => Boolean(membership));
 
-  logAuthCheckTrace({
+  logAuthCheckTrace(req, {
     sessionExists: Boolean(req.session),
     sessionGroup,
     userId: authenticatedUser.id,
@@ -512,11 +515,22 @@ async function handleMe(req: Request, res: Response) {
     : null;
   const mfaRequired = await isMfaRequiredForUser(authenticatedUser.id, authenticatedUser.activeOrgId);
   let mfaEnrolled = false;
+  let mfaStateReadFailed = false;
   try {
     mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
   } catch {
     mfaEnrolled = false;
+    mfaStateReadFailed = true;
   }
+  logAuthDebug(req, "auth_me_result", {
+    userId: authenticatedUser.id,
+    sessionGroup,
+    appSlug: req.session.appSlug ?? null,
+    mfaRequired,
+    mfaEnrolled,
+    mfaStateReadFailed,
+    hasPendingMfaSession: Boolean(req.session.pendingUserId),
+  });
 
   res.json({
     id: authenticatedUser.id,
@@ -1487,6 +1501,7 @@ async function establishPasswordSession(req: Request, userId: string, appSlug: s
 type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean; nextStep: "mfa_enroll" | "mfa_challenge" };
 
 async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
+  ensureAuthFlowId(req);
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
   let hasFactor = false;
@@ -1504,6 +1519,16 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
 
   if (!mustChallenge && !needsEnrollment) {
+    logAuthDebug(req, "mfa_gate_result", {
+      userId,
+      appSlug,
+      required: false,
+      mfaRequired,
+      needsStepUp,
+      trustedDevice: trusted,
+      hasFactor,
+      factorStateReadFailed,
+    });
     return { required: false };
   }
 
@@ -1516,6 +1541,19 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   req.session.pendingStayLoggedIn = stayLoggedIn;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+
+  logAuthDebug(req, "mfa_gate_result", {
+    userId,
+    appSlug,
+    required: true,
+    mfaRequired,
+    needsStepUp,
+    trustedDevice: trusted,
+    hasFactor,
+    factorStateReadFailed,
+    needsEnrollment,
+    nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge",
   });
 
   return {
@@ -1540,7 +1578,7 @@ async function completePendingMfaSession(req: Request) {
   return { userId: pendingUserId };
 }
 
-async function resolveNextPathForEstablishedSession(userId: string, appSlug: string): Promise<string | null> {
+async function resolveNextPathForEstablishedSession(req: Request, userId: string, appSlug: string): Promise<string | null> {
   try {
     const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
     const app = await getAppBySlug(appSlug);
@@ -1554,7 +1592,14 @@ async function resolveNextPathForEstablishedSession(userId: string, appSlug: str
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
     });
-    return flow?.destination ?? null;
+    const destination = flow?.destination ?? null;
+    logAuthDebug(req, "post_auth_redirect_decision", {
+      userId,
+      appSlug,
+      destination,
+      requiredOnboarding: flow?.requiredOnboarding ?? null,
+    });
+    return destination;
   } catch {
     return null;
   }
@@ -1745,6 +1790,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
 }
 
 async function handlePasswordLogin(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   if (!email || !password) {
@@ -1784,6 +1830,14 @@ async function handlePasswordLogin(req: Request, res: Response) {
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
+    logAuthDebug(req, "login_result", {
+      userId: user.id,
+      appSlug,
+      mfaRequired: true,
+      needsEnrollment: mfaGate.needsEnrollment,
+      nextStep: mfaGate.nextStep,
+      factorState: mfaGate.needsEnrollment ? "enrollment_required" : "challenge_required",
+    });
     res.status(202).json({
       success: true,
       mfaRequired: true,
@@ -1795,7 +1849,13 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   await establishPasswordSession(req, user.id, appSlug, stayLoggedIn);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-  const nextPath = await resolveNextPathForEstablishedSession(user.id, appSlug) ?? "/dashboard";
+  const nextPath = await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard";
+  logAuthDebug(req, "login_result", {
+    userId: user.id,
+    appSlug,
+    mfaRequired: false,
+    nextPath,
+  });
   res.json({ success: true, nextPath });
 }
 
@@ -1856,6 +1916,7 @@ async function handleResetPassword(req: Request, res: Response) {
 }
 
 async function handleVerifyEmail(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const token = String(req.body?.token ?? "").trim();
   const appSlug = String(req.body?.appSlug ?? "").trim();
   const correlationId = req.correlationId;
@@ -1911,6 +1972,13 @@ async function handleVerifyEmail(req: Request, res: Response) {
 
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, false);
   if (mfaGate.required) {
+    logAuthDebug(req, "verify_email_result", {
+      userId: user.id,
+      appSlug,
+      mfaRequired: true,
+      needsEnrollment: mfaGate.needsEnrollment,
+      nextStep: mfaGate.nextStep,
+    });
     await logVerifyEmailOutcome("verified_mfa_required", {
       userId: user.id,
       needsEnrollment: mfaGate.needsEnrollment,
@@ -1926,7 +1994,13 @@ async function handleVerifyEmail(req: Request, res: Response) {
 
   await establishPasswordSession(req, user.id, appSlug, false);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-  const nextPath = await resolveNextPathForEstablishedSession(user.id, appSlug) ?? "/dashboard";
+  const nextPath = await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard";
+  logAuthDebug(req, "verify_email_result", {
+    userId: user.id,
+    appSlug,
+    mfaRequired: false,
+    nextPath,
+  });
   await logVerifyEmailOutcome("verified_session_established", { userId: user.id, nextPath });
   res.json({ success: true, nextPath });
 }
@@ -1934,6 +2008,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
 
 
 async function handleMfaEnrollStart(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const userId = req.session.userId ?? req.session.pendingUserId;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -1948,6 +2023,12 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
   }
   if (alreadyEnrolled) {
     const shouldChallenge = req.session.pendingMfaReason === "challenge_required" || Boolean(req.session.pendingUserId);
+    logAuthDebug(req, "mfa_enroll_start_decision", {
+      userId,
+      alreadyEnrolled: true,
+      shouldChallenge,
+      nextStep: shouldChallenge ? "mfa_challenge" : null,
+    });
     res.status(409).json({
       error: "Two-step verification is already active for this account. Use your authenticator code to continue.",
       ...(shouldChallenge
@@ -1971,12 +2052,20 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
   }
 
   const issuer = await getMfaIssuerForSessionGroup(req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT);
+  logAuthDebug(req, "mfa_enroll_start_decision", {
+    userId,
+    alreadyEnrolled: false,
+    factorIssued: Boolean(factor),
+    issuer,
+    nextStep: "mfa_enroll",
+  });
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   const otpauthUrl = buildTotpOtpauthUrl({ issuer, accountName: user?.email ?? userId, secret: factor.secret });
   res.json({ factorId: factor.factorId, secret: factor.secret, otpauthUrl, issuer });
 }
 
 async function handleMfaEnrollVerify(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const userId = req.session.userId ?? req.session.pendingUserId;
   const factorId = String(req.body?.factorId ?? "").trim();
   const code = String(req.body?.code ?? "").trim();
@@ -1987,6 +2076,11 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   }
   const activated = await activateTotpEnrollment(userId, factorId, code);
   if (!activated) {
+    logAuthDebug(req, "mfa_enroll_verify_result", {
+      userId,
+      verified: false,
+      factorIdPresent: Boolean(factorId),
+    });
     res.status(400).json({ error: "Invalid two-step verification code." });
     return;
   }
@@ -2000,8 +2094,15 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   let nextPath: string | undefined;
   if (completed) {
     const appSlug = req.session.appSlug;
-    if (appSlug) nextPath = await resolveNextPathForEstablishedSession(completed.userId, appSlug) ?? undefined;
+    if (appSlug) nextPath = await resolveNextPathForEstablishedSession(req, completed.userId, appSlug) ?? undefined;
   }
+  logAuthDebug(req, "mfa_enroll_verify_result", {
+    userId,
+    verified: true,
+    sessionEstablished: Boolean(completed),
+    recoveryCodesIssued: activated.recoveryCodes.length,
+    nextPath: nextPath ?? null,
+  });
 
   res.json({
     success: true,
@@ -2012,6 +2113,7 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
 }
 
 async function handleMfaChallenge(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const userId = req.session.pendingUserId;
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
@@ -2023,6 +2125,12 @@ async function handleMfaChallenge(req: Request, res: Response) {
 
   const ok = await verifyMfaChallenge(userId, code);
   if (!ok) {
+    logAuthDebug(req, "mfa_challenge_result", {
+      userId,
+      verified: false,
+      rememberDevice,
+      stayLoggedIn,
+    });
     res.status(401).json({ error: "Invalid two-step verification code." });
     return;
   }
@@ -2040,13 +2148,22 @@ async function handleMfaChallenge(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? await resolveNextPathForEstablishedSession(userId, appSlug) ?? undefined
+    ? await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined
     : undefined;
+  logAuthDebug(req, "mfa_challenge_result", {
+    userId,
+    verified: true,
+    rememberDevice,
+    stayLoggedIn,
+    sessionEstablished: true,
+    nextPath: nextPath ?? null,
+  });
 
   res.json({ success: true, nextPath });
 }
 
 async function handleMfaRecovery(req: Request, res: Response) {
+  ensureAuthFlowId(req);
   const userId = req.session.pendingUserId;
   const recoveryCode = String(req.body?.recoveryCode ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
@@ -2057,6 +2174,12 @@ async function handleMfaRecovery(req: Request, res: Response) {
   }
   const ok = await verifyMfaChallenge(userId, recoveryCode);
   if (!ok) {
+    logAuthDebug(req, "mfa_recovery_result", {
+      userId,
+      verified: false,
+      rememberDevice,
+      stayLoggedIn,
+    });
     res.status(401).json({ error: "Invalid recovery code." });
     return;
   }
@@ -2072,8 +2195,16 @@ async function handleMfaRecovery(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? await resolveNextPathForEstablishedSession(userId, appSlug) ?? undefined
+    ? await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined
     : undefined;
+  logAuthDebug(req, "mfa_recovery_result", {
+    userId,
+    verified: true,
+    rememberDevice,
+    stayLoggedIn,
+    sessionEstablished: true,
+    nextPath: nextPath ?? null,
+  });
   res.json({ success: true, nextPath });
 }
 

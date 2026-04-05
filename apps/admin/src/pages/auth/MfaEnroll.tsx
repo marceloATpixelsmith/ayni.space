@@ -1,6 +1,6 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
-import { useAuth } from "@workspace/frontend-security";
+import { useAuth, logAuthDebug } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
@@ -20,6 +20,7 @@ export default function MfaEnroll() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    logAuthDebug("mfa_screen_mode_selected", { mode: "enroll", source: "MfaEnroll" });
     let active = true;
     setPhase("initializing");
     setInitError(null);

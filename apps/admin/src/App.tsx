@@ -9,6 +9,7 @@ import {
   fetchPlatformAppMetadataBySlug,
   getDisallowedAuthRouteRedirect,
   isAuthRouteAllowed,
+  logAuthDebug,
   type AuthRouteKind,
   type PlatformAppMetadata,
 } from "@workspace/frontend-security";
@@ -93,25 +94,34 @@ function Home() {
     if (auth.status !== "loading") {
       if (auth.status === "unauthenticated") {
         setLocation("/login");
+        logAuthDebug("guard_redirect", { from: "/", to: "/login", reason: "home_unauthenticated" });
         return;
       }
 
       const appAccess = getCurrentAppAccess(auth.user);
       if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
+        logAuthDebug("guard_redirect", { from: "/", to: "/onboarding/organization", reason: "home_required_onboarding" });
         setLocation("/onboarding/organization");
         return;
       }
 
       if (appAccess?.normalizedAccessProfile === "superadmin") {
+        logAuthDebug("guard_redirect", {
+          from: "/",
+          to: auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath(),
+          reason: "home_superadmin_policy",
+        });
         setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
         return;
       }
 
       if (appAccess && !appAccess.canAccess) {
+        logAuthDebug("guard_redirect", { from: "/", to: adminAccessDeniedLoginPath(), reason: "home_app_access_denied" });
         setLocation(adminAccessDeniedLoginPath());
         return;
       }
 
+      logAuthDebug("guard_redirect", { from: "/", to: "/dashboard", reason: "home_default" });
       setLocation("/dashboard");
     }
   }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
@@ -120,11 +130,12 @@ function Home() {
 }
 
 function AuthRedirect({ to }: { to: string }) {
-  const [, setLocation] = useLocation();
+  const [from, setLocation] = useLocation();
 
   React.useEffect(() => {
+    logAuthDebug("guard_redirect", { from, to, reason: "AuthRedirect_component" });
     setLocation(to);
-  }, [setLocation, to]);
+  }, [from, setLocation, to]);
 
   return <AuthLoading />;
 }
