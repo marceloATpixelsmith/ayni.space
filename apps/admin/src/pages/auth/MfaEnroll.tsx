@@ -9,6 +9,7 @@ import { FieldValidationMessage } from "./components/FieldValidationMessage";
 export default function MfaEnroll() {
   const auth = useAuth();
   const [, setLocation] = useLocation();
+  const enrollmentStartRef = React.useRef<Promise<Awaited<ReturnType<typeof auth.startMfaEnrollment>>> | null>(null);
   const [phase, setPhase] = React.useState<"initializing" | "ready" | "submitting" | "success" | "init-error">("initializing");
   const [factorId, setFactorId] = React.useState("");
   const [secret, setSecret] = React.useState("");
@@ -25,7 +26,9 @@ export default function MfaEnroll() {
     setInitError(null);
     setSubmitError(null);
 
-    auth.startMfaEnrollment().then(async (payload) => {
+    const startRequest = enrollmentStartRef.current ?? auth.startMfaEnrollment();
+    enrollmentStartRef.current = startRequest;
+    startRequest.then(async (payload) => {
       if (!active) return;
       setFactorId(payload.factorId);
       setSecret(payload.secret);
@@ -37,6 +40,10 @@ export default function MfaEnroll() {
       if (!active) return;
       setPhase("init-error");
       setInitError(err instanceof Error ? err.message : "Unable to start two-step verification setup.");
+    }).finally(() => {
+      if (enrollmentStartRef.current === startRequest) {
+        enrollmentStartRef.current = null;
+      }
     });
 
     return () => {
