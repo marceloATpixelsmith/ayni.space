@@ -120,8 +120,26 @@ function resolveTrustedOriginFromRequest(req: Request): string | null {
 }
 
 export type SessionGroupResolution =
-  | { ok: true; sessionGroup: string; source: "origin" | "cookie" | "state" | "default" }
+  | { ok: true; sessionGroup: string; source: "origin" | "cookie" | "state" | "app" | "default" }
   | { ok: false; reason: "ambiguous" | "untrusted" | "unknown-state-group" };
+
+function parseGroupFromAuthAppSlug(req: Request): string | null {
+  if (!req.path.startsWith("/api/auth/")) return null;
+
+  const rawAppSlugFromBody = typeof req.body?.appSlug === "string" ? req.body.appSlug : null;
+  const rawAppSlugFromQuery = typeof req.query?.["appSlug"] === "string" ? req.query["appSlug"] : null;
+  const rawAppSlug = rawAppSlugFromBody ?? rawAppSlugFromQuery;
+
+  if (!rawAppSlug) return null;
+  const normalizedAppSlug = rawAppSlug.trim().toLowerCase();
+  if (!normalizedAppSlug) return null;
+
+  if (normalizedAppSlug === "admin") {
+    return ADMIN_SESSION_GROUP;
+  }
+
+  return DEFAULT_SESSION_GROUP;
+}
 
 function parseGroupFromOAuthState(req: Request): string | null {
   if (!req.path.endsWith("/google/callback")) {
@@ -177,6 +195,11 @@ export function resolveSessionGroupForRequest(req: Request, options: { failOnAmb
 
   if (matchedGroups.length > 1 && options.failOnAmbiguous) {
     return { ok: false, reason: "ambiguous" };
+  }
+
+  const appSlugGroup = parseGroupFromAuthAppSlug(req);
+  if (appSlugGroup) {
+    return { ok: true, sessionGroup: appSlugGroup, source: "app" };
   }
 
   return { ok: true, sessionGroup: DEFAULT_SESSION_GROUP, source: "default" };

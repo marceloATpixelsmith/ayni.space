@@ -187,6 +187,30 @@ test("session-group resolver infers admin group from admin.* host fallback", () 
   }
 });
 
+test("session-group resolver falls back to auth appSlug when origin and cookies are unavailable", () => {
+  const adminLoginReq = {
+    path: "/api/auth/login",
+    method: "POST",
+    headers: {},
+    body: { appSlug: "admin" },
+    query: {},
+  } as unknown as import("express").Request;
+
+  const defaultLoginReq = {
+    path: "/api/auth/login",
+    method: "POST",
+    headers: {},
+    body: { appSlug: "ayni" },
+    query: {},
+  } as unknown as import("express").Request;
+
+  const adminResolution = sessionGroupLib.resolveSessionGroupForRequest(adminLoginReq, { failOnAmbiguous: true });
+  const defaultResolution = sessionGroupLib.resolveSessionGroupForRequest(defaultLoginReq, { failOnAmbiguous: true });
+
+  assert.deepEqual(adminResolution, { ok: true, sessionGroup: "admin", source: "app" });
+  assert.deepEqual(defaultResolution, { ok: true, sessionGroup: "default", source: "app" });
+});
+
 test("production session cookie config defaults to SameSite=None with secure=true", () => {
   const prevNodeEnv = process.env["NODE_ENV"];
   const prevSameSite = process.env["SESSION_COOKIE_SAME_SITE"];
