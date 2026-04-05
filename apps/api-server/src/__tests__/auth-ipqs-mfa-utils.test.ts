@@ -98,3 +98,42 @@ test("apps with unknown metadata sessionGroup fail closed to default group", () 
   } as never);
   assert.equal(resolved, "default");
 });
+
+
+test("MFA enrollment start refuses unknown users before factor insert", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+  ];
+
+  try {
+    const started = await mfa.beginTotpEnrollment("missing-user");
+    assert.equal(started, null);
+  } finally {
+    restore.reverse().forEach((undo) => undo());
+  }
+});
+
+test("MFA enrollment start returns factor id and secret for valid users", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "user@example.com" })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
+  ];
+
+  const restoreInsert = patchProperty(db, "insert", (() => ({
+    values: async () => [],
+  })) as typeof db.insert);
+
+  const previousKey = process.env["MFA_TOTP_ENCRYPTION_KEY"];
+  process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  try {
+    const started = await mfa.beginTotpEnrollment("user-1");
+    assert.equal(Boolean(started?.factorId), true);
+    assert.equal(Boolean(started?.secret), true);
+  } finally {
+    if (previousKey === undefined) delete process.env["MFA_TOTP_ENCRYPTION_KEY"];
+    else process.env["MFA_TOTP_ENCRYPTION_KEY"] = previousKey;
+    restoreInsert();
+    restore.reverse().forEach((undo) => undo());
+  }
+});

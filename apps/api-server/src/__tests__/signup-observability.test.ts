@@ -476,7 +476,7 @@ test("signup returns appSlug and routes verification email through lane1 outboun
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
     const response = await performJsonRequest(app, "POST", "/api/auth/signup", {
       email: "new@example.com",
-      password: "Password123",
+      password: "Password123!",
       name: "New User",
     });
 

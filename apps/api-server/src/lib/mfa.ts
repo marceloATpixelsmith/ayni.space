@@ -14,6 +14,11 @@ import { hashOpaqueToken } from "./passwordAuth.js";
 
 const TRUSTED_DEVICE_COOKIE_NAME = "ayni_trusted_device";
 const TRUSTED_DEVICE_TTL_MS = 20 * 24 * 60 * 60 * 1000;
+const TOTP_ALLOWED_WINDOW_STEPS = 2;
+
+function normalizeTotpCode(value: string): string {
+  return value.replace(/[^0-9]/g, "");
+}
 
 function getEncryptionKey(): Buffer {
   const raw = process.env["MFA_TOTP_ENCRYPTION_KEY"] ?? "";
@@ -100,6 +105,9 @@ export function buildTotpOtpauthUrl({ issuer, accountName, secret }: { issuer: s
 }
 
 export async function beginTotpEnrollment(userId: string) {
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  if (!user) return null;
+
   const secret = base32Encode(crypto.randomBytes(20));
   const encrypted = encryptSecret(secret);
   const existing = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.factorType, "totp")) });
@@ -120,7 +128,7 @@ export async function activateTotpEnrollment(userId: string, factorId: string, c
   const factor = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.id, factorId), eq(mfaFactorsTable.userId, userId)) });
   if (!factor) return null;
   const secret = decryptSecret(factor.secretCiphertext, factor.secretIv, factor.secretTag);
-  const ok = await verifyTotpCode(userId, factor.id, secret, code);
+  const ok = await verifyTotpCode(userId, factor.id, secret, normalizeTotpCode(code));
   if (!ok) return null;
 
   await db.update(mfaFactorsTable).set({ status: "active", enrolledAt: new Date(), lastUsedAt: new Date() }).where(eq(mfaFactorsTable.id, factor.id));
@@ -134,7 +142,7 @@ export async function activateTotpEnrollment(userId: string, factorId: string, c
 
 async function verifyTotpCode(userId: string, factorId: string, secret: string, code: string): Promise<boolean> {
   const nowStep = Math.floor(Date.now() / 30_000);
-  for (const offset of [-1, 0, 1]) {
+  for (let offset = -TOTP_ALLOWED_WINDOW_STEPS; offset <= TOTP_ALLOWED_WINDOW_STEPS; offset += 1) {
     const step = nowStep + offset;
     if (generateTotp(secret, step) !== code) continue;
     const existing = await db.query.usedMfaTotpCodesTable.findFirst({ where: and(eq(usedMfaTotpCodesTable.factorId, factorId), eq(usedMfaTotpCodesTable.timeStep, step)) });
@@ -157,17 +165,18 @@ export async function hasActiveMfaFactor(userId: string): Promise<boolean> {
 export async function verifyMfaChallenge(userId: string, code: string): Promise<boolean> {
   const factor = await db.query.mfaFactorsTable.findFirst({ where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.status, "active"), eq(mfaFactorsTable.factorType, "totp")) });
   if (!factor) return false;
-  const normalized = code.trim().toUpperCase();
-  if (/^[0-9]{6}$/.test(normalized)) {
+  const normalizedTotp = normalizeTotpCode(code);
+  if (/^[0-9]{6}$/.test(normalizedTotp)) {
     const secret = decryptSecret(factor.secretCiphertext, factor.secretIv, factor.secretTag);
-    const ok = await verifyTotpCode(userId, factor.id, secret, normalized);
+    const ok = await verifyTotpCode(userId, factor.id, secret, normalizedTotp);
     if (ok) {
       await db.update(mfaFactorsTable).set({ lastUsedAt: new Date() }).where(eq(mfaFactorsTable.id, factor.id));
       return true;
     }
   }
 
-  const recoveryHash = hashOpaqueToken(`mfa-recovery:${normalized}`);
+  const recoveryNormalized = code.trim().toUpperCase();
+  const recoveryHash = hashOpaqueToken(`mfa-recovery:${recoveryNormalized}`);
   const recovery = await db.query.mfaRecoveryCodesTable.findFirst({ where: and(eq(mfaRecoveryCodesTable.userId, userId), eq(mfaRecoveryCodesTable.codeHash, recoveryHash), isNull(mfaRecoveryCodesTable.consumedAt)) });
   if (!recovery) return false;
   await db.update(mfaRecoveryCodesTable).set({ consumedAt: new Date() }).where(eq(mfaRecoveryCodesTable.id, recovery.id));

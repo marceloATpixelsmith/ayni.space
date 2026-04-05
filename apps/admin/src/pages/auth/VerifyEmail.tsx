@@ -1,6 +1,8 @@
 import React from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
+import { Button } from "@/components/ui/button";
+import { AuthShell } from "./components/AuthShell";
 
 export default function VerifyEmail() {
   const auth = useAuth();
@@ -23,21 +25,14 @@ export default function VerifyEmail() {
       return;
     }
     const attemptKey = `${token}:${appSlug}`;
-    if (verifiedAttemptRef.current === attemptKey) {
-      return;
-    }
+    if (verifiedAttemptRef.current === attemptKey) return;
     verifiedAttemptRef.current = attemptKey;
     activeAttemptRef.current = attemptKey;
     setPhase("loading");
     setMessage("Verifying your email...");
 
-    console.info("[VERIFY-EMAIL-FLOW] verification request started", { appSlug: appSlug || null });
     auth.verifyEmail(token, appSlug || undefined).then((result) => {
       if (activeAttemptRef.current !== attemptKey) return;
-      console.info("[VERIFY-EMAIL-FLOW] verification request succeeded", {
-        hasNextPath: Boolean(result?.nextPath),
-        mfaRequired: Boolean(result?.mfaRequired),
-      });
       if (result?.nextPath || result?.mfaRequired) {
         setPhase("redirecting");
         setMessage("Email verified. Redirecting...");
@@ -49,22 +44,15 @@ export default function VerifyEmail() {
     })
       .catch((err) => {
         if (activeAttemptRef.current !== attemptKey) return;
-        console.info("[VERIFY-EMAIL-FLOW] verification request failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
         setPhase("error");
         setMessage(err instanceof Error ? err.message : "Verification failed.");
       });
   }, [auth, search, setLocation]);
 
   return (
-    <div className="p-6">
-      <p>{message}</p>
-      {phase === "error" ? (
-        <button className="mt-3 rounded bg-black px-4 py-2 text-white" type="button" onClick={() => setLocation("/login")}>
-          Back to sign in
-        </button>
-      ) : null}
-    </div>
+    <AuthShell title="Verify your email" subtitle="Confirm your email address to finish signing in.">
+      <p className="text-sm">{message}</p>
+      {phase === "error" ? <Button className="mt-4" type="button" onClick={() => setLocation("/login")}>Back to sign in</Button> : null}
+    </AuthShell>
   );
 }

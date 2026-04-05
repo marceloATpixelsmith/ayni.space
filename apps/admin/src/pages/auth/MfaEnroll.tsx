@@ -1,7 +1,10 @@
 import React from "react";
+import { ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
+import { AuthShell } from "./components/AuthShell";
+import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
 export default function MfaEnroll() {
   const auth = useAuth();
@@ -33,7 +36,7 @@ export default function MfaEnroll() {
     }).catch((err) => {
       if (!active) return;
       setPhase("init-error");
-      setInitError(err instanceof Error ? err.message : "Unable to start MFA enrollment.");
+      setInitError(err instanceof Error ? err.message : "Unable to start two-step verification setup.");
     });
 
     return () => {
@@ -48,28 +51,31 @@ export default function MfaEnroll() {
     auth.verifyMfaEnrollment(factorId, code).then((payload) => {
       setRecovery(payload.recoveryCodes);
       setPhase("success");
-      if (payload.nextPath) {
-        setLocation(payload.nextPath);
-      }
+      if (payload.nextPath) setLocation(payload.nextPath);
     }).catch((err) => {
       setPhase("ready");
-      setSubmitError(err instanceof Error ? err.message : "Unable to verify MFA.");
+      setSubmitError(err instanceof Error ? err.message : "Unable to verify two-step verification code.");
     });
   };
 
-  return <div className="min-h-screen flex items-center justify-center"><div className="max-w-lg w-full p-6 border rounded space-y-3">
-    <h1 className="text-xl font-semibold">Set up MFA</h1>
-    {phase === "initializing" ? <p className="text-sm text-muted-foreground">Preparing your authenticator setup…</p> : null}
-    {phase === "init-error" ? <p className="text-sm text-destructive">{initError ?? "Unable to start MFA enrollment."}</p> : null}
-    {phase === "init-error" ? <Button className="w-full" onClick={() => window.location.reload()}>Retry setup</Button> : null}
-    {phase === "init-error" ? null : <>
-    <p className="text-sm text-muted-foreground">Issuer: {issuer}</p>
-    {qrCodeUrl ? <div className="rounded border p-3 bg-white w-fit mx-auto"><img src={qrCodeUrl} alt="MFA enrollment QR code" className="h-60 w-60" /></div> : null}
-    <p className="text-sm">Scan the QR code in your authenticator app. If needed, enter this setup key manually: <code>{secret}</code></p>
-    <input className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} />
-    {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
-    <Button className="w-full" onClick={onVerify} disabled={phase === "submitting" || phase === "initializing" || !code.trim()}>{phase === "submitting" ? "Verifying…" : "Verify and activate MFA"}</Button>
-    {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/')}>Continue</Button></div> : null}
-    </>}
-  </div></div>;
+  return (
+    <AuthShell title="Set up two-step verification" subtitle="Add an authenticator app for extra account security." maxWidthClassName="max-w-lg">
+      <div className="space-y-3">
+        {phase === "initializing" ? <p className="text-sm text-muted-foreground">Preparing your authenticator setup…</p> : null}
+        {phase === "init-error" ? <p className="text-sm text-destructive">{initError ?? "Unable to start two-step verification setup."}</p> : null}
+        {phase === "init-error" ? <Button className="w-full" onClick={() => window.location.reload()}>Retry setup</Button> : null}
+
+        {phase === "init-error" ? null : <>
+          <p className="text-sm text-muted-foreground flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Install an authenticator app (Google Authenticator, 1Password, Authy, etc.), then scan this QR code.</p>
+          <p className="text-sm text-muted-foreground">Account issuer: {issuer}</p>
+          {qrCodeUrl ? <div className="rounded border p-3 bg-white w-fit mx-auto"><img src={qrCodeUrl} alt="Two-step verification QR code" className="h-60 w-60" /></div> : null}
+          <p className="text-sm">Can&apos;t scan the QR code? Enter this setup key manually in your app: <code className="break-all">{secret}</code></p>
+          <input className="w-full border rounded px-3 py-2" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(submitError)} aria-describedby={submitError ? "twostep-enroll-error" : undefined} />
+          <FieldValidationMessage id="twostep-enroll-error" message={submitError} />
+          <Button className="w-full" onClick={onVerify} disabled={phase === "submitting" || phase === "initializing" || !code.trim()}>{phase === "submitting" ? "Verifying…" : "Verify and activate two-step verification"}</Button>
+          {recovery.length > 0 ? <div className="space-y-2"><p className="text-sm font-medium">Recovery codes (save these now):</p><ul className="text-xs grid grid-cols-2 gap-1">{recovery.map((c) => <li key={c}><code>{c}</code></li>)}</ul><Button className="w-full" onClick={() => setLocation('/')}>Continue</Button></div> : null}
+        </>}
+      </div>
+    </AuthShell>
+  );
 }

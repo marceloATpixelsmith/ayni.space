@@ -768,14 +768,14 @@ test("mfa enrollment bootstraps csrf before enrollment start and verify", () => 
 
   expectIncludes(
     authProviderSource,
-    "\"Security token is not ready. Please refresh and try MFA enrollment again.\"",
-    "MFA enrollment start should surface explicit bootstrap retry guidance.",
+    "\"Security token is not ready. Please refresh and try two-step verification setup again.\"",
+    "Two-step setup should surface explicit bootstrap retry guidance.",
   );
 
   expectIncludes(
     authProviderSource,
-    "\"Security token is not ready. Please refresh and try MFA verification again.\"",
-    "MFA enrollment verify should surface explicit bootstrap retry guidance.",
+    "\"Security token is not ready. Please refresh and try two-step verification again.\"",
+    "Two-step verification should surface explicit bootstrap retry guidance.",
   );
 });
 
@@ -783,25 +783,25 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
   expectIncludes(
     mfaEnrollSource,
     "https://api.qrserver.com/v1/create-qr-code/",
-    "MFA enrollment should generate a QR code source for authenticator scanning.",
+    "Two-step enrollment should generate a QR code source for authenticator scanning.",
   );
 
   expectIncludes(
     mfaEnrollSource,
-    "alt=\"MFA enrollment QR code\"",
-    "MFA enrollment should render a QR image as the primary setup UI.",
+    "alt=\"Two-step verification QR code\"",
+    "Two-step enrollment should render a QR image as the primary setup UI.",
   );
 
   expectIncludes(
     mfaEnrollSource,
-    "enter this setup key manually",
-    "MFA enrollment should preserve manual setup key fallback.",
+    "Enter this setup key manually",
+    "Two-step enrollment should preserve manual setup key fallback.",
   );
 
   expectIncludes(
     mfaEnrollSource,
     "Preparing your authenticator setup…",
-    "MFA enrollment should show initialization state instead of immediate error.",
+    "Two-step enrollment should show initialization state instead of immediate error.",
   );
 });
 
