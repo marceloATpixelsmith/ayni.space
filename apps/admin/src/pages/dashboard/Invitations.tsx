@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, X, Send } from "lucide-react";
-import { useTurnstileToken } from "@workspace/frontend-security";
 import { validateEmailInput } from "@/pages/auth/authValidation";
 import { FieldValidationMessage } from "@/pages/auth/components/FieldValidationMessage";
 
@@ -25,17 +24,17 @@ export default function Invitations() {
   const [, setLocation] = useLocation();
   const { data: user, isLoading: userLoading } = useGetMe();
   const queryClient = useQueryClient();
-  const turnstile = useTurnstileToken();
   const [email, setEmail] = React.useState("");
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [role, setRole] = React.useState("member");
-  const [error, setError] = React.useState("");
+  const [apiError, setApiError] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
+  const [submitAttempted, setSubmitAttempted] = React.useState(false);
 
   const orgId = user?.activeOrgId ?? "";
   const { data: invitations, isLoading } = useGetOrgInvitations(orgId, {
-    query: { enabled: !!orgId, queryKey: ["getOrgInvitations", orgId] },
+    query: { enabled: !!orgId },
   });
   const createInvitation = useCreateInvitation();
   const cancelInvitation = useCancelInvitation();
@@ -47,14 +46,10 @@ export default function Invitations() {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setApiError("");
+    setSubmitAttempted(true);
     const emailError = validateEmailInput(email);
     if (emailError) {
-      setError(emailError);
-      return;
-    }
-    if (turnstile.enabled && !turnstile.token) {
-      setError("Please complete Turnstile verification before sending an invitation.");
       return;
     }
     try {
@@ -70,10 +65,11 @@ export default function Invitations() {
       setEmail("");
       setFirstName("");
       setLastName("");
-      turnstile.reset();
+      setEmailTouched(false);
+      setSubmitAttempted(false);
       await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });
     } catch (err: unknown) {
-      setError((err as { data?: { error?: string } })?.data?.error ?? "Failed to send invitation");
+      setApiError((err as { data?: { error?: string } })?.data?.error ?? "Failed to send invitation");
     }
   };
 
@@ -86,6 +82,9 @@ export default function Invitations() {
     await resendInvitation.mutateAsync({ orgId, invitationId });
     await queryClient.invalidateQueries({ queryKey: getGetOrgInvitationsQueryKey(orgId) });
   };
+
+  const emailError = validateEmailInput(email);
+  const showEmailError = (emailTouched || submitAttempted) && Boolean(emailError);
 
   return (
     <AppLayout>
@@ -112,10 +111,13 @@ export default function Invitations() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => setEmailTouched(true)}
-                  aria-invalid={Boolean((emailTouched || Boolean(error)) && validateEmailInput(email))}
-                  aria-describedby={(emailTouched || Boolean(error)) && validateEmailInput(email) ? "invitation-email-error" : undefined}
+                  aria-invalid={showEmailError}
+                  aria-describedby={showEmailError ? "invitation-email-error" : undefined}
                 />
-                <FieldValidationMessage id="invitation-email-error" message={(emailTouched || Boolean(error)) ? validateEmailInput(email) : null} />
+                <FieldValidationMessage
+                  id="invitation-email-error"
+                  message={showEmailError ? emailError : null}
+                />
               </div>
               <div className="min-w-40">
                 <label className="text-sm font-medium text-muted-foreground mb-1 block">First name</label>
@@ -154,13 +156,7 @@ export default function Invitations() {
                 Send Invite
               </Button>
             </form>
-            {error && <p className="text-destructive text-sm mt-2">{error}</p>}
-            {turnstile.enabled && (
-              <div className="mt-6 space-y-2">
-                <turnstile.TurnstileWidget />
-                {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
-              </div>
-            )}
+            {apiError && <p className="text-destructive text-sm mt-2">{apiError}</p>}
           </CardContent>
         </Card>
 
