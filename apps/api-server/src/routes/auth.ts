@@ -450,18 +450,56 @@ async function handleMe(req: Request, res: Response) {
   }
 
   const pendingReason = req.session.pendingMfaReason;
-  const pendingNextStep: "mfa_enroll" | "mfa_challenge" | null = hasPendingMfaSession
-    ? pendingReason === "enrollment_required"
-      ? "mfa_enroll"
-      : "mfa_challenge"
-    : null;
-  const pendingMfaEnrolled = hasPendingMfaSession
-    ? pendingReason === "enrollment_required"
-      ? false
-      : pendingReason === "challenge_required"
-        ? true
-        : pendingNextStep === "mfa_challenge"
-    : mfaEnrolled;
+  const resolvePendingMfaState = () => {
+    if (!hasPendingMfaSession) {
+      return {
+        pendingMfaEnrolled: mfaEnrolled,
+        pendingNextStep: null as "mfa_enroll" | "mfa_challenge" | null,
+        pendingResolution: "no_pending_session",
+      };
+    }
+
+    if (pendingReason === "challenge_required") {
+      return {
+        pendingMfaEnrolled: true,
+        pendingNextStep: "mfa_challenge" as const,
+        pendingResolution: "session_reason_challenge_required",
+      };
+    }
+
+    if (pendingReason === "enrollment_required") {
+      if (mfaStateReadFailed) {
+        return {
+          pendingMfaEnrolled: true,
+          pendingNextStep: "mfa_challenge" as const,
+          pendingResolution: "enrollment_reason_factor_read_failed_fail_closed_to_challenge",
+        };
+      }
+      if (mfaEnrolled) {
+        return {
+          pendingMfaEnrolled: true,
+          pendingNextStep: "mfa_challenge" as const,
+          pendingResolution: "enrollment_reason_overridden_by_live_factor_state",
+        };
+      }
+      return {
+        pendingMfaEnrolled: false,
+        pendingNextStep: "mfa_enroll" as const,
+        pendingResolution: "session_reason_enrollment_required",
+      };
+    }
+
+    return {
+      pendingMfaEnrolled: mfaStateReadFailed ? true : mfaEnrolled,
+      pendingNextStep: mfaStateReadFailed || mfaEnrolled ? "mfa_challenge" as const : "mfa_enroll" as const,
+      pendingResolution: mfaStateReadFailed
+        ? "missing_reason_factor_read_failed_fail_closed_to_challenge"
+        : mfaEnrolled
+          ? "missing_reason_live_factor_active"
+          : "missing_reason_no_active_factor",
+    };
+  };
+  const { pendingMfaEnrolled, pendingNextStep, pendingResolution } = resolvePendingMfaState();
 
   if (hasPendingMfaSession) {
     logAuthCheckTrace(req, {
@@ -482,6 +520,7 @@ async function handleMe(req: Request, res: Response) {
       mfaEnrolled: pendingMfaEnrolled,
       mfaStateReadFailed,
       pendingReason: pendingReason ?? null,
+      pendingResolution,
       nextStep: pendingNextStep,
       hasPendingMfaSession: true,
     });
