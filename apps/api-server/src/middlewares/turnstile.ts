@@ -5,6 +5,7 @@ import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
 import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 type AuditWriter = (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void>;
+const MFA_CHALLENGE_PATH_PATTERN = /^\/api\/auth\/mfa\/(challenge|recovery)\/?$/;
 
 function isProduction(): boolean {
   return process.env["NODE_ENV"] === "production";
@@ -154,6 +155,10 @@ export function turnstileVerifyMiddleware(deps: { verifyFn?: typeof verifyTurnst
 
   return (req, res, next) => {
     if (!isTurnstileEnabled()) {
+      next();
+      return;
+    }
+    if (MFA_CHALLENGE_PATH_PATTERN.test(req.path)) {
       next();
       return;
     }

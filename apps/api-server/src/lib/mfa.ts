@@ -115,17 +115,44 @@ export async function beginTotpEnrollment(userId: string) {
   const encrypted = encryptSecret(secret);
   const insertedFactorId = randomUUID();
   try {
-    return await db.transaction(async (tx) => {
-      const lockedUser = await tx.execute<{ id: string }>(
+    return await db.transaction(async (tx: {
+      execute: (query: unknown) => Promise<{ rows: Array<{ id: string }> }>;
+      query: typeof db.query;
+      update: typeof db.update;
+      insert: typeof db.insert;
+    }) => {
+      const lockedUser = await tx.execute(
         sql`select id from platform.users where id = ${userId} for update`,
       );
       if (lockedUser.rows.length === 0) {
         return null;
       }
 
-      const upserted = await tx
-        .insert(mfaFactorsTable)
-        .values({
+      const existingFactor = await tx.query.mfaFactorsTable.findFirst({
+        where: and(eq(mfaFactorsTable.userId, userId), eq(mfaFactorsTable.factorType, "totp")),
+      });
+
+      if (existingFactor?.status === "active") {
+        return null;
+      }
+
+      let factorId = insertedFactorId;
+      if (existingFactor) {
+        await tx
+          .update(mfaFactorsTable)
+          .set({
+            status: "pending",
+            secretCiphertext: encrypted.ciphertext,
+            secretIv: encrypted.iv,
+            secretTag: encrypted.tag,
+            enrolledAt: null,
+            lastUsedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(mfaFactorsTable.id, existingFactor.id));
+        factorId = existingFactor.id;
+      } else {
+        await tx.insert(mfaFactorsTable).values({
           id: insertedFactorId,
           userId,
           factorType: "totp",
@@ -133,20 +160,9 @@ export async function beginTotpEnrollment(userId: string) {
           secretCiphertext: encrypted.ciphertext,
           secretIv: encrypted.iv,
           secretTag: encrypted.tag,
-        })
-        .onConflictDoUpdate({
-          target: [mfaFactorsTable.userId, mfaFactorsTable.factorType],
-          set: {
-            status: "pending",
-            secretCiphertext: encrypted.ciphertext,
-            secretIv: encrypted.iv,
-            secretTag: encrypted.tag,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: mfaFactorsTable.id });
+        });
+      }
 
-      const factorId = upserted[0]?.id ?? insertedFactorId;
       return { factorId, secret };
     });
   } catch (error) {
@@ -204,8 +220,7 @@ export async function hasActiveMfaFactor(userId: string): Promise<boolean> {
       where: and(
         eq(mfaFactorsTable.userId, userId),
         eq(mfaFactorsTable.factorType, "totp"),
-        ne(mfaFactorsTable.status, "disabled"),
-        or(eq(mfaFactorsTable.status, "active"), sql`${mfaFactorsTable.enrolledAt} is not null`),
+        eq(mfaFactorsTable.status, "active"),
       ),
     });
     return Boolean(row);
@@ -219,11 +234,11 @@ export async function verifyMfaChallenge(userId: string, code: string): Promise<
     where: and(
       eq(mfaFactorsTable.userId, userId),
       eq(mfaFactorsTable.factorType, "totp"),
-      ne(mfaFactorsTable.status, "disabled"),
-      or(eq(mfaFactorsTable.status, "active"), sql`${mfaFactorsTable.enrolledAt} is not null`),
+      eq(mfaFactorsTable.status, "active"),
     ),
   });
   if (!factor) return false;
+  if (factor.status !== "active") return false;
   const normalizedTotp = normalizeTotpCode(code);
   if (/^[0-9]{6}$/.test(normalizedTotp)) {
     const secret = decryptSecret(factor.secretCiphertext, factor.secretIv, factor.secretTag);
