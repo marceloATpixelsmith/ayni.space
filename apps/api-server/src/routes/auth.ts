@@ -511,7 +511,12 @@ async function handleMe(req: Request, res: Response) {
     ? await getAppContext(authenticatedUser.id, sessionAppSlug)
     : null;
   const mfaRequired = await isMfaRequiredForUser(authenticatedUser.id, authenticatedUser.activeOrgId);
-  const mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
+  let mfaEnrolled = false;
+  try {
+    mfaEnrolled = await hasActiveMfaFactor(authenticatedUser.id);
+  } catch {
+    mfaEnrolled = false;
+  }
 
   res.json({
     id: authenticatedUser.id,
@@ -1934,7 +1939,13 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const alreadyEnrolled = await hasActiveMfaFactor(userId);
+  let alreadyEnrolled = false;
+  try {
+    alreadyEnrolled = await hasActiveMfaFactor(userId);
+  } catch {
+    res.status(503).json({ error: "Unable to verify two-step verification status. Please try again." });
+    return;
+  }
   if (alreadyEnrolled) {
     res.status(409).json({ error: "Two-step verification is already active for this account. Use your authenticator code to continue." });
     return;
