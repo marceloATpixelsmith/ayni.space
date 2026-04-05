@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
+import { getRequestCookieValue, getSetCookieValueForName, logAuthDebug, toVisibleSessionId } from "../lib/authDebug.js";
+import { getSessionCookieName } from "../lib/session.js";
+import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MISSING_ORIGIN_REFERER_EXCEPTIONS: Array<{ method: string; pattern: RegExp }> = [
@@ -43,6 +46,32 @@ export const csrfProtection: RequestHandler = (req, res, next) => {
 };
 
 export const csrfTokenEndpoint: RequestHandler = (req, res) => {
+  if (process.env["AUTH_DEBUG"] === "true") {
+    const sessionGroup = req.resolvedSessionGroup ?? req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const cookieName = getSessionCookieName(sessionGroup);
+    logAuthDebug(req, "csrf_token_request", {
+      requestSessionId: req.sessionID ?? null,
+      sessionGroup,
+      cookieName,
+      requestCookieSessionId: toVisibleSessionId(getRequestCookieValue(req, cookieName)),
+      sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
+      userId: req.session?.userId ?? null,
+      pendingUserId: req.session?.pendingUserId ?? null,
+    });
+    res.on("finish", () => {
+      logAuthDebug(req, "csrf_token_response", {
+        status: res.statusCode,
+        requestSessionId: req.sessionID ?? null,
+        sessionGroup,
+        cookieName,
+        responseSetCookieSessionId: toVisibleSessionId(getSetCookieValueForName(res, cookieName)),
+        responseSetCookiePresent: Boolean(getSetCookieValueForName(res, cookieName)),
+        sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
+        userId: req.session?.userId ?? null,
+        pendingUserId: req.session?.pendingUserId ?? null,
+      });
+    });
+  }
   const token = ensureSessionCsrfToken(req);
   res.json({ csrfToken: token });
 };
