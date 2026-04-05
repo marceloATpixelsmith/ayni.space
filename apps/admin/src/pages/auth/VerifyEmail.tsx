@@ -39,8 +39,8 @@ export default function VerifyEmail() {
         return;
       }
       setPhase("success");
-      setMessage("Email verified. Redirecting to sign in...");
-      window.setTimeout(() => setLocation("/login"), 800);
+      setMessage("Email verified. Continuing...");
+      window.setTimeout(() => setLocation("/"), 300);
     })
       .catch((err) => {
         if (activeAttemptRef.current !== attemptKey) return;

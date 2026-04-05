@@ -19,7 +19,7 @@ type AuthContextValue = {
   csrfToken: string | null;
   csrfReady: boolean;
   loginInFlight: boolean;
-  refreshSession: () => Promise<void>;
+  refreshSession: (options?: { retryAfterDelay?: boolean }) => Promise<void>;
   loginWithGoogle: (
     turnstileToken?: string | null,
     intent?: "sign_in" | "create_account",
@@ -402,8 +402,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [meQuery],
   );
 
-  const refreshSession = React.useCallback(async () => {
-    await runAuthCheck();
+  const refreshSession = React.useCallback(async (options?: { retryAfterDelay?: boolean }) => {
+    await runAuthCheck({ retryAfterDelay: options?.retryAfterDelay });
   }, [runAuthCheck]);
 
   React.useEffect(() => {
@@ -814,17 +814,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (payload?.mfaRequired) {
       const target = payload.needsEnrollment ? "/mfa/enroll" : "/mfa/challenge";
       markAuthTransition();
+      await refreshSession({ retryAfterDelay: true });
       await refreshCsrfState();
       window.location.assign(target);
       return payload;
     }
     if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
       markAuthTransition();
+      await refreshSession({ retryAfterDelay: true });
       await refreshCsrfState();
       window.location.assign(payload.nextPath);
       return payload;
     }
-    await refreshSession();
+    await refreshSession({ retryAfterDelay: true });
     return payload;
   }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
