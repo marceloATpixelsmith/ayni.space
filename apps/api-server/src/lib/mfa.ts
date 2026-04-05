@@ -14,7 +14,7 @@ import { hashOpaqueToken } from "./passwordAuth.js";
 
 const TRUSTED_DEVICE_COOKIE_NAME = "ayni_trusted_device";
 const TRUSTED_DEVICE_TTL_MS = 20 * 24 * 60 * 60 * 1000;
-const TOTP_ALLOWED_WINDOW_STEPS = 2;
+const TOTP_ALLOWED_WINDOW_STEPS = 1;
 const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
 
 function normalizeTotpCode(value: string): string {
@@ -57,6 +57,11 @@ function base32Decode(value: string): Buffer {
     if (bits >= 8) {
       out.push((acc >>> (bits - 8)) & 255);
       bits -= 8;
+      if (bits === 0) {
+        acc = 0;
+      } else {
+        acc &= (1 << bits) - 1;
+      }
     }
   }
   return Buffer.from(out);

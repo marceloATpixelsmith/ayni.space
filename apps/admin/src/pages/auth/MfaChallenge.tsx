@@ -27,7 +27,7 @@ export default function MfaChallenge() {
     <AuthShell title="Two-step verification required" subtitle="Enter the code from your authenticator app to continue.">
       <div className="space-y-3">
         <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember this device for 20 days</label>
-        <input className="w-full border rounded px-3 py-2" placeholder="6-digit authenticator code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(codeError)} aria-describedby={codeError ? "twostep-code-error" : undefined} />
+        <input autoFocus className="w-full border rounded px-3 py-2" placeholder="6-digit authenticator code" value={code} onChange={(e) => setCode(e.target.value)} aria-invalid={Boolean(codeError)} aria-describedby={codeError ? "twostep-code-error" : undefined} />
         <FieldValidationMessage id="twostep-code-error" message={codeError} />
         <Button className="w-full" onClick={submitCode}>Verify code</Button>
 
