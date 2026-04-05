@@ -118,8 +118,16 @@ The persistence model is intentionally queryable for future superadmin tooling:
 - Provider credentials remain platform-owned via environment variables (`PLATFORM_TRANSACTIONAL_EMAIL_PROVIDER`, `PLATFORM_BREVO_API_KEY`) and are not stored in the database.
 
 ## Known intentional gaps (next PR)
-- No broad Lane 1 notifications framework yet (invitation-only in this phase).
-- No org-facing UI/superadmin UI yet.
+- Lane 1 now supports invitation, email verification, and password reset via reusable template resolution; broader non-auth notification types are still pending.
+- No org-facing UI for lane2 yet.
+
+## 2026-04-04 update — Lane 1 template architecture
+- Lane 1 templates are now normalized in `platform.email_templates` with `template_type` + subject/html/text columns and app override support (`lib/db/src/schema/email_templates.ts`, `lib/db/migrations/20260404_lane1_email_templates.sql`).
+- Resolution order for lane1 sending is explicit: app override (`app_id=<app>`) first, then platform default (`app_id is null`) for each type.
+- Supported lane1 template types: `invitation`, `email_verification`, `password_reset`.
+- Template token usage is allowlisted per template type in `apps/api-server/src/lib/emailTemplates.ts`; unsupported tokens are rejected by admin-save validation endpoints.
+- Super admin management APIs are implemented under `/api/admin/apps/:appId/email-templates*` and wired to the admin dashboard email-template section (`apps/api-server/src/routes/admin.ts`, `apps/admin/src/pages/admin/AdminDashboard.tsx`).
+- Invitation legacy data migration path: existing `platform.apps.invitation_email_subject/html` values are backfilled into `platform.email_templates` app overrides during migration, preserving existing invitation content while moving runtime reads off `platform.apps` columns.
 
 ## Live send execution pipeline (implemented)
 - Internal send entrypoint: `POST /api/organizations/:orgId/transactional-email/send`.

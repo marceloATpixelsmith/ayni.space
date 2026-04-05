@@ -8,9 +8,11 @@ import {
   featureFlagsTable,
   orgAppAccessTable,
 } from "@workspace/db";
-import { eq, count, desc } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { writeAuditLog } from "../lib/audit.js";
+import { EMAIL_TEMPLATE_TYPES, resolveEmailTemplate, TEMPLATE_SAMPLE_CONTEXT, TEMPLATE_TOKEN_ALLOWLIST, validateTemplateTokens, renderTemplatedString, type EmailTemplateType } from "../lib/emailTemplates.js";
+import { emailTemplatesTable } from "@workspace/db/schema";
 
 const router: IRouter = Router();
 
@@ -184,6 +186,167 @@ router.put("/organizations/:orgId/apps/:appId", async (req, res) => {
   });
 
   res.json({ success: true, message: `App access ${enabled ? "enabled" : "disabled"}` });
+});
+
+
+router.get("/email-template-types", (_req, res) => {
+  res.json(EMAIL_TEMPLATE_TYPES.map((templateType) => ({
+    templateType,
+    tokens: TEMPLATE_TOKEN_ALLOWLIST[templateType],
+    sampleData: TEMPLATE_SAMPLE_CONTEXT[templateType],
+  })));
+});
+
+router.get("/apps/:appId/email-templates", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  if (!appId) {
+    res.status(400).json({ error: "appId is required" });
+    return;
+  }
+
+  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, appId) });
+  if (!app) {
+    res.status(404).json({ error: "App not found" });
+    return;
+  }
+
+  const templates = await Promise.all(EMAIL_TEMPLATE_TYPES.map(async (templateType) => {
+    const resolved = await resolveEmailTemplate(appId, templateType);
+    const appOverride = await db.query.emailTemplatesTable.findFirst({
+      where: and(eq(emailTemplatesTable.appId, appId), eq(emailTemplatesTable.templateType, templateType)),
+    });
+
+    return {
+      templateType,
+      source: resolved.source,
+      appOverrideActive: appOverride?.isActive ?? false,
+      template: resolved.template,
+      appOverride,
+      tokens: TEMPLATE_TOKEN_ALLOWLIST[templateType],
+      sampleData: TEMPLATE_SAMPLE_CONTEXT[templateType],
+    };
+  }));
+
+  res.json({ app: { id: app.id, name: app.name, slug: app.slug }, templates });
+});
+
+router.put("/apps/:appId/email-templates/:templateType", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  const templateTypeRaw = asSingleString(req.params["templateType"]);
+  if (!appId || !templateTypeRaw) {
+    res.status(400).json({ error: "appId and templateType are required" });
+    return;
+  }
+  if (!EMAIL_TEMPLATE_TYPES.includes(templateTypeRaw as EmailTemplateType)) {
+    res.status(400).json({ error: "Unsupported template type" });
+    return;
+  }
+  const templateType = templateTypeRaw as EmailTemplateType;
+  const subjectTemplate = String(req.body?.subjectTemplate ?? "").trim();
+  const htmlTemplate = String(req.body?.htmlTemplate ?? "").trim();
+  const textTemplate = typeof req.body?.textTemplate === "string" ? req.body.textTemplate : null;
+
+  if (!subjectTemplate || !htmlTemplate) {
+    res.status(400).json({ error: "subjectTemplate and htmlTemplate are required" });
+    return;
+  }
+
+  const unsupportedTokens = validateTemplateTokens(templateType, { subjectTemplate, htmlTemplate, textTemplate });
+  if (unsupportedTokens.length) {
+    res.status(400).json({ error: "Unsupported template tokens", unsupportedTokens });
+    return;
+  }
+
+  const existing = await db.query.emailTemplatesTable.findFirst({
+    where: and(eq(emailTemplatesTable.appId, appId), eq(emailTemplatesTable.templateType, templateType)),
+  });
+
+  let saved;
+  if (existing) {
+    const rows = await db.update(emailTemplatesTable)
+      .set({ subjectTemplate, htmlTemplate, textTemplate, isActive: true, updatedAt: new Date() })
+      .where(eq(emailTemplatesTable.id, existing.id))
+      .returning();
+    saved = rows[0] ?? null;
+  } else {
+    const rows = await db.insert(emailTemplatesTable)
+      .values({ id: randomUUID(), appId, templateType, subjectTemplate, htmlTemplate, textTemplate, isActive: true })
+      .returning();
+    saved = rows[0] ?? null;
+  }
+
+  await writeAuditLog({
+    req,
+    userId: req.session.userId,
+    action: "admin.email_template.upsert",
+    resourceType: "email_template",
+    resourceId: saved?.id,
+    metadata: { appId, templateType },
+  });
+
+  res.json({ template: saved });
+});
+
+router.post("/apps/:appId/email-templates/:templateType/preview", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  const templateTypeRaw = asSingleString(req.params["templateType"]);
+  if (!appId || !templateTypeRaw || !EMAIL_TEMPLATE_TYPES.includes(templateTypeRaw as EmailTemplateType)) {
+    res.status(400).json({ error: "Invalid appId/templateType" });
+    return;
+  }
+  const templateType = templateTypeRaw as EmailTemplateType;
+  const resolved = await resolveEmailTemplate(appId, templateType);
+  const subjectTemplate = String(req.body?.subjectTemplate ?? resolved.template?.subjectTemplate ?? "");
+  const htmlTemplate = String(req.body?.htmlTemplate ?? resolved.template?.htmlTemplate ?? "");
+  const textTemplate = typeof req.body?.textTemplate === "string" ? req.body.textTemplate : (resolved.template?.textTemplate ?? "");
+  const context = {
+    ...TEMPLATE_SAMPLE_CONTEXT[templateType],
+    ...(req.body?.sampleData && typeof req.body.sampleData === "object" ? req.body.sampleData : {}),
+  } as Record<string, string>;
+  const unsupportedTokens = validateTemplateTokens(templateType, { subjectTemplate, htmlTemplate, textTemplate });
+  if (unsupportedTokens.length) {
+    res.status(400).json({ error: "Unsupported template tokens", unsupportedTokens });
+    return;
+  }
+  res.json({
+    subject: renderTemplatedString(subjectTemplate, context, { escapeValues: false, allowlist: TEMPLATE_TOKEN_ALLOWLIST[templateType] }),
+    html: renderTemplatedString(htmlTemplate, context, { escapeValues: true, allowlist: TEMPLATE_TOKEN_ALLOWLIST[templateType] }),
+    text: renderTemplatedString(textTemplate, context, { escapeValues: false, allowlist: TEMPLATE_TOKEN_ALLOWLIST[templateType] }),
+    sampleData: context,
+  });
+});
+
+router.delete("/apps/:appId/email-templates/:templateType", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  const templateTypeRaw = asSingleString(req.params["templateType"]);
+  if (!appId || !templateTypeRaw || !EMAIL_TEMPLATE_TYPES.includes(templateTypeRaw as EmailTemplateType)) {
+    res.status(400).json({ error: "Invalid appId/templateType" });
+    return;
+  }
+
+  const templateType = templateTypeRaw as EmailTemplateType;
+  const existing = await db.query.emailTemplatesTable.findFirst({
+    where: and(eq(emailTemplatesTable.appId, appId), eq(emailTemplatesTable.templateType, templateType)),
+  });
+  if (!existing) {
+    res.status(404).json({ error: "App override template not found" });
+    return;
+  }
+
+  await db.delete(emailTemplatesTable).where(eq(emailTemplatesTable.id, existing.id));
+  await writeAuditLog({
+    req,
+    userId: req.session.userId,
+    action: "admin.email_template.delete",
+    resourceType: "email_template",
+    resourceId: existing.id,
+    metadata: { appId, templateType },
+  });
+
+  const fallback = await db.query.emailTemplatesTable.findFirst({
+    where: and(isNull(emailTemplatesTable.appId), eq(emailTemplatesTable.templateType, templateType), eq(emailTemplatesTable.isActive, true)),
+  });
+  res.json({ success: true, fallbackTemplate: fallback });
 });
 
 export default router;

@@ -19,7 +19,7 @@ import { generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, 
 import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
 import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
-import { sendLane1AuthVerificationEmail } from "../lib/invitationEmail.js";
+import { sendLane1AuthVerificationEmail, sendLane1PasswordResetEmail } from "../lib/invitationEmail.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -1662,7 +1662,9 @@ async function handlePasswordSignup(req: Request, res: Response) {
       appSlug: signupApp.slug,
       userId: user.id,
       userEmail: email,
+      userFullName: user.name,
       verificationToken,
+      expirationDateTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
 
     if (signupApp.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
@@ -1784,6 +1786,20 @@ async function handleForgotPassword(req: Request, res: Response) {
     const user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
     if (user) {
       token = await createAuthToken(user.id, "password_reset", 30);
+      const appSlug = getRequestedEmailPasswordAppSlug(req);
+      const app = await getAppBySlug(appSlug);
+      if (app) {
+        await sendLane1PasswordResetEmail({
+          req,
+          appId: app.id,
+          appSlug: app.slug,
+          userId: user.id,
+          userEmail: user.email,
+          userFullName: user.name,
+          resetToken: token,
+          expirationDateTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        });
+      }
     }
   }
 
