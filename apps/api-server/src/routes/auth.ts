@@ -475,6 +475,8 @@ async function handleMe(req: Request, res: Response) {
       hasPendingMfaSession: true,
     });
     res.json({
+      authenticated: true,
+      userId: authenticatedUser.id,
       id: authenticatedUser.id,
       email: authenticatedUser.email,
       name: authenticatedUser.name,

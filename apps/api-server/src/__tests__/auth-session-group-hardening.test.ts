@@ -1309,6 +1309,8 @@ test("mfa-pending /api/auth/me returns safe pending contract with nextStep=chall
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["userId"], "pending-user");
     assert.equal(payload["id"], "pending-user");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], true);
@@ -1358,10 +1360,64 @@ test("mfa-pending /api/auth/me returns nextStep=enroll when active factor is mis
 
     assert.equal(response.status, 200);
     const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["userId"], "pending-user-no-factor");
     assert.equal(payload["id"], "pending-user-no-factor");
     assert.equal(payload["mfaPending"], true);
     assert.equal(payload["mfaEnrolled"], false);
     assert.equal(payload["nextStep"], "mfa_enroll");
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
+test("mfa-pending /api/auth/me/ with trailing slash remains allowed and returns pending contract", async () => {
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "pending-user-slash",
+      email: "pending-slash@example.com",
+      name: "Pending Slash",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "pending-user-slash",
+      factorType: "totp",
+      status: "active",
+    })),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      pendingUserId: "pending-user-slash",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "challenge_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me/", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], true);
+    assert.equal(payload["userId"], "pending-user-slash");
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["nextStep"], "mfa_challenge");
   } finally {
     for (const undo of restore.reverse()) undo();
   }

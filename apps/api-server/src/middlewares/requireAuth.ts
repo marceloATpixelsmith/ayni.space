@@ -86,7 +86,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const cookieHeaderPresent = typeof req.headers["cookie"] === "string" && req.headers["cookie"].trim().length > 0;
   const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
   const hasPendingMfaSession = Boolean(req.session?.pendingUserId || req.session?.pendingMfaReason);
-  const mfaPendingPathAllowed = req.path === "/me";
+  const normalizedPath = req.path.replace(/\/+$/, "") || "/";
+  const normalizedOriginalPath = req.originalUrl.split("?", 1)[0]?.replace(/\/+$/, "") || "/";
+  const mfaPendingPathAllowed = normalizedPath === "/me" || normalizedOriginalPath.endsWith("/auth/me");
   const effectiveUserId = userId ?? (hasPendingMfaSession && mfaPendingPathAllowed ? pendingUserId : null);
 
   if (!effectiveUserId) {
