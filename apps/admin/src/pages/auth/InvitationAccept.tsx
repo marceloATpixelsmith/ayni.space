@@ -6,16 +6,38 @@ import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 
 type Params = { token?: string };
+type InvitationState = "valid" | "invalid" | "expired" | "accepted" | "revoked";
+type EmailMode = "set_password" | "sign_in" | "none";
 type InvitationResolveResponse = {
   invitation?: {
-    state?: "valid" | "invalid" | "expired" | "accepted" | "revoked";
+    state?: InvitationState;
     email?: string | null;
   };
   auth?: {
     googleAllowed?: boolean;
-    emailMode?: "set_password" | "sign_in" | "none";
+    emailMode?: EmailMode;
   };
 };
+
+function isInvitationState(value: unknown): value is InvitationState {
+  return value === "valid" || value === "invalid" || value === "expired" || value === "accepted" || value === "revoked";
+}
+
+function isEmailMode(value: unknown): value is EmailMode {
+  return value === "set_password" || value === "sign_in" || value === "none";
+}
+
+function isInvitationResolveResponse(value: unknown): value is InvitationResolveResponse {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  const invitation = payload["invitation"];
+  const auth = payload["auth"];
+  if (!invitation || typeof invitation !== "object") return false;
+  if (!auth || typeof auth !== "object") return false;
+  const invitationState = (invitation as Record<string, unknown>)["state"];
+  const emailMode = (auth as Record<string, unknown>)["emailMode"];
+  return isInvitationState(invitationState) && isEmailMode(emailMode);
+}
 
 export default function InvitationAccept() {
   const params = useParams<Params>();
@@ -28,41 +50,63 @@ export default function InvitationAccept() {
   const [password, setPassword] = React.useState("");
   const [passwordConfirm, setPasswordConfirm] = React.useState("");
   const [resolution, setResolution] = React.useState<InvitationResolveResponse | null>(null);
-  const [resolutionLoading, setResolutionLoading] = React.useState(false);
+  const [resolutionStatus, setResolutionStatus] = React.useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [resolutionError, setResolutionError] = React.useState<string | null>(null);
   const [passwordSubmitting, setPasswordSubmitting] = React.useState(false);
+  const [resolveRequestId, setResolveRequestId] = React.useState(0);
   const lastSubmittedRef = React.useRef<string | null>(null);
   const inFlightRef = React.useRef(false);
   const continuationPath = React.useMemo(
     () => (params.token ? `/invitations/${params.token}/accept` : null),
     [params.token],
   );
+  const resolveApiPath = React.useMemo(() => (params.token ? `/api/invitations/${params.token}/resolve` : null), [params.token]);
+  const resolveApiUrl = React.useMemo(() => {
+    if (!resolveApiPath) return null;
+    const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim() ?? "";
+    if (!apiBase) return resolveApiPath;
+    return `${apiBase.replace(/\/$/, "")}${resolveApiPath}`;
+  }, [resolveApiPath]);
+  const invitationState = resolution?.invitation?.state;
+  const isValidPendingInvitation = invitationState === "valid";
+  const resolutionAuth = resolution?.auth;
 
   React.useEffect(() => {
-    const token = params.token;
-    if (!token) {
+    if (!resolveApiUrl) {
       setResolution(null);
+      setResolutionStatus("idle");
+      setResolutionError(null);
       return;
     }
     let cancelled = false;
-    setResolutionLoading(true);
-    fetch(`/api/invitations/${token}/resolve`, { credentials: "include" })
-      .then((response) => response.json().catch(() => null))
+    setResolutionStatus("loading");
+    setResolutionError(null);
+    fetch(resolveApiUrl, { credentials: "include" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error("Unable to resolve invitation state.");
+        }
+        return payload;
+      })
       .then((payload) => {
         if (cancelled) return;
-        setResolution(payload as InvitationResolveResponse);
+        if (!isInvitationResolveResponse(payload)) {
+          throw new Error("Invitation state payload was incomplete.");
+        }
+        setResolution(payload);
+        setResolutionStatus("ready");
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
         setResolution(null);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setResolutionLoading(false);
+        setResolutionStatus("error");
+        setResolutionError(error instanceof Error ? error.message : "Unable to resolve invitation state.");
       });
     return () => {
       cancelled = true;
     };
-  }, [params.token]);
+  }, [resolveApiUrl, resolveRequestId]);
 
   React.useEffect(() => {
     const token = params.token;
@@ -83,7 +127,6 @@ export default function InvitationAccept() {
       return;
     }
 
-    const invitationState = resolution?.invitation?.state;
     if (invitationState && invitationState !== "valid") {
       inFlightRef.current = false;
       setStatus("error");
@@ -102,8 +145,11 @@ export default function InvitationAccept() {
       inFlightRef.current = false;
       setStatus("idle");
       setMessage("Sign in to continue accepting this invitation.");
-      if (resolutionLoading) {
+      if (resolutionStatus === "loading") {
         setMessage("Checking invitation status...");
+      } else if (resolutionStatus === "error") {
+        setStatus("error");
+        setMessage("We couldn't load this invitation right now. Please retry.");
       } else if (resolution?.auth?.emailMode === "set_password") {
         setMessage("Set your password to join this invitation.");
       }
@@ -169,7 +215,7 @@ export default function InvitationAccept() {
       cancelled = true;
       inFlightRef.current = false;
     };
-  }, [auth, params.token, resolution, resolutionLoading, setLocation, turnstile.enabled, turnstile.reset, turnstile.token]);
+  }, [auth, params.token, resolution, resolutionStatus, setLocation, turnstile.enabled, turnstile.reset, turnstile.token, invitationState]);
 
   const handleGoogleContinue = React.useCallback(() => {
     if (!continuationPath || auth.loginInFlight) return;
@@ -224,18 +270,26 @@ export default function InvitationAccept() {
           </div>
         )}
         {status === "error" && (
-          <Button onClick={() => setLocation("/dashboard")} className="w-full">
-            Back to dashboard
-          </Button>
-        )}
-        {auth.status === "unauthenticated" && params.token && resolution?.invitation?.state === "valid" && (
           <div className="space-y-2">
-            {resolution.auth?.googleAllowed ? (
+            {resolutionStatus === "error" ? (
+              <Button onClick={() => setResolveRequestId((current) => current + 1)} className="w-full" variant="outline">
+                Retry invitation lookup
+              </Button>
+            ) : null}
+            {resolutionError ? <p className="text-destructive text-sm text-center">{resolutionError}</p> : null}
+            <Button onClick={() => setLocation("/dashboard")} className="w-full">
+              Back to dashboard
+            </Button>
+          </div>
+        )}
+        {auth.status === "unauthenticated" && params.token && isValidPendingInvitation && resolutionStatus === "ready" && (
+          <div className="space-y-2">
+            {resolutionAuth?.googleAllowed ? (
               <Button onClick={handleGoogleContinue} className="w-full" disabled={auth.loginInFlight}>
                 {auth.loginInFlight ? "Starting Google sign-in..." : "Join with Google"}
               </Button>
             ) : null}
-            {resolution.auth?.emailMode === "sign_in" ? (
+            {resolutionAuth?.emailMode === "sign_in" ? (
               <Button
                 variant="outline"
                 onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? "/")}`)}
@@ -244,7 +298,7 @@ export default function InvitationAccept() {
                 Sign in with email/password
               </Button>
             ) : null}
-            {resolution.auth?.emailMode === "set_password" ? (
+            {resolutionAuth?.emailMode === "set_password" ? (
               <div className="space-y-2">
                 <PasswordInput
                   value={password}
