@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createSessionApp, ensureTestDatabaseEnv, patchProperty, performJsonRequest } from "./helpers.js";
+import { ensureTestDatabaseEnv, patchProperty, performJsonRequest } from "./helpers.js";
 
 ensureTestDatabaseEnv();
 
@@ -9,6 +9,11 @@ const { db } = await import("@workspace/db");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
 
 test("invitation password acceptance returns MFA enrollment step when user is not enrolled", async () => {
+  const persistedSession: Record<string, unknown> = {
+    sessionGroup: "default",
+    appSlug: "admin",
+    activeOrgId: "org-1",
+  };
   const restores = [
     patchProperty(db.query.invitationsTable, "findFirst", async () => ({
       id: "inv-1",
@@ -69,11 +74,35 @@ test("invitation password acceptance returns MFA enrollment step when user is no
   ];
 
   try {
-    const app = createSessionApp(invitationsRouter, {
-      sessionGroup: "default",
-      appSlug: "admin",
-      activeOrgId: "org-1",
+    const express = (await import("express")).default;
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as unknown as { session: Record<string, unknown> }).session = {
+        id: "test-session-id",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          Object.assign(persistedSession, this);
+          cb?.();
+        },
+        regenerate(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          for (const key of Object.keys(this)) {
+            delete this[key];
+          }
+          this.id = "regenerated-session-id";
+          this.destroy = (done?: (err?: unknown) => void) => done?.();
+          this.save = (done?: (err?: unknown) => void) => {
+            Object.assign(persistedSession, this);
+            done?.();
+          };
+          this.regenerate = (done?: (err?: unknown) => void) => done?.();
+          cb?.();
+        },
+        ...persistedSession,
+      };
+      next();
     });
+    app.use("/api", invitationsRouter);
 
     const response = await performJsonRequest(app, "POST", "/api/invitations/token-1/accept-email", {
       password: "Password1!",
@@ -83,8 +112,11 @@ test("invitation password acceptance returns MFA enrollment step when user is no
     assert.equal(response.body?.mfaRequired, true);
     assert.equal(response.body?.nextStep, "mfa_enroll");
     assert.equal(response.body?.nextPath, "/mfa/enroll");
+    assert.equal(
+      persistedSession.pendingReturnToPath,
+      "/invitations/token-1/accept",
+    );
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
 });
-

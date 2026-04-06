@@ -20,6 +20,7 @@ import {
   isMfaPendingStatus,
   isAuthRouteAllowed,
   logAuthDebug,
+  resolveAuthenticatedNextStep,
   type AuthRouteKind,
   type PlatformAppMetadata,
 } from "@workspace/frontend-security";
@@ -120,70 +121,18 @@ function Home() {
         });
         return;
       }
-      if (isMfaPendingStatus(auth.status)) {
-        const route = getMfaPendingRoute(auth.status) ?? "/login";
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: route,
-          reason: "home_mfa_pending",
-        });
-        setLocation(route);
-        return;
-      }
-
-      const appAccess = getCurrentAppAccess(auth.user);
-      if (
-        appAccess?.requiredOnboarding === "organization" &&
-        !appAccess.canAccess
-      ) {
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: "/onboarding/organization",
-          reason: "home_required_onboarding",
-        });
-        setLocation("/onboarding/organization");
-        return;
-      }
-      if (appAccess?.requiredOnboarding === "user") {
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: "/onboarding/user",
-          reason: "home_required_user_onboarding",
-        });
-        setLocation("/onboarding/user");
-        return;
-      }
-
-      if (appAccess?.normalizedAccessProfile === "superadmin") {
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: auth.user?.isSuperAdmin
-            ? "/dashboard"
-            : adminAccessDeniedLoginPath(),
-          reason: "home_superadmin_policy",
-        });
-        setLocation(
-          auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath(),
-        );
-        return;
-      }
-
-      if (appAccess && !appAccess.canAccess) {
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: adminAccessDeniedLoginPath(),
-          reason: "home_app_access_denied",
-        });
-        setLocation(adminAccessDeniedLoginPath());
-        return;
-      }
-
+      const nextStep = resolveAuthenticatedNextStep({
+        authStatus: auth.status,
+        user: auth.user,
+        deniedLoginPath: adminAccessDeniedLoginPath(),
+        defaultPath: "/dashboard",
+      });
       logAuthDebug("guard_redirect", {
         from: "/",
-        to: "/dashboard",
-        reason: "home_default",
+        to: nextStep.destination,
+        reason: `home_${nextStep.reason}`,
       });
-      setLocation("/dashboard");
+      setLocation(nextStep.destination);
     }
   }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
 

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   fetchPlatformAppMetadataBySlug,
   isFullyAuthenticatedStatus,
+  resolveAuthenticatedNextStep,
   useAuth,
   useTurnstileToken,
 } from "@workspace/frontend-security";
@@ -46,13 +47,6 @@ export function getLoginDisabledReasons(input: {
   if (input.turnstileEnabled && !input.turnstileTokenPresent)
     reasons.push("turnstileEnabled&&!turnstileToken");
   return reasons;
-}
-
-function isInvitationContinuationPath(
-  nextPath: string | null,
-): nextPath is string {
-  if (!nextPath) return false;
-  return /^\/invitations\/[^/]+\/accept$/.test(nextPath);
 }
 
 export default function Login() {
@@ -128,43 +122,14 @@ export default function Login() {
 
   React.useEffect(() => {
     if (isFullyAuthenticatedStatus(auth.status)) {
-      if (isInvitationContinuationPath(nextPath)) {
-        setLocation(nextPath);
-        return;
-      }
-      const appAccess = (
-        auth.user as
-          | (typeof auth.user & { appAccess?: Record<string, unknown> })
-          | null
-      )?.appAccess;
-      const normalizedAccessProfile = appAccess?.["normalizedAccessProfile"];
-      const canAccess = appAccess?.["canAccess"];
-      const requiredOnboarding = appAccess?.["requiredOnboarding"];
-
-      if (normalizedAccessProfile === "superadmin") {
-        if (auth.user?.isSuperAdmin) {
-          setLocation(nextPath || "/dashboard");
-        } else {
-          setLocation(adminAccessDeniedLoginPath());
-        }
-        return;
-      }
-
-      if (requiredOnboarding === "organization" && canAccess === false) {
-        setLocation("/onboarding/organization");
-        return;
-      }
-      if (requiredOnboarding === "user") {
-        setLocation("/onboarding/user");
-        return;
-      }
-
-      if (canAccess === false) {
-        setLocation(adminAccessDeniedLoginPath());
-        return;
-      }
-
-      setLocation(nextPath || "/dashboard");
+      const nextStep = resolveAuthenticatedNextStep({
+        authStatus: auth.status,
+        user: auth.user,
+        continuationPath: nextPath,
+        deniedLoginPath: adminAccessDeniedLoginPath(),
+        defaultPath: "/dashboard",
+      });
+      setLocation(nextStep.destination);
     }
   }, [auth.status, auth.user, setLocation, nextPath]);
 
