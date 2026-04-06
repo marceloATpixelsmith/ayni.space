@@ -826,12 +826,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
         csrfToken,
       );
-      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { nextPath?: string | null });
+      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string | null });
       if (!response.ok) {
         const error = new Error(payload?.error ?? "Failed to set password for invitation.") as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
         throw error;
+      }
+      if (payload?.mfaRequired) {
+        const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+          ? "/mfa/enroll"
+          : "/mfa/challenge";
+        window.location.assign(target);
+        return target;
       }
       await refreshSession();
       return normalizeReturnToPath(payload?.nextPath) ?? null;
