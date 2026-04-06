@@ -442,17 +442,34 @@ async function handleMe(req: Request, res: Response) {
 
   const pendingMfaUserId =
     hasPendingMfaSession && typeof req.session.pendingUserId === "string" && req.session.pendingUserId.trim().length > 0
-      ? req.session.pendingUserId
+      ? req.session.pendingUserId.trim()
       : null;
-  const mfaStateUserId = pendingMfaUserId ?? authenticatedUser.id;
+  const mfaLookupUserIds = Array.from(new Set([
+    pendingMfaUserId,
+    authenticatedUser.id,
+    typeof req.session.userId === "string" && req.session.userId.trim().length > 0 ? req.session.userId.trim() : null,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0)));
 
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
-  try {
-    mfaEnrolled = await hasActiveMfaFactor(mfaStateUserId);
-  } catch {
-    mfaEnrolled = false;
-    mfaStateReadFailed = true;
+  let mfaStateUserId = mfaLookupUserIds[0] ?? authenticatedUser.id;
+  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> = [];
+  for (const candidateUserId of mfaLookupUserIds) {
+    try {
+      const candidateEnrolled = await hasActiveMfaFactor(candidateUserId);
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: candidateEnrolled });
+      if (candidateEnrolled) {
+        mfaEnrolled = true;
+        mfaStateUserId = candidateUserId;
+        break;
+      }
+      if (!mfaEnrolled) {
+        mfaStateUserId = candidateUserId;
+      }
+    } catch {
+      mfaStateReadFailed = true;
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: false });
+    }
   }
 
   const pendingReason = req.session.pendingMfaReason;
@@ -529,6 +546,8 @@ async function handleMe(req: Request, res: Response) {
       pendingResolution,
       mfaStateUserId,
       pendingMfaUserId,
+      mfaLookupUserIds,
+      mfaLookupResults,
       nextStep: pendingNextStep,
       hasPendingMfaSession: true,
     });

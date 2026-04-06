@@ -1541,6 +1541,73 @@ test("mfa-pending /api/auth/me evaluates factor state against pendingUserId when
   }
 });
 
+test("mfa-pending /api/auth/me falls back to authenticated user factor state when pendingUserId is stale", async () => {
+  const lookedUpUserIds: string[] = [];
+  const restore = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "active-session-user",
+      email: "active-session-user@example.com",
+      name: "Active Session User",
+      avatarUrl: null,
+      activeOrgId: null,
+      isSuperAdmin: false,
+      suspended: false,
+      deletedAt: null,
+      active: true,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async (args: unknown) => {
+      const serializedArgs = inspect(args, { depth: 8 });
+      if (serializedArgs.includes("pending-user-stale")) {
+        lookedUpUserIds.push("pending-user-stale");
+        return null;
+      }
+      if (serializedArgs.includes("active-session-user")) {
+        lookedUpUserIds.push("active-session-user");
+        return {
+          id: "factor-active-session-user",
+          userId: "active-session-user",
+          factorType: "totp",
+          status: "active",
+        };
+      }
+      return null;
+    }),
+    patchProperty(db, "update", () => ({
+      set: () => ({
+        where: async () => ({})
+      }),
+    }) as never),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+      userId: "active-session-user",
+      pendingUserId: "pending-user-stale",
+      pendingAppSlug: "admin",
+      pendingMfaReason: "enrollment_required",
+      sessionGroup: "admin",
+    });
+
+    const response = await request(app, "/api/auth/me", {
+      headers: {
+        origin: "http://admin.local",
+        cookie: "saas.admin.sid=admin-cookie",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json() as Record<string, unknown>;
+    assert.equal(payload["authenticated"], false);
+    assert.equal(payload["mfaPending"], true);
+    assert.equal(payload["mfaEnrolled"], true);
+    assert.equal(payload["nextStep"], "mfa_challenge");
+    assert.equal(payload["needsEnrollment"], false);
+    assert.deepEqual(lookedUpUserIds, ["pending-user-stale", "active-session-user"]);
+  } finally {
+    for (const undo of restore.reverse()) undo();
+  }
+});
+
 test("mfa-pending /api/auth/me returns pending payload when central security middleware runs before auth router", async () => {
   const restore = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({
