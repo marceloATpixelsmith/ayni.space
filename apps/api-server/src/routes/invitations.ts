@@ -664,6 +664,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
 }
 
 async function resolveInvitation(req: Request<{ token: string }>, res: Response) {
+  console.info("[invitations] RESOLVE HIT", { token: req.params.token });
   const payload = await resolveInvitationAuthPayload(req.params.token);
   res.json(payload);
 }

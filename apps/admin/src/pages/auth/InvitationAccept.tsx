@@ -53,7 +53,6 @@ export default function InvitationAccept() {
   const [resolutionStatus, setResolutionStatus] = React.useState<"idle" | "loading" | "ready" | "error">("idle");
   const [resolutionError, setResolutionError] = React.useState<string | null>(null);
   const [passwordSubmitting, setPasswordSubmitting] = React.useState(false);
-  const [resolveRequestId, setResolveRequestId] = React.useState(0);
   const lastSubmittedRef = React.useRef<string | null>(null);
   const inFlightRef = React.useRef(false);
   const continuationPath = React.useMemo(
@@ -114,7 +113,7 @@ export default function InvitationAccept() {
     return () => {
       cancelled = true;
     };
-  }, [resolveApiUrl, resolveRequestId]);
+  }, [resolveApiUrl]);
 
   React.useEffect(() => {
     const token = params.token;
@@ -279,11 +278,6 @@ export default function InvitationAccept() {
         )}
         {status === "error" && (
           <div className="space-y-2">
-            {resolutionStatus === "error" ? (
-              <Button onClick={() => setResolveRequestId((current) => current + 1)} className="w-full" variant="outline">
-                Retry invitation lookup
-              </Button>
-            ) : null}
             {resolutionError ? <p className="text-destructive text-sm text-center">{resolutionError}</p> : null}
             <Button onClick={() => setLocation(auth.status === "unauthenticated" ? "/login" : "/dashboard")} className="w-full">
               {auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"}
