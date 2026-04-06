@@ -60,13 +60,21 @@ export default function InvitationAccept() {
     () => (params.token ? `/invitations/${params.token}/accept` : null),
     [params.token],
   );
-  const resolveApiPath = React.useMemo(() => (params.token ? `/api/invitations/${params.token}/resolve` : null), [params.token]);
   const resolveApiUrl = React.useMemo(() => {
-    if (!resolveApiPath) return null;
+    const token = params.token;
+    if (!token) return null;
+
+    const invitationResolvePath = `/invitations/${token}/resolve`;
     const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim() ?? "";
-    if (!apiBase) return resolveApiPath;
-    return `${apiBase.replace(/\/$/, "")}${resolveApiPath}`;
-  }, [resolveApiPath]);
+    if (!apiBase) {
+      return `/api${invitationResolvePath}`;
+    }
+
+    const normalizedApiBase = apiBase.replace(/\/$/, "");
+    const apiBaseIncludesApiPrefix = /\/api$/i.test(normalizedApiBase);
+    const apiPrefix = apiBaseIncludesApiPrefix ? "" : "/api";
+    return `${normalizedApiBase}${apiPrefix}${invitationResolvePath}`;
+  }, [params.token]);
   const invitationState = resolution?.invitation?.state;
   const isValidPendingInvitation = invitationState === "valid";
   const resolutionAuth = resolution?.auth;
@@ -277,8 +285,8 @@ export default function InvitationAccept() {
               </Button>
             ) : null}
             {resolutionError ? <p className="text-destructive text-sm text-center">{resolutionError}</p> : null}
-            <Button onClick={() => setLocation("/dashboard")} className="w-full">
-              Back to dashboard
+            <Button onClick={() => setLocation(auth.status === "unauthenticated" ? "/login" : "/dashboard")} className="w-full">
+              {auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"}
             </Button>
           </div>
         )}

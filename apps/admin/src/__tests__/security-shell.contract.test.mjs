@@ -159,6 +159,17 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
     "if (!isInvitationResolveResponse(payload)) {",
     "Invitation resolve response should be shape-validated so missing auth state does not silently degrade into a blank action area.",
   );
+
+  expectIncludes(
+    invitationAcceptSource,
+    "return `/api${invitationResolvePath}`;",
+    "Invitation resolve lookup should keep same-origin /api routing when VITE_API_BASE_URL is not configured.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    'auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"',
+    "Invitation resolve error fallback should send logged-out users back to sign in instead of dashboard.",
+  );
   expectIncludes(
     invitationAcceptSource,
     "auth.status === \"unauthenticated\" && params.token && isValidPendingInvitation && resolutionStatus === \"ready\"",
