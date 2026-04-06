@@ -21,7 +21,10 @@ import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupC
 import { InvitationEmailConfigError, sendLane1InvitationEmail } from "../lib/invitationEmail.js";
 import { getAppBySlug } from "../lib/appAccess.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
-import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
+import {
+  resolvePostAuthFlowDecision,
+} from "../lib/postAuthFlow.js";
+import { resolveAuthenticatedPostAuthDestination } from "../lib/postAuthDestination.js";
 import { hashPassword, isStrongEnoughPassword, normalizeEmail } from "../lib/passwordAuth.js";
 import { getTrustedDeviceCookieName, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice } from "../lib/mfa.js";
 import { applySessionPersistence } from "../lib/session.js";
@@ -217,6 +220,7 @@ async function beginInvitationMfaPendingSession(
   req: Request,
   userId: string,
   appSlug: string,
+  continuationPath?: string | null,
 ): Promise<{ required: false } | { required: true; needsEnrollment: boolean; nextStep: "mfa_enroll" | "mfa_challenge" }> {
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
@@ -249,6 +253,10 @@ async function beginInvitationMfaPendingSession(
   req.session.pendingAppSlug = appSlug;
   req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
   req.session.pendingStayLoggedIn = false;
+  req.session.pendingReturnToPath =
+    typeof continuationPath === "string" && continuationPath.startsWith("/")
+      ? continuationPath
+      : undefined;
   applySessionPersistence(req, false);
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
@@ -307,7 +315,11 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
         isSuperAdmin: Boolean(user.isSuperAdmin),
         normalizedAccessProfile,
       });
-      if (postAcceptDecision?.destination) nextPath = postAcceptDecision.destination;
+      nextPath = resolveAuthenticatedPostAuthDestination({
+        continuationPath: null,
+        flowDecision: postAcceptDecision,
+        fallbackPath: "/dashboard",
+      });
     }
   }
   return { ok: true as const, nextPath, org };
@@ -797,7 +809,12 @@ async function acceptInvitationWithPassword(req: Request<{ token: string }, unkn
     passwordHash,
   });
 
-  const mfaGate = await beginInvitationMfaPendingSession(req, user.id, app.slug);
+  const mfaGate = await beginInvitationMfaPendingSession(
+    req,
+    user.id,
+    app.slug,
+    `/invitations/${invitationToken}/accept`,
+  );
   if (mfaGate.required) {
     res.status(202).json({
       success: true,

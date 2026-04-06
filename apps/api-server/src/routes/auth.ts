@@ -33,6 +33,7 @@ import {
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
+import { resolveAuthenticatedPostAuthDestination } from "../lib/postAuthDestination.js";
 import {
   isSessionGroupCompatible,
   resolveSessionGroupForApp,
@@ -1895,9 +1896,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const destination = effectiveContext.destination;
-    const continuationDestination = normalizeReturnToPath(oauthReturnToPath);
-    const finalDestination = continuationDestination ?? destination;
+    const finalDestination = resolveAuthenticatedPostAuthDestination({
+      continuationPath: normalizeReturnToPath(oauthReturnToPath),
+      flowDecision: effectiveContext,
+      fallbackPath: "/dashboard",
+    });
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
       redirectPath: finalDestination,
@@ -2235,6 +2238,7 @@ async function resolveNextPathForEstablishedSession(
   req: Request,
   userId: string,
   appSlug: string,
+  continuationPath?: string | null,
 ): Promise<string | null> {
   try {
     const user = await db.query.usersTable.findFirst({
@@ -2251,11 +2255,17 @@ async function resolveNextPathForEstablishedSession(
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
     });
-    const destination = flow?.destination ?? null;
+    const destination = resolveAuthenticatedPostAuthDestination({
+      continuationPath,
+      flowDecision: flow,
+      fallbackPath: "/dashboard",
+    });
     logAuthDebug(req, "post_auth_redirect_decision", {
       userId,
       appSlug,
       destination,
+      continuationPath:
+        typeof continuationPath === "string" ? continuationPath : null,
       requiredOnboarding: flow?.requiredOnboarding ?? null,
     });
     return destination;
@@ -2608,8 +2618,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
   const nextPath =
-    returnToPath ??
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug)) ??
+    (await resolveNextPathForEstablishedSession(req, user.id, appSlug, returnToPath)) ??
     "/dashboard";
   logAuthDebug(req, "login_result", {
     userId: user.id,
@@ -2962,11 +2971,11 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
     const appSlug = req.session.appSlug;
     if (appSlug) {
       nextPath =
-        completed.returnToPath ??
         (await resolveNextPathForEstablishedSession(
           req,
           completed.userId,
           appSlug,
+          completed.returnToPath,
         )) ??
         undefined;
     }
@@ -3031,8 +3040,12 @@ async function handleMfaChallenge(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? (completed.returnToPath ??
-      (await resolveNextPathForEstablishedSession(req, userId, appSlug)) ??
+    ? ((await resolveNextPathForEstablishedSession(
+        req,
+        userId,
+        appSlug,
+        completed.returnToPath,
+      )) ??
       undefined)
     : undefined;
   logAuthDebug(req, "mfa_challenge_result", {
@@ -3086,8 +3099,12 @@ async function handleMfaRecovery(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? (completed.returnToPath ??
-      (await resolveNextPathForEstablishedSession(req, userId, appSlug)) ??
+    ? ((await resolveNextPathForEstablishedSession(
+        req,
+        userId,
+        appSlug,
+        completed.returnToPath,
+      )) ??
       undefined)
     : undefined;
   logAuthDebug(req, "mfa_recovery_result", {

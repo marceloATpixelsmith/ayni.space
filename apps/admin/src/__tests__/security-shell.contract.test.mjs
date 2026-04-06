@@ -364,38 +364,26 @@ test("auth debug overlay supports collapse/expand, persistence, and keyboard acc
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
-    "if (isInvitationContinuationPath(nextPath)) {",
-    "Login should explicitly branch invitation continuations before generic access checks.",
+    "const nextStep = resolveAuthenticatedNextStep({",
+    "Login should use the shared post-auth resolver for authenticated redirects.",
   );
 
   expectIncludes(
     loginSource,
-    "setLocation(nextPath);\n        return;",
-    "Login should prioritize invitation continuation before generic access checks.",
+    "continuationPath: nextPath",
+    "Login resolver call should pass the continuation path so invitation/event continuations are honored.",
   );
 
   expectIncludes(
     loginSource,
-    'if (normalizedAccessProfile === "superadmin") {',
-    "Login should preserve an explicit superadmin branch.",
+    "deniedLoginPath: adminAccessDeniedLoginPath()",
+    "Login resolver call should preserve explicit superadmin denied-login behavior.",
   );
 
   expectIncludes(
     loginSource,
-    'if (auth.user?.isSuperAdmin) {',
-    "Login must branch superadmin success behavior.",
-  );
-
-  expectIncludes(
-    loginSource,
-    'setLocation(nextPath || "/dashboard");',
-    "Login must redirect super admins to /dashboard.",
-  );
-
-  expectIncludes(
-    loginSource,
-    'setLocation(adminAccessDeniedLoginPath());',
-    "Login must route non-super admins to /login with an access error.",
+    "setLocation(nextStep.destination);",
+    "Login must always navigate using the shared resolver output.",
   );
 
   expectIncludes(

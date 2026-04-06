@@ -133,6 +133,74 @@ export function getMfaPendingRoute(
   return null;
 }
 
+type ResolvedPostAuthDestination = {
+  destination: string;
+  reason:
+    | "mfa_pending"
+    | "continuation"
+    | "onboarding_organization"
+    | "onboarding_user"
+    | "superadmin_policy"
+    | "access_denied"
+    | "default";
+};
+
+export function resolveAuthenticatedNextStep(params: {
+  authStatus: AuthStatus;
+  user: AuthUser | null;
+  continuationPath?: string | null;
+  deniedLoginPath?: string;
+  defaultPath?: string;
+}): ResolvedPostAuthDestination {
+  if (isMfaPendingStatus(params.authStatus)) {
+    return {
+      destination: getMfaPendingRoute(params.authStatus) ?? "/login",
+      reason: "mfa_pending",
+    };
+  }
+
+  const continuationPath = normalizeReturnToPath(params.continuationPath);
+  if (continuationPath) {
+    return { destination: continuationPath, reason: "continuation" };
+  }
+
+  const appAccess =
+    params.user && typeof params.user === "object"
+      ? (params.user as AuthUser & {
+          appAccess?: {
+            normalizedAccessProfile?: "superadmin" | "solo" | "organization";
+            canAccess?: boolean;
+            requiredOnboarding?: "none" | "organization" | "user";
+          };
+        }).appAccess
+      : undefined;
+
+  if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
+    return { destination: "/onboarding/organization", reason: "onboarding_organization" };
+  }
+  if (appAccess?.requiredOnboarding === "user") {
+    return { destination: "/onboarding/user", reason: "onboarding_user" };
+  }
+
+  if (appAccess?.normalizedAccessProfile === "superadmin") {
+    return {
+      destination: params.user?.isSuperAdmin
+        ? "/dashboard"
+        : (params.deniedLoginPath ?? "/login"),
+      reason: "superadmin_policy",
+    };
+  }
+
+  if (appAccess && appAccess.canAccess === false) {
+    return {
+      destination: params.deniedLoginPath ?? "/login",
+      reason: "access_denied",
+    };
+  }
+
+  return { destination: params.defaultPath ?? "/dashboard", reason: "default" };
+}
+
 function classifyMfaPendingUser(
   payload: Pick<AuthUser, "mfaPending" | "mfaEnrolled" | "nextStep">,
 ) {
