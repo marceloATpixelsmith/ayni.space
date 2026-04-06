@@ -101,12 +101,11 @@ export default function InvitationAccept() {
     if (auth.status === "unauthenticated") {
       inFlightRef.current = false;
       setStatus("idle");
+      setMessage("Sign in to continue accepting this invitation.");
       if (resolutionLoading) {
         setMessage("Checking invitation status...");
       } else if (resolution?.auth?.emailMode === "set_password") {
         setMessage("Set your password to join this invitation.");
-      } else {
-        setMessage("Sign in to continue accepting this invitation.");
       }
       setLoginError(null);
       console.info("[INVITATION-FLOW] invitation accept awaiting explicit sign-in action", {
