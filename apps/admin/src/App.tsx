@@ -307,6 +307,14 @@ function DashboardRoute() {
 function AuthDebugOverlay() {
   const auth = useAuth();
   const [location] = useLocation();
+  const storageKey = "auth-debug-overlay-collapsed";
+  const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(storageKey) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [lastEventSummary, setLastEventSummary] = React.useState<string | null>(() =>
     getLastAuthDebugEventSummary(),
   );
@@ -321,6 +329,14 @@ function AuthDebugOverlay() {
       window.clearInterval(interval);
     };
   }, []);
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, String(isCollapsed));
+    } catch {
+      // no-op: localStorage may be unavailable in some environments
+    }
+  }, [isCollapsed]);
 
   if (!isAuthDebugEnabled()) {
     return null;
@@ -344,10 +360,46 @@ function AuthDebugOverlay() {
   })();
   const eventSummary = parsedEvent?.event ?? "none";
   const eventTs = parsedEvent?.ts ? new Date(parsedEvent.ts).toISOString() : null;
+  const togglePanel = () => setIsCollapsed((current) => !current);
+  const onToggleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      togglePanel();
+    }
+  };
+
+  if (isCollapsed) {
+    return (
+      <aside className="fixed bottom-3 right-3 z-[10000]">
+        <button
+          type="button"
+          aria-label="Expand auth debug panel"
+          aria-expanded="false"
+          onClick={togglePanel}
+          onKeyDown={onToggleKeyDown}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-100 shadow-lg transition-colors hover:bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+        >
+          <span aria-hidden>⌃</span>
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside className="fixed right-3 top-3 z-[10000] max-h-[80vh] w-[min(360px,calc(100vw-1.5rem))] overflow-auto rounded-md border border-zinc-700 bg-zinc-950/95 p-3 text-xs text-zinc-100 shadow-lg">
-      <div className="mb-2 text-[11px] font-semibold tracking-wide text-amber-300">AUTH DEBUG</div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] font-semibold tracking-wide text-amber-300">AUTH DEBUG</div>
+        <button
+          type="button"
+          aria-label="Collapse auth debug panel"
+          aria-expanded="true"
+          onClick={togglePanel}
+          onKeyDown={onToggleKeyDown}
+          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-700 text-zinc-100 transition-colors hover:bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+        >
+          <span aria-hidden>⌄</span>
+        </button>
+      </div>
       <dl className="space-y-1">
         <div className="flex justify-between gap-2"><dt className="text-zinc-400">route</dt><dd className="text-right">{location}</dd></div>
         <div className="flex justify-between gap-2"><dt className="text-zinc-400">status</dt><dd className="text-right">{auth.status}</dd></div>
