@@ -159,11 +159,6 @@ export function resolveAuthenticatedNextStep(params: {
     };
   }
 
-  const continuationPath = normalizeReturnToPath(params.continuationPath);
-  if (continuationPath) {
-    return { destination: continuationPath, reason: "continuation" };
-  }
-
   const appAccess =
     params.user && typeof params.user === "object"
       ? (params.user as AuthUser & {
@@ -180,6 +175,11 @@ export function resolveAuthenticatedNextStep(params: {
   }
   if (appAccess?.requiredOnboarding === "user") {
     return { destination: "/onboarding/user", reason: "onboarding_user" };
+  }
+
+  const continuationPath = normalizeReturnToPath(params.continuationPath);
+  if (continuationPath) {
+    return { destination: continuationPath, reason: "continuation" };
   }
 
   if (appAccess?.normalizedAccessProfile === "superadmin") {
@@ -416,7 +416,7 @@ export function deriveAppAuthRoutePolicy(
 
   if (app.normalizedAccessProfile === "solo") {
     return {
-      allowOnboarding: false,
+      allowOnboarding: true,
       allowInvitations: false,
       allowCustomerRegistration: false,
     };
