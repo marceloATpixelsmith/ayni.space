@@ -99,7 +99,11 @@ export default function Onboarding() {
         } | null;
         await auth.refreshSession();
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        setLocation(nextPayload?.nextPath ?? "/dashboard");
+        if (nextPayload?.nextPath) {
+          setLocation(nextPayload.nextPath);
+        } else {
+          setLocation("/dashboard");
+        }
       },
       onError: (
         error: unknown,
@@ -217,7 +221,11 @@ export default function Onboarding() {
       } | null;
       await auth.refreshSession();
       await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      setLocation(nextPayload?.nextPath ?? "/dashboard");
+      if (nextPayload?.nextPath) {
+        setLocation(nextPayload.nextPath);
+      } else {
+        setLocation("/dashboard");
+      }
     } catch (error) {
       toast({
         title: "Failed to save profile",
