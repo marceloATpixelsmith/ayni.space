@@ -34,23 +34,11 @@ type InvitationResolveResponse = {
 };
 
 function isInvitationState(value: unknown): value is InvitationState {
-  return (
-    value === "valid" ||
-    value === "pending" ||
-    value === "invalid" ||
-    value === "expired" ||
-    value === "accepted" ||
-    value === "revoked"
-  );
+  return value === "valid" || value === "pending" || value === "invalid" || value === "expired" || value === "accepted" || value === "revoked";
 }
 
 function isEmailMode(value: unknown): value is EmailMode {
-  return (
-    value === "set_password" ||
-    value === "create_password" ||
-    value === "sign_in" ||
-    value === "none"
-  );
+  return value === "set_password" || value === "create_password" || value === "sign_in" || value === "none";
 }
 
 function normalizeInvitationState(
@@ -113,10 +101,7 @@ export default function InvitationAccept() {
     if (!token) return null;
 
     const invitationResolvePath = `/invitations/${token}/resolve`;
-    const apiBase =
-      (
-        import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-      ).env?.VITE_API_BASE_URL?.trim() ?? "";
+    const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim() ?? "";
     if (!apiBase) {
       return `/api${invitationResolvePath}`;
     }
@@ -334,18 +319,16 @@ export default function InvitationAccept() {
       return;
     }
     setLoginError(null);
-    auth
-      .loginWithGoogle(turnstile.token, "sign_in", continuationPath)
-      .catch((error) => {
-        setLoginError(
-          error instanceof Error
-            ? error.message
-            : "Unable to start Google sign-in.",
-        );
-        if (turnstile.enabled) {
-          turnstile.reset();
-        }
-      });
+    auth.loginWithGoogle(turnstile.token, "sign_in", continuationPath).catch((error) => {
+      setLoginError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start Google sign-in.",
+      );
+      if (turnstile.enabled) {
+        turnstile.reset();
+      }
+    });
   }, [
     auth,
     continuationPath,
@@ -413,9 +396,7 @@ export default function InvitationAccept() {
               }
               className="w-full"
             >
-              {auth.status === "unauthenticated"
-                ? "Back to sign in"
-                : "Back to dashboard"}
+              {auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"}
             </Button>
           </div>
         ) : null}

@@ -42,10 +42,8 @@ export function getLoginDisabledReasons(input: {
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady)
-    reasons.push("turnstileEnabled&&!turnstileReady");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent)
-    reasons.push("turnstileEnabled&&!turnstileToken");
+  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
   return reasons;
 }
 
@@ -75,10 +73,7 @@ export default function Login() {
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
   const accessErrorCode = query.get("error");
-  const accessError =
-    accessErrorCode === ADMIN_ACCESS_DENIED_ERROR
-      ? ADMIN_ACCESS_DENIED_MESSAGE
-      : null;
+  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
   const emailError =
     emailTouched || submitted ? validateEmailInput(emailInput) : null;
 
@@ -206,13 +201,11 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth
-      .loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath)
-      .catch((error) => {
-        setLoginError(
-          error instanceof Error ? error.message : "Unable to sign in.",
-        );
-      });
+    auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath).catch((error) => {
+      setLoginError(
+        error instanceof Error ? error.message : "Unable to sign in.",
+      );
+    });
   };
 
   const handleGoogleLogin = (intent: "sign_in" | "create_account") => {
@@ -262,9 +255,7 @@ export default function Login() {
           disabled={disabledReasons.length > 0}
         >
           <Chrome className="w-5 h-5 mr-3" />
-          {auth.loginInFlight
-            ? "Starting Google sign-in..."
-            : "Sign in with Google"}
+          {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
         </Button>
 
         {!hideSignupAffordances ? (

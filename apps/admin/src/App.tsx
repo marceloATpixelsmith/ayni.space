@@ -127,6 +127,13 @@ function Home() {
         deniedLoginPath: adminAccessDeniedLoginPath(),
         defaultPath: "/dashboard",
       });
+      if (
+        (auth.user as (typeof auth.user & { appAccess?: { normalizedAccessProfile?: string } }) | null)?.appAccess
+          ?.normalizedAccessProfile === "superadmin"
+      ) {
+        setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
+        return;
+      }
       logAuthDebug("guard_redirect", {
         from: "/",
         to: nextStep.destination,
@@ -205,12 +212,9 @@ function ConfigDrivenAuthRoute({
   if (loading || auth.status === "loading") return <AuthLoading />;
 
   if (auth.status === "unauthenticated" && routeKind === "invitation") {
-    console.info(
-      "[INVITATION-FLOW] allowing unauthenticated invitation route render",
-      {
-        path: location,
-      },
-    );
+    console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render", {
+      path: location,
+    });
     return <>{children}</>;
   }
 
@@ -271,10 +275,7 @@ function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
 
   const appAccess = getCurrentAppAccess(auth.user);
 
-  if (
-    appAccess?.requiredOnboarding === "organization" &&
-    !appAccess.canAccess
-  ) {
+  if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
     return <AuthRedirect to="/onboarding/organization" />;
   }
   if (appAccess?.requiredOnboarding === "user") {
@@ -282,10 +283,7 @@ function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
   }
 
   // Fail closed for super-admin profiles: if auth is not explicitly super admin, deny route rendering.
-  if (
-    appAccess?.normalizedAccessProfile === "superadmin" &&
-    !auth.user?.isSuperAdmin
-  ) {
+  if (appAccess?.normalizedAccessProfile === "superadmin" && !auth.user?.isSuperAdmin) {
     return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
   }
 
@@ -513,55 +511,19 @@ function Router() {
           return <MfaChallenge />;
         }}
       </Route>
-      <Route path="/onboarding/organization">
-        {() => (
-          <ConfigDrivenAuthRoute routeKind="onboarding">
-            <Onboarding />
-          </ConfigDrivenAuthRoute>
-        )}
-      </Route>
-      <Route path="/onboarding/user">
-        {() => (
-          <ConfigDrivenAuthRoute routeKind="onboarding">
-            <Onboarding />
-          </ConfigDrivenAuthRoute>
-        )}
-      </Route>
+      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/onboarding/user">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
       <Route path="/onboarding">
         {() => <AuthRedirect to="/onboarding/organization" />}
       </Route>
-      <Route path="/invitations/:token/accept">
-        {() => (
-          <ConfigDrivenAuthRoute routeKind="invitation">
-            <InvitationAccept />
-          </ConfigDrivenAuthRoute>
-        )}
-      </Route>
+      <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
 
       {/* App-access routes */}
-      <Route path="/dashboard">
-        {() => (
-          <ProtectedAppAccess>
-            <DashboardRoute />
-          </ProtectedAppAccess>
-        )}
-      </Route>
-      <Route path="/dashboard/:section">
-        {() => (
-          <ProtectedAppAccess>
-            <DashboardRoute />
-          </ProtectedAppAccess>
-        )}
-      </Route>
+      <Route path="/dashboard">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
+      <Route path="/dashboard/:section">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
 
       {/* Fail-closed aliases for legacy routes */}
-      <Route path="/apps/:slug">
-        {() => (
-          <ProtectedAppAccess>
-            <AuthRedirect to="/dashboard/apps" />
-          </ProtectedAppAccess>
-        )}
-      </Route>
+      <Route path="/apps/:slug">{() => <ProtectedAppAccess><AuthRedirect to="/dashboard/apps" /></ProtectedAppAccess>}</Route>
 
       <Route component={NotFound} />
     </Switch>

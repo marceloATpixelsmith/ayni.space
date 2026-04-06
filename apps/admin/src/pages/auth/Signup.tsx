@@ -166,12 +166,7 @@ export default function Signup() {
           <Button
             className="w-full"
             onClick={onSubmit}
-            disabled={
-              !email ||
-              !password ||
-              Boolean(validateEmailInput(email)) ||
-              Boolean(validatePasswordInput(password))
-            }
+            disabled={!email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password))}
           >
             Sign up with email
           </Button>
