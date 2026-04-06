@@ -1,7 +1,12 @@
 import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
-import { isFullyAuthenticatedStatus, useAuth, useTurnstileToken } from "@workspace/frontend-security";
+import {
+  fetchPlatformAppMetadataBySlug,
+  isFullyAuthenticatedStatus,
+  useAuth,
+  useTurnstileToken,
+} from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { Chrome, ActivitySquare } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -15,7 +20,10 @@ import { AuthShell } from "./components/AuthShell";
 import { AuthMethodDivider } from "./components/AuthMethodDivider";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
-const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
+const AUTH_DEBUG =
+  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
+    ?.VITE_AUTH_DEBUG === "true";
+const CURRENT_APP_SLUG = import.meta.env.VITE_APP_SLUG ?? "admin";
 
 export function getLoginDisabledReasons(input: {
   authStatus: string;
@@ -28,16 +36,21 @@ export function getLoginDisabledReasons(input: {
   turnstileCanSubmit: boolean;
 }) {
   const reasons: string[] = [];
-  if (input.authStatus === "authenticated_fully") reasons.push("auth.status===authenticated_fully");
+  if (input.authStatus === "authenticated_fully")
+    reasons.push("auth.status===authenticated_fully");
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+  if (input.turnstileEnabled && !input.turnstileReady)
+    reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent)
+    reasons.push("turnstileEnabled&&!turnstileToken");
   return reasons;
 }
 
-function isInvitationContinuationPath(nextPath: string | null): nextPath is string {
+function isInvitationContinuationPath(
+  nextPath: string | null,
+): nextPath is string {
   if (!nextPath) return false;
   return /^\/invitations\/[^/]+\/accept$/.test(nextPath);
 }
@@ -50,6 +63,8 @@ export default function Login() {
   const [passwordInput, setPasswordInput] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
+  const [hideSignupAffordances, setHideSignupAffordances] =
+    React.useState(false);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
@@ -66,8 +81,12 @@ export default function Login() {
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
   const accessErrorCode = query.get("error");
-  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
-  const emailError = (emailTouched || submitted) ? validateEmailInput(emailInput) : null;
+  const accessError =
+    accessErrorCode === ADMIN_ACCESS_DENIED_ERROR
+      ? ADMIN_ACCESS_DENIED_MESSAGE
+      : null;
+  const emailError =
+    emailTouched || submitted ? validateEmailInput(emailInput) : null;
 
   React.useEffect(() => {
     if (!accessError) {
@@ -80,6 +99,24 @@ export default function Login() {
     deniedCleanupAttemptedRef.current = true;
     void auth.logout();
   }, [accessError, auth.status, auth.logout]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
+      .then((metadata) => {
+        if (cancelled) return;
+        setHideSignupAffordances(
+          metadata?.normalizedAccessProfile === "superadmin",
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHideSignupAffordances(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -95,7 +132,11 @@ export default function Login() {
         setLocation(nextPath);
         return;
       }
-      const appAccess = (auth.user as (typeof auth.user & { appAccess?: Record<string, unknown> }) | null)?.appAccess;
+      const appAccess = (
+        auth.user as
+          | (typeof auth.user & { appAccess?: Record<string, unknown> })
+          | null
+      )?.appAccess;
       const normalizedAccessProfile = appAccess?.["normalizedAccessProfile"];
       const canAccess = appAccess?.["canAccess"];
       const requiredOnboarding = appAccess?.["requiredOnboarding"];
@@ -111,6 +152,10 @@ export default function Login() {
 
       if (requiredOnboarding === "organization" && canAccess === false) {
         setLocation("/onboarding/organization");
+        return;
+      }
+      if (requiredOnboarding === "user") {
+        setLocation("/onboarding/user");
         return;
       }
 
@@ -135,7 +180,16 @@ export default function Login() {
         turnstileCanSubmit,
         turnstileReady,
       }),
-    [auth.status, auth.loginInFlight, auth.csrfReady, auth.csrfToken, turnstileCanSubmit, turnstileEnabled, turnstileReady, turnstileToken],
+    [
+      auth.status,
+      auth.loginInFlight,
+      auth.csrfReady,
+      auth.csrfToken,
+      turnstileCanSubmit,
+      turnstileEnabled,
+      turnstileReady,
+      turnstileToken,
+    ],
   );
 
   React.useEffect(() => {
@@ -155,10 +209,24 @@ export default function Login() {
       turnstileContainerExists: Boolean(document.querySelector(".min-h-16")),
       disabledReasons,
     });
-  }, [auth.status, auth.csrfReady, auth.csrfToken, turnstileEnabled, turnstileReady, turnstileToken, turnstileStatus, auth.loginInFlight, disabledReasons]);
+  }, [
+    auth.status,
+    auth.csrfReady,
+    auth.csrfToken,
+    turnstileEnabled,
+    turnstileReady,
+    turnstileToken,
+    turnstileStatus,
+    auth.loginInFlight,
+    disabledReasons,
+  ]);
 
   if (auth.status === "loading") {
-    return <div className="min-h-screen flex items-center justify-center bg-background"><ActivitySquare className="w-10 h-10 text-primary animate-pulse" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <ActivitySquare className="w-10 h-10 text-primary animate-pulse" />
+      </div>
+    );
   }
 
   const handlePasswordLogin = () => {
@@ -173,9 +241,13 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath).catch((error) => {
-      setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
-    });
+    auth
+      .loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath)
+      .catch((error) => {
+        setLoginError(
+          error instanceof Error ? error.message : "Unable to sign in.",
+        );
+      });
   };
 
   const handleGoogleLogin = (intent: "sign_in" | "create_account") => {
@@ -189,19 +261,32 @@ export default function Login() {
 
     setLoginError(null);
     auth.loginWithGoogle(turnstileToken, intent, nextPath).catch((error) => {
-      const message = error instanceof Error
-        ? ((error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message))
+      const message =
+        error instanceof Error
+          ? error instanceof TypeError ||
+            /Failed to fetch|NetworkError|Load failed/i.test(error.message)
             ? "Unable to reach the sign-in service. Please verify network/CORS configuration and try again."
-            : error.message)
-        : "Unable to start Google sign-in right now. Please try again.";
+            : error.message
+          : "Unable to start Google sign-in right now. Please try again.";
       setLoginError(message);
       if (turnstileEnabled) resetTurnstile();
     });
   };
 
   return (
-    <AuthShell title="Welcome" subtitle="Sign in or create your account to continue.">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
+    <AuthShell
+      title="Welcome"
+      subtitle={
+        hideSignupAffordances
+          ? "Sign in to continue."
+          : "Sign in or create your account to continue."
+      }
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
         <Button
           size="lg"
           className="w-full h-12 text-base font-medium"
@@ -209,13 +294,25 @@ export default function Login() {
           disabled={disabledReasons.length > 0}
         >
           <Chrome className="w-5 h-5 mr-3" />
-          {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
+          {auth.loginInFlight
+            ? "Starting Google sign-in..."
+            : "Sign in with Google"}
         </Button>
 
-        <Button size="lg" variant="outline" className="w-full h-12 text-base font-medium mt-3" onClick={() => handleGoogleLogin("create_account")} disabled={disabledReasons.length > 0}>
-          <Chrome className="w-5 h-5 mr-3" />
-          {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
-        </Button>
+        {!hideSignupAffordances ? (
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full h-12 text-base font-medium mt-3"
+            onClick={() => handleGoogleLogin("create_account")}
+            disabled={disabledReasons.length > 0}
+          >
+            <Chrome className="w-5 h-5 mr-3" />
+            {auth.loginInFlight
+              ? "Starting account setup..."
+              : "Create account with Google"}
+          </Button>
+        ) : null}
 
         <AuthMethodDivider />
 
@@ -230,16 +327,58 @@ export default function Login() {
             aria-describedby={emailError ? "login-email-error" : undefined}
           />
           <FieldValidationMessage id="login-email-error" message={emailError} />
-          <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
-          <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || !turnstileCanSubmit}>Sign in with email</Button>
-          <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
+          <PasswordInput
+            className="w-full border rounded px-3 py-2"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+          />
+          <Button
+            className="w-full"
+            onClick={handlePasswordLogin}
+            disabled={
+              auth.loginInFlight ||
+              !emailInput ||
+              !passwordInput ||
+              Boolean(validateEmailInput(emailInput)) ||
+              !turnstileCanSubmit
+            }
+          >
+            Sign in with email
+          </Button>
+          <div className="text-sm flex justify-between">
+            {!hideSignupAffordances ? (
+              <Link href="/signup">Create account</Link>
+            ) : (
+              <span />
+            )}
+            <Link href="/forgot-password">Forgot password?</Link>
+          </div>
         </div>
 
-        <div className="mt-6">{turnstileEnabled ? <TurnstileWidget /> : null}</div>
+        <div className="mt-6">
+          {turnstileEnabled ? <TurnstileWidget /> : null}
+        </div>
 
-        {accessError ? <p className="mt-4 text-sm text-destructive text-center" role="alert">{accessError}</p> : null}
-        {loginError ? <p className="mt-4 text-sm text-destructive text-center" role="alert">{loginError}</p> : null}
-        {turnstileGuidanceMessage ? <p className={`mt-4 text-sm text-center ${turnstileStatus === "error" || turnstileStatus === "expired" ? "text-destructive" : "text-muted-foreground"}`} role="status">{turnstileGuidanceMessage}</p> : null}
+        {accessError ? (
+          <p className="mt-4 text-sm text-destructive text-center" role="alert">
+            {accessError}
+          </p>
+        ) : null}
+        {loginError ? (
+          <p className="mt-4 text-sm text-destructive text-center" role="alert">
+            {loginError}
+          </p>
+        ) : null}
+        {turnstileGuidanceMessage ? (
+          <p
+            className={`mt-4 text-sm text-center ${turnstileStatus === "error" || turnstileStatus === "expired" ? "text-destructive" : "text-muted-foreground"}`}
+            role="status"
+          >
+            {turnstileGuidanceMessage}
+          </p>
+        ) : null}
       </motion.div>
     </AuthShell>
   );

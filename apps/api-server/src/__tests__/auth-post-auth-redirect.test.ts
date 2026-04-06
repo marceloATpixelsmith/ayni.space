@@ -26,21 +26,37 @@ test("organization profile routes post-auth users to onboarding when required", 
 });
 
 test("authorized callback destination remains dashboard when onboarding not required", () => {
-  assert.equal(getPostAuthRedirectPath({
-    appSlug: "admin",
-    isSuperAdmin: true,
-    normalizedAccessProfile: "superadmin",
-    requiredOnboarding: "none",
-  }), "/dashboard");
+  assert.equal(
+    getPostAuthRedirectPath({
+      appSlug: "admin",
+      isSuperAdmin: true,
+      normalizedAccessProfile: "superadmin",
+      requiredOnboarding: "none",
+    }),
+    "/dashboard",
+  );
 
-  assert.equal(getPostAuthRedirectPath({
+  assert.equal(
+    getPostAuthRedirectPath({
+      appSlug: "workspace-solo",
+      isSuperAdmin: false,
+      normalizedAccessProfile: "solo",
+      requiredOnboarding: "none",
+    }),
+    "/dashboard",
+  );
+});
+
+test("user onboarding destination is explicit when required", () => {
+  const destination = getPostAuthRedirectPath({
     appSlug: "workspace-solo",
     isSuperAdmin: false,
     normalizedAccessProfile: "solo",
-    requiredOnboarding: "none",
-  }), "/dashboard");
-});
+    requiredOnboarding: "user",
+  });
 
+  assert.equal(destination, "/onboarding/user");
+});
 
 test("organization profile onboarding redirect never includes /admin prefix", () => {
   const destination = getPostAuthRedirectPath({
