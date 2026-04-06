@@ -295,8 +295,8 @@ export default function MfaEnroll() {
               </div>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Manual setup option: enter this setup key in your authenticator
-              app: <code className="break-all">{secret}</code>
+              Manual setup option: Enter this setup key manually in your
+              authenticator app: <code className="break-all">{secret}</code>
             </p>
             <input
               autoFocus
