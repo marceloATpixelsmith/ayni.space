@@ -526,7 +526,9 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
         normalizedAccessProfile,
       });
       if (postAcceptDecision?.destination) {
-        nextPath = postAcceptDecision.destination;
+        nextPath = postAcceptDecision.requiredOnboarding === "organization"
+          ? "/dashboard"
+          : postAcceptDecision.destination;
       }
     }
   }

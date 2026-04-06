@@ -271,6 +271,72 @@ test("invitation org routes fail closed when session group is missing", async ()
   }
 });
 
+test("invitation accept keeps member destination when post-auth resolver reports organization onboarding", async () => {
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "invitee-1",
+      email: "invitee@example.com",
+      isSuperAdmin: false,
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      activeOrgId: null,
+    })),
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-onboarding",
+      token: "hash",
+      orgId: "org-a",
+      appId: "app-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => []),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({
+      id: "org-a",
+      appId: "app-a",
+      isActive: true,
+      name: "Org A",
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-a",
+      slug: "ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => ({
+      orgId: "org-a",
+      appId: "app-a",
+      enabled: true,
+    })),
+    patchProperty(db, "insert", () => ({
+      values: () => Promise.resolve([]),
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: () => ({ where: async () => undefined }),
+    }) as never),
+  ];
+
+  try {
+    const app = createSessionApp(invitationsRouter, {
+      userId: "invitee-1",
+      sessionGroup: "default",
+      appSlug: "ayni",
+    });
+
+    const response = await performJsonRequest(app, "POST", "/api/invitations/token/accept", {});
+    assert.equal(response.status, 200);
+    assert.equal(response.body.nextPath, "/dashboard");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
 test("invitation cancellation is denied for cross-org invitation ids and leaves invitation unchanged", async () => {
   let revokeWhereCallCount = 0;
   let invitationStatus = "pending";
