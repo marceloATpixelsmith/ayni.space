@@ -13,6 +13,7 @@ const { authTokensTable, db } = await import("@workspace/db");
 const { default: adminRouter } = await import("../routes/admin.js");
 const { default: usersRouter } = await import("../routes/users.js");
 const { default: authRouter } = await import("../routes/auth.js");
+const { default: invitationsRouter } = await import("../routes/invitations.js");
 
 function createApp(session: Record<string, unknown> = {}, turnstileOk = false) {
   const app = express();
@@ -31,6 +32,7 @@ function createApp(session: Record<string, unknown> = {}, turnstileOk = false) {
   app.use("/api/auth", authRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/admin", adminRouter);
+  app.use("/api", invitationsRouter);
   return app;
 }
 
@@ -187,6 +189,37 @@ test("AUTHENTICATED routes require valid session by default", async () => {
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
+});
+
+test("public invitation token routes do not require an authenticated session", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => null),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    const resolveResponse = await requestJson(createApp({}), "GET", "/api/invitations/token/resolve");
+    assert.equal(resolveResponse.status, 200);
+    const resolveBody = (await resolveResponse.json()) as { invitation?: { state?: string } };
+    assert.equal(resolveBody.invitation?.state, "invalid");
+
+    const acceptEmailResponse = await requestJson(
+      createApp({}, true),
+      "POST",
+      "/api/invitations/token/accept-email",
+      { password: "StrongPass1!" },
+    );
+    assert.equal(acceptEmailResponse.status, 404);
+    const acceptEmailBody = (await acceptEmailResponse.json()) as { error?: string };
+    assert.equal(acceptEmailBody.error, "Invitation not found");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("protected invitation management endpoints still require authenticated session", async () => {
+  const response = await requestJson(createApp({}), "GET", "/api/organizations/org-a/invitations");
+  assert.equal(response.status, 401);
 });
 
 test("ADMIN routes are centrally enforced as super-admin only", async () => {

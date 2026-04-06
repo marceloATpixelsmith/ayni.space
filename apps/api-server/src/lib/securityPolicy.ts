@@ -106,6 +106,19 @@ export function getSecurityConfig(): SecurityConfig {
       },
       {
         method: "GET",
+        pattern: /^\/api\/invitations\/[^/]+\/resolve\/?$/,
+        category: "PUBLIC",
+        rateLimit: { type: "auth", options: { keyPrefix: "invitation-resolve" } },
+      },
+      {
+        method: "POST",
+        pattern: /^\/api\/invitations\/[^/]+\/accept-email\/?$/,
+        category: "PUBLIC",
+        disableTurnstileReason: "Invitation token acceptance is a possession-factor flow and must remain machine consumable.",
+        rateLimit: { type: "auth", options: { keyPrefix: "invitation-accept-email" } },
+      },
+      {
+        method: "GET",
         pattern: /^\/healthz?\/?$/,
         category: "PUBLIC",
       },
