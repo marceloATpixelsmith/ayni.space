@@ -1,9 +1,14 @@
 # 05 — Authentication and Session Architecture
 
 ## Scope
+
 - This document defines architecture constraints for its domain using `docs/monorepo-overview.md` as baseline and concrete repository paths as evidence.
 
 ## Confirmed
+
+- Email/password signup UI now captures only `email` + `password` (no full-name and no confirm-password fields) while keeping strong-password validation aligned with backend policy (`apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/authValidation.ts`, `apps/api-server/src/lib/passwordAuth.ts`).
+- Invitation acceptance no longer routes invitees through generic `/login` for password setup; invited users with `emailMode=create_password` now create password directly on invitation page with the same password policy and visibility-toggle input (`apps/admin/src/pages/auth/InvitationAccept.tsx`, `apps/api-server/src/routes/invitations.ts`).
+- Post-auth onboarding now supports both organization onboarding (`/onboarding/organization`) and user onboarding (`/onboarding/user`) using app-context `requiredOnboarding` decisions (`apps/api-server/src/lib/appAccess.ts`, `apps/api-server/src/lib/postAuthRedirect.ts`, `apps/admin/src/App.tsx`, `apps/admin/src/pages/auth/Onboarding.tsx`).
 - Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - OAuth callback authorization now resolves active app context and normalized access profile before redirecting, then performs group-scoped denial cleanup on `access_denied` (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/appAccess.ts`).
 - OAuth start/callback continuation now supports a sanitized root-relative `returnToPath` (for example invitation acceptance URLs), carries it inside signed OAuth state, and prioritizes that continuation after successful callback session establishment (`apps/api-server/src/routes/auth.ts`, `apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`).
@@ -43,22 +48,27 @@
 
 - OAuth callback app resolution is now strict: callback app context is derived from `state.appSlug` only, `getAppBySlug(appSlug)`/`getAppContext(userId, appSlug)` must succeed, and missing/invalid app slug state now returns explicit controlled login errors (`app_slug_invalid`, `app_not_found`, `app_context_unavailable`) instead of silent fallback redirects (`apps/api-server/src/routes/auth.ts`).
 - Organization-mode create-account callbacks now redirect to root-relative onboarding (`/onboarding/organization`) via `apps/api-server/src/lib/postAuthRedirect.ts` instead of legacy generic `/onboarding`.
+
 ## Inferred
+
 - Auth/session is designed as backend-authoritative with frontend providers/guards consuming backend session state.
 - Session-group isolation is achieved end-to-end: cookie selection + cookie issuance + store revocation now all include group context, so unrelated groups are not globally logged out during denial/logout/revoke flows.
 - Session rotation and active-org switching are tied to user/session flows (`apps/api-server/src/routes/users.ts` + `apps/api-server/src/lib/session.ts`).
 
 ## Unclear
+
 - Full login method matrix and provider roadmap beyond current backend auth implementation.
 - Whether any additional frontend shells (beyond admin) will share the same auth provider behavior.
 - Whether future apps will require additional restricted session groups beyond `admin`.
 
 ## Intentional remaining gaps
+
 - Session anomaly handling is currently observational (audit signal) and does not enforce adaptive/risk-based re-authentication.
 - Rate limiting is currently in-process memory (production-safe defaults are in place, but no distributed/session-store-backed limiter yet).
 - Turnstile remains intentionally targeted to public/high-risk auth entry points instead of blanket enforcement across every route.
 
 ## Do not break
+
 - Do not move shared session storage out of `platform.sessions`; shared cross-app tables belong in `platform`, app-specific tables belong in app schemas.
 - Do not bypass `lib/frontend-security` for auth gating in the admin frontend.
 - Do not move auth/session logic outside the API server auth/session modules without updating route/middleware integration.
@@ -68,6 +78,7 @@
 ## 2026-04-04 update — Email/password credential lane
 
 ### Confirmed
+
 - Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - Post-auth onboarding/access routing is auth-method agnostic: Google callback, password login, and post-MFA password completion all resolve their destination via one backend policy resolver (`apps/api-server/src/lib/postAuthFlow.ts`) that derives decisions from app context (`platform.apps` access profile + computed `requiredOnboarding`) and `getPostAuthRedirectPath` (`apps/api-server/src/lib/postAuthRedirect.ts`).
 - Email/password is now additive to Google OAuth, with credentials and auth tokens split from `platform.users` into `platform.user_credentials` and `platform.auth_tokens` (`lib/db/src/schema/auth_credentials.ts`, `lib/db/migrations/20260404_email_password_auth.sql`).
@@ -100,12 +111,14 @@
 - Frontend auth email inputs now trim/lowercase and validate practical RFC-style format before submission, and signup password UX mirrors backend policy (min 8 + upper + lower + number) with inline feedback (`apps/admin/src/pages/auth/authValidation.ts`, `apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/api-server/src/lib/passwordAuth.ts`).
 
 ### Do not break
+
 - Keep credential secrets out of `platform.users` going forward.
 - Keep reset/verification tokens one-time and expiring.
 
 ## 2026-04-04 update — Signup anti-abuse + MFA step-up architecture
 
 ### Confirmed
+
 - Login session persistence now supports an explicit `stayLoggedIn` flag (14-day maxAge) for both email/password and Google OAuth starts; default logins retain the standard idle timeout policy (`apps/admin/src/pages/auth/Login.tsx`, `lib/frontend-security/src/index.tsx`, `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/session.ts`).
 - Signup now performs backend-only IPQS email risk scoring in `apps/api-server/src/lib/ipqs.ts` and applies decisioning (`allow` | `step_up` | `block`) inside `POST /api/auth/signup` (`apps/api-server/src/routes/auth.ts`).
 - Email/password signup now emits structured audit decisions via `auth.signup.decision` with machine-readable reason codes (`disposable_email`, `undeliverable_email`, `ipqs_advisory_step_up`, `ipqs_provider_failure_step_up`, `turnstile_missing_or_invalid`, `duplicate_existing_email`, `signup_not_allowed_by_access_policy`, `validation_failed`, `internal_exception`) while keeping UI responses generic; signup Turnstile failures are also tagged with normalized reason codes in Turnstile audit metadata (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/middlewares/turnstile.ts`).

@@ -57,7 +57,7 @@ test("superadmin profile denies non-superadmin through shared destination resolv
   assert.equal(flow.destination, "/login?error=access_denied");
 });
 
-test("solo profile resolves dashboard destination", async () => {
+test("solo profile resolves user onboarding destination when profile is incomplete", async () => {
   const restores = [
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-solo",
@@ -70,6 +70,7 @@ test("solo profile resolves dashboard destination", async () => {
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-3",
       email: "solo@example.com",
+      name: null,
       isSuperAdmin: false,
       active: true,
       suspended: false,
@@ -87,7 +88,8 @@ test("solo profile resolves dashboard destination", async () => {
       normalizedAccessProfile: "solo",
     });
     assert.ok(flow);
-    assert.equal(flow.destination, "/dashboard");
+    assert.equal(flow.requiredOnboarding, "user");
+    assert.equal(flow.destination, "/onboarding/user");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
