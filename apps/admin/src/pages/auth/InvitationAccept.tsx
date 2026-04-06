@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 
 type Params = { token?: string };
-type InvitationState = "valid" | "invalid" | "expired" | "accepted" | "revoked";
-type EmailMode = "set_password" | "sign_in" | "none";
+type InvitationState = "valid" | "pending" | "invalid" | "expired" | "accepted" | "revoked";
+type EmailMode = "set_password" | "create_password" | "sign_in" | "none";
 type InvitationResolveResponse = {
   invitation?: {
     state?: InvitationState;
@@ -20,11 +20,19 @@ type InvitationResolveResponse = {
 };
 
 function isInvitationState(value: unknown): value is InvitationState {
-  return value === "valid" || value === "invalid" || value === "expired" || value === "accepted" || value === "revoked";
+  return value === "valid" || value === "pending" || value === "invalid" || value === "expired" || value === "accepted" || value === "revoked";
 }
 
 function isEmailMode(value: unknown): value is EmailMode {
-  return value === "set_password" || value === "sign_in" || value === "none";
+  return value === "set_password" || value === "create_password" || value === "sign_in" || value === "none";
+}
+
+function normalizeInvitationState(value: InvitationState): Exclude<InvitationState, "pending"> {
+  return value === "pending" ? "valid" : value;
+}
+
+function normalizeEmailMode(value: EmailMode): Exclude<EmailMode, "create_password"> {
+  return value === "create_password" ? "set_password" : value;
 }
 
 function isInvitationResolveResponse(value: unknown): value is InvitationResolveResponse {
@@ -74,9 +82,11 @@ export default function InvitationAccept() {
     const apiPrefix = apiBaseIncludesApiPrefix ? "" : "/api";
     return `${normalizedApiBase}${apiPrefix}${invitationResolvePath}`;
   }, [params.token]);
-  const invitationState = resolution?.invitation?.state;
+  const invitationState = resolution?.invitation?.state ? normalizeInvitationState(resolution.invitation.state) : undefined;
   const isValidPendingInvitation = invitationState === "valid";
-  const resolutionAuth = resolution?.auth;
+  const resolutionAuth = resolution?.auth
+    ? { ...resolution.auth, emailMode: normalizeEmailMode(resolution.auth.emailMode) }
+    : undefined;
 
   React.useEffect(() => {
     if (!resolveApiUrl) {
@@ -157,7 +167,7 @@ export default function InvitationAccept() {
       } else if (resolutionStatus === "error") {
         setStatus("error");
         setMessage("We couldn't load this invitation right now. Please retry.");
-      } else if (resolution?.auth?.emailMode === "set_password") {
+      } else if (resolutionAuth?.emailMode === "set_password") {
         setMessage("Set your password to join this invitation.");
       }
       setLoginError(null);
@@ -222,7 +232,7 @@ export default function InvitationAccept() {
       cancelled = true;
       inFlightRef.current = false;
     };
-  }, [auth, params.token, resolution, resolutionStatus, setLocation, turnstile.enabled, turnstile.reset, turnstile.token, invitationState]);
+  }, [auth, params.token, resolutionStatus, resolutionAuth?.emailMode, setLocation, turnstile.enabled, turnstile.reset, turnstile.token, invitationState]);
 
   const handleGoogleContinue = React.useCallback(() => {
     if (!continuationPath || auth.loginInFlight) return;

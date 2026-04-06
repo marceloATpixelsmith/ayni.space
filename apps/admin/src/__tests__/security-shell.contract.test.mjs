@@ -159,6 +159,26 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
     "if (!isInvitationResolveResponse(payload)) {",
     "Invitation resolve response should be shape-validated so missing auth state does not silently degrade into a blank action area.",
   );
+  expectIncludes(
+    invitationAcceptSource,
+    "return value === \"valid\" || value === \"pending\" || value === \"invalid\" || value === \"expired\" || value === \"accepted\" || value === \"revoked\";",
+    "Invitation resolve parsing should accept backend 'pending' state for valid invites.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "return value === \"set_password\" || value === \"create_password\" || value === \"sign_in\" || value === \"none\";",
+    "Invitation resolve parsing should accept backend 'create_password' email mode.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "return value === \"pending\" ? \"valid\" : value;",
+    "Invitation resolve parsing should normalize backend 'pending' to UI-valid invitation state.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "return value === \"create_password\" ? \"set_password\" : value;",
+    "Invitation resolve parsing should normalize backend 'create_password' to UI set-password mode.",
+  );
 
   expectIncludes(
     invitationAcceptSource,
