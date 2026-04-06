@@ -37,7 +37,7 @@ type AuthContextValue = {
   acceptInvitation: (
     token: string,
     turnstileToken?: string | null,
-  ) => Promise<void>;
+  ) => Promise<string | null>;
   loginWithPassword: (
     email: string,
     password: string,
@@ -780,8 +780,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         csrfToken,
       );
 
+      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { nextPath?: string | null });
+
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
         const error = new Error(payload?.error ?? "Failed to accept invitation.") as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
@@ -795,6 +796,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info("[INVITATION-FLOW] auth.acceptInvitation request succeeded; refreshing session");
       await refreshSession();
       console.info("[INVITATION-FLOW] auth.acceptInvitation session refresh complete");
+      return normalizeReturnToPath(payload?.nextPath) ?? null;
     },
     [refreshCsrfState, refreshSession],
   );

@@ -10,6 +10,9 @@ import { requireOrgAccess, requireOrgAdmin } from "../middlewares/requireOrgAcce
 import { inviteSchema, validateBody } from "../middlewares/validation.js";
 import { assertRequestSessionGroupCompatibleWithOrg } from "../lib/sessionGroupCompatibility.js";
 import { InvitationEmailConfigError, sendLane1InvitationEmail } from "../lib/invitationEmail.js";
+import { getAppBySlug } from "../lib/appAccess.js";
+import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
+import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -510,7 +513,24 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
   });
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  res.json(org);
+  let nextPath = "/dashboard";
+  const appSlug = req.session.appSlug;
+  if (appSlug) {
+    const app = await getAppBySlug(appSlug);
+    const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
+    if (app && normalizedAccessProfile) {
+      const postAcceptDecision = await resolvePostAuthFlowDecision({
+        userId,
+        appSlug: app.slug,
+        isSuperAdmin: Boolean(user.isSuperAdmin),
+        normalizedAccessProfile,
+      });
+      if (postAcceptDecision?.destination) {
+        nextPath = postAcceptDecision.destination;
+      }
+    }
+  }
+  res.json({ ...org, nextPath });
 }
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrganizationAppSession, requireOrgAccess, listInvitations);

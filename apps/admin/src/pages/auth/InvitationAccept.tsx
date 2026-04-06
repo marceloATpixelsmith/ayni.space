@@ -75,15 +75,16 @@ export default function InvitationAccept() {
 
     auth
       .acceptInvitation(token, turnstile.token)
-      .then(() => {
+      .then((nextPath) => {
         if (cancelled) return;
         inFlightRef.current = false;
         setStatus("done");
-        setMessage("Invitation accepted. Redirecting to dashboard...");
+        const destination = nextPath ?? "/dashboard";
+        setMessage("Invitation accepted. Redirecting...");
         console.info("[INVITATION-FLOW] invitation accept API call succeeded", {
-          nextNavigation: "/dashboard",
+          nextNavigation: destination,
         });
-        setTimeout(() => setLocation("/dashboard"), 900);
+        setTimeout(() => setLocation(destination), 900);
       })
       .catch((error) => {
         if (cancelled) return;
