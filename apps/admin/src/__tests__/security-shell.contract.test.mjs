@@ -148,6 +148,29 @@ test("invitation accept flow prevents duplicate submissions and only resets turn
   );
 });
 
+test("invitation accept resolution uses configured API base and avoids shell-only dead-end rendering", () => {
+  expectIncludes(
+    invitationAcceptSource,
+    "const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim() ?? \"\";",
+    "Invitation resolve lookup should honor configured API base URL instead of assuming same-origin /api routing.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "if (!isInvitationResolveResponse(payload)) {",
+    "Invitation resolve response should be shape-validated so missing auth state does not silently degrade into a blank action area.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "auth.status === \"unauthenticated\" && params.token && isValidPendingInvitation && resolutionStatus === \"ready\"",
+    "Invitation auth actions should render only after a resolved valid invite state so users are not stuck on shell-only UI.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "We couldn't load this invitation right now. Please retry.",
+    "Invitation page should show explicit resolve failure state instead of silently rendering shell + turnstile only.",
+  );
+});
+
 test("invitation dashboard submits first and last name and refreshes pending invitations after create/cancel/resend", () => {
   expectIncludes(
     invitationsDashboardSource,
