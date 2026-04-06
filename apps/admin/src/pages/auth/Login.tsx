@@ -168,7 +168,7 @@ export default function Login() {
     }
 
     setLoginError(null);
-    auth.loginWithPassword(emailInput, passwordInput, turnstileToken).catch((error) => {
+    auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath).catch((error) => {
       setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
     });
   };

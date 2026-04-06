@@ -13,8 +13,13 @@ export default function InvitationAccept() {
   const turnstile = useTurnstileToken();
   const [status, setStatus] = React.useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = React.useState("Preparing invitation acceptance...");
+  const [loginError, setLoginError] = React.useState<string | null>(null);
   const lastSubmittedRef = React.useRef<string | null>(null);
   const inFlightRef = React.useRef(false);
+  const continuationPath = React.useMemo(
+    () => (params.token ? `/invitations/${params.token}/accept` : null),
+    [params.token],
+  );
 
   React.useEffect(() => {
     const token = params.token;
@@ -39,6 +44,7 @@ export default function InvitationAccept() {
       inFlightRef.current = false;
       setStatus("idle");
       setMessage("Sign in to continue accepting this invitation.");
+      setLoginError(null);
       console.info("[INVITATION-FLOW] invitation accept awaiting explicit sign-in action", {
         continuationPath: `/invitations/${token}/accept`,
       });
@@ -101,6 +107,21 @@ export default function InvitationAccept() {
     };
   }, [auth, params.token, setLocation, turnstile.enabled, turnstile.reset, turnstile.token]);
 
+  const handleGoogleContinue = React.useCallback(() => {
+    if (!continuationPath || auth.loginInFlight) return;
+    if (turnstile.enabled && !turnstile.token) {
+      setLoginError("Please complete the verification challenge.");
+      return;
+    }
+    setLoginError(null);
+    auth.loginWithGoogle(turnstile.token, "sign_in", continuationPath).catch((error) => {
+      setLoginError(error instanceof Error ? error.message : "Unable to start Google sign-in.");
+      if (turnstile.enabled) {
+        turnstile.reset();
+      }
+    });
+  }, [auth, continuationPath, turnstile.enabled, turnstile.reset, turnstile.token]);
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md p-6 space-y-4">
@@ -118,9 +139,19 @@ export default function InvitationAccept() {
           </Button>
         )}
         {auth.status === "unauthenticated" && params.token && (
-          <Button onClick={() => setLocation(`/login?next=${encodeURIComponent(`/invitations/${params.token}/accept`)}`)} className="w-full">
-            Continue with Google
-          </Button>
+          <div className="space-y-2">
+            <Button onClick={handleGoogleContinue} className="w-full" disabled={auth.loginInFlight}>
+              {auth.loginInFlight ? "Starting Google sign-in..." : "Continue with Google"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? "/")}`)}
+              className="w-full"
+            >
+              Sign in with email instead
+            </Button>
+            {loginError ? <p className="text-destructive text-sm text-center">{loginError}</p> : null}
+          </div>
         )}
       </Card>
     </div>

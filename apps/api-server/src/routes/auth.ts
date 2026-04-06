@@ -1744,10 +1744,11 @@ async function beginMfaPendingSession(req: Request, userId: string, appSlug: str
   };
 }
 
-async function completePendingMfaSession(req: Request) {
+async function completePendingMfaSession(req: Request): Promise<{ userId: string; returnToPath: string | null } | null> {
   const pendingUserId = req.session.pendingUserId;
   const pendingAppSlug = req.session.pendingAppSlug;
   const pendingStayLoggedIn = req.session.pendingStayLoggedIn === true;
+  const pendingReturnToPath = normalizeReturnToPath(req.session.pendingReturnToPath);
   if (!pendingUserId || !pendingAppSlug) return null;
 
   await establishPasswordSession(req, pendingUserId, pendingAppSlug, pendingStayLoggedIn);
@@ -1755,8 +1756,9 @@ async function completePendingMfaSession(req: Request) {
   delete req.session.pendingAppSlug;
   delete req.session.pendingMfaReason;
   delete req.session.pendingStayLoggedIn;
+  delete req.session.pendingReturnToPath;
   await clearFirstAuthAfterReset(pendingUserId);
-  return { userId: pendingUserId };
+  return { userId: pendingUserId, returnToPath: pendingReturnToPath };
 }
 
 async function resolveNextPathForEstablishedSession(req: Request, userId: string, appSlug: string): Promise<string | null> {
@@ -2010,6 +2012,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
   const stayLoggedIn = req.body?.stayLoggedIn === true;
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
   logAuthDebug(req, "password_login_request", {
     requestSessionId: req.sessionID ?? null,
     sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
@@ -2017,15 +2020,21 @@ async function handlePasswordLogin(req: Request, res: Response) {
     authUserId: user.id,
     appSlug,
     stayLoggedIn,
+    returnToPath: returnToPath ?? null,
   });
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
+    req.session.pendingReturnToPath = returnToPath ?? undefined;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+    });
     logAuthDebug(req, "login_result", {
       userId: user.id,
       appSlug,
       mfaRequired: true,
       needsEnrollment: mfaGate.needsEnrollment,
       nextStep: mfaGate.nextStep,
+      returnToPath: returnToPath ?? null,
       factorState: mfaGate.needsEnrollment ? "enrollment_required" : "challenge_required",
     });
     res.status(202).json({
@@ -2039,7 +2048,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   await establishPasswordSession(req, user.id, appSlug, stayLoggedIn);
   await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
-  const nextPath = await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard";
+  const nextPath = returnToPath ?? (await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard");
   logAuthDebug(req, "login_result", {
     userId: user.id,
     appSlug,
@@ -2237,6 +2246,7 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     delete req.session.pendingAppSlug;
     delete req.session.pendingMfaReason;
     delete req.session.pendingStayLoggedIn;
+    delete req.session.pendingReturnToPath;
     res.status(401).json({ error: "Two-step verification session is no longer valid. Please sign in again." });
     return;
   }
@@ -2284,7 +2294,10 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   let nextPath: string | undefined;
   if (completed) {
     const appSlug = req.session.appSlug;
-    if (appSlug) nextPath = await resolveNextPathForEstablishedSession(req, completed.userId, appSlug) ?? undefined;
+    if (appSlug) {
+      nextPath = completed.returnToPath
+        ?? (await resolveNextPathForEstablishedSession(req, completed.userId, appSlug) ?? undefined);
+    }
   }
   logAuthDebug(req, "mfa_enroll_verify_result", {
     userId,
@@ -2338,7 +2351,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined
+    ? completed.returnToPath ?? (await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined)
     : undefined;
   logAuthDebug(req, "mfa_challenge_result", {
     userId,
@@ -2385,7 +2398,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined
+    ? completed.returnToPath ?? (await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined)
     : undefined;
   logAuthDebug(req, "mfa_recovery_result", {
     userId,
