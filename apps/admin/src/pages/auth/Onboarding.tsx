@@ -162,7 +162,7 @@ export default function Onboarding() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-12 text-base" disabled={isPending || !auth.csrfReady || !auth.csrfToken}>
+              <Button type="submit" className="w-full h-12 text-base" disabled={isPending || !auth.csrfReady || !auth.csrfToken || !turnstile.canSubmit}>
                 {isPending ? "Creating..." : (
                   <>
                     Continue to Dashboard <ArrowRight className="ml-2 w-4 h-4" />
@@ -172,7 +172,7 @@ export default function Onboarding() {
               {turnstile.enabled && (
                 <div className="mt-6 space-y-2">
                   <turnstile.TurnstileWidget />
-                  {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
+                  {turnstile.guidanceMessage && <p className={`text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}>{turnstile.guidanceMessage}</p>}
                 </div>
               )}
             </form>

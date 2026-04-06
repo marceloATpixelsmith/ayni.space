@@ -84,7 +84,7 @@ export default function InvitationAccept() {
   }, [params.token]);
   const invitationState = resolution?.invitation?.state ? normalizeInvitationState(resolution.invitation.state) : undefined;
   const isValidPendingInvitation = invitationState === "valid";
-  const resolutionAuth = resolution?.auth
+  const resolutionAuth = resolution?.auth && resolution.auth.emailMode
     ? { ...resolution.auth, emailMode: normalizeEmailMode(resolution.auth.emailMode) }
     : undefined;
 
@@ -180,7 +180,7 @@ export default function InvitationAccept() {
     if (turnstile.enabled && !turnstile.token) {
       inFlightRef.current = false;
       setStatus("idle");
-      setMessage("Complete verification to accept this invitation.");
+      setMessage(turnstile.guidanceMessage ?? "Complete verification to accept this invitation.");
       return;
     }
 
@@ -283,7 +283,7 @@ export default function InvitationAccept() {
         {turnstile.enabled && status !== "done" && (
           <div className="mt-6 space-y-2">
             <turnstile.TurnstileWidget />
-            {turnstile.error && <p className="text-destructive text-sm">{turnstile.error}</p>}
+            {turnstile.guidanceMessage && <p className={`text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}>{turnstile.guidanceMessage}</p>}
           </div>
         )}
         {status === "error" && (
@@ -330,7 +330,7 @@ export default function InvitationAccept() {
                   variant="outline"
                   onClick={handleSetPassword}
                   className="w-full"
-                  disabled={passwordSubmitting || !password || !passwordConfirm}
+                  disabled={passwordSubmitting || !password || !passwordConfirm || !turnstile.canSubmit}
                 >
                   {passwordSubmitting ? "Setting password..." : "Set password and join"}
                 </Button>

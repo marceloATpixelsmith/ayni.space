@@ -16,6 +16,43 @@ const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
 let turnstileScriptPromise: Promise<void> | null = null;
 const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
 
+export type TurnstileUiStatus = "disabled" | "loading" | "waiting" | "verified" | "error" | "expired" | "retrying";
+
+export function deriveTurnstileUiState(input: {
+  enabled: boolean;
+  ready: boolean;
+  widgetRenderAttempted: boolean;
+  tokenPresent: boolean;
+  hasError: boolean;
+  expired: boolean;
+  callbackError: boolean;
+  retrying: boolean;
+}): { status: TurnstileUiStatus; guidanceMessage: string | null; canSubmit: boolean } {
+  if (!input.enabled) {
+    return { status: "disabled", guidanceMessage: null, canSubmit: true };
+  }
+
+  let status: TurnstileUiStatus = "waiting";
+  if (input.hasError && input.expired) status = "expired";
+  else if (input.hasError && input.callbackError) status = "error";
+  else if (input.tokenPresent) status = "verified";
+  else if (!input.ready || !input.widgetRenderAttempted) status = "loading";
+  else if (input.retrying) status = "retrying";
+
+  const guidanceMessage = status === "loading"
+    ? "Loading security check…"
+    : status === "retrying"
+      ? "We’re retrying the security check. Please wait…"
+      : status === "expired"
+        ? "Security check expired. Please complete the new verification challenge."
+        : status === "error"
+          ? "Verification failed. Please wait a few seconds while we retry."
+          : null;
+
+  const canSubmit = input.ready && input.tokenPresent;
+  return { status, guidanceMessage, canSubmit };
+}
+
 function ensureScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
 
@@ -86,6 +123,7 @@ export function useTurnstileToken() {
 
   const siteKey = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_TURNSTILE_SITE_KEY;
   const scriptPresent = typeof document !== "undefined" && Boolean(document.getElementById(SCRIPT_ID));
+  const [retrying, setRetrying] = React.useState(false);
 
   React.useEffect(() => {
     if (!AUTH_DEBUG) return;
@@ -120,6 +158,7 @@ export function useTurnstileToken() {
     setReady(false);
     setError(null);
     setToken(null);
+    setRetrying(false);
     setWidgetRenderAttempted(false);
     setCallbackState({ success: false, error: false, expired: false });
 
@@ -141,18 +180,21 @@ export function useTurnstileToken() {
           callback: (value: string) => {
             setToken(value);
             setError(null);
+            setRetrying(false);
             setCallbackState((previous) => ({ ...previous, success: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback success", { tokenPresent: Boolean(value) });
           },
           "expired-callback": () => {
             setToken(null);
-            setError("Verification expired. Please complete the challenge again.");
+            setError("Security check expired. Please complete the new verification challenge.");
+            setRetrying(true);
             setCallbackState((previous) => ({ ...previous, expired: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback expired");
           },
           "error-callback": () => {
             setToken(null);
-            setError("Turnstile verification failed. Please retry.");
+            setError("Verification failed. Please wait a few seconds while we retry.");
+            setRetrying(true);
             setCallbackState((previous) => ({ ...previous, error: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback error");
           },
@@ -177,6 +219,7 @@ export function useTurnstileToken() {
   const reset = React.useCallback(() => {
     setToken(null);
     setError(null);
+    setRetrying(false);
     if (window.turnstile && widgetIdRef.current) {
       window.turnstile.reset(widgetIdRef.current);
     }
@@ -186,6 +229,17 @@ export function useTurnstileToken() {
     () => <div ref={setContainerNode} className="min-h-16 w-full" />,
     [],
   );
+
+  React.useEffect(() => {
+    if (!ready || !siteKey) return;
+    if (token) {
+      setRetrying(false);
+      return;
+    }
+    if (callbackState.error || callbackState.expired) {
+      setRetrying(true);
+    }
+  }, [callbackState.error, callbackState.expired, ready, siteKey, token]);
 
   React.useEffect(() => {
     if (!AUTH_DEBUG) return;
@@ -201,6 +255,20 @@ export function useTurnstileToken() {
       containerPresent: Boolean(containerNode),
     });
   }, [siteKey, ready, token, error, widgetRenderAttempted, callbackState, containerNode]);
+  const uiState = React.useMemo(
+    () =>
+      deriveTurnstileUiState({
+        enabled: Boolean(siteKey),
+        ready,
+        widgetRenderAttempted,
+        tokenPresent: Boolean(token),
+        hasError: Boolean(error),
+        expired: callbackState.expired,
+        callbackError: callbackState.error,
+        retrying,
+      }),
+    [callbackState.error, callbackState.expired, error, ready, retrying, siteKey, token, widgetRenderAttempted],
+  );
 
-  return { token, error, ready, reset, TurnstileWidget, enabled: Boolean(siteKey) };
+  return { token, error, ready, reset, TurnstileWidget, enabled: Boolean(siteKey), status: uiState.status, guidanceMessage: uiState.guidanceMessage, canSubmit: uiState.canSubmit };
 }

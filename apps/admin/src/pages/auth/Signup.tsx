@@ -5,7 +5,7 @@ import { Chrome } from "lucide-react";
 import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
-import { getMissingPasswordRequirements, normalizeEmailInput, validateEmailInput, validatePasswordInput } from "./authValidation";
+import { getMissingPasswordRequirements, normalizeEmailInput, validateEmailInput, validatePasswordConfirmationInput, validatePasswordInput } from "./authValidation";
 import { AuthShell } from "./components/AuthShell";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
@@ -14,6 +14,7 @@ export default function Signup() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -23,6 +24,7 @@ export default function Signup() {
   const emailError = (emailTouched || submitted) ? validateEmailInput(email) : null;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
+  const confirmPasswordError = submitted ? validatePasswordConfirmationInput(password, confirmPassword) : null;
 
   const onSubmit = () => {
     setSubmitted(true);
@@ -37,6 +39,10 @@ export default function Signup() {
     const passwordError = validatePasswordInput(password);
     if (passwordError) {
       setError(passwordError);
+      return;
+    }
+    if (confirmPasswordError) {
+      setError(confirmPasswordError);
       return;
     }
     if (turnstile.enabled && !turnstile.token) {
@@ -74,7 +80,7 @@ export default function Signup() {
   return (
     <AuthShell title="Create account" subtitle="Create your account to continue.">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
-        <Button size="lg" className="w-full h-12 text-base font-medium shadow-md transition-all group" onClick={onGoogleSignup} disabled={auth.loginInFlight || !auth.csrfReady || !auth.csrfToken || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>
+        <Button size="lg" className="w-full h-12 text-base font-medium shadow-md transition-all group" onClick={onGoogleSignup} disabled={auth.loginInFlight || !auth.csrfReady || !auth.csrfToken || !turnstile.canSubmit}>
           <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
           {auth.loginInFlight ? "Starting account setup..." : "Create account with Google"}
         </Button>
@@ -103,12 +109,22 @@ export default function Signup() {
               ))}
             </ul>
           ) : null}
-          <Button className="w-full" onClick={onSubmit} disabled={!auth.csrfReady || !auth.csrfToken || !name || !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))}>Sign up with email</Button>
+          <PasswordInput
+            className="w-full border rounded px-3 py-2"
+            placeholder="Confirm password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            aria-invalid={Boolean(confirmPasswordError)}
+            aria-describedby={confirmPasswordError ? "signup-confirm-password-error" : undefined}
+          />
+          <FieldValidationMessage id="signup-confirm-password-error" message={confirmPasswordError} />
+          <Button className="w-full" onClick={onSubmit} disabled={!auth.csrfReady || !auth.csrfToken || !name || !email || !password || !confirmPassword || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || Boolean(validatePasswordConfirmationInput(password, confirmPassword)) || !turnstile.canSubmit}>Sign up with email</Button>
         </div>
 
         <div className="mt-6">{turnstile.enabled ? <turnstile.TurnstileWidget /> : null}</div>
         {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
-        {turnstile.error ? <p className="mt-4 text-sm text-destructive">{turnstile.error}</p> : null}
+        {turnstile.guidanceMessage ? <p className={`mt-4 text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}>{turnstile.guidanceMessage}</p> : null}
       </motion.div>
     </AuthShell>
   );

@@ -23,6 +23,8 @@ import { getAppBySlug } from "../lib/appAccess.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
 import { hashPassword, isStrongEnoughPassword, normalizeEmail } from "../lib/passwordAuth.js";
+import { getTrustedDeviceCookieName, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice } from "../lib/mfa.js";
+import { applySessionPersistence } from "../lib/session.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -195,9 +197,64 @@ async function establishInvitationSession(req: Request, userId: string, appSlug:
   req.session.userId = userId;
   req.session.appSlug = appSlug;
   req.session.sessionAuthenticatedAt = Date.now();
+  applySessionPersistence(req, false);
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
   });
+}
+
+function getCookieValue(req: Request, cookieName: string): string | null {
+  const cookieHeader = req.headers["cookie"];
+  if (typeof cookieHeader !== "string") return null;
+  for (const entry of cookieHeader.split(";")) {
+    const [name, value] = entry.split("=");
+    if (name?.trim() === cookieName) return (value ?? "").trim();
+  }
+  return null;
+}
+
+async function beginInvitationMfaPendingSession(
+  req: Request,
+  userId: string,
+  appSlug: string,
+): Promise<{ required: false } | { required: true; needsEnrollment: boolean; nextStep: "mfa_enroll" | "mfa_challenge" }> {
+  const activeOrgId = req.session.activeOrgId ?? null;
+  const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
+  let hasFactor = false;
+  let factorStateReadFailed = false;
+  try {
+    hasFactor = await hasActiveMfaFactor(userId);
+  } catch {
+    factorStateReadFailed = true;
+  }
+
+  const trustedCookieToken = getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
+  const trusted = await isTrustedDevice(userId, trustedCookieToken);
+  const security = await getUserAuthSecurity(userId);
+  const needsStepUp = Boolean(security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt);
+  const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
+  const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
+
+  if (!mustChallenge && !needsEnrollment) {
+    return { required: false };
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
+  });
+  req.session.userId = userId;
+  req.session.appSlug = appSlug;
+  req.session.sessionAuthenticatedAt = Date.now();
+  req.session.pendingUserId = userId;
+  req.session.pendingAppSlug = appSlug;
+  req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
+  req.session.pendingStayLoggedIn = false;
+  applySessionPersistence(req, false);
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+
+  return { required: true, needsEnrollment, nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge" };
 }
 
 async function finalizeInvitationAcceptance(req: Request, invitation: typeof invitationsTable.$inferSelect, userId: string) {
@@ -250,11 +307,7 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
         isSuperAdmin: Boolean(user.isSuperAdmin),
         normalizedAccessProfile,
       });
-      if (postAcceptDecision?.destination) {
-        nextPath = postAcceptDecision.requiredOnboarding === "organization"
-          ? "/dashboard"
-          : postAcceptDecision.destination;
-      }
+      if (postAcceptDecision?.destination) nextPath = postAcceptDecision.destination;
     }
   }
   return { ok: true as const, nextPath, org };
@@ -743,6 +796,18 @@ async function acceptInvitationWithPassword(req: Request<{ token: string }, unkn
     credentialType: "password",
     passwordHash,
   });
+
+  const mfaGate = await beginInvitationMfaPendingSession(req, user.id, app.slug);
+  if (mfaGate.required) {
+    res.status(202).json({
+      success: true,
+      mfaRequired: true,
+      needsEnrollment: mfaGate.needsEnrollment,
+      nextStep: mfaGate.nextStep,
+      nextPath: mfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge",
+    });
+    return;
+  }
 
   await establishInvitationSession(req, user.id, app.slug);
   const acceptance = await finalizeInvitationAcceptance(req, invitation, user.id);

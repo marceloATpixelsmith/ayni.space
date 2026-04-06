@@ -24,14 +24,14 @@ export function getLoginDisabledReasons(input: {
   turnstileEnabled: boolean;
   turnstileReady: boolean;
   turnstileTokenPresent: boolean;
+  turnstileCanSubmit: boolean;
 }) {
   const reasons: string[] = [];
   if (input.authStatus === "authenticated_fully") reasons.push("auth.status===authenticated_fully");
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
-  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileCanSubmit) reasons.push("turnstileEnabled&&!turnstileCanSubmit");
   return reasons;
 }
 
@@ -52,9 +52,11 @@ export default function Login() {
   const auth = useAuth();
   const {
     token: turnstileToken,
-    error: turnstileError,
     enabled: turnstileEnabled,
     ready: turnstileReady,
+    status: turnstileStatus,
+    guidanceMessage: turnstileGuidanceMessage,
+    canSubmit: turnstileCanSubmit,
     reset: resetTurnstile,
     TurnstileWidget,
   } = useTurnstileToken();
@@ -127,10 +129,11 @@ export default function Login() {
         csrfReady: auth.csrfReady,
         csrfTokenPresent: Boolean(auth.csrfToken),
         turnstileEnabled,
-        turnstileReady,
         turnstileTokenPresent: Boolean(turnstileToken),
+        turnstileCanSubmit,
+        turnstileReady,
       }),
-    [auth.status, auth.loginInFlight, auth.csrfReady, auth.csrfToken, turnstileEnabled, turnstileReady, turnstileToken],
+    [auth.status, auth.loginInFlight, auth.csrfReady, auth.csrfToken, turnstileCanSubmit, turnstileEnabled, turnstileReady, turnstileToken],
   );
 
   React.useEffect(() => {
@@ -143,14 +146,14 @@ export default function Login() {
       turnstileEnabled,
       turnstileReady,
       turnstileTokenPresent: Boolean(turnstileToken),
-      turnstileError,
+      turnstileStatus,
       loginInFlight: auth.loginInFlight,
       windowTurnstileExists: Boolean(window.turnstile),
       turnstileScriptExists: Boolean(script),
       turnstileContainerExists: Boolean(document.querySelector(".min-h-16")),
       disabledReasons,
     });
-  }, [auth.status, auth.csrfReady, auth.csrfToken, turnstileEnabled, turnstileReady, turnstileToken, turnstileError, auth.loginInFlight, disabledReasons]);
+  }, [auth.status, auth.csrfReady, auth.csrfToken, turnstileEnabled, turnstileReady, turnstileToken, turnstileStatus, auth.loginInFlight, disabledReasons]);
 
   if (auth.status === "loading") {
     return <div className="min-h-screen flex items-center justify-center bg-background"><ActivitySquare className="w-10 h-10 text-primary animate-pulse" /></div>;
@@ -221,7 +224,7 @@ export default function Login() {
           />
           <FieldValidationMessage id="login-email-error" message={emailError} />
           <PasswordInput className="w-full border rounded px-3 py-2" placeholder="Password" autoComplete="current-password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} />
-          <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || (turnstileEnabled && !turnstileToken)}>Sign in with email</Button>
+          <Button className="w-full" onClick={handlePasswordLogin} disabled={auth.loginInFlight || !emailInput || !passwordInput || Boolean(validateEmailInput(emailInput)) || !turnstileCanSubmit}>Sign in with email</Button>
           <div className="text-sm flex justify-between"><Link href="/signup">Create account</Link><Link href="/forgot-password">Forgot password?</Link></div>
         </div>
 
@@ -229,7 +232,7 @@ export default function Login() {
 
         {accessError ? <p className="mt-4 text-sm text-destructive text-center" role="alert">{accessError}</p> : null}
         {loginError ? <p className="mt-4 text-sm text-destructive text-center" role="alert">{loginError}</p> : null}
-        {turnstileError ? <p className="mt-4 text-sm text-destructive text-center" role="alert">{turnstileError}</p> : null}
+        {turnstileGuidanceMessage ? <p className={`mt-4 text-sm text-center ${turnstileStatus === "error" || turnstileStatus === "expired" ? "text-destructive" : "text-muted-foreground"}`} role="status">{turnstileGuidanceMessage}</p> : null}
       </motion.div>
     </AuthShell>
   );
