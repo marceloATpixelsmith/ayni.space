@@ -219,6 +219,9 @@ export default function Login() {
     if (auth.loginInFlight) {
       return;
     }
+    if (hideSignupAffordances && intent === "create_account") {
+      return;
+    }
     if (turnstileEnabled && !turnstileToken) {
       setLoginError("Please complete the verification challenge.");
       return;

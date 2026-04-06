@@ -60,11 +60,11 @@ export function deriveTurnstileUiState(input: {
     status === "loading"
       ? "Loading security check…"
       : status === "retrying"
-        ? "Verification failed. please wait a few seconds…"
+        ? "Verification failed. Please wait a few seconds while we retry."
         : status === "expired"
           ? "Security check expired. Please complete the new verification challenge."
           : status === "error"
-            ? "Verification failed. please wait a few seconds…"
+            ? "Verification failed. Please wait a few seconds while we retry."
             : null;
 
   const canSubmit = input.ready && input.tokenPresent;
@@ -232,7 +232,9 @@ export function useTurnstileToken() {
           },
           "error-callback": () => {
             setToken(null);
-            setError("Verification failed. please wait a few seconds…");
+            setError(
+              "Verification failed. Please wait a few seconds while we retry.",
+            );
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, error: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback error");

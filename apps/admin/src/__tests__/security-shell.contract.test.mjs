@@ -19,6 +19,7 @@ const invitationsDashboardPath = path.resolve(__dirname, "../pages/dashboard/Inv
 const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx");
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
 const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
+const verifyEmailPath = path.resolve(__dirname, "../pages/auth/VerifyEmail.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -35,6 +36,7 @@ const invitationsDashboardSource = fs.readFileSync(invitationsDashboardPath, "ut
 const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
 const mfaEnrollSource = fs.readFileSync(mfaEnrollPath, "utf8");
 const mfaChallengeSource = fs.readFileSync(mfaChallengePath, "utf8");
+const verifyEmailSource = fs.readFileSync(verifyEmailPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -912,7 +914,7 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
 
   expectIncludes(
     mfaEnrollSource,
-    "Enter this setup key manually",
+    "Manual setup option: Enter this setup key manually in your",
     "Two-step enrollment should preserve manual setup key fallback.",
   );
 
@@ -983,14 +985,8 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     signupSource,
-    "!auth.csrfReady || !auth.csrfToken || !name || !email || !password",
-    "Signup should block submission until CSRF bootstrap is ready and required fields are present.",
-  );
-
-  expectIncludes(
-    signupSource,
-    "Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token))",
-    "Signup should block submission until inputs are valid and Turnstile is ready and solved.",
+    "!email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password))",
+    "Signup should disable email submit only when email/password inputs are missing or invalid.",
   );
 
   expectIncludes(
@@ -1006,6 +1002,106 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
   );
 });
 
+test("signup form only includes email + password and omits legacy fields", () => {
+  expectIncludes(
+    signupSource,
+    "placeholder=\"Email\"",
+    "Signup should include the email field.",
+  );
+  expectIncludes(
+    signupSource,
+    "placeholder=\"Password\"",
+    "Signup should include the password field.",
+  );
+  expectNotIncludes(
+    signupSource,
+    "Full Name",
+    "Signup should not include a full-name field.",
+  );
+  expectNotIncludes(
+    signupSource,
+    "Confirm Password",
+    "Signup should not include a confirm-password field.",
+  );
+});
+
+test("invitation acceptance keeps first-time password creation and omits confirm-password", () => {
+  expectIncludes(
+    invitationAcceptSource,
+    "idleLabel=\"Continue with Google\"",
+    "Invitation page should keep a direct Google continuation action.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "<AuthMethodDivider />",
+    "Invitation page should keep an OR-style divider between auth methods.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "\"Set password and join\"",
+    "Invitation page should support direct password creation without redirecting through generic login.",
+  );
+  expectNotIncludes(
+    invitationAcceptSource,
+    "Confirm Password",
+    "Invitation page should not include a confirm-password field.",
+  );
+});
+
+test("superadmin login hides signup affordances and blocks create-account intent", () => {
+  expectIncludes(
+    loginSource,
+    "metadata?.normalizedAccessProfile === \"superadmin\"",
+    "Login should detect superadmin app mode from platform metadata.",
+  );
+  expectIncludes(
+    loginSource,
+    "if (hideSignupAffordances && intent === \"create_account\") {",
+    "Login should block create-account OAuth intent in superadmin mode.",
+  );
+  expectIncludes(
+    loginSource,
+    "{!hideSignupAffordances ? (",
+    "Signup affordances should be conditionally hidden in superadmin mode.",
+  );
+});
+
+test("verify-email flow auto-continues and avoids manual sign-in-again UX", () => {
+  expectIncludes(
+    verifyEmailSource,
+    "auth\n      .verifyEmail(token, appSlug || undefined)",
+    "Verify-email page should call backend verification immediately when token is present.",
+  );
+  expectIncludes(
+    verifyEmailSource,
+    "setMessage(\"Email verified. Redirecting...\");",
+    "Verify-email should transition directly to continuation when backend returns next-step routing.",
+  );
+  expectNotIncludes(
+    verifyEmailSource,
+    "sign in again",
+    "Verify-email should not instruct users to sign in again after successful verification.",
+  );
+});
+
+test("mfa enrollment includes first-code instruction and consistent recovery-code surfacing", () => {
+  expectIncludes(
+    mfaEnrollSource,
+    "Enter the <strong>first code</strong> generated by your",
+    "MFA enrollment instructions must explicitly ask for the first authenticator code.",
+  );
+  expectIncludes(
+    authProviderSource,
+    "if (\n        !Array.isArray(payload?.recoveryCodes) ||\n        payload.recoveryCodes.length === 0\n      ) {",
+    "Auth provider should fail closed if MFA enrollment verify does not return recovery codes.",
+  );
+  expectIncludes(
+    mfaEnrollSource,
+    "{recovery.length > 0 ? (",
+    "MFA enrollment UI should display recovery codes only when they are actually returned.",
+  );
+});
+
 
 test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
   expectIncludes(
@@ -1016,7 +1112,7 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
 
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ email: normalizedEmail, password, name, "cf-turnstile-response": turnstileToken ?? undefined })',
+    'body: JSON.stringify({\n            email: normalizedEmail,\n            password,\n            "cf-turnstile-response": turnstileToken ?? undefined,\n          })',
     "Signup request should include turnstile token payload for central enforcement.",
   );
 

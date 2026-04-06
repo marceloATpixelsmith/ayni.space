@@ -167,13 +167,10 @@ export default function Signup() {
             className="w-full"
             onClick={onSubmit}
             disabled={
-              !auth.csrfReady ||
-              !auth.csrfToken ||
               !email ||
               !password ||
               Boolean(validateEmailInput(email)) ||
-              Boolean(validatePasswordInput(password)) ||
-              (turnstile.enabled && (!turnstile.ready || !turnstile.token))
+              Boolean(validatePasswordInput(password))
             }
           >
             Sign up with email
