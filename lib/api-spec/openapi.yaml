@@ -565,38 +565,26 @@ paths:
                 properties:
                   invitation:
                     type: object
+                    required: [state, email, orgId, role]
                     properties:
                       state:
                         type: string
-                        enum: [valid, invalid, expired, accepted, revoked]
-                      tokenPresent:
-                        type: boolean
+                        enum: [pending, invalid, expired, accepted]
                       email:
                         type: string
-                        nullable: true
                       orgId:
                         type: string
-                        nullable: true
-                      appId:
-                        type: string
-                        nullable: true
                       role:
                         type: string
-                        nullable: true
                   auth:
                     type: object
+                    required: [googleAllowed, emailMode]
                     properties:
                       googleAllowed:
                         type: boolean
                       emailMode:
                         type: string
-                        enum: [set_password, sign_in, none]
-                      userExists:
-                        type: boolean
-                      hasPasswordCredential:
-                        type: boolean
-                      hasGoogleCredential:
-                        type: boolean
+                        enum: [create_password, sign_in]
   /invitations/{token}/accept-email:
     post:
       operationId: acceptInvitationWithEmailPasswordSetup

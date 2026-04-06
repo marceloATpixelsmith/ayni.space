@@ -403,7 +403,7 @@ test("invitation cancellation is denied for cross-org invitation ids and leaves 
   }
 });
 
-test("invitation resolve returns set_password for pending invite without password credential", async () => {
+test("invitation resolve returns pending + create_password for invite without password credential", async () => {
   const restores = [
     patchProperty(db.query.invitationsTable, "findFirst", async () => ({
       id: "inv-resolve-1",
@@ -429,9 +429,8 @@ test("invitation resolve returns set_password for pending invite without passwor
     const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
     const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
     assert.equal(response.status, 200);
-    assert.equal(response.body.invitation.state, "valid");
-    assert.equal(response.body.auth.emailMode, "set_password");
-    assert.equal(response.body.auth.googleAllowed, true);
+    assert.equal(response.body.invitation.state, "pending");
+    assert.equal(response.body.auth.emailMode, "create_password");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -468,9 +467,8 @@ test("invitation resolve returns sign_in for pending invite with existing passwo
     const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
     const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
     assert.equal(response.status, 200);
-    assert.equal(response.body.invitation.state, "valid");
+    assert.equal(response.body.invitation.state, "pending");
     assert.equal(response.body.auth.emailMode, "sign_in");
-    assert.equal(response.body.auth.hasGoogleCredential, true);
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -496,8 +494,7 @@ test("invitation resolve returns terminal state for accepted invite", async () =
     const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
     assert.equal(response.status, 200);
     assert.equal(response.body.invitation.state, "accepted");
-    assert.equal(response.body.auth.emailMode, "none");
-    assert.equal(response.body.auth.googleAllowed, false);
+    assert.equal(response.body.auth.emailMode, "create_password");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -515,8 +512,7 @@ test("invitation resolve returns invalid state when token lookup misses", async 
     const response = await performJsonRequest(app, "GET", "/api/invitations/non-existent/resolve");
     assert.equal(response.status, 200);
     assert.equal(response.body.invitation.state, "invalid");
-    assert.equal(response.body.auth.emailMode, "none");
-    assert.equal(response.body.auth.googleAllowed, false);
+    assert.equal(response.body.auth.emailMode, "create_password");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
@@ -542,9 +538,55 @@ test("invitation resolve returns expired state for pending invite past expiratio
     const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
     assert.equal(response.status, 200);
     assert.equal(response.body.invitation.state, "expired");
-    assert.equal(response.body.auth.emailMode, "none");
-    assert.equal(response.body.auth.googleAllowed, false);
+    assert.equal(response.body.auth.emailMode, "create_password");
   } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("invitation resolve derives googleAllowed from Google auth config", async () => {
+  const originalClientId = process.env["GOOGLE_CLIENT_ID"];
+  const originalClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const originalRedirectUri = process.env["GOOGLE_REDIRECT_URI"];
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-google-config",
+      appId: "app-a",
+      orgId: "org-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      token: "hash",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    delete process.env["GOOGLE_CLIENT_ID"];
+    delete process.env["GOOGLE_CLIENT_SECRET"];
+    delete process.env["GOOGLE_REDIRECT_URI"];
+
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const disabledResponse = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(disabledResponse.status, 200);
+    assert.equal(disabledResponse.body.auth.googleAllowed, false);
+
+    process.env["GOOGLE_CLIENT_ID"] = "client-id";
+    process.env["GOOGLE_CLIENT_SECRET"] = "client-secret";
+    process.env["GOOGLE_REDIRECT_URI"] = "https://example.com/api/auth/google/callback";
+    const enabledResponse = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(enabledResponse.status, 200);
+    assert.equal(enabledResponse.body.auth.googleAllowed, true);
+    assert.equal(enabledResponse.body.invitation.state, "pending");
+    assert.equal(enabledResponse.body.auth.emailMode, "create_password");
+  } finally {
+    if (originalClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = originalClientId;
+    if (originalClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = originalClientSecret;
+    if (originalRedirectUri === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = originalRedirectUri;
     restores.reverse().forEach((restore) => restore());
   }
 });
