@@ -30,22 +30,29 @@ const INVITATION_PASSWORD_MIN_LENGTH = 8;
 
 type InvitationResolvePayload = {
   invitation: {
-    state: "valid" | "invalid" | "expired" | "accepted" | "revoked";
-    tokenPresent: boolean;
-    email: string | null;
-    orgId: string | null;
-    appId: string | null;
-    role: string | null;
-    expiresAt: Date | null;
+    state: "pending" | "invalid" | "expired" | "accepted";
+    email: string;
+    orgId: string;
+    role: string;
   };
   auth: {
     googleAllowed: boolean;
-    emailMode: "set_password" | "sign_in" | "none";
-    userExists: boolean;
-    hasPasswordCredential: boolean;
-    hasGoogleCredential: boolean;
+    emailMode: "create_password" | "sign_in";
   };
 };
+
+function isGoogleAuthEnabled(): boolean {
+  const clientId = process.env["GOOGLE_CLIENT_ID"]?.trim() ?? "";
+  const clientSecret = process.env["GOOGLE_CLIENT_SECRET"]?.trim() ?? "";
+  const redirectUriRaw = process.env["GOOGLE_REDIRECT_URI"]?.trim() ?? "";
+  if (!clientId || !clientSecret || !redirectUriRaw) return false;
+  try {
+    const parsed = new URL(redirectUriRaw);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 async function getOrganizationAppContextForSession(orgId: string, sessionAppSlug: string | undefined) {
   if (!sessionAppSlug) return null;
@@ -110,39 +117,34 @@ async function resolveInvitationByToken(token: string) {
   if (!invitation) {
     return { state: "invalid" as const, invitation: null };
   }
-  if (invitation.invitationStatus === "accepted") {
+  if (invitation.acceptedAt || invitation.invitationStatus === "accepted") {
     return { state: "accepted" as const, invitation };
-  }
-  if (invitation.invitationStatus === "revoked") {
-    return { state: "revoked" as const, invitation };
   }
   if (invitation.invitationStatus === "expired" || new Date() > invitation.expiresAt) {
     return { state: "expired" as const, invitation };
   }
-  if (invitation.invitationStatus !== "pending") {
+  if (invitation.invitationStatus === "pending") {
+    return { state: "pending" as const, invitation };
+  }
+  if (invitation.invitationStatus === "revoked") {
     return { state: "invalid" as const, invitation };
   }
-  return { state: "valid" as const, invitation };
+  return { state: "invalid" as const, invitation };
 }
 
 async function resolveInvitationAuthPayload(token: string): Promise<InvitationResolvePayload> {
+  const googleAllowed = isGoogleAuthEnabled();
   if (!token) {
     return {
       invitation: {
         state: "invalid",
-        tokenPresent: false,
-        email: null,
-        orgId: null,
-        appId: null,
-        role: null,
-        expiresAt: null,
+        email: "",
+        orgId: "",
+        role: "",
       },
       auth: {
-        googleAllowed: false,
-        emailMode: "none",
-        userExists: false,
-        hasPasswordCredential: false,
-        hasGoogleCredential: false,
+        googleAllowed,
+        emailMode: "create_password",
       },
     };
   }
@@ -152,19 +154,13 @@ async function resolveInvitationAuthPayload(token: string): Promise<InvitationRe
     return {
       invitation: {
         state: resolved.state,
-        tokenPresent: true,
-        email: null,
-        orgId: null,
-        appId: null,
-        role: null,
-        expiresAt: null,
+        email: "",
+        orgId: "",
+        role: "",
       },
       auth: {
-        googleAllowed: false,
-        emailMode: "none",
-        userExists: false,
-        hasPasswordCredential: false,
-        hasGoogleCredential: false,
+        googleAllowed,
+        emailMode: "create_password",
       },
     };
   }
@@ -181,19 +177,13 @@ async function resolveInvitationAuthPayload(token: string): Promise<InvitationRe
   return {
     invitation: {
       state: resolved.state,
-      tokenPresent: true,
       email: invitation.email,
-      orgId: invitation.orgId,
-      appId: invitation.appId,
+      orgId: invitation.orgId ?? "",
       role: invitation.invitedRole,
-      expiresAt: invitation.expiresAt,
     },
     auth: {
-      googleAllowed: resolved.state === "valid",
-      emailMode: resolved.state === "valid" ? (credential ? "sign_in" : "set_password") : "none",
-      userExists: Boolean(user),
-      hasPasswordCredential: Boolean(credential),
-      hasGoogleCredential: Boolean(user?.googleSubject),
+      googleAllowed,
+      emailMode: credential ? "sign_in" : "create_password",
     },
   };
 }
@@ -589,7 +579,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
-  if (resolved.state === "accepted" || resolved.state === "revoked") {
+  if (resolved.state === "accepted" || invitation.invitationStatus === "revoked") {
     const signal = recordAbuseSignal(`invitation:accept:status:${getAbuseClientKey(req)}`);
     writeAuditLog({
       orgId: invitation.orgId ?? undefined,
@@ -703,7 +693,7 @@ async function acceptInvitationWithPassword(req: Request<{ token: string }, unkn
     res.status(410).json({ error: "Invitation has expired" });
     return;
   }
-  if (resolved.state === "accepted" || resolved.state === "revoked") {
+  if (resolved.state === "accepted" || invitation.invitationStatus === "revoked") {
     res.status(409).json({ error: "Invitation is no longer pending" });
     return;
   }
