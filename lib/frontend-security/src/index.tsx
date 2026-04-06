@@ -38,7 +38,12 @@ type AuthContextValue = {
     token: string,
     turnstileToken?: string | null,
   ) => Promise<void>;
-  loginWithPassword: (email: string, password: string, turnstileToken?: string | null) => Promise<void>;
+  loginWithPassword: (
+    email: string,
+    password: string,
+    turnstileToken?: string | null,
+    returnToPath?: string | null,
+  ) => Promise<void>;
   signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string; appSlug?: string }>;
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
@@ -796,9 +801,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
 
-  const loginWithPassword = React.useCallback(async (email: string, password: string, turnstileToken?: string | null) => {
+  const loginWithPassword = React.useCallback(async (
+    email: string,
+    password: string,
+    turnstileToken?: string | null,
+    returnToPath?: string | null,
+  ) => {
     beginAuthDebugFlow("password_login");
     const normalizedEmail = normalizeEmailForSubmission(email);
+    const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
     const csrfToken = await requireCsrfToken(
       csrfTokenRef.current,
       refreshCsrfState,
@@ -810,7 +821,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "content-type": "application/json",
         ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
       },
-      body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined }),
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password,
+        "cf-turnstile-response": turnstileToken ?? undefined,
+        returnToPath: normalizedReturnToPath,
+      }),
     }, csrfToken);
     const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string });
     if (!response.ok) {

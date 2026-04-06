@@ -99,8 +99,14 @@ test("invitation accept route remains reachable pre-auth and controls login cont
 
   expectIncludes(
     invitationAcceptSource,
-    "<Button onClick={() => setLocation(`/login?next=${encodeURIComponent(`/invitations/${params.token}/accept`)}`)} className=\"w-full\">",
-    "Invitation page should provide explicit login continuation action after rendering.",
+    "auth.loginWithGoogle(turnstile.token, \"sign_in\", continuationPath).catch((error) => {",
+    "Invitation page Google CTA should initiate OAuth start directly instead of plain login navigation.",
+  );
+
+  expectIncludes(
+    invitationAcceptSource,
+    "onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? \"/\")}`)}",
+    "Invitation page should still provide password-login continuation path through /login?next=.",
   );
 
   const invitationAllowBranch = appSource.indexOf(
@@ -867,8 +873,8 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     loginSource,
-    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken)",
-    "Password login should carry turnstile token without stay-logged-in preference on login screen.",
+    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath)",
+    "Password login should carry turnstile token and continuation path without stay-logged-in preference on login screen.",
   );
 
   expectIncludes(
@@ -912,8 +918,8 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ email: normalizedEmail, password, "cf-turnstile-response": turnstileToken ?? undefined })',
-    "Password login request should include turnstile token without stay-logged-in flag.",
+    'returnToPath: normalizedReturnToPath',
+    "Password login request should include sanitized continuation path handoff.",
   );
 
   expectIncludes(

@@ -89,6 +89,59 @@ test("legacy scrypt login transparently upgrades stored hash to current versione
   }
 });
 
+test("password login prioritizes invitation continuation returnToPath over generic post-auth redirects", async () => {
+  const legacyHash = await hashLegacyScrypt("StrongPassword123!");
+
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-1",
+      email: "user@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      emailVerifiedAt: new Date(),
+      isSuperAdmin: false,
+      activeOrgId: null,
+      name: "User",
+      avatarUrl: null,
+    })),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({
+      id: "cred-1",
+      userId: "user-1",
+      credentialType: "password",
+      passwordHash: legacyHash,
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => null),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: async () => undefined,
+      }),
+    })) as unknown as typeof db.update),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/login", {
+      email: "user@example.com",
+      password: "StrongPassword123!",
+      returnToPath: "/invitations/test-token/accept",
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body?.nextPath, "/invitations/test-token/accept");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
 test("login returns mfa_challenge for users with active MFA factor", async () => {
   const legacyHash = await hashLegacyScrypt("StrongPassword123!");
 
@@ -142,6 +195,94 @@ test("login returns mfa_challenge for users with active MFA factor", async () =>
     assert.equal(response.body?.mfaRequired, true);
     assert.equal(response.body?.needsEnrollment, false);
     assert.equal(response.body?.nextStep, "mfa_challenge");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("mfa-required login persists pending invitation continuation returnToPath in session", async () => {
+  const legacyHash = await hashLegacyScrypt("StrongPassword123!");
+  const persistedSession: Record<string, unknown> = {};
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-1",
+      email: "user@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      emailVerifiedAt: new Date(),
+      isSuperAdmin: false,
+      activeOrgId: null,
+      name: "User",
+      avatarUrl: null,
+    })),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({
+      id: "cred-1",
+      userId: "user-1",
+      credentialType: "password",
+      passwordHash: legacyHash,
+    })),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => ({
+      userId: "user-1",
+      mfaRequired: true,
+      forceMfaEnrollment: false,
+      firstAuthAfterResetPending: false,
+      highRiskUntilMfaAt: null,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "user-1",
+      factorType: "totp",
+      status: "active",
+      secretCiphertext: "cipher",
+      secretIv: "iv",
+      secretTag: "tag",
+    })),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: async () => undefined,
+      }),
+    })) as unknown as typeof db.update),
+  ];
+
+  try {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as unknown as { session: Record<string, unknown> }).session = {
+        id: "test-session-id",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          Object.assign(persistedSession, this);
+          cb?.();
+        },
+        regenerate(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          for (const key of Object.keys(this)) {
+            delete this[key];
+          }
+          this.id = "regenerated-session-id";
+          this.destroy = (done?: (err?: unknown) => void) => done?.();
+          this.save = (done?: (err?: unknown) => void) => {
+            Object.assign(persistedSession, this);
+            done?.();
+          };
+          this.regenerate = (done?: (err?: unknown) => void) => done?.();
+          cb?.();
+        },
+        ...persistedSession,
+      };
+      next();
+    });
+    app.use("/api/auth", authRouter);
+
+    const response = await performJsonRequest(app, "POST", "/api/auth/login", {
+      email: "user@example.com",
+      password: "StrongPassword123!",
+      returnToPath: "/invitations/test-token/accept",
+    });
+
+    assert.equal(response.status, 202);
+    assert.equal(persistedSession.pendingReturnToPath, "/invitations/test-token/accept");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
