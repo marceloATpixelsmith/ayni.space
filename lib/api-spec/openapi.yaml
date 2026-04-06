@@ -544,6 +544,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Organization"
+  /invitations/{token}/resolve:
+    get:
+      operationId: resolveInvitationAcceptanceState
+      tags: [invitations]
+      summary: Resolve invitation + auth choice state for invitation acceptance UI
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation state payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitation:
+                    type: object
+                    properties:
+                      state:
+                        type: string
+                        enum: [valid, invalid, expired, accepted, revoked]
+                      tokenPresent:
+                        type: boolean
+                      email:
+                        type: string
+                        nullable: true
+                      orgId:
+                        type: string
+                        nullable: true
+                      appId:
+                        type: string
+                        nullable: true
+                      role:
+                        type: string
+                        nullable: true
+                  auth:
+                    type: object
+                    properties:
+                      googleAllowed:
+                        type: boolean
+                      emailMode:
+                        type: string
+                        enum: [set_password, sign_in, none]
+                      userExists:
+                        type: boolean
+                      hasPasswordCredential:
+                        type: boolean
+                      hasGoogleCredential:
+                        type: boolean
+  /invitations/{token}/accept-email:
+    post:
+      operationId: acceptInvitationWithEmailPasswordSetup
+      tags: [invitations]
+      summary: Accept invitation by setting password for invited email account
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Invitation accepted after password setup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
 
   # ── APPS ──────────────────────────────────────────────────────────────────
   /apps:

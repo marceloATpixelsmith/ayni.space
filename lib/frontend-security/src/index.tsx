@@ -38,6 +38,11 @@ type AuthContextValue = {
     token: string,
     turnstileToken?: string | null,
   ) => Promise<string | null>;
+  acceptInvitationWithPassword: (
+    token: string,
+    password: string,
+    turnstileToken?: string | null,
+  ) => Promise<string | null>;
   loginWithPassword: (
     email: string,
     password: string,
@@ -801,6 +806,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshCsrfState, refreshSession],
   );
 
+  const acceptInvitationWithPassword = React.useCallback(
+    async (token: string, password: string, turnstileToken?: string | null) => {
+      const headers: HeadersInit = { "content-type": "application/json" };
+      if (turnstileToken) {
+        headers["cf-turnstile-response"] = turnstileToken;
+      }
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        "Security token is not ready. Please refresh and try again.",
+      );
+      const response = await secureApiFetch(
+        `/api/invitations/${token}/accept-email`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ password }),
+        },
+        csrfToken,
+      );
+      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { nextPath?: string | null });
+      if (!response.ok) {
+        const error = new Error(payload?.error ?? "Failed to set password for invitation.") as Error & { code?: string; status?: number };
+        error.code = payload?.code;
+        error.status = response.status;
+        throw error;
+      }
+      await refreshSession();
+      return normalizeReturnToPath(payload?.nextPath) ?? null;
+    },
+    [refreshCsrfState, refreshSession],
+  );
+
 
 
   const loginWithPassword = React.useCallback(async (
@@ -1108,6 +1146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       switchOrganization,
       acceptInvitation,
+      acceptInvitationWithPassword,
       loginWithPassword,
       signupWithPassword,
       forgotPassword,
@@ -1130,6 +1169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       switchOrganization,
       acceptInvitation,
+      acceptInvitationWithPassword,
       loginWithPassword,
       signupWithPassword,
       forgotPassword,

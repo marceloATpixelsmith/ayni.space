@@ -1,7 +1,16 @@
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
-import { and, eq } from "drizzle-orm";
-import { appsTable, db, invitationsTable, orgAppAccessTable, orgMembershipsTable, organizationsTable, usersTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import {
+  appsTable,
+  db,
+  invitationsTable,
+  orgAppAccessTable,
+  orgMembershipsTable,
+  organizationsTable,
+  userCredentialsTable,
+  usersTable,
+} from "@workspace/db";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
@@ -13,9 +22,30 @@ import { InvitationEmailConfigError, sendLane1InvitationEmail } from "../lib/inv
 import { getAppBySlug } from "../lib/appAccess.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
+import { hashPassword, isStrongEnoughPassword, normalizeEmail } from "../lib/passwordAuth.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const INVITATION_PASSWORD_MIN_LENGTH = 8;
+
+type InvitationResolvePayload = {
+  invitation: {
+    state: "valid" | "invalid" | "expired" | "accepted" | "revoked";
+    tokenPresent: boolean;
+    email: string | null;
+    orgId: string | null;
+    appId: string | null;
+    role: string | null;
+    expiresAt: Date | null;
+  };
+  auth: {
+    googleAllowed: boolean;
+    emailMode: "set_password" | "sign_in" | "none";
+    userExists: boolean;
+    hasPasswordCredential: boolean;
+    hasGoogleCredential: boolean;
+  };
+};
 
 async function getOrganizationAppContextForSession(orgId: string, sessionAppSlug: string | undefined) {
   if (!sessionAppSlug) return null;
@@ -70,6 +100,174 @@ async function isStaffInvitesEnabledForInvitation(
 
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
   return org?.appId === resolvedAppId;
+}
+
+async function resolveInvitationByToken(token: string) {
+  const hashedInvitationToken = createHash("sha256").update(token).digest("hex");
+  const invitation = await db.query.invitationsTable.findFirst({
+    where: eq(invitationsTable.token, hashedInvitationToken),
+  });
+  if (!invitation) {
+    return { state: "invalid" as const, invitation: null };
+  }
+  if (invitation.invitationStatus === "accepted") {
+    return { state: "accepted" as const, invitation };
+  }
+  if (invitation.invitationStatus === "revoked") {
+    return { state: "revoked" as const, invitation };
+  }
+  if (invitation.invitationStatus === "expired" || new Date() > invitation.expiresAt) {
+    return { state: "expired" as const, invitation };
+  }
+  if (invitation.invitationStatus !== "pending") {
+    return { state: "invalid" as const, invitation };
+  }
+  return { state: "valid" as const, invitation };
+}
+
+async function resolveInvitationAuthPayload(token: string): Promise<InvitationResolvePayload> {
+  if (!token) {
+    return {
+      invitation: {
+        state: "invalid",
+        tokenPresent: false,
+        email: null,
+        orgId: null,
+        appId: null,
+        role: null,
+        expiresAt: null,
+      },
+      auth: {
+        googleAllowed: false,
+        emailMode: "none",
+        userExists: false,
+        hasPasswordCredential: false,
+        hasGoogleCredential: false,
+      },
+    };
+  }
+  const resolved = await resolveInvitationByToken(token);
+  const invitation = resolved.invitation;
+  if (!invitation) {
+    return {
+      invitation: {
+        state: resolved.state,
+        tokenPresent: true,
+        email: null,
+        orgId: null,
+        appId: null,
+        role: null,
+        expiresAt: null,
+      },
+      auth: {
+        googleAllowed: false,
+        emailMode: "none",
+        userExists: false,
+        hasPasswordCredential: false,
+        hasGoogleCredential: false,
+      },
+    };
+  }
+
+  const user = await db.query.usersTable.findFirst({
+    where: sql`lower(${usersTable.email}) = ${normalizeEmail(invitation.email)}`,
+  });
+  const credential = user
+    ? await db.query.userCredentialsTable.findFirst({
+      where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
+    })
+    : null;
+
+  return {
+    invitation: {
+      state: resolved.state,
+      tokenPresent: true,
+      email: invitation.email,
+      orgId: invitation.orgId,
+      appId: invitation.appId,
+      role: invitation.invitedRole,
+      expiresAt: invitation.expiresAt,
+    },
+    auth: {
+      googleAllowed: resolved.state === "valid",
+      emailMode: resolved.state === "valid" ? (credential ? "sign_in" : "set_password") : "none",
+      userExists: Boolean(user),
+      hasPasswordCredential: Boolean(credential),
+      hasGoogleCredential: Boolean(user?.googleSubject),
+    },
+  };
+}
+
+async function establishInvitationSession(req: Request, userId: string, appSlug: string) {
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
+  });
+  req.session.userId = userId;
+  req.session.appSlug = appSlug;
+  req.session.sessionAuthenticatedAt = Date.now();
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+}
+
+async function finalizeInvitationAcceptance(req: Request, invitation: typeof invitationsTable.$inferSelect, userId: string) {
+  if (!invitation.orgId) {
+    return { ok: false as const, status: 500, error: "Invitation is invalid" };
+  }
+
+  const orgSessionGroupCheck = await assertRequestSessionGroupCompatibleWithOrg(req, invitation.orgId);
+  if (!orgSessionGroupCheck.ok) {
+    return {
+      ok: false as const,
+      status: orgSessionGroupCheck.reason === "invalid-org" ? 404 : 403,
+      error: orgSessionGroupCheck.reason === "invalid-org"
+        ? "Organization not found"
+        : "Organization is not accessible from this session context.",
+    };
+  }
+
+  const existingMembership = await db.query.orgMembershipsTable.findFirst({
+    where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, invitation.orgId)),
+  });
+
+  if (!existingMembership) {
+    await db.insert(orgMembershipsTable).values({
+      id: randomUUID(),
+      userId,
+      orgId: invitation.orgId,
+      role: invitation.invitedRole,
+      membershipStatus: "active",
+      joinedAt: new Date(),
+    });
+  }
+
+  await db
+    .update(invitationsTable)
+    .set({ invitationStatus: "accepted", acceptedAt: new Date(), acceptedUserId: userId })
+    .where(eq(invitationsTable.id, invitation.id));
+
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
+  let nextPath = "/dashboard";
+  const appSlug = req.session.appSlug;
+  if (appSlug && user) {
+    const app = await getAppBySlug(appSlug);
+    const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
+    if (app && normalizedAccessProfile) {
+      const postAcceptDecision = await resolvePostAuthFlowDecision({
+        userId,
+        appSlug: app.slug,
+        isSuperAdmin: Boolean(user.isSuperAdmin),
+        normalizedAccessProfile,
+      });
+      if (postAcceptDecision?.destination) {
+        nextPath = postAcceptDecision.requiredOnboarding === "organization"
+          ? "/dashboard"
+          : postAcceptDecision.destination;
+      }
+    }
+  }
+  return { ok: true as const, nextPath, org };
 }
 
 async function listInvitations(req: Request<{ orgId: string }>, res: Response) {
@@ -360,13 +558,10 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
-  const hashedInvitationToken = createHash("sha256").update(invitationToken).digest("hex");
+  const resolved = await resolveInvitationByToken(invitationToken);
+  const invitation = resolved.invitation;
 
-  const invitation = await db.query.invitationsTable.findFirst({
-    where: eq(invitationsTable.token, hashedInvitationToken),
-  });
-
-  if (!invitation) {
+  if (!invitation || resolved.state === "invalid") {
     const signal = recordAbuseSignal(`invitation:accept:not-found:${getAbuseClientKey(req)}`);
     writeAuditLog({
       userId,
@@ -394,7 +589,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
-  if (invitation.invitationStatus !== "pending") {
+  if (resolved.state === "accepted" || resolved.state === "revoked") {
     const signal = recordAbuseSignal(`invitation:accept:status:${getAbuseClientKey(req)}`);
     writeAuditLog({
       orgId: invitation.orgId ?? undefined,
@@ -414,7 +609,7 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
-  if (new Date() > invitation.expiresAt) {
+  if (resolved.state === "expired") {
     await db.update(invitationsTable).set({ invitationStatus: "expired" }).where(eq(invitationsTable.id, invitation.id));
     const signal = recordAbuseSignal(`invitation:accept:expired:${getAbuseClientKey(req)}`);
     writeAuditLog({
@@ -451,60 +646,23 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     return;
   }
 
-  if (!invitation.orgId) {
+  const acceptance = await finalizeInvitationAcceptance(req, invitation, userId);
+  if (!acceptance.ok) {
     writeAuditLog({
+      orgId: invitation.orgId ?? undefined,
       userId,
       action: "invitation.accept.failed",
       resourceType: "invitation",
       resourceId: invitation.id,
-      metadata: { reason: "missing-org-id" },
+      metadata: { reason: acceptance.error },
       req,
     });
-    res.status(500).json({ error: "Invitation is invalid" });
+    res.status(acceptance.status).json({ error: acceptance.error });
     return;
   }
-
-  const orgSessionGroupCheck = await assertRequestSessionGroupCompatibleWithOrg(req, invitation.orgId);
-  if (!orgSessionGroupCheck.ok) {
-    writeAuditLog({
-      orgId: invitation.orgId,
-      userId,
-      action: "invitation.accept.failed",
-      resourceType: "invitation",
-      resourceId: invitation.id,
-      metadata: { reason: orgSessionGroupCheck.reason },
-      req,
-    });
-    res.status(orgSessionGroupCheck.reason === "invalid-org" ? 404 : 403).json({
-      error: orgSessionGroupCheck.reason === "invalid-org"
-        ? "Organization not found"
-        : "Organization is not accessible from this session context.",
-    });
-    return;
-  }
-
-  const existingMembership = await db.query.orgMembershipsTable.findFirst({
-    where: and(eq(orgMembershipsTable.userId, userId), eq(orgMembershipsTable.orgId, invitation.orgId)),
-  });
-
-  if (!existingMembership) {
-    await db.insert(orgMembershipsTable).values({
-      id: randomUUID(),
-      userId,
-      orgId: invitation.orgId,
-      role: invitation.invitedRole,
-      membershipStatus: "active",
-      joinedAt: new Date(),
-    });
-  }
-
-  await db
-    .update(invitationsTable)
-    .set({ invitationStatus: "accepted", acceptedAt: new Date(), acceptedUserId: userId })
-    .where(eq(invitationsTable.id, invitation.id));
 
   writeAuditLog({
-    orgId: invitation.orgId,
+    orgId: invitation.orgId ?? undefined,
     userId,
     action: "org.invitation.accepted",
     resourceType: "invitation",
@@ -512,27 +670,106 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
     req,
   });
 
-  const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  let nextPath = "/dashboard";
-  const appSlug = req.session.appSlug;
-  if (appSlug) {
-    const app = await getAppBySlug(appSlug);
-    const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
-    if (app && normalizedAccessProfile) {
-      const postAcceptDecision = await resolvePostAuthFlowDecision({
-        userId,
-        appSlug: app.slug,
-        isSuperAdmin: Boolean(user.isSuperAdmin),
-        normalizedAccessProfile,
-      });
-      if (postAcceptDecision?.destination) {
-        nextPath = postAcceptDecision.requiredOnboarding === "organization"
-          ? "/dashboard"
-          : postAcceptDecision.destination;
-      }
-    }
+  res.json({ ...acceptance.org, nextPath: acceptance.nextPath });
+}
+
+async function resolveInvitation(req: Request<{ token: string }>, res: Response) {
+  const payload = await resolveInvitationAuthPayload(req.params.token);
+  res.json(payload);
+}
+
+async function acceptInvitationWithPassword(req: Request<{ token: string }, unknown, { password?: string }>, res: Response) {
+  const invitationToken = req.params.token;
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!invitationToken) {
+    res.status(400).json({ error: "Invitation token is required." });
+    return;
   }
-  res.json({ ...org, nextPath });
+  if (!password || password.length < INVITATION_PASSWORD_MIN_LENGTH || !isStrongEnoughPassword(password)) {
+    res.status(400).json({
+      error: "Password must be at least 8 characters and include upper, lower, number, and symbol.",
+    });
+    return;
+  }
+
+  const resolved = await resolveInvitationByToken(invitationToken);
+  const invitation = resolved.invitation;
+  if (!invitation || resolved.state === "invalid") {
+    res.status(404).json({ error: "Invitation not found" });
+    return;
+  }
+  if (resolved.state === "expired") {
+    await db.update(invitationsTable).set({ invitationStatus: "expired" }).where(eq(invitationsTable.id, invitation.id));
+    res.status(410).json({ error: "Invitation has expired" });
+    return;
+  }
+  if (resolved.state === "accepted" || resolved.state === "revoked") {
+    res.status(409).json({ error: "Invitation is no longer pending" });
+    return;
+  }
+  if (!(await isStaffInvitesEnabledForInvitation(invitation))) {
+    res.status(403).json({ error: "Staff invitation flow is disabled for this app" });
+    return;
+  }
+
+  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.id, invitation.appId) });
+  if (!app) {
+    res.status(404).json({ error: "Invitation app not found" });
+    return;
+  }
+
+  const normalizedInvitationEmail = normalizeEmail(invitation.email);
+  let user = await db.query.usersTable.findFirst({
+    where: sql`lower(${usersTable.email}) = ${normalizedInvitationEmail}`,
+  });
+  if (!user) {
+    const insertedUsers = await db.insert(usersTable).values({
+      id: randomUUID(),
+      email: normalizedInvitationEmail,
+      emailVerifiedAt: new Date(),
+      active: true,
+      suspended: false,
+    }).returning();
+    user = insertedUsers[0] ?? null;
+  }
+  if (!user || user.suspended || user.deletedAt || !user.active) {
+    res.status(403).json({ error: "Account is not eligible to accept this invitation." });
+    return;
+  }
+
+  const existingPasswordCredential = await db.query.userCredentialsTable.findFirst({
+    where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
+  });
+  if (existingPasswordCredential) {
+    res.status(409).json({ error: "This invitation email already has a password. Sign in with email/password instead." });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await db.insert(userCredentialsTable).values({
+    id: randomUUID(),
+    userId: user.id,
+    credentialType: "password",
+    passwordHash,
+  });
+
+  await establishInvitationSession(req, user.id, app.slug);
+  const acceptance = await finalizeInvitationAcceptance(req, invitation, user.id);
+  if (!acceptance.ok) {
+    res.status(acceptance.status).json({ error: acceptance.error });
+    return;
+  }
+
+  writeAuditLog({
+    orgId: invitation.orgId ?? undefined,
+    userId: user.id,
+    action: "org.invitation.accepted",
+    resourceType: "invitation",
+    resourceId: invitation.id,
+    metadata: { via: "email_password_setup" },
+    req,
+  });
+  res.json({ ...acceptance.org, nextPath: acceptance.nextPath });
 }
 
 router.get("/organizations/:orgId/invitations", requireAuth, requireOrganizationAppSession, requireOrgAccess, listInvitations);
@@ -558,6 +795,8 @@ router.post(
   requireOrgAdmin,
   resendInvitation
 );
+router.get("/invitations/:token/resolve", resolveInvitation);
+router.post("/invitations/:token/accept-email", acceptInvitationWithPassword);
 router.post("/invitations/:token/accept", requireAuth, requireOrganizationAppSession, acceptInvitation);
 
 export default router;
