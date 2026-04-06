@@ -402,3 +402,103 @@ test("invitation cancellation is denied for cross-org invitation ids and leaves 
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("invitation resolve returns set_password for pending invite without password credential", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-resolve-1",
+      appId: "app-a",
+      orgId: "org-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      token: "hash",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-invitee",
+      email: "invitee@example.com",
+      googleSubject: null,
+      active: true,
+      suspended: false,
+      deletedAt: null,
+    })),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.invitation.state, "valid");
+    assert.equal(response.body.auth.emailMode, "set_password");
+    assert.equal(response.body.auth.googleAllowed, true);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("invitation resolve returns sign_in for pending invite with existing password credential", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-resolve-2",
+      appId: "app-a",
+      orgId: "org-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      token: "hash",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-invitee",
+      email: "invitee@example.com",
+      googleSubject: "google-sub",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+    })),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({
+      id: "cred-1",
+      userId: "user-invitee",
+      credentialType: "password",
+      passwordHash: "hash",
+    })),
+  ];
+  try {
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.invitation.state, "valid");
+    assert.equal(response.body.auth.emailMode, "sign_in");
+    assert.equal(response.body.auth.hasGoogleCredential, true);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("invitation resolve returns terminal state for accepted invite", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-accepted",
+      appId: "app-a",
+      orgId: "org-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      token: "hash",
+      invitationStatus: "accepted",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.invitation.state, "accepted");
+    assert.equal(response.body.auth.emailMode, "none");
+    assert.equal(response.body.auth.googleAllowed, false);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
