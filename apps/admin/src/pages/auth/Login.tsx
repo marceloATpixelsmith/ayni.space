@@ -31,7 +31,8 @@ export function getLoginDisabledReasons(input: {
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileCanSubmit) reasons.push("turnstileEnabled&&!turnstileCanSubmit");
+  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
   return reasons;
 }
 

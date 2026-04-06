@@ -119,7 +119,7 @@ export default function Signup() {
             aria-describedby={confirmPasswordError ? "signup-confirm-password-error" : undefined}
           />
           <FieldValidationMessage id="signup-confirm-password-error" message={confirmPasswordError} />
-          <Button className="w-full" onClick={onSubmit} disabled={!auth.csrfReady || !auth.csrfToken || !name || !email || !password || !confirmPassword || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || Boolean(validatePasswordConfirmationInput(password, confirmPassword)) || !turnstile.canSubmit}>Sign up with email</Button>
+          <Button className="w-full" onClick={onSubmit} disabled={!auth.csrfReady || !auth.csrfToken || !name || !email || !password || !confirmPassword || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password)) || (turnstile.enabled && (!turnstile.ready || !turnstile.token)) || Boolean(validatePasswordConfirmationInput(password, confirmPassword))}>Sign up with email</Button>
         </div>
 
         <div className="mt-6">{turnstile.enabled ? <turnstile.TurnstileWidget /> : null}</div>
