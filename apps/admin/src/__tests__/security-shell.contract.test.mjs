@@ -105,10 +105,10 @@ test("invitation accept route remains reachable pre-auth and controls login cont
     "Invitation page Google CTA should initiate OAuth start directly instead of plain login navigation.",
   );
 
-  expectIncludes(
+  expectNotIncludes(
     invitationAcceptSource,
-    "onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? \"/\")}`)}",
-    "Invitation page should still provide password-login continuation path through /login?next=.",
+    "`/login?next=",
+    "Invitation page first-time password setup should stay on invitation flow and not route users through generic /login continuation.",
   );
 
   const invitationAllowBranch = appSource.indexOf(
@@ -1038,8 +1038,23 @@ test("invitation acceptance keeps first-time password creation and omits confirm
   );
   expectIncludes(
     invitationAcceptSource,
+    "<PasswordInput",
+    "Invitation page should provide direct password entry on the invitation screen.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    "placeholder=\"Password\"",
+    "Invitation page should keep password-first setup without adding a second confirmation input.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
     "\"Set password and join\"",
     "Invitation page should support direct password creation without redirecting through generic login.",
+  );
+  expectNotIncludes(
+    invitationAcceptSource,
+    "setLocation(\"/login\")",
+    "Invitation acceptance should not force a generic login redirect during first-time password setup.",
   );
   expectNotIncludes(
     invitationAcceptSource,
