@@ -40,9 +40,14 @@ export async function getAppContext(userId: string, appSlug: string) {
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user || !user.active || user.suspended || user.deletedAt) return null;
 
-  const appAccess = await db.query.userAppAccessTable.findFirst({
-    where: and(eq(userAppAccessTable.userId, userId), eq(userAppAccessTable.appId, app.id)),
-  });
+  let appAccess = null;
+  try {
+    appAccess = await db.query.userAppAccessTable.findFirst({
+      where: and(eq(userAppAccessTable.userId, userId), eq(userAppAccessTable.appId, app.id)),
+    });
+  } catch {
+    appAccess = null;
+  }
 
   const hasActiveAppAccess = appAccess?.accessStatus === "active";
   let activeOrg = null;
