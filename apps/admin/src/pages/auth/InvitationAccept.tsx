@@ -1,9 +1,13 @@
 import React from "react";
 import { useLocation, useParams } from "wouter";
 import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+import { motion } from "framer-motion";
+import { AuthShell } from "./components/AuthShell";
+import { AuthMethodDivider } from "./components/AuthMethodDivider";
+import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import { GoogleAuthButton } from "./components/GoogleAuthButton";
 
 type Params = { token?: string };
 type InvitationState = "valid" | "pending" | "invalid" | "expired" | "accepted" | "revoked";
@@ -57,6 +61,8 @@ export default function InvitationAccept() {
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [password, setPassword] = React.useState("");
   const [passwordConfirm, setPasswordConfirm] = React.useState("");
+  const [passwordTouched, setPasswordTouched] = React.useState(false);
+  const [passwordConfirmTouched, setPasswordConfirmTouched] = React.useState(false);
   const [resolution, setResolution] = React.useState<InvitationResolveResponse | null>(null);
   const [resolutionStatus, setResolutionStatus] = React.useState<"idle" | "loading" | "ready" | "error">("idle");
   const [resolutionError, setResolutionError] = React.useState<string | null>(null);
@@ -87,6 +93,25 @@ export default function InvitationAccept() {
   const resolutionAuth = resolution?.auth && resolution.auth.emailMode
     ? { ...resolution.auth, emailMode: normalizeEmailMode(resolution.auth.emailMode) }
     : undefined;
+  const shouldShowInvitationChoices = auth.status === "unauthenticated"
+    && Boolean(params.token)
+    && isValidPendingInvitation
+    && resolutionStatus === "ready";
+  const shouldShowPasswordFields = shouldShowInvitationChoices && resolutionAuth?.emailMode === "set_password";
+  const passwordError = (passwordTouched || passwordSubmitting) && password.length < 8
+    ? "Password must be at least 8 characters."
+    : null;
+  const confirmPasswordError = (passwordConfirmTouched || passwordSubmitting) && passwordConfirm.length > 0 && password !== passwordConfirm
+    ? "Passwords do not match."
+    : null;
+  const canSubmitPassword = Boolean(
+    shouldShowPasswordFields
+    && password
+    && passwordConfirm
+    && !passwordError
+    && !confirmPasswordError
+    && turnstile.canSubmit,
+  );
 
   React.useEffect(() => {
     if (!resolveApiUrl) {
@@ -252,12 +277,14 @@ export default function InvitationAccept() {
   const handleSetPassword = React.useCallback(() => {
     const token = params.token;
     if (!token || passwordSubmitting) return;
-    if (password !== passwordConfirm) {
-      setLoginError("Passwords do not match.");
+    if (password.length < 8) {
+      setPasswordTouched(true);
+      setLoginError("Password must be at least 8 characters.");
       return;
     }
-    if (password.length < 8) {
-      setLoginError("Password must be at least 8 characters.");
+    if (password !== passwordConfirm) {
+      setPasswordConfirmTouched(true);
+      setLoginError("Passwords do not match.");
       return;
     }
     setLoginError(null);
@@ -276,70 +303,71 @@ export default function InvitationAccept() {
   }, [auth, params.token, passwordSubmitting, password, passwordConfirm, turnstile.token, setLocation]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Invitation</h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        {turnstile.enabled && status !== "done" && (
-          <div className="mt-6 space-y-2">
-            <turnstile.TurnstileWidget />
-            {turnstile.guidanceMessage && <p className={`text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}>{turnstile.guidanceMessage}</p>}
-          </div>
-        )}
-        {status === "error" && (
+    <AuthShell title="Invitation" subtitle={shouldShowInvitationChoices ? undefined : message}>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
+        {status === "error" ? (
           <div className="space-y-2">
             {resolutionError ? <p className="text-destructive text-sm text-center">{resolutionError}</p> : null}
             <Button onClick={() => setLocation(auth.status === "unauthenticated" ? "/login" : "/dashboard")} className="w-full">
               {auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"}
             </Button>
           </div>
-        )}
-        {auth.status === "unauthenticated" && params.token && isValidPendingInvitation && resolutionStatus === "ready" && (
-          <div className="space-y-2">
-            {resolutionAuth?.googleAllowed ? (
-              <Button onClick={handleGoogleContinue} className="w-full" disabled={auth.loginInFlight}>
-                {auth.loginInFlight ? "Starting Google sign-in..." : "Join with Google"}
-              </Button>
-            ) : null}
-            {resolutionAuth?.emailMode === "sign_in" ? (
-              <Button
-                variant="outline"
-                onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? "/")}`)}
-                className="w-full"
-              >
-                Sign in with email/password
-              </Button>
-            ) : null}
-            {resolutionAuth?.emailMode === "set_password" ? (
-              <div className="space-y-2">
+        ) : null}
+        {shouldShowInvitationChoices ? (
+          <div className="space-y-3">
+            <GoogleAuthButton
+              onClick={handleGoogleContinue}
+              disabled={auth.loginInFlight}
+              loading={auth.loginInFlight}
+              idleLabel="Continue with Google"
+              loadingLabel="Starting Google sign-in..."
+            />
+
+            {shouldShowPasswordFields ? (
+              <>
+                <AuthMethodDivider />
+                <p className="text-sm text-foreground">Create a password to log in</p>
                 <PasswordInput
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="w-full"
-                  placeholder="Create password"
+                  onBlur={() => setPasswordTouched(true)}
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="Password"
                   autoComplete="new-password"
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={passwordError ? "invite-password-error" : undefined}
                 />
+                <FieldValidationMessage id="invite-password-error" message={passwordError} />
                 <PasswordInput
                   value={passwordConfirm}
                   onChange={(event) => setPasswordConfirm(event.target.value)}
-                  className="w-full"
+                  onBlur={() => setPasswordConfirmTouched(true)}
+                  className="w-full border rounded px-3 py-2"
                   placeholder="Confirm password"
                   autoComplete="new-password"
+                  aria-invalid={Boolean(confirmPasswordError)}
+                  aria-describedby={confirmPasswordError ? "invite-password-confirm-error" : undefined}
                 />
+                <FieldValidationMessage id="invite-password-confirm-error" message={confirmPasswordError} />
                 <Button
-                  variant="outline"
                   onClick={handleSetPassword}
                   className="w-full"
-                  disabled={passwordSubmitting || !password || !passwordConfirm || !turnstile.canSubmit}
+                  disabled={passwordSubmitting || !canSubmitPassword}
                 >
                   {passwordSubmitting ? "Setting password..." : "Set password and join"}
                 </Button>
-              </div>
+              </>
             ) : null}
-            {loginError ? <p className="text-destructive text-sm text-center">{loginError}</p> : null}
+            {loginError ? <p className="text-destructive text-sm">{loginError}</p> : null}
           </div>
-        )}
-      </Card>
-    </div>
+        ) : null}
+        {turnstile.enabled && status !== "done" ? (
+          <div className="mt-6 space-y-2">
+            <turnstile.TurnstileWidget />
+            {turnstile.guidanceMessage ? <p className={`text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}>{turnstile.guidanceMessage}</p> : null}
+          </div>
+        ) : null}
+      </motion.div>
+    </AuthShell>
   );
 }
