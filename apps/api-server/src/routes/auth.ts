@@ -33,7 +33,14 @@ import {
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
-import { resolveAuthenticatedPostAuthDestination } from "../lib/postAuthDestination.js";
+import {
+  resolveAuthenticatedPostAuthDestination,
+  type PostAuthResolutionStage,
+} from "../lib/postAuthDestination.js";
+import {
+  resolvePostAuthContinuation,
+  type PostAuthContinuation,
+} from "../lib/postAuthContinuation.js";
 import {
   isSessionGroupCompatible,
   resolveSessionGroupForApp,
@@ -1084,10 +1091,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath),
-  );
-
   const { appSlug, oauthSessionGroup } = resolveOauthStartContext(
     req,
     returnTo,
@@ -1110,6 +1113,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     );
     return;
   }
+
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
 
   const statePayload = {
     nonce: randomUUID(),
@@ -1896,11 +1901,18 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const finalDestination = resolveAuthenticatedPostAuthDestination({
-      continuationPath: normalizeReturnToPath(oauthReturnToPath),
-      flowDecision: effectiveContext,
-      fallbackPath: "/dashboard",
+    const oauthContinuation = resolvePostAuthContinuation({
+      appSlug: activeAppSlug,
+      returnPath: normalizeReturnToPath(oauthReturnToPath),
     });
+    const finalDestination =
+      (await resolveNextPathForEstablishedSession(
+        req,
+        user.id,
+        activeAppSlug,
+        oauthContinuation,
+        "post_auth",
+      )) ?? "/dashboard";
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
       redirectPath: finalDestination,
@@ -2210,13 +2222,11 @@ async function beginMfaPendingSession(
 
 async function completePendingMfaSession(
   req: Request,
-): Promise<{ userId: string; returnToPath: string | null } | null> {
+): Promise<{ userId: string; continuation: PostAuthContinuation | null } | null> {
   const pendingUserId = req.session.pendingUserId;
   const pendingAppSlug = req.session.pendingAppSlug;
   const pendingStayLoggedIn = req.session.pendingStayLoggedIn === true;
-  const pendingReturnToPath = normalizeReturnToPath(
-    req.session.pendingReturnToPath,
-  );
+  const pendingContinuation = req.session.pendingPostAuthContinuation ?? null;
   if (!pendingUserId || !pendingAppSlug) return null;
 
   await establishPasswordSession(
@@ -2229,16 +2239,18 @@ async function completePendingMfaSession(
   delete req.session.pendingAppSlug;
   delete req.session.pendingMfaReason;
   delete req.session.pendingStayLoggedIn;
-  delete req.session.pendingReturnToPath;
+  req.session.postAuthContinuation = pendingContinuation ?? undefined;
+  delete req.session.pendingPostAuthContinuation;
   await clearFirstAuthAfterReset(pendingUserId);
-  return { userId: pendingUserId, returnToPath: pendingReturnToPath };
+  return { userId: pendingUserId, continuation: pendingContinuation };
 }
 
 async function resolveNextPathForEstablishedSession(
   req: Request,
   userId: string,
   appSlug: string,
-  continuationPath?: string | null,
+  continuation?: PostAuthContinuation | null,
+  stage: PostAuthResolutionStage = "post_auth",
 ): Promise<string | null> {
   try {
     const user = await db.query.usersTable.findFirst({
@@ -2255,17 +2267,29 @@ async function resolveNextPathForEstablishedSession(
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
     });
+    const effectiveContinuation =
+      continuation === undefined
+        ? (req.session.postAuthContinuation ?? null)
+        : continuation;
     const destination = resolveAuthenticatedPostAuthDestination({
-      continuationPath,
+      continuation: effectiveContinuation,
       flowDecision: flow,
       fallbackPath: "/dashboard",
+      stage,
     });
+    const shouldKeepContinuation =
+      stage === "post_auth" && flow?.requiredOnboarding !== "none";
+    if (effectiveContinuation && shouldKeepContinuation) {
+      req.session.postAuthContinuation = effectiveContinuation;
+    } else {
+      delete req.session.postAuthContinuation;
+    }
     logAuthDebug(req, "post_auth_redirect_decision", {
       userId,
       appSlug,
       destination,
-      continuationPath:
-        typeof continuationPath === "string" ? continuationPath : null,
+      continuationType: effectiveContinuation?.type ?? null,
+      continuationPath: effectiveContinuation?.returnPath ?? null,
       requiredOnboarding: flow?.requiredOnboarding ?? null,
     });
     return destination;
@@ -2567,9 +2591,13 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
   const stayLoggedIn = req.body?.stayLoggedIn === true;
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath),
-  );
+  const continuation = resolvePostAuthContinuation({
+    appSlug,
+    returnPath: normalizeReturnToPath(firstQueryParam(req.body?.returnToPath)),
+    continuationType: firstQueryParam(req.body?.continuationType),
+    orgId: firstQueryParam(req.body?.continuationOrgId),
+    resourceId: firstQueryParam(req.body?.continuationResourceId),
+  });
   logAuthDebug(req, "password_login_request", {
     requestSessionId: req.sessionID ?? null,
     sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
@@ -2579,7 +2607,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
     authUserId: user.id,
     appSlug,
     stayLoggedIn,
-    returnToPath: returnToPath ?? null,
+    returnToPath: continuation?.returnPath ?? null,
+    continuationType: continuation?.type ?? null,
   });
   const mfaGate = await beginMfaPendingSession(
     req,
@@ -2588,7 +2617,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     stayLoggedIn,
   );
   if (mfaGate.required) {
-    req.session.pendingReturnToPath = returnToPath ?? undefined;
+    req.session.pendingPostAuthContinuation = continuation ?? undefined;
     await new Promise<void>((resolve, reject) => {
       req.session.save((err: unknown) => (err ? reject(err) : resolve()));
     });
@@ -2598,7 +2627,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
       mfaRequired: true,
       needsEnrollment: mfaGate.needsEnrollment,
       nextStep: mfaGate.nextStep,
-      returnToPath: returnToPath ?? null,
+      returnToPath: continuation?.returnPath ?? null,
+      continuationType: continuation?.type ?? null,
       factorState: mfaGate.needsEnrollment
         ? "enrollment_required"
         : "challenge_required",
@@ -2618,7 +2648,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
   const nextPath =
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug, returnToPath)) ??
+    (await resolveNextPathForEstablishedSession(req, user.id, appSlug, continuation)) ??
     "/dashboard";
   logAuthDebug(req, "login_result", {
     userId: user.id,
@@ -2895,7 +2925,8 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     delete req.session.pendingAppSlug;
     delete req.session.pendingMfaReason;
     delete req.session.pendingStayLoggedIn;
-    delete req.session.pendingReturnToPath;
+    delete req.session.pendingPostAuthContinuation;
+    delete req.session.postAuthContinuation;
     res
       .status(401)
       .json({
@@ -2975,7 +3006,7 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
           req,
           completed.userId,
           appSlug,
-          completed.returnToPath,
+          completed.continuation,
         )) ??
         undefined;
     }
@@ -3044,7 +3075,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
         req,
         userId,
         appSlug,
-        completed.returnToPath,
+        completed.continuation,
       )) ??
       undefined)
     : undefined;
@@ -3103,7 +3134,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
         req,
         userId,
         appSlug,
-        completed.returnToPath,
+        completed.continuation,
       )) ??
       undefined)
     : undefined;
@@ -3115,6 +3146,34 @@ async function handleMfaRecovery(req: Request, res: Response) {
     sessionEstablished: true,
     nextPath: nextPath ?? null,
   });
+  res.json({ success: true, nextPath });
+}
+
+async function handlePostOnboardingNextPath(req: Request, res: Response) {
+  ensureAuthFlowId(req);
+  const authenticatedUser = (
+    req as Request & { user?: typeof usersTable.$inferSelect }
+  ).user;
+  const userId = authenticatedUser?.id ?? req.session.userId ?? null;
+  const appSlug = req.session.appSlug ?? null;
+  if (!userId || !appSlug) {
+    res.status(400).json({ error: "No active authenticated app session." });
+    return;
+  }
+
+  const nextPath =
+    (await resolveNextPathForEstablishedSession(
+      req,
+      userId,
+      appSlug,
+      req.session.postAuthContinuation ?? null,
+      "post_onboarding",
+    )) ?? "/dashboard";
+  delete req.session.postAuthContinuation;
+  await new Promise<void>((resolve, reject) => {
+    req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+  });
+
   res.json({ success: true, nextPath });
 }
 
@@ -3199,6 +3258,12 @@ router.post(
   "/mfa/recovery",
   authRateLimiter({ keyPrefix: "auth-mfa-recovery" }),
   handleMfaRecovery,
+);
+router.post(
+  "/post-onboarding/next-path",
+  requireAuth,
+  authRateLimiter({ keyPrefix: "auth-post-onboarding-next-path" }),
+  handlePostOnboardingNextPath,
 );
 router.post(
   "/mfa/disable",

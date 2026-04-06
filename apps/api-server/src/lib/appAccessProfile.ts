@@ -29,7 +29,7 @@ export function getAuthRoutePolicyForProfile(
   }
 
   if (profile === "solo") {
-    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };

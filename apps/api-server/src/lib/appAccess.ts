@@ -158,8 +158,16 @@ export async function getAppContext(userId: string, appSlug: string) {
     activeOrg = selectedAuthorization?.organization ?? null;
     orgMembership = selectedAuthorization?.membership ?? null;
     canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
-    if (!canAccess) requiredOnboarding = "organization";
-    if (canAccess && !user.name?.trim()) requiredOnboarding = "user";
+    if (!canAccess) {
+      if (app.customerRegistrationEnabled) {
+        canAccess = true;
+        requiredOnboarding = user.name?.trim() ? "none" : "user";
+      } else {
+        requiredOnboarding = "organization";
+      }
+    } else if (!user.name?.trim()) {
+      requiredOnboarding = "user";
+    }
   } else if (normalizedAccessProfile === "solo") {
     canAccess = true;
     if (!user.name?.trim()) requiredOnboarding = "user";

@@ -15,7 +15,7 @@ test("shared post-auth resolver keeps MFA precedence before continuation", () =>
   assert.equal(result.reason, "mfa_pending");
 });
 
-test("shared post-auth resolver prioritizes continuation before onboarding/default", () => {
+test("shared post-auth resolver prioritizes onboarding before continuation/default", () => {
   const result = resolveAuthenticatedNextStep({
     authStatus: "authenticated_fully",
     user: {
@@ -32,8 +32,8 @@ test("shared post-auth resolver prioritizes continuation before onboarding/defau
     deniedLoginPath: "/login?error=access_denied",
   });
 
-  assert.equal(result.destination, "/invitations/token-1/accept");
-  assert.equal(result.reason, "continuation");
+  assert.equal(result.destination, "/onboarding/organization");
+  assert.equal(result.reason, "onboarding_organization");
 });
 
 test("shared post-auth resolver preserves superadmin deny path", () => {

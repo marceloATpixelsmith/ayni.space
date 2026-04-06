@@ -113,7 +113,8 @@ test("invitation password acceptance returns MFA enrollment step when user is no
     assert.equal(response.body?.nextStep, "mfa_enroll");
     assert.equal(response.body?.nextPath, "/mfa/enroll");
     assert.equal(
-      persistedSession.pendingReturnToPath,
+      (persistedSession.pendingPostAuthContinuation as { returnPath?: string } | undefined)
+        ?.returnPath,
       "/invitations/token-1/accept",
     );
   } finally {

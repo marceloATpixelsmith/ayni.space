@@ -6,6 +6,7 @@ import { pool } from "@workspace/db";
 import { writeAuditLog } from "./audit.js";
 import { getKnownSessionGroups, getSessionCookieNameForGroup, resolveSessionGroupForRequest, SESSION_GROUPS } from "./sessionGroup.js";
 import { logVerboseTrace } from "./traceLogging.js";
+import type { PostAuthContinuation } from "./postAuthContinuation.js";
 
 const PgStore = connectPgSimple(session);
 
@@ -306,7 +307,8 @@ declare module "express-session" {
     pendingAppSlug?: string;
     pendingMfaReason?: "enrollment_required" | "challenge_required";
     pendingStayLoggedIn?: boolean;
-    pendingReturnToPath?: string;
+    pendingPostAuthContinuation?: PostAuthContinuation;
+    postAuthContinuation?: PostAuthContinuation;
     authFlowId?: string;
     oauthStayLoggedIn?: boolean;
     stayLoggedIn?: boolean;

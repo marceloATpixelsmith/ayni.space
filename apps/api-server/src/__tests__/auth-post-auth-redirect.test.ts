@@ -58,6 +58,28 @@ test("user onboarding destination is explicit when required", () => {
   assert.equal(destination, "/onboarding/user");
 });
 
+test("client/public registrant resolves to user onboarding", () => {
+  const destination = getPostAuthRedirectPath({
+    appSlug: "public-client",
+    isSuperAdmin: false,
+    normalizedAccessProfile: "organization",
+    requiredOnboarding: "user",
+  });
+
+  assert.equal(destination, "/onboarding/user");
+});
+
+test("invited org member resolves to user onboarding after auth success", () => {
+  const destination = getPostAuthRedirectPath({
+    appSlug: "admin",
+    isSuperAdmin: false,
+    normalizedAccessProfile: "organization",
+    requiredOnboarding: "user",
+  });
+
+  assert.equal(destination, "/onboarding/user");
+});
+
 test("organization profile onboarding redirect never includes /admin prefix", () => {
   const destination = getPostAuthRedirectPath({
     appSlug: "admin",

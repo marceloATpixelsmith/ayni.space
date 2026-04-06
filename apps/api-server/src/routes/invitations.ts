@@ -25,6 +25,7 @@ import {
   resolvePostAuthFlowDecision,
 } from "../lib/postAuthFlow.js";
 import { resolveAuthenticatedPostAuthDestination } from "../lib/postAuthDestination.js";
+import { resolvePostAuthContinuation } from "../lib/postAuthContinuation.js";
 import { hashPassword, isStrongEnoughPassword, normalizeEmail } from "../lib/passwordAuth.js";
 import { getTrustedDeviceCookieName, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice } from "../lib/mfa.js";
 import { applySessionPersistence } from "../lib/session.js";
@@ -253,10 +254,11 @@ async function beginInvitationMfaPendingSession(
   req.session.pendingAppSlug = appSlug;
   req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
   req.session.pendingStayLoggedIn = false;
-  req.session.pendingReturnToPath =
-    typeof continuationPath === "string" && continuationPath.startsWith("/")
-      ? continuationPath
-      : undefined;
+  req.session.pendingPostAuthContinuation = resolvePostAuthContinuation({
+    appSlug,
+    returnPath: continuationPath,
+    continuationType: "invitation_acceptance",
+  }) ?? undefined;
   applySessionPersistence(req, false);
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
@@ -316,9 +318,10 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
         normalizedAccessProfile,
       });
       nextPath = resolveAuthenticatedPostAuthDestination({
-        continuationPath: null,
+        continuation: null,
         flowDecision: postAcceptDecision,
         fallbackPath: "/dashboard",
+        stage: "post_auth",
       });
     }
   }

@@ -82,9 +82,24 @@ export default function Onboarding() {
     mutation: {
       onSuccess: async () => {
         toast({ title: "Organization created successfully" });
+        if (!auth.csrfReady || !auth.csrfToken) {
+          throw new Error("Security token not ready");
+        }
+        const nextResponse = await secureApiFetch(
+          "/api/auth/post-onboarding/next-path",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({}),
+          },
+          auth.csrfToken,
+        );
+        const nextPayload = (await nextResponse.json().catch(() => null)) as {
+          nextPath?: string;
+        } | null;
         await auth.refreshSession();
         await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        setLocation("/dashboard");
+        setLocation(nextPayload?.nextPath ?? "/dashboard");
       },
       onError: (
         error: unknown,
@@ -188,9 +203,21 @@ export default function Onboarding() {
       if (!response.ok) {
         throw new Error(payload?.error ?? "Unable to save your profile.");
       }
+      const nextResponse = await secureApiFetch(
+        "/api/auth/post-onboarding/next-path",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        },
+        auth.csrfToken,
+      );
+      const nextPayload = (await nextResponse.json().catch(() => null)) as {
+        nextPath?: string;
+      } | null;
       await auth.refreshSession();
       await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      setLocation("/dashboard");
+      setLocation(nextPayload?.nextPath ?? "/dashboard");
     } catch (error) {
       toast({
         title: "Failed to save profile",

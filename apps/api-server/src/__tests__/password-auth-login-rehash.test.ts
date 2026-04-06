@@ -282,7 +282,11 @@ test("mfa-required login persists pending invitation continuation returnToPath i
     });
 
     assert.equal(response.status, 202);
-    assert.equal(persistedSession.pendingReturnToPath, "/invitations/test-token/accept");
+    assert.equal(
+      (persistedSession.pendingPostAuthContinuation as { returnPath?: string } | undefined)
+        ?.returnPath,
+      "/invitations/test-token/accept",
+    );
   } finally {
     restores.reverse().forEach((restore) => restore());
   }
