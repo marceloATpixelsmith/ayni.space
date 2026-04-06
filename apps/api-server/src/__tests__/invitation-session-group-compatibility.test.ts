@@ -502,3 +502,49 @@ test("invitation resolve returns terminal state for accepted invite", async () =
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+
+test("invitation resolve returns invalid state when token lookup misses", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => null),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const response = await performJsonRequest(app, "GET", "/api/invitations/non-existent/resolve");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.invitation.state, "invalid");
+    assert.equal(response.body.auth.emailMode, "none");
+    assert.equal(response.body.auth.googleAllowed, false);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("invitation resolve returns expired state for pending invite past expiration", async () => {
+  const restores = [
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-expired",
+      appId: "app-a",
+      orgId: "org-a",
+      email: "invitee@example.com",
+      invitedRole: "staff",
+      token: "hash",
+      invitationStatus: "pending",
+      expiresAt: new Date(Date.now() - 1_000),
+    })),
+    patchProperty(db.query.usersTable, "findFirst", async () => null),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
+  ];
+  try {
+    const app = createSessionApp(invitationsRouter, { sessionGroup: "default" });
+    const response = await performJsonRequest(app, "GET", "/api/invitations/token/resolve");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.invitation.state, "expired");
+    assert.equal(response.body.auth.emailMode, "none");
+    assert.equal(response.body.auth.googleAllowed, false);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
