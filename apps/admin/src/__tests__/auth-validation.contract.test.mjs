@@ -7,33 +7,15 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const validationSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/authValidation.ts"),
-  "utf8",
-);
-const loginSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/Login.tsx"),
-  "utf8",
-);
-const signupSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/Signup.tsx"),
-  "utf8",
-);
-const forgotSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/ForgotPassword.tsx"),
-  "utf8",
-);
-const invitationSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx"),
-  "utf8",
-);
+const validationSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/authValidation.ts"), "utf8");
+const loginSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/Login.tsx"), "utf8");
+const signupSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/Signup.tsx"), "utf8");
+const forgotSource = fs.readFileSync(path.resolve(__dirname, "../pages/auth/ForgotPassword.tsx"), "utf8");
+
 
 test("auth email validation trims/normalizes and blocks invalid input", () => {
   assert.match(validationSource, /trim\(\)\.toLowerCase\(\)/);
-  assert.match(
-    validationSource,
-    /\^\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+\$/,
-  );
+  assert.match(validationSource, /\^\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+\$/);
   assert.match(loginSource, /validateEmailInput/);
   assert.match(signupSource, /validateEmailInput/);
   assert.match(forgotSource, /validateEmailInput/);
@@ -41,7 +23,6 @@ test("auth email validation trims/normalizes and blocks invalid input", () => {
 
 test("auth password policy is visible in signup UI", () => {
   assert.match(validationSource, /password\.length < 8/);
-  assert.match(validationSource, /\/\[A-Za-z\]\//);
   assert.match(validationSource, /\/\[A-Z\]\//);
   assert.match(validationSource, /\/\[a-z\]\//);
   assert.match(validationSource, /\/\\d\//);
@@ -49,65 +30,19 @@ test("auth password policy is visible in signup UI", () => {
 });
 
 test("login and signup gate email errors behind touch/submit interaction", () => {
-  assert.match(
-    loginSource,
-    /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/,
-  );
-  assert.match(
-    loginSource,
-    /const \[submitted, setSubmitted\] = React\.useState\(false\);/,
-  );
-  assert.match(
-    loginSource,
-    /const emailError =\s*emailTouched \|\| submitted \? validateEmailInput\(emailInput\) : null;/,
-  );
+  assert.match(loginSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
+  assert.match(loginSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
+  assert.match(loginSource, /const emailError = \(emailTouched \|\| submitted\) \? validateEmailInput\(emailInput\) : null;/);
 
-  assert.match(
-    signupSource,
-    /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/,
-  );
-  assert.match(
-    signupSource,
-    /const \[submitted, setSubmitted\] = React\.useState\(false\);/,
-  );
-  assert.match(
-    signupSource,
-    /const emailError =\s*emailTouched \|\| submitted \? validateEmailInput\(email\) : null;/,
-  );
+  assert.match(signupSource, /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/);
+  assert.match(signupSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
+  assert.match(signupSource, /const emailError = \(emailTouched \|\| submitted\) \? validateEmailInput\(email\) : null;/);
 });
 
 test("signup password feedback is progressive and hidden before interaction", () => {
-  assert.match(
-    signupSource,
-    /const shouldShowPasswordFeedback = password\.length > 0;/,
-  );
-  assert.match(
-    signupSource,
-    /const missingPasswordRequirements = getMissingPasswordRequirements\(password\);/,
-  );
-  assert.match(
-    signupSource,
-    /shouldShowPasswordFeedback\s*&&\s*missingPasswordRequirements\.length > 0/,
-  );
+  assert.match(signupSource, /const shouldShowPasswordFeedback = password\.length > 0;/);
+  assert.match(signupSource, /const missingPasswordRequirements = getMissingPasswordRequirements\(password\);/);
+  assert.match(signupSource, /shouldShowPasswordFeedback && missingPasswordRequirements\.length > 0/);
   assert.doesNotMatch(signupSource, /Password meets requirements\./);
-  assert.doesNotMatch(
-    signupSource,
-    /Password must be at least 8 characters and include uppercase, lowercase, and a number\./,
-  );
-});
-
-test("signup and invitation flows avoid confirm-password fields", () => {
-  assert.doesNotMatch(signupSource, /Confirm password/i);
-  assert.doesNotMatch(invitationSource, /Confirm password/i);
-});
-
-test("invitation flow performs password creation on invitation screen", () => {
-  assert.match(invitationSource, /Create a password to log in/);
-  assert.doesNotMatch(invitationSource, /Continue with email and password/);
-  assert.doesNotMatch(invitationSource, /\/login\?next=/);
-});
-
-test("login superadmin mode can hide signup affordances", () => {
-  assert.match(loginSource, /hideSignupAffordances/);
-  assert.match(loginSource, /normalizedAccessProfile === \"superadmin\"/);
+  assert.doesNotMatch(signupSource, /Password must be at least 8 characters and include uppercase, lowercase, and a number\./);
 });

@@ -3,10 +3,7 @@ import React from "react";
 declare global {
   interface Window {
     turnstile?: {
-      render: (
-        container: string | HTMLElement,
-        options: Record<string, unknown>,
-      ) => string;
+      render: (container: string | HTMLElement, options: Record<string, unknown>) => string;
       remove: (widgetId: string) => void;
       reset: (widgetId?: string) => void;
     };
@@ -14,22 +11,12 @@ declare global {
 }
 
 const SCRIPT_ID = "cf-turnstile-script";
-const SCRIPT_SRC =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
 let turnstileScriptPromise: Promise<void> | null = null;
-const AUTH_DEBUG =
-  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-    ?.VITE_AUTH_DEBUG === "true";
+const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
 
-export type TurnstileUiStatus =
-  | "disabled"
-  | "loading"
-  | "waiting"
-  | "verified"
-  | "error"
-  | "expired"
-  | "retrying";
+export type TurnstileUiStatus = "disabled" | "loading" | "waiting" | "verified" | "error" | "expired" | "retrying";
 
 export function deriveTurnstileUiState(input: {
   enabled: boolean;
@@ -40,11 +27,7 @@ export function deriveTurnstileUiState(input: {
   expired: boolean;
   callbackError: boolean;
   retrying: boolean;
-}): {
-  status: TurnstileUiStatus;
-  guidanceMessage: string | null;
-  canSubmit: boolean;
-} {
+}): { status: TurnstileUiStatus; guidanceMessage: string | null; canSubmit: boolean } {
   if (!input.enabled) {
     return { status: "disabled", guidanceMessage: null, canSubmit: true };
   }
@@ -56,16 +39,15 @@ export function deriveTurnstileUiState(input: {
   else if (!input.ready || !input.widgetRenderAttempted) status = "loading";
   else if (input.retrying) status = "retrying";
 
-  const guidanceMessage =
-    status === "loading"
-      ? "Loading security check…"
-      : status === "retrying"
-        ? "Verification failed. please wait a few seconds…"
-        : status === "expired"
-          ? "Security check expired. Please complete the new verification challenge."
-          : status === "error"
-            ? "Verification failed. please wait a few seconds…"
-            : null;
+  const guidanceMessage = status === "loading"
+    ? "Loading security check…"
+    : status === "retrying"
+      ? "We’re retrying the security check. Please wait…"
+      : status === "expired"
+        ? "Security check expired. Please complete the new verification challenge."
+        : status === "error"
+          ? "Verification failed. Please wait a few seconds while we retry."
+          : null;
 
   const canSubmit = input.ready && input.tokenPresent;
   return { status, guidanceMessage, canSubmit };
@@ -78,9 +60,7 @@ function ensureScript(): Promise<void> {
     return turnstileScriptPromise;
   }
 
-  const existing = document.getElementById(
-    SCRIPT_ID,
-  ) as HTMLScriptElement | null;
+  const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
   if (existing) {
     if (existing.getAttribute(SCRIPT_LOADED_ATTR) === "true") {
       return Promise.resolve();
@@ -94,14 +74,10 @@ function ensureScript(): Promise<void> {
       };
 
       existing.addEventListener("load", complete, { once: true });
-      existing.addEventListener(
-        "error",
-        () => {
-          turnstileScriptPromise = null;
-          reject(new Error("Failed to load Turnstile script."));
-        },
-        { once: true },
-      );
+      existing.addEventListener("error", () => {
+        turnstileScriptPromise = null;
+        reject(new Error("Failed to load Turnstile script."));
+      }, { once: true });
 
       if (window.turnstile) {
         complete();
@@ -136,27 +112,17 @@ export function useTurnstileToken() {
   const [token, setToken] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [ready, setReady] = React.useState(false);
-  const [widgetRenderAttempted, setWidgetRenderAttempted] =
-    React.useState(false);
-  const [callbackState, setCallbackState] = React.useState<{
-    success: boolean;
-    error: boolean;
-    expired: boolean;
-  }>({
+  const [widgetRenderAttempted, setWidgetRenderAttempted] = React.useState(false);
+  const [callbackState, setCallbackState] = React.useState<{ success: boolean; error: boolean; expired: boolean }>({
     success: false,
     error: false,
     expired: false,
   });
   const widgetIdRef = React.useRef<string | null>(null);
-  const [containerNode, setContainerNode] =
-    React.useState<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = React.useState<HTMLDivElement | null>(null);
 
-  const siteKey = (
-    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-  ).env?.VITE_TURNSTILE_SITE_KEY;
-  const scriptPresent =
-    typeof document !== "undefined" &&
-    Boolean(document.getElementById(SCRIPT_ID));
+  const siteKey = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_TURNSTILE_SITE_KEY;
+  const scriptPresent = typeof document !== "undefined" && Boolean(document.getElementById(SCRIPT_ID));
   const [retrying, setRetrying] = React.useState(false);
 
   React.useEffect(() => {
@@ -216,23 +182,18 @@ export function useTurnstileToken() {
             setError(null);
             setRetrying(false);
             setCallbackState((previous) => ({ ...previous, success: true }));
-            if (AUTH_DEBUG)
-              console.info("[turnstile] callback success", {
-                tokenPresent: Boolean(value),
-              });
+            if (AUTH_DEBUG) console.info("[turnstile] callback success", { tokenPresent: Boolean(value) });
           },
           "expired-callback": () => {
             setToken(null);
-            setError(
-              "Security check expired. Please complete the new verification challenge.",
-            );
+            setError("Security check expired. Please complete the new verification challenge.");
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, expired: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback expired");
           },
           "error-callback": () => {
             setToken(null);
-            setError("Verification failed. please wait a few seconds…");
+            setError("Verification failed. Please wait a few seconds while we retry.");
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, error: true }));
             if (AUTH_DEBUG) console.info("[turnstile] callback error");
@@ -242,9 +203,7 @@ export function useTurnstileToken() {
       })
       .catch((err) => {
         setReady(false);
-        setError(
-          err instanceof Error ? err.message : "Turnstile script error.",
-        );
+        setError(err instanceof Error ? err.message : "Turnstile script error.");
       });
 
     return () => {
@@ -295,15 +254,7 @@ export function useTurnstileToken() {
       scriptPresent: Boolean(document.getElementById(SCRIPT_ID)),
       containerPresent: Boolean(containerNode),
     });
-  }, [
-    siteKey,
-    ready,
-    token,
-    error,
-    widgetRenderAttempted,
-    callbackState,
-    containerNode,
-  ]);
+  }, [siteKey, ready, token, error, widgetRenderAttempted, callbackState, containerNode]);
   const uiState = React.useMemo(
     () =>
       deriveTurnstileUiState({
@@ -316,27 +267,8 @@ export function useTurnstileToken() {
         callbackError: callbackState.error,
         retrying,
       }),
-    [
-      callbackState.error,
-      callbackState.expired,
-      error,
-      ready,
-      retrying,
-      siteKey,
-      token,
-      widgetRenderAttempted,
-    ],
+    [callbackState.error, callbackState.expired, error, ready, retrying, siteKey, token, widgetRenderAttempted],
   );
 
-  return {
-    token,
-    error,
-    ready,
-    reset,
-    TurnstileWidget,
-    enabled: Boolean(siteKey),
-    status: uiState.status,
-    guidanceMessage: uiState.guidanceMessage,
-    canSubmit: uiState.canSubmit,
-  };
+  return { token, error, ready, reset, TurnstileWidget, enabled: Boolean(siteKey), status: uiState.status, guidanceMessage: uiState.guidanceMessage, canSubmit: uiState.canSubmit };
 }

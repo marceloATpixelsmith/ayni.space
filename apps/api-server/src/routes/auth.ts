@@ -1,93 +1,26 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import {
-  appsTable,
-  authTokensTable,
-  db,
-  orgAppAccessTable,
-  pool,
-  userCredentialsTable,
-  usersTable,
-  orgMembershipsTable,
-  organizationsTable,
-  userAuthSecurityTable,
-} from "@workspace/db";
+import { appsTable, authTokensTable, db, orgAppAccessTable, pool, userCredentialsTable, usersTable, orgMembershipsTable, organizationsTable, userAuthSecurityTable } from "@workspace/db";
 import { getAppBySlug, getAppContext } from "../lib/appAccess.js";
 import { buildGoogleAuthUrl, exchangeCodeForUser } from "../lib/auth.js";
-import {
-  applySessionPersistence,
-  destroySessionAndClearCookie,
-  getDeleteAllOtherSessionsForUserSql,
-  getSessionCookieName,
-  getSessionCookieOptions,
-  logSessionCookieConfig,
-} from "../lib/session.js";
-import {
-  getAdminSessionGroupOrigins,
-  getAllowedOrigins,
-  resolveSessionGroupForRequest,
-  resolveSessionGroupFromOrigin,
-  SESSION_GROUPS,
-} from "../lib/sessionGroup.js";
+import { applySessionPersistence, destroySessionAndClearCookie, getDeleteAllOtherSessionsForUserSql, getSessionCookieName, getSessionCookieOptions, logSessionCookieConfig } from "../lib/session.js";
+import { getAdminSessionGroupOrigins, getAllowedOrigins, resolveSessionGroupForRequest, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
-import {
-  isSessionGroupCompatible,
-  resolveSessionGroupForApp,
-} from "../lib/sessionGroupCompatibility.js";
-import {
-  isTurnstileEnabled,
-  verifyTurnstileTokenDetailed,
-  logTurnstileVerificationResult,
-} from "../middlewares/turnstile.js";
-import {
-  authRateLimiter,
-  authRateLimiterWithIdentifier,
-} from "../middlewares/rateLimit.js";
+import { isSessionGroupCompatible, resolveSessionGroupForApp } from "../lib/sessionGroupCompatibility.js";
+import { isTurnstileEnabled, verifyTurnstileTokenDetailed, logTurnstileVerificationResult } from "../middlewares/turnstile.js";
+import { authRateLimiter, authRateLimiterWithIdentifier } from "../middlewares/rateLimit.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
-import {
-  generateOpaqueToken,
-  getPasswordAuthOpaqueIdentifier,
-  hashOpaqueToken,
-  hashPassword,
-  isStrongEnoughPassword,
-  normalizeEmail as normalizeEmailAddress,
-  verifyPassword,
-} from "../lib/passwordAuth.js";
+import { generateOpaqueToken, getPasswordAuthOpaqueIdentifier, hashOpaqueToken, hashPassword, isStrongEnoughPassword, normalizeEmail as normalizeEmailAddress, verifyPassword } from "../lib/passwordAuth.js";
 import { assessSignupRiskWithIpqs } from "../lib/ipqs.js";
-import {
-  activateTotpEnrollment,
-  beginTotpEnrollment,
-  buildTotpOtpauthUrl,
-  clearFirstAuthAfterReset,
-  getTrustedDeviceCookieName,
-  getTrustedDeviceCookieOptions,
-  getUserAuthSecurity,
-  hasActiveMfaFactor,
-  isMfaRequiredForUser,
-  isTrustedDevice,
-  markPasswordResetSecurityEvent,
-  markUserHighRiskStepUp,
-  rememberTrustedDevice,
-  revokeTrustedDevicesForUser,
-  verifyMfaChallenge,
-} from "../lib/mfa.js";
+import { activateTotpEnrollment, beginTotpEnrollment, buildTotpOtpauthUrl, clearFirstAuthAfterReset, getTrustedDeviceCookieName, getTrustedDeviceCookieOptions, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice, markPasswordResetSecurityEvent, markUserHighRiskStepUp, rememberTrustedDevice, revokeTrustedDevicesForUser, verifyMfaChallenge } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
-import {
-  sendLane1AuthVerificationEmail,
-  sendLane1PasswordResetEmail,
-} from "../lib/invitationEmail.js";
-import {
-  ensureAuthFlowId,
-  getRequestCookieValue,
-  getSetCookieValueForName,
-  logAuthDebug,
-  toVisibleSessionId,
-} from "../lib/authDebug.js";
+import { sendLane1AuthVerificationEmail, sendLane1PasswordResetEmail } from "../lib/invitationEmail.js";
+import { ensureAuthFlowId, getRequestCookieValue, getSetCookieValueForName, logAuthDebug, toVisibleSessionId } from "../lib/authDebug.js";
 
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
@@ -96,21 +29,13 @@ export const authRouteDeps = {
   exchangeCodeForUserFn: exchangeCodeForUser,
 };
 
-function attachAuthResponseDiagnostics(
-  req: Request,
-  res: Response,
-  route: string,
-) {
+function attachAuthResponseDiagnostics(req: Request, res: Response, route: string) {
   if (process.env["AUTH_DEBUG"] !== "true") return;
-  if ((res.locals as { __authDiagAttached?: boolean }).__authDiagAttached)
-    return;
+  if ((res.locals as { __authDiagAttached?: boolean }).__authDiagAttached) return;
   (res.locals as { __authDiagAttached?: boolean }).__authDiagAttached = true;
 
   res.on("finish", () => {
-    const sessionGroup =
-      req.resolvedSessionGroup ??
-      req.session?.sessionGroup ??
-      SESSION_GROUPS.DEFAULT;
+    const sessionGroup = req.resolvedSessionGroup ?? req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT;
     const cookieName = getSessionCookieName(sessionGroup);
     const requestCookieValue = getRequestCookieValue(req, cookieName);
     const responseCookieValue = getSetCookieValueForName(res, cookieName);
@@ -122,9 +47,7 @@ function attachAuthResponseDiagnostics(
       responseSetCookieSessionId: toVisibleSessionId(responseCookieValue),
       responseSetCookiePresent: Boolean(responseCookieValue),
       requestSessionId: req.sessionID ?? null,
-      sessionKeys: Object.keys(req.session ?? {})
-        .sort()
-        .join(","),
+      sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
       userId: req.session?.userId ?? null,
       pendingUserId: req.session?.pendingUserId ?? null,
     });
@@ -144,14 +67,8 @@ function getRequestFrontendOrigin(req: Request): string | null {
     candidateOrigins.push(refererHeader.trim());
   }
 
-  const forwardedHost =
-    typeof req.headers["x-forwarded-host"] === "string"
-      ? req.headers["x-forwarded-host"].trim()
-      : "";
-  const forwardedProtoRaw =
-    typeof req.headers["x-forwarded-proto"] === "string"
-      ? req.headers["x-forwarded-proto"].trim()
-      : "";
+  const forwardedHost = typeof req.headers["x-forwarded-host"] === "string" ? req.headers["x-forwarded-host"].trim() : "";
+  const forwardedProtoRaw = typeof req.headers["x-forwarded-proto"] === "string" ? req.headers["x-forwarded-proto"].trim() : "";
   const forwardedProto = forwardedProtoRaw.split(",", 1)[0]?.trim() || "";
   if (forwardedHost) {
     const proto = forwardedProto || "https";
@@ -170,9 +87,7 @@ function getRequestFrontendOrigin(req: Request): string | null {
 }
 
 function getCurrentRequestSessionGroup(req: Request): string {
-  const resolution = resolveSessionGroupForRequest(req, {
-    failOnAmbiguous: true,
-  });
+  const resolution = resolveSessionGroupForRequest(req, { failOnAmbiguous: true });
   if (!resolution.ok) {
     throw new Error(`session_group_resolution_failed:${resolution.reason}`);
   }
@@ -192,10 +107,7 @@ type OAuthStatePayload = {
   sessionGroup: string;
   returnToPath?: string;
 };
-type OAuthStateContext = Pick<
-  OAuthStatePayload,
-  "appSlug" | "returnTo" | "sessionGroup" | "returnToPath"
->;
+type OAuthStateContext = Pick<OAuthStatePayload, "appSlug" | "returnTo" | "sessionGroup" | "returnToPath">;
 
 function normalizeReturnToPath(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -208,29 +120,13 @@ function encodeOAuthStatePayload(payload: OAuthStatePayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
-function decodeOAuthStatePayload(
-  encodedPayload: string,
-): OAuthStatePayload | null {
+function decodeOAuthStatePayload(encodedPayload: string): OAuthStatePayload | null {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(encodedPayload, "base64url").toString("utf8"),
-    ) as Record<string, unknown>;
+    const parsed = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Record<string, unknown>;
     if (typeof parsed["nonce"] !== "string") return null;
-    if (
-      typeof parsed["appSlug"] !== "string" ||
-      parsed["appSlug"].trim().length === 0
-    )
-      return null;
-    if (
-      typeof parsed["returnTo"] !== "string" ||
-      parsed["returnTo"].trim().length === 0
-    )
-      return null;
-    if (
-      typeof parsed["sessionGroup"] !== "string" ||
-      parsed["sessionGroup"].trim().length === 0
-    )
-      return null;
+    if (typeof parsed["appSlug"] !== "string" || parsed["appSlug"].trim().length === 0) return null;
+    if (typeof parsed["returnTo"] !== "string" || parsed["returnTo"].trim().length === 0) return null;
+    if (typeof parsed["sessionGroup"] !== "string" || parsed["sessionGroup"].trim().length === 0) return null;
     const returnToPath = normalizeReturnToPath(parsed["returnToPath"]);
     return {
       nonce: parsed["nonce"],
@@ -248,9 +144,7 @@ function buildOAuthState(payload: OAuthStatePayload): string {
   return `${payload.sessionGroup}.${payload.nonce}.${encodeOAuthStatePayload(payload)}`;
 }
 
-function parseOAuthState(
-  state: string | null | undefined,
-): OAuthStatePayload | null {
+function parseOAuthState(state: string | null | undefined): OAuthStatePayload | null {
   if (!state) return null;
   const segments = state.split(".");
   if (segments.length < 3) return null;
@@ -262,21 +156,13 @@ function parseOAuthState(
   return payload;
 }
 
-function parseOAuthStateReturnTo(
-  state: string | null | undefined,
-): string | null {
+function parseOAuthStateReturnTo(state: string | null | undefined): string | null {
   if (!state) return null;
   const segments = state.split(".");
   if (segments.length < 3) return null;
   try {
-    const payload = JSON.parse(
-      Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"),
-    ) as Record<string, unknown>;
-    if (
-      typeof payload["returnTo"] !== "string" ||
-      payload["returnTo"].trim().length === 0
-    )
-      return null;
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8")) as Record<string, unknown>;
+    if (typeof payload["returnTo"] !== "string" || payload["returnTo"].trim().length === 0) return null;
     const origin = new URL(payload["returnTo"]).origin;
     return getAllowedOrigins().includes(origin) ? origin : null;
   } catch {
@@ -306,13 +192,11 @@ function validateOAuthCallbackState(
   return { valid: true, stateContext };
 }
 
+
 function parseAppSlugByOriginEnv(): Map<string, string> {
   const raw = process.env["APP_SLUG_BY_ORIGIN"] ?? "";
   const mappings = new Map<string, string>();
-  for (const entry of raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)) {
+  for (const entry of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
     const [origin, slug] = entry.split("=").map((value) => value.trim());
     if (!origin || !slug) continue;
     try {
@@ -331,18 +215,13 @@ function getRequestedAppSlug(req: Request): string | null {
   const queryAppSlug = firstQueryParam(req.query?.appSlug);
   if (queryAppSlug && queryAppSlug.trim()) return queryAppSlug.trim();
 
-  const sessionAppSlug =
-    typeof req.session?.appSlug === "string" ? req.session.appSlug.trim() : "";
+  const sessionAppSlug = typeof req.session?.appSlug === "string" ? req.session.appSlug.trim() : "";
   if (sessionAppSlug) return sessionAppSlug;
 
   return null;
 }
 
-function resolveActiveAppSlugForAuth(
-  req: Request,
-  frontendBase: string,
-  sessionGroup: string,
-): string | null {
+function resolveActiveAppSlugForAuth(req: Request, frontendBase: string, sessionGroup: string): string | null {
   const requestedAppSlug = getRequestedAppSlug(req);
   if (requestedAppSlug) return requestedAppSlug;
 
@@ -367,15 +246,10 @@ function resolveActiveAppSlugForAuth(
 function resolveOauthStartContext(req: Request, returnTo: string) {
   const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
   const resolvedSessionGroup = req.resolvedSessionGroup ?? originSessionGroup;
-  const appSlug = resolveActiveAppSlugForAuth(
-    req,
-    returnTo,
-    resolvedSessionGroup,
-  );
-  const oauthSessionGroup =
-    appSlug === "admin" || resolvedSessionGroup === SESSION_GROUPS.ADMIN
-      ? SESSION_GROUPS.ADMIN
-      : SESSION_GROUPS.DEFAULT;
+  const appSlug = resolveActiveAppSlugForAuth(req, returnTo, resolvedSessionGroup);
+  const oauthSessionGroup = appSlug === "admin" || resolvedSessionGroup === SESSION_GROUPS.ADMIN
+    ? SESSION_GROUPS.ADMIN
+    : SESSION_GROUPS.DEFAULT;
 
   return {
     appSlug,
@@ -393,65 +267,46 @@ function normalizeEmail(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
-function logSuperadminTrace(
-  checkpoint: string,
-  payload: Record<string, unknown>,
-) {
+function logSuperadminTrace(checkpoint: string, payload: Record<string, unknown>) {
   logVerboseTrace(`${SUPERADMIN_TRACE_PREFIX} ${checkpoint}`, payload);
 }
 
-function logAuthCheckTrace(
-  req: Request,
-  payload: {
-    sessionExists: boolean;
-    sessionGroup: string | null;
-    userId: string | null;
-    isSuperAdmin: boolean;
-    allow: boolean;
-    denyReason: string | null;
-    sessionKeys: string;
-  },
-) {
+function logAuthCheckTrace(req: Request, payload: {
+  sessionExists: boolean;
+  sessionGroup: string | null;
+  userId: string | null;
+  isSuperAdmin: boolean;
+  allow: boolean;
+  denyReason: string | null;
+  sessionKeys: string;
+}) {
   logAuthDebug(req, "auth_me_guard_decision", payload);
-  const {
-    sessionExists,
-    sessionGroup,
-    userId,
-    isSuperAdmin,
-    allow,
-    denyReason,
-    sessionKeys,
-  } = payload;
+  const { sessionExists, sessionGroup, userId, isSuperAdmin, allow, denyReason, sessionKeys } = payload;
   logVerboseTrace(
     `[AUTH-CHECK-TRACE] AUTH ROUTE CHECK ` +
-      `sessionExists=${sessionExists} ` +
-      `sessionGroup=${sessionGroup} ` +
-      `userId=${userId} ` +
-      `isSuperAdmin=${isSuperAdmin} ` +
-      `allow=${allow} ` +
-      `denyReason=${denyReason} ` +
-      `sessionKeys=${sessionKeys}`,
+    `sessionExists=${sessionExists} ` +
+    `sessionGroup=${sessionGroup} ` +
+    `userId=${userId} ` +
+    `isSuperAdmin=${isSuperAdmin} ` +
+    `allow=${allow} ` +
+    `denyReason=${denyReason} ` +
+    `sessionKeys=${sessionKeys}`
   );
 }
+
 
 function getAccessDeniedRedirect(frontendBase: string | null): string {
   if (!frontendBase) return "/login?error=access_denied";
   return `${frontendBase}/login?error=access_denied`;
 }
 
-function getControlledAuthErrorRedirect(
-  frontendBase: string | null,
-  code: string,
-): string {
+function getControlledAuthErrorRedirect(frontendBase: string | null, code: string): string {
   const encodedCode = encodeURIComponent(code);
   if (!frontendBase) return `/login?error=${encodedCode}`;
   return `${frontendBase}/login?error=${encodedCode}`;
 }
 
-function getFrontendBaseForDeny(
-  req: Request,
-  oauthSessionGroup: string,
-): string | null {
+function getFrontendBaseForDeny(req: Request, oauthSessionGroup: string): string | null {
   const oauthReturnTo = req.session?.oauthReturnTo;
   if (typeof oauthReturnTo === "string") {
     try {
@@ -474,12 +329,10 @@ function getFrontendBaseForDeny(
 function getTurnstileToken(req: Request): string {
   const headerValue = req.headers["cf-turnstile-response"];
   const headerToken = typeof headerValue === "string" ? headerValue : undefined;
-  const bodyToken =
-    typeof req.body?.["cf-turnstile-response"] === "string"
-      ? req.body["cf-turnstile-response"]
-      : undefined;
+  const bodyToken = typeof req.body?.["cf-turnstile-response"] === "string" ? req.body["cf-turnstile-response"] : undefined;
   return bodyToken ?? headerToken ?? "";
 }
+
 
 function getCookieValue(req: Request, cookieName: string): string | null {
   const cookieHeader = req.headers["cookie"];
@@ -491,11 +344,7 @@ function getCookieValue(req: Request, cookieName: string): string | null {
   return null;
 }
 
-function logAuthFailure(
-  req: Request,
-  reason: string,
-  metadata: Record<string, unknown> = {},
-) {
+function logAuthFailure(req: Request, reason: string, metadata: Record<string, unknown> = {}) {
   const signal = recordAbuseSignal(`auth:${reason}:${getAbuseClientKey(req)}`);
   writeAuditLog({
     userId: req.session?.userId,
@@ -512,17 +361,12 @@ function logAuthFailure(
   });
 }
 
-function logGoogleUrlBranch(
-  req: Request,
-  branch: string,
-  metadata: Record<string, unknown> = {},
-) {
+function logGoogleUrlBranch(req: Request, branch: string, metadata: Record<string, unknown> = {}) {
   infoVerboseTrace("[auth/google/url]", {
     branch,
     method: req.method,
     path: req.path,
-    origin:
-      typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
+    origin: typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
     resolvedSessionGroup: req.resolvedSessionGroup ?? null,
     turnstileTokenPresent: Boolean(getTurnstileToken(req)),
     turnstileVerified: Boolean(req.turnstileVerified),
@@ -551,8 +395,7 @@ function getGoogleConfigValidation() {
   if (redirectUriRaw) {
     try {
       const parsed = new URL(redirectUriRaw);
-      redirectUriValid =
-        parsed.protocol === "https:" || parsed.protocol === "http:";
+      redirectUriValid = parsed.protocol === "https:" || parsed.protocol === "http:";
     } catch {
       redirectUriValid = false;
     }
@@ -573,21 +416,14 @@ async function handleMe(req: Request, res: Response) {
   logAuthDebug(req, "auth_me_request", {
     requestSessionId: req.sessionID ?? null,
     sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
-    sessionKeys: Object.keys(req.session ?? {})
-      .sort()
-      .join(","),
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
     userId: req.session?.userId ?? null,
     pendingUserId: req.session?.pendingUserId ?? null,
   });
-  const authenticatedUser = (
-    req as Request & { user?: typeof usersTable.$inferSelect }
-  ).user;
+  const authenticatedUser = (req as Request & { user?: typeof usersTable.$inferSelect }).user;
   const userId = authenticatedUser?.id ?? req.session.userId;
-  const sessionGroup =
-    req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
-  const sessionKeys = Object.keys(req.session ?? {})
-    .sort()
-    .join(",");
+  const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? null;
+  const sessionKeys = Object.keys(req.session ?? {}).sort().join(",");
   if (!userId || !authenticatedUser) {
     logAuthCheckTrace(req, {
       sessionExists: Boolean(req.session),
@@ -602,44 +438,26 @@ async function handleMe(req: Request, res: Response) {
     return;
   }
 
-  const hasPendingMfaSession = Boolean(
-    req.session.pendingUserId || req.session.pendingMfaReason,
-  );
+  const hasPendingMfaSession = Boolean(req.session.pendingUserId || req.session.pendingMfaReason);
 
   const pendingMfaUserId =
-    hasPendingMfaSession &&
-    typeof req.session.pendingUserId === "string" &&
-    req.session.pendingUserId.trim().length > 0
+    hasPendingMfaSession && typeof req.session.pendingUserId === "string" && req.session.pendingUserId.trim().length > 0
       ? req.session.pendingUserId.trim()
       : null;
-  const mfaLookupUserIds = Array.from(
-    new Set(
-      [
-        pendingMfaUserId,
-        authenticatedUser.id,
-        typeof req.session.userId === "string" &&
-        req.session.userId.trim().length > 0
-          ? req.session.userId.trim()
-          : null,
-      ].filter(
-        (value): value is string =>
-          typeof value === "string" && value.length > 0,
-      ),
-    ),
-  );
+  const mfaLookupUserIds = Array.from(new Set([
+    pendingMfaUserId,
+    authenticatedUser.id,
+    typeof req.session.userId === "string" && req.session.userId.trim().length > 0 ? req.session.userId.trim() : null,
+  ].filter((value): value is string => typeof value === "string" && value.length > 0)));
 
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
   let mfaStateUserId = mfaLookupUserIds[0] ?? authenticatedUser.id;
-  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> =
-    [];
+  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> = [];
   for (const candidateUserId of mfaLookupUserIds) {
     try {
       const candidateEnrolled = await hasActiveMfaFactor(candidateUserId);
-      mfaLookupResults.push({
-        userId: candidateUserId,
-        hasActiveFactor: candidateEnrolled,
-      });
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: candidateEnrolled });
       if (candidateEnrolled) {
         mfaEnrolled = true;
         mfaStateUserId = candidateUserId;
@@ -650,10 +468,7 @@ async function handleMe(req: Request, res: Response) {
       }
     } catch {
       mfaStateReadFailed = true;
-      mfaLookupResults.push({
-        userId: candidateUserId,
-        hasActiveFactor: false,
-      });
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: false });
     }
   }
 
@@ -680,16 +495,14 @@ async function handleMe(req: Request, res: Response) {
         return {
           pendingMfaEnrolled: true,
           pendingNextStep: "mfa_challenge" as const,
-          pendingResolution:
-            "enrollment_reason_factor_read_failed_fail_closed_to_challenge",
+          pendingResolution: "enrollment_reason_factor_read_failed_fail_closed_to_challenge",
         };
       }
       if (mfaEnrolled) {
         return {
           pendingMfaEnrolled: true,
           pendingNextStep: "mfa_challenge" as const,
-          pendingResolution:
-            "enrollment_reason_overridden_by_live_factor_state",
+          pendingResolution: "enrollment_reason_overridden_by_live_factor_state",
         };
       }
       return {
@@ -701,10 +514,7 @@ async function handleMe(req: Request, res: Response) {
 
     return {
       pendingMfaEnrolled: mfaStateReadFailed ? true : mfaEnrolled,
-      pendingNextStep:
-        mfaStateReadFailed || mfaEnrolled
-          ? ("mfa_challenge" as const)
-          : ("mfa_enroll" as const),
+      pendingNextStep: mfaStateReadFailed || mfaEnrolled ? "mfa_challenge" as const : "mfa_enroll" as const,
       pendingResolution: mfaStateReadFailed
         ? "missing_reason_factor_read_failed_fail_closed_to_challenge"
         : mfaEnrolled
@@ -712,8 +522,7 @@ async function handleMe(req: Request, res: Response) {
           : "missing_reason_no_active_factor",
     };
   };
-  const { pendingMfaEnrolled, pendingNextStep, pendingResolution } =
-    resolvePendingMfaState();
+  const { pendingMfaEnrolled, pendingNextStep, pendingResolution } = resolvePendingMfaState();
 
   if (hasPendingMfaSession) {
     logAuthCheckTrace(req, {
@@ -772,26 +581,17 @@ async function handleMe(req: Request, res: Response) {
       role: orgMembershipsTable.role,
     })
     .from(orgMembershipsTable)
-    .innerJoin(
-      organizationsTable,
-      eq(orgMembershipsTable.orgId, organizationsTable.id),
-    )
+    .innerJoin(organizationsTable, eq(orgMembershipsTable.orgId, organizationsTable.id))
     .where(eq(orgMembershipsTable.userId, userId));
 
   let activeOrg = null;
   if (authenticatedUser.activeOrgId) {
-    const activeOrgCandidate = await db.query.organizationsTable.findFirst({
-      where: eq(organizationsTable.id, authenticatedUser.activeOrgId),
-    });
+    const activeOrgCandidate = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, authenticatedUser.activeOrgId) });
     if (activeOrgCandidate) {
-      let activeOrgAppAccessRows: Array<typeof orgAppAccessTable.$inferSelect> =
-        [];
+      let activeOrgAppAccessRows: Array<typeof orgAppAccessTable.$inferSelect> = [];
       try {
         activeOrgAppAccessRows = await db.query.orgAppAccessTable.findMany({
-          where: and(
-            eq(orgAppAccessTable.orgId, activeOrgCandidate.id),
-            eq(orgAppAccessTable.enabled, true),
-          ),
+          where: and(eq(orgAppAccessTable.orgId, activeOrgCandidate.id), eq(orgAppAccessTable.enabled, true)),
         });
       } catch {
         activeOrgAppAccessRows = [];
@@ -809,19 +609,11 @@ async function handleMe(req: Request, res: Response) {
       const activeOrgVisible = (
         await Promise.all(
           activeOrgAppAccessRows.map(async (orgAppAccess) => {
-            const app = await db.query.appsTable.findFirst({
-              where: and(
-                eq(appsTable.id, orgAppAccess.appId),
-                eq(appsTable.isActive, true),
-              ),
-            });
+            const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, orgAppAccess.appId), eq(appsTable.isActive, true)) });
             if (!app) return false;
             return isSessionGroupCompatible(
               sessionGroup,
-              resolveSessionGroupForApp({
-                slug: app.slug,
-                metadata: app.metadata ?? {},
-              }),
+              resolveSessionGroupForApp({ slug: app.slug, metadata: app.metadata ?? {} }),
             );
           }),
         )
@@ -835,24 +627,16 @@ async function handleMe(req: Request, res: Response) {
   const scopedMemberships = (
     await Promise.all(
       memberships.map(async (membership: MembershipRow) => {
-        let membershipOrgAppAccessRows: Array<
-          typeof orgAppAccessTable.$inferSelect
-        > = [];
+        let membershipOrgAppAccessRows: Array<typeof orgAppAccessTable.$inferSelect> = [];
         try {
-          membershipOrgAppAccessRows =
-            await db.query.orgAppAccessTable.findMany({
-              where: and(
-                eq(orgAppAccessTable.orgId, membership.orgId),
-                eq(orgAppAccessTable.enabled, true),
-              ),
-            });
+          membershipOrgAppAccessRows = await db.query.orgAppAccessTable.findMany({
+            where: and(eq(orgAppAccessTable.orgId, membership.orgId), eq(orgAppAccessTable.enabled, true)),
+          });
         } catch {
           membershipOrgAppAccessRows = [];
         }
         if (membershipOrgAppAccessRows.length === 0) {
-          const membershipOrg = await db.query.organizationsTable.findFirst({
-            where: eq(organizationsTable.id, membership.orgId),
-          });
+          const membershipOrg = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, membership.orgId) });
           if (membershipOrg?.appId) {
             membershipOrgAppAccessRows.push({
               id: `legacy-${membershipOrg.id}-${membershipOrg.appId}`,
@@ -867,19 +651,11 @@ async function handleMe(req: Request, res: Response) {
         const membershipVisible = (
           await Promise.all(
             membershipOrgAppAccessRows.map(async (orgAppAccess) => {
-              const app = await db.query.appsTable.findFirst({
-                where: and(
-                  eq(appsTable.id, orgAppAccess.appId),
-                  eq(appsTable.isActive, true),
-                ),
-              });
+              const app = await db.query.appsTable.findFirst({ where: and(eq(appsTable.id, orgAppAccess.appId), eq(appsTable.isActive, true)) });
               if (!app) return false;
               return isSessionGroupCompatible(
                 sessionGroup,
-                resolveSessionGroupForApp({
-                  slug: app.slug,
-                  metadata: app.metadata ?? {},
-                }),
+                resolveSessionGroupForApp({ slug: app.slug, metadata: app.metadata ?? {} }),
               );
             }),
           )
@@ -888,9 +664,8 @@ async function handleMe(req: Request, res: Response) {
         return membership;
       }),
     )
-  ).filter((membership: MembershipRow | null): membership is MembershipRow =>
-    Boolean(membership),
-  );
+  )
+    .filter((membership: MembershipRow | null): membership is MembershipRow => Boolean(membership));
 
   logAuthCheckTrace(req, {
     sessionExists: Boolean(req.session),
@@ -902,15 +677,11 @@ async function handleMe(req: Request, res: Response) {
     sessionKeys,
   });
 
-  const sessionAppSlug =
-    typeof req.session.appSlug === "string" ? req.session.appSlug.trim() : "";
+  const sessionAppSlug = typeof req.session.appSlug === "string" ? req.session.appSlug.trim() : "";
   const appAccessContext = sessionAppSlug
     ? await getAppContext(authenticatedUser.id, sessionAppSlug)
     : null;
-  const mfaRequired = await isMfaRequiredForUser(
-    authenticatedUser.id,
-    authenticatedUser.activeOrgId,
-  );
+  const mfaRequired = await isMfaRequiredForUser(authenticatedUser.id, authenticatedUser.activeOrgId);
   logAuthDebug(req, "auth_me_result", {
     userId: authenticatedUser.id,
     sessionGroup,
@@ -950,24 +721,12 @@ async function handleMe(req: Request, res: Response) {
 
 async function handleLogout(req: Request, res: Response) {
   try {
-    await destroySessionAndClearCookie(
-      req,
-      res,
-      getCurrentRequestSessionGroup(req),
-    );
-    res.clearCookie(
-      getTrustedDeviceCookieName(),
-      getTrustedDeviceCookieOptions(),
-    );
+    await destroySessionAndClearCookie(req, res, getCurrentRequestSessionGroup(req));
+    res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message.startsWith("session_group_resolution_failed:")
-    ) {
-      res
-        .status(400)
-        .json({ error: "Unable to resolve session group for logout" });
+    if (err instanceof Error && err.message.startsWith("session_group_resolution_failed:")) {
+      res.status(400).json({ error: "Unable to resolve session group for logout" });
       return;
     }
     console.error("Session destroy error:", err);
@@ -981,116 +740,50 @@ async function handleGoogleUrl(req: Request, res: Response) {
   if (isTurnstileEnabled() && !req.turnstileVerified) {
     const turnstileToken = getTurnstileToken(req);
     if (!turnstileToken) {
-      logGoogleUrlBranch(req, "turnstile_missing_token", {
-        turnstileVerificationPassed: false,
-      });
+      logGoogleUrlBranch(req, "turnstile_missing_token", { turnstileVerificationPassed: false });
       logAuthFailure(req, "google-url-turnstile-missing");
-      sendGoogleUrlError(
-        req,
-        res,
-        403,
-        "TURNSTILE_MISSING_TOKEN",
-        "Please complete the verification challenge.",
-        "turnstile_missing_token",
-      );
+      sendGoogleUrlError(req, res, 403, "TURNSTILE_MISSING_TOKEN", "Please complete the verification challenge.", "turnstile_missing_token");
       return;
     }
 
-    const turnstileResult = await verifyTurnstileTokenDetailed(
-      turnstileToken,
-      req.ip,
-    );
+    const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
     if (!turnstileResult.ok) {
-      logGoogleUrlBranch(req, "turnstile_verification_failed", {
-        reason: turnstileResult.reason,
-        turnstileVerificationPassed: false,
-      });
+      logGoogleUrlBranch(req, "turnstile_verification_failed", { reason: turnstileResult.reason, turnstileVerificationPassed: false });
       logAuthFailure(req, "google-url-turnstile-invalid");
       await logTurnstileVerificationResult(req, turnstileResult);
       if (turnstileResult.reason === "missing-token") {
-        sendGoogleUrlError(
-          req,
-          res,
-          403,
-          "TURNSTILE_MISSING_TOKEN",
-          "Please complete the verification challenge.",
-          "turnstile_missing_token",
-        );
+        sendGoogleUrlError(req, res, 403, "TURNSTILE_MISSING_TOKEN", "Please complete the verification challenge.", "turnstile_missing_token");
         return;
       }
       if (turnstileResult.reason === "missing-secret") {
-        sendGoogleUrlError(
-          req,
-          res,
-          500,
-          "TURNSTILE_MISCONFIGURED",
-          "Turnstile verification is misconfigured. Please contact support.",
-          "turnstile_misconfigured",
-        );
+        sendGoogleUrlError(req, res, 500, "TURNSTILE_MISCONFIGURED", "Turnstile verification is misconfigured. Please contact support.", "turnstile_misconfigured");
         return;
       }
       if (turnstileResult.reason === "verification-error") {
-        sendGoogleUrlError(
-          req,
-          res,
-          503,
-          "TURNSTILE_UNAVAILABLE",
-          "Verification service is temporarily unavailable. Please try again.",
-          "turnstile_unavailable",
-        );
+        sendGoogleUrlError(req, res, 503, "TURNSTILE_UNAVAILABLE", "Verification service is temporarily unavailable. Please try again.", "turnstile_unavailable");
         return;
       }
       if (turnstileResult.reason === "token-expired") {
-        sendGoogleUrlError(
-          req,
-          res,
-          403,
-          "TURNSTILE_TOKEN_EXPIRED",
-          "Verification expired. Please complete the challenge again.",
-          "turnstile_token_expired",
-        );
+        sendGoogleUrlError(req, res, 403, "TURNSTILE_TOKEN_EXPIRED", "Verification expired. Please complete the challenge again.", "turnstile_token_expired");
         return;
       }
-      sendGoogleUrlError(
-        req,
-        res,
-        403,
-        "TURNSTILE_INVALID_TOKEN",
-        "Security verification failed. Please try again.",
-        "turnstile_invalid_token",
-      );
+      sendGoogleUrlError(req, res, 403, "TURNSTILE_INVALID_TOKEN", "Security verification failed. Please try again.", "turnstile_invalid_token");
       return;
     }
-    logGoogleUrlBranch(req, "turnstile_verification_passed", {
-      turnstileVerificationPassed: true,
-    });
+    logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
   const returnTo = getRequestFrontendOrigin(req);
   if (!returnTo) {
-    logGoogleUrlBranch(req, "origin_invalid", {
-      turnstileVerificationPassed: Boolean(req.turnstileVerified),
-    });
+    logGoogleUrlBranch(req, "origin_invalid", { turnstileVerificationPassed: Boolean(req.turnstileVerified) });
     logAuthFailure(req, "google-url-origin-invalid");
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      "ORIGIN_NOT_ALLOWED",
-      "Request origin is missing or not allowed.",
-      "origin_invalid",
-    );
+    sendGoogleUrlError(req, res, 400, "ORIGIN_NOT_ALLOWED", "Request origin is missing or not allowed.", "origin_invalid");
     return;
   }
 
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath),
-  );
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
 
-  const { appSlug, oauthSessionGroup } = resolveOauthStartContext(
-    req,
-    returnTo,
-  );
+  const { appSlug, oauthSessionGroup } = resolveOauthStartContext(req, returnTo);
   if (!appSlug) {
     console.error("[auth/google/url] missing appSlug for oauth start", {
       returnTo,
@@ -1099,14 +792,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       requestAppSlug: getRequestedAppSlug(req),
     });
     logAuthFailure(req, "google-url-missing-app-slug", { returnTo });
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      "APP_SLUG_REQUIRED",
-      "App slug is required to start OAuth.",
-      "app_slug_missing",
-    );
+    sendGoogleUrlError(req, res, 400, "APP_SLUG_REQUIRED", "App slug is required to start OAuth.", "app_slug_missing");
     return;
   }
 
@@ -1138,9 +824,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
   });
   logVerboseTrace(
     `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
-      `appSlug=${appSlug ?? "null"} ` +
-      `returnTo=${returnTo ?? "null"} ` +
-      `sessionGroup=${oauthSessionGroup ?? "null"}`,
+    `appSlug=${appSlug ?? "null"} ` +
+    `returnTo=${returnTo ?? "null"} ` +
+    `sessionGroup=${oauthSessionGroup ?? "null"}`
   );
   logSessionCookieConfig();
 
@@ -1175,53 +861,24 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   if (!url || typeof url !== "string") {
-    sendGoogleUrlError(
-      req,
-      res,
-      500,
-      "OAUTH_URL_INVALID",
-      "Google OAuth URL generation failed.",
-      "oauth_url_generation_failed",
-    );
+    sendGoogleUrlError(req, res, 500, "OAUTH_URL_INVALID", "Google OAuth URL generation failed.", "oauth_url_generation_failed");
     return;
   }
 
   req.session.save((err: unknown) => {
     if (err) {
-      logGoogleUrlBranch(req, "session_init_failed", {
-        status: 500,
-        code: "OAUTH_SESSION_INIT_FAILED",
-      });
+      logGoogleUrlBranch(req, "session_init_failed", { status: 500, code: "OAUTH_SESSION_INIT_FAILED" });
       logAuthFailure(req, "google-url-session-init-failed");
-      res
-        .status(500)
-        .json({
-          error: "Failed to initialize OAuth session.",
-          code: "OAUTH_SESSION_INIT_FAILED",
-        });
+      res.status(500).json({ error: "Failed to initialize OAuth session.", code: "OAUTH_SESSION_INIT_FAILED" });
       return;
     }
-    logGoogleUrlBranch(req, "success", {
-      sessionGroup: oauthSessionGroup,
-      status: 200,
-      configValidationPassed: true,
-    });
+    logGoogleUrlBranch(req, "success", { sessionGroup: oauthSessionGroup, status: 200, configValidationPassed: true });
     res.json({ url });
   });
 }
 
 async function handleGoogleCallback(req: Request, res: Response) {
-  let lastCompletedStep:
-    | "A0"
-    | "A1"
-    | "A2"
-    | "A3"
-    | "A4"
-    | "A5"
-    | "A6"
-    | "A7"
-    | "A8"
-    | "A" = "A0";
+  let lastCompletedStep: "A0" | "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7" | "A8" | "A" = "A0";
   logSuperadminTrace("A0. HANDLER ENTER", {
     hasCode: Boolean(firstQueryParam(req.query.code)),
     hasState: Boolean(firstQueryParam(req.query.state)),
@@ -1235,13 +892,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
   const denyWithAccessDenied = async () => {
     const state = firstQueryParam(req.query.state);
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const oauthSessionGroup =
-      callbackSessionGroup ??
-      req.session?.oauthSessionGroup ??
-      stateSessionGroup ??
-      SESSION_GROUPS.DEFAULT;
-    const frontendBase =
-      callbackFrontendBase ?? getFrontendBaseForDeny(req, oauthSessionGroup);
+    const oauthSessionGroup = callbackSessionGroup ?? req.session?.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
+    const frontendBase = callbackFrontendBase ?? getFrontendBaseForDeny(req, oauthSessionGroup);
     const redirectTo = getAccessDeniedRedirect(frontendBase);
     logSuperadminTrace("J. CALLBACK EXIT", {
       redirectTo,
@@ -1264,9 +916,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logAuthFailure(req, "google-callback-missing-code");
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "missing_code",
-        redirectTo: getAccessDeniedRedirect(
-          getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT),
-        ),
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
       });
       await denyWithAccessDenied();
       return;
@@ -1283,28 +933,17 @@ async function handleGoogleCallback(req: Request, res: Response) {
       lastCompletedStep = "A4";
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "missing_state",
-        redirectTo: getAccessDeniedRedirect(
-          getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT),
-        ),
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
       });
       await denyWithAccessDenied();
       return;
     }
 
-    const stateValidation = validateOAuthCallbackState(
-      state,
-      req.session.oauthState,
-    );
+    const stateValidation = validateOAuthCallbackState(state, req.session.oauthState);
     const stateValid = stateValidation.valid;
     const stateSessionGroup = state ? parseGroupFromOAuthState(state) : null;
-    const stateContext = stateValidation.valid
-      ? stateValidation.stateContext
-      : null;
-    const resolvedStateSessionGroup =
-      stateContext?.sessionGroup ??
-      req.session.oauthSessionGroup ??
-      stateSessionGroup ??
-      SESSION_GROUPS.DEFAULT;
+    const stateContext = stateValidation.valid ? stateValidation.stateContext : null;
+    const resolvedStateSessionGroup = stateContext?.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     logSuperadminTrace("A4. STATE VALIDATION RESULT", {
       valid: stateValid,
       appSlug: stateContext?.appSlug ?? null,
@@ -1317,31 +956,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
       const parsedState = parseOAuthState(state);
       if (!parsedState?.appSlug) {
         const frontendBaseFromState = parseOAuthStateReturnTo(state);
-        console.error(
-          "[auth/google/callback] missing appSlug in OAuth callback state",
-          {
-            statePresent: Boolean(state),
-            expectedStatePresent: typeof req.session.oauthState === "string",
-            stateSessionGroup,
-            frontendBaseFromState,
-          },
-        );
+        console.error("[auth/google/callback] missing appSlug in OAuth callback state", {
+          statePresent: Boolean(state),
+          expectedStatePresent: typeof req.session.oauthState === "string",
+          stateSessionGroup,
+          frontendBaseFromState,
+        });
         await destroySessionAndClearCookie(req, res, resolvedStateSessionGroup);
-        res.redirect(
-          getControlledAuthErrorRedirect(
-            frontendBaseFromState ??
-              getFrontendBaseForDeny(req, resolvedStateSessionGroup),
-            "app_slug_invalid",
-          ),
-        );
+        res.redirect(getControlledAuthErrorRedirect(frontendBaseFromState ?? getFrontendBaseForDeny(req, resolvedStateSessionGroup), "app_slug_invalid"));
         return;
       }
       logAuthFailure(req, "google-callback-invalid-state");
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "invalid_state",
-        redirectTo: getAccessDeniedRedirect(
-          getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT),
-        ),
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, SESSION_GROUPS.DEFAULT)),
       });
       await denyWithAccessDenied();
       return;
@@ -1356,18 +984,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
       sessionGroup: parsedStateContext.sessionGroup,
     });
     const oauthReturnTo = parsedStateContext.returnTo;
-    const oauthReturnToPath =
-      parsedStateContext.returnToPath ?? req.session.oauthReturnToPath ?? null;
+    const oauthReturnToPath = parsedStateContext.returnToPath ?? req.session.oauthReturnToPath ?? null;
     const oauthStayLoggedIn = req.session.oauthStayLoggedIn === true;
-    const stateSessionGroupCandidate =
-      callbackSessionGroup ??
-      parsedStateContext.sessionGroup ??
-      req.session.oauthSessionGroup ??
-      stateSessionGroup ??
-      SESSION_GROUPS.DEFAULT;
+    const stateSessionGroupCandidate = callbackSessionGroup ?? parsedStateContext.sessionGroup ?? req.session.oauthSessionGroup ?? stateSessionGroup ?? SESSION_GROUPS.DEFAULT;
     const appSlug = parsedStateContext.appSlug;
-    const oauthSessionGroup =
-      appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
+    const oauthSessionGroup = appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
     callbackSessionGroup = oauthSessionGroup;
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
@@ -1394,9 +1015,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logAuthFailure(req, "google-callback-missing-return-origin");
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "missing_return_to",
-        redirectTo: getAccessDeniedRedirect(
-          getFrontendBaseForDeny(req, oauthSessionGroup),
-        ),
+        redirectTo: getAccessDeniedRedirect(getFrontendBaseForDeny(req, oauthSessionGroup)),
       });
       await denyWithAccessDenied();
       return;
@@ -1406,24 +1025,16 @@ async function handleGoogleCallback(req: Request, res: Response) {
     callbackFrontendBase = frontendBase;
     const activeAppSlug = appSlug;
     if (!activeAppSlug) {
-      console.error(
-        "[auth/google/callback] missing appSlug after state validation",
-        {
-          statePresent: Boolean(state),
-          oauthReturnTo,
-        },
-      );
+      console.error("[auth/google/callback] missing appSlug after state validation", {
+        statePresent: Boolean(state),
+        oauthReturnTo,
+      });
       logSuperadminTrace("R. EARLY RETURN", {
         reason: "missing_app_slug",
-        redirectTo: getControlledAuthErrorRedirect(
-          frontendBase,
-          "app_slug_missing",
-        ),
+        redirectTo: getControlledAuthErrorRedirect(frontendBase, "app_slug_missing"),
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "app_slug_missing"),
-      );
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_slug_missing"));
       return;
     }
 
@@ -1438,20 +1049,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
 
     if (!app) {
-      console.error(
-        "[auth/google/callback] app lookup failed for OAuth callback appSlug",
-        {
-          appSlug: activeAppSlug,
-          frontendBase,
-        },
-      );
-      logAuthFailure(req, "google-callback-app-not-found", {
+      console.error("[auth/google/callback] app lookup failed for OAuth callback appSlug", {
         appSlug: activeAppSlug,
+        frontendBase,
       });
+      logAuthFailure(req, "google-callback-app-not-found", { appSlug: activeAppSlug });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "app_not_found"),
-      );
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_not_found"));
       return;
     }
 
@@ -1462,9 +1066,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       hasCode: Boolean(code),
     });
     lastCompletedStep = "A5";
-    let googleUser: Awaited<
-      ReturnType<typeof authRouteDeps.exchangeCodeForUserFn>
-    >;
+    let googleUser: Awaited<ReturnType<typeof authRouteDeps.exchangeCodeForUserFn>>;
     try {
       googleUser = await authRouteDeps.exchangeCodeForUserFn(code);
       logSuperadminTrace("A6. TOKEN EXCHANGE RESULT", {
@@ -1544,9 +1146,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     let user = null;
     if (subject) {
       logSuperadminTrace("D0. SUBJECT LOOKUP BEFORE", { subject });
-      user = await db.query.usersTable.findFirst({
-        where: eq(usersTable.googleSubject, subject),
-      });
+      user = await db.query.usersTable.findFirst({ where: eq(usersTable.googleSubject, subject) });
     }
     logSuperadminTrace("D1. SUBJECT LOOKUP AFTER", {
       found: Boolean(user),
@@ -1558,9 +1158,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         email: email ?? null,
       });
       const byEmail = email
-        ? await db.query.usersTable.findFirst({
-            where: sql`lower(${usersTable.email}) = ${email}`,
-          })
+        ? await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` })
         : null;
       logSuperadminTrace("E1. EMAIL LOOKUP AFTER", {
         found: Boolean(byEmail),
@@ -1644,9 +1242,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       if (isSuperadminAccessMode) {
         logSuperadminTrace("H. ACCESS PROFILE DECISION", {
           appSlug: activeAppSlug,
-          accessMode:
-            app?.accessMode ??
-            (activeAppSlug === "admin" ? "superadmin" : null),
+          accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
           normalizedAccessProfile,
           allow: false,
           denyReason: "user_not_found_in_superadmin_mode",
@@ -1701,8 +1297,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (user.active === false || user.suspended === true || user.deletedAt) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
         normalizedAccessProfile,
         allow: false,
         denyReason: "inactive_or_suspended_user",
@@ -1714,8 +1309,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (isSuperadminAccessMode && user.isSuperAdmin !== true) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
         normalizedAccessProfile,
         allow: false,
         denyReason: "not_superadmin",
@@ -1724,22 +1318,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    await db
-      .update(usersTable)
-      .set({ lastLoginAt: new Date() })
-      .where(eq(usersTable.id, user.id));
+    await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
 
-    const oauthMfaGate = await beginMfaPendingSession(
-      req,
-      user.id,
-      activeAppSlug,
-      oauthStayLoggedIn,
-    );
+    const oauthMfaGate = await beginMfaPendingSession(req, user.id, activeAppSlug, oauthStayLoggedIn);
     if (oauthMfaGate.required) {
-      const mfaPath =
-        oauthMfaGate.nextStep === "mfa_enroll"
-          ? "/mfa/enroll"
-          : "/mfa/challenge";
+      const mfaPath = oauthMfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge";
       res.redirect(`${frontendBase}${mfaPath}`);
       return;
     }
@@ -1754,13 +1337,11 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSessionCookieConfig();
     logVerboseTrace(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE BEFORE_SAVE ` +
-        `userId=${req.session.userId ?? null} ` +
-        `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
-        `sessionGroup=${req.session.sessionGroup ?? null} ` +
-        `appSlug=${req.session.appSlug ?? null} ` +
-        `sessionKeys=${Object.keys(req.session ?? {})
-          .sort()
-          .join(",")}`,
+      `userId=${req.session.userId ?? null} ` +
+      `isSuperAdmin=${req.session.isSuperAdmin ?? false} ` +
+      `sessionGroup=${req.session.sessionGroup ?? null} ` +
+      `appSlug=${req.session.appSlug ?? null} ` +
+      `sessionKeys=${Object.keys(req.session ?? {}).sort().join(",")}`
     );
     logSuperadminTrace("G0. SESSION WRITE BEFORE", {
       sessionGroup: oauthSessionGroup,
@@ -1786,13 +1367,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     logVerboseTrace(
       `[AUTH-CHECK-TRACE] CALLBACK SESSION WRITE AFTER_SAVE ` +
-        `sessionExists=${Boolean(req.session)} ` +
-        `sessionId=${req.sessionID ?? "null"} ` +
-        `userId=${String((req.session as any)?.userId ?? (req.session as any)?.user?.id ?? "null")} ` +
-        `isSuperAdmin=${String((req.session as any)?.isSuperAdmin ?? (req.session as any)?.user?.isSuperAdmin ?? false)} ` +
-        `sessionGroup=${String((req.session as any)?.sessionGroup ?? "null")} ` +
-        `appSlug=${String((req.session as any)?.appSlug ?? "null")} ` +
-        `sessionKeys=${Object.keys(req.session ?? {}).join(",")}`,
+      `sessionExists=${Boolean(req.session)} ` +
+      `sessionId=${req.sessionID ?? "null"} ` +
+      `userId=${String((req.session as any)?.userId ?? (req.session as any)?.user?.id ?? "null")} ` +
+      `isSuperAdmin=${String((req.session as any)?.isSuperAdmin ?? (req.session as any)?.user?.isSuperAdmin ?? false)} ` +
+      `sessionGroup=${String((req.session as any)?.sessionGroup ?? "null")} ` +
+      `appSlug=${String((req.session as any)?.appSlug ?? "null")} ` +
+      `sessionKeys=${Object.keys(req.session ?? {}).join(",")}`
     );
     logSuperadminTrace("G1. SESSION WRITE AFTER", {
       sessionExists: Boolean(req.session),
@@ -1847,27 +1428,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
         denyReason: "missing_app_context",
       });
       logSuperadminTrace("J. CALLBACK EXIT", {
-        redirectTo: getControlledAuthErrorRedirect(
-          frontendBase,
-          "app_context_unavailable",
-        ),
+        redirectTo: getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"),
         outcome: "deny",
         lastCompletedStep,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"),
-      );
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"));
       return;
     }
 
-    const onboardingRequired =
-      effectiveContext.requiredOnboarding === "organization";
+    const onboardingRequired = effectiveContext.requiredOnboarding === "organization";
     if (!effectiveContext.canAccess && !onboardingRequired) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
         normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
         allow: false,
         denyReason: "app_context_denied",
@@ -1883,8 +1457,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
     logSuperadminTrace("H. ACCESS PROFILE DECISION", {
       appSlug: activeAppSlug,
-      accessMode:
-        app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+      accessMode: app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       allow: true,
       denyReason: null,
@@ -1927,6 +1500,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
+
+
 function getRequestedEmailPasswordAppSlug(req: Request): string {
   const origin = getRequestFrontendOrigin(req) ?? null;
   const group = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
@@ -1936,6 +1511,7 @@ function getRequestedEmailPasswordAppSlug(req: Request): string {
 function getGenericAuthResponseMessage() {
   return "If an account exists, we sent further instructions.";
 }
+
 
 type SignupDecisionCategory =
   | "allow"
@@ -1980,11 +1556,8 @@ function getSignupEmailSearchMetadata(email: string): Record<string, unknown> {
   const atIndex = normalized.indexOf("@");
   const localPart = atIndex > 0 ? normalized.slice(0, atIndex) : normalized;
   const domain = atIndex > 0 ? normalized.slice(atIndex + 1) : null;
-  const visibleLocalPrefix =
-    localPart.length <= 2 ? localPart : `${localPart.slice(0, 2)}***`;
-  const maskedEmail = domain
-    ? `${visibleLocalPrefix}@${domain}`
-    : `${visibleLocalPrefix}***`;
+  const visibleLocalPrefix = localPart.length <= 2 ? localPart : `${localPart.slice(0, 2)}***`;
+  const maskedEmail = domain ? `${visibleLocalPrefix}@${domain}` : `${visibleLocalPrefix}***`;
 
   return {
     normalizedEmailHash: hashOpaqueToken(`signup-email:${normalized}`),
@@ -2001,10 +1574,7 @@ function getSignupSessionGroup(req: Request): string {
   return SESSION_GROUPS.DEFAULT;
 }
 
-async function logSignupDecision(
-  req: Request,
-  details: SignupDecisionLog,
-): Promise<void> {
+async function logSignupDecision(req: Request, details: SignupDecisionLog): Promise<void> {
   await writeAuditLog({
     userId: req.session?.userId,
     action: "auth.signup.decision",
@@ -2023,11 +1593,7 @@ async function logSignupDecision(
   });
 }
 
-async function createAuthToken(
-  userId: string,
-  tokenType: "email_verification" | "password_reset",
-  ttlMinutes: number,
-) {
+async function createAuthToken(userId: string, tokenType: "email_verification" | "password_reset", ttlMinutes: number) {
   const token = generateOpaqueToken();
   const tokenHash = hashOpaqueToken(token);
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
@@ -2045,10 +1611,7 @@ type ConsumeAuthTokenResult =
   | { status: "consumed"; token: typeof authTokensTable.$inferSelect }
   | { status: "invalid" | "expired" | "already_used" };
 
-async function consumeAuthToken(
-  token: string,
-  tokenType: "email_verification" | "password_reset",
-): Promise<ConsumeAuthTokenResult> {
+async function consumeAuthToken(token: string, tokenType: "email_verification" | "password_reset"): Promise<ConsumeAuthTokenResult> {
   const tokenHash = hashOpaqueToken(token);
   const now = new Date();
   const rows = await db
@@ -2070,10 +1633,7 @@ async function consumeAuthToken(
   }
 
   const existing = await db.query.authTokensTable.findFirst({
-    where: and(
-      eq(authTokensTable.tokenHash, tokenHash),
-      eq(authTokensTable.tokenType, tokenType),
-    ),
+    where: and(eq(authTokensTable.tokenHash, tokenHash), eq(authTokensTable.tokenType, tokenType)),
   });
   if (!existing) {
     return { status: "invalid" };
@@ -2087,12 +1647,7 @@ async function consumeAuthToken(
   return { status: "invalid" };
 }
 
-async function establishPasswordSession(
-  req: Request,
-  userId: string,
-  appSlug: string,
-  stayLoggedIn: boolean,
-) {
+async function establishPasswordSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean) {
   await new Promise<void>((resolve, reject) => {
     req.session.regenerate((err: unknown) => (err ? reject(err) : resolve()));
   });
@@ -2105,20 +1660,11 @@ async function establishPasswordSession(
   });
 }
 
-type MfaStartResult =
-  | { required: false }
-  | {
-      required: true;
-      needsEnrollment: boolean;
-      nextStep: "mfa_enroll" | "mfa_challenge";
-    };
 
-async function beginMfaPendingSession(
-  req: Request,
-  userId: string,
-  appSlug: string,
-  stayLoggedIn: boolean,
-): Promise<MfaStartResult> {
+
+type MfaStartResult = { required: false } | { required: true; needsEnrollment: boolean; nextStep: "mfa_enroll" | "mfa_challenge" };
+
+async function beginMfaPendingSession(req: Request, userId: string, appSlug: string, stayLoggedIn: boolean): Promise<MfaStartResult> {
   ensureAuthFlowId(req);
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
@@ -2130,13 +1676,10 @@ async function beginMfaPendingSession(
   } catch {
     factorStateReadFailed = true;
   }
-  const trustedCookieToken =
-    getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
+  const trustedCookieToken = getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
   const trusted = await isTrustedDevice(userId, trustedCookieToken);
   const security = await getUserAuthSecurity(userId);
-  const needsStepUp = Boolean(
-    security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt,
-  );
+  const needsStepUp = Boolean(security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt);
   const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
   const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
 
@@ -2163,9 +1706,7 @@ async function beginMfaPendingSession(
   req.session.sessionAuthenticatedAt = Date.now();
   req.session.pendingUserId = userId;
   req.session.pendingAppSlug = appSlug;
-  req.session.pendingMfaReason = needsEnrollment
-    ? "enrollment_required"
-    : "challenge_required";
+  req.session.pendingMfaReason = needsEnrollment ? "enrollment_required" : "challenge_required";
   req.session.pendingStayLoggedIn = stayLoggedIn;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));
@@ -2180,9 +1721,7 @@ async function beginMfaPendingSession(
     pendingAppSlug: req.session.pendingAppSlug ?? null,
     pendingMfaReason: req.session.pendingMfaReason ?? null,
     pendingStayLoggedIn: req.session.pendingStayLoggedIn ?? null,
-    sessionKeys: Object.keys(req.session ?? {})
-      .sort()
-      .join(","),
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
   });
 
   logAuthDebug(req, "mfa_gate_result", {
@@ -2205,23 +1744,14 @@ async function beginMfaPendingSession(
   };
 }
 
-async function completePendingMfaSession(
-  req: Request,
-): Promise<{ userId: string; returnToPath: string | null } | null> {
+async function completePendingMfaSession(req: Request): Promise<{ userId: string; returnToPath: string | null } | null> {
   const pendingUserId = req.session.pendingUserId;
   const pendingAppSlug = req.session.pendingAppSlug;
   const pendingStayLoggedIn = req.session.pendingStayLoggedIn === true;
-  const pendingReturnToPath = normalizeReturnToPath(
-    req.session.pendingReturnToPath,
-  );
+  const pendingReturnToPath = normalizeReturnToPath(req.session.pendingReturnToPath);
   if (!pendingUserId || !pendingAppSlug) return null;
 
-  await establishPasswordSession(
-    req,
-    pendingUserId,
-    pendingAppSlug,
-    pendingStayLoggedIn,
-  );
+  await establishPasswordSession(req, pendingUserId, pendingAppSlug, pendingStayLoggedIn);
   delete req.session.pendingUserId;
   delete req.session.pendingAppSlug;
   delete req.session.pendingMfaReason;
@@ -2231,15 +1761,9 @@ async function completePendingMfaSession(
   return { userId: pendingUserId, returnToPath: pendingReturnToPath };
 }
 
-async function resolveNextPathForEstablishedSession(
-  req: Request,
-  userId: string,
-  appSlug: string,
-): Promise<string | null> {
+async function resolveNextPathForEstablishedSession(req: Request, userId: string, appSlug: string): Promise<string | null> {
   try {
-    const user = await db.query.usersTable.findFirst({
-      where: eq(usersTable.id, userId),
-    });
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
     const app = await getAppBySlug(appSlug);
     if (!user || !app) return null;
     const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
@@ -2287,12 +1811,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
   try {
     const signupApp = await getAppBySlug(signupAppSlug);
-    if (
-      !signupApp ||
-      signupApp.accessMode === "superadmin" ||
-      (signupApp.accessMode === "organization" &&
-        !signupApp.customerRegistrationEnabled)
-    ) {
+    if (!signupApp || (signupApp.accessMode === "organization" && !signupApp.customerRegistrationEnabled)) {
       await logSignupDecision(req, {
         category: "block",
         reasonCode: "signup_not_allowed_by_access_policy",
@@ -2301,16 +1820,10 @@ async function handlePasswordSignup(req: Request, res: Response) {
         metadata: {
           appFound: Boolean(signupApp),
           appAccessMode: signupApp?.accessMode ?? null,
-          customerRegistrationEnabled:
-            signupApp?.customerRegistrationEnabled ?? null,
+          customerRegistrationEnabled: signupApp?.customerRegistrationEnabled ?? null,
         },
       });
-      res
-        .status(403)
-        .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
-        });
+      res.status(403).json({ error: "We couldn't create this account. Please use a different email and try again." });
       return;
     }
 
@@ -2331,27 +1844,17 @@ async function handlePasswordSignup(req: Request, res: Response) {
           ipqsProviderFailed: ipqsAssessment.providerFailed,
         },
       });
-      res
-        .status(400)
-        .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
-        });
+      res.status(400).json({ error: "We couldn't create this account. Please use a different email and try again." });
       return;
     }
 
-    let user = await db.query.usersTable.findFirst({
-      where: sql`lower(${usersTable.email}) = ${email}`,
-    });
+    let user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
     if (!user) {
-      const [created] = await db
-        .insert(usersTable)
-        .values({
-          id: randomUUID(),
-          email,
-          name: name || null,
-        })
-        .returning();
+      const [created] = await db.insert(usersTable).values({
+        id: randomUUID(),
+        email,
+        name: name || null,
+      }).returning();
       user = created ?? null;
     }
 
@@ -2370,10 +1873,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     }
 
     const existingCredential = await db.query.userCredentialsTable.findFirst({
-      where: and(
-        eq(userCredentialsTable.userId, user.id),
-        eq(userCredentialsTable.credentialType, "password"),
-      ),
+      where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")),
     });
 
     if (existingCredential) {
@@ -2386,12 +1886,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
           userId: user.id,
         },
       });
-      res
-        .status(409)
-        .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
-        });
+      res.status(409).json({ error: "We couldn't create this account. Please use a different email and try again." });
       return;
     }
 
@@ -2403,11 +1898,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
       passwordHash,
     });
 
-    const verificationToken = await createAuthToken(
-      user.id,
-      "email_verification",
-      60,
-    );
+    const verificationToken = await createAuthToken(user.id, "email_verification", 60);
     await sendLane1AuthVerificationEmail({
       req,
       appId: signupApp.id,
@@ -2419,44 +1910,24 @@ async function handlePasswordSignup(req: Request, res: Response) {
       expirationDateTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
 
-    if (
-      signupApp.accessMode === "organization" &&
-      signupApp.customerRegistrationEnabled
-    ) {
-      await db
-        .insert(userAuthSecurityTable)
-        .values({
-          userId: user.id,
-          mfaRequired: true,
-          forceMfaEnrollment: true,
-          riskReason: "org_client_registration",
-        })
-        .onConflictDoUpdate({
-          target: userAuthSecurityTable.userId,
-          set: {
-            mfaRequired: true,
-            forceMfaEnrollment: true,
-            riskReason: "org_client_registration",
-            updatedAt: new Date(),
-          },
-        });
+    if (signupApp.accessMode === "organization" && signupApp.customerRegistrationEnabled) {
+      await db.insert(userAuthSecurityTable).values({
+        userId: user.id,
+        mfaRequired: true,
+        forceMfaEnrollment: true,
+        riskReason: "org_client_registration",
+      }).onConflictDoUpdate({ target: userAuthSecurityTable.userId, set: { mfaRequired: true, forceMfaEnrollment: true, riskReason: "org_client_registration", updatedAt: new Date() } });
     }
 
     if (ipqsAssessment.decision === "step_up") {
-      await markUserHighRiskStepUp(
-        user.id,
-        ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up",
-      );
-      const stepUpReasonCode: SignupDecisionReasonCode =
-        ipqsAssessment.providerFailed
-          ? "ipqs_provider_failure_step_up"
-          : ipqsAssessment.reason === "undeliverable_email"
-            ? "undeliverable_email"
-            : "ipqs_advisory_step_up";
+      await markUserHighRiskStepUp(user.id, ipqsAssessment.providerFailed ? "ipqs_failure_step_up" : "ipqs_step_up");
+      const stepUpReasonCode: SignupDecisionReasonCode = ipqsAssessment.providerFailed
+        ? "ipqs_provider_failure_step_up"
+        : ipqsAssessment.reason === "undeliverable_email"
+          ? "undeliverable_email"
+          : "ipqs_advisory_step_up";
       await logSignupDecision(req, {
-        category: ipqsAssessment.providerFailed
-          ? "provider_failure"
-          : "step_up",
+        category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
         reasonCode: stepUpReasonCode,
         email,
         appSlug: signupAppSlug,
@@ -2486,14 +1957,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
       });
     }
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        appSlug: signupApp.slug,
-        verifyToken:
-          process.env["NODE_ENV"] === "test" ? verificationToken : undefined,
-      });
+    res.status(201).json({ success: true, appSlug: signupApp.slug, verifyToken: process.env["NODE_ENV"] === "test" ? verificationToken : undefined });
   } catch (error) {
     await logSignupDecision(req, {
       category: "internal_error",
@@ -2518,30 +1982,21 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const user = await db.query.usersTable.findFirst({
-    where: sql`lower(${usersTable.email}) = ${email}`,
-  });
+  const user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
   const credential = user
-    ? await db.query.userCredentialsTable.findFirst({
-        where: and(
-          eq(userCredentialsTable.userId, user.id),
-          eq(userCredentialsTable.credentialType, "password"),
-        ),
-      })
+    ? await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, user.id), eq(userCredentialsTable.credentialType, "password")) })
     : null;
 
-  const verification =
-    user && credential
-      ? await verifyPassword(credential.passwordHash, password)
-      : { ok: false, needsRehash: false };
+  const verification = user && credential
+    ? await verifyPassword(credential.passwordHash, password)
+    : { ok: false, needsRehash: false };
   if (!verification.ok || !user || !credential) {
     res.status(401).json({ error: "Invalid email or password." });
     return;
   }
 
   if (verification.needsRehash && verification.upgradedHash) {
-    await db
-      .update(userCredentialsTable)
+    await db.update(userCredentialsTable)
       .set({ passwordHash: verification.upgradedHash, updatedAt: new Date() })
       .where(eq(userCredentialsTable.id, credential.id));
   }
@@ -2557,26 +2012,17 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
   const stayLoggedIn = req.body?.stayLoggedIn === true;
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath),
-  );
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
   logAuthDebug(req, "password_login_request", {
     requestSessionId: req.sessionID ?? null,
     sessionGroup: req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null,
-    sessionKeys: Object.keys(req.session ?? {})
-      .sort()
-      .join(","),
+    sessionKeys: Object.keys(req.session ?? {}).sort().join(","),
     authUserId: user.id,
     appSlug,
     stayLoggedIn,
     returnToPath: returnToPath ?? null,
   });
-  const mfaGate = await beginMfaPendingSession(
-    req,
-    user.id,
-    appSlug,
-    stayLoggedIn,
-  );
+  const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, stayLoggedIn);
   if (mfaGate.required) {
     req.session.pendingReturnToPath = returnToPath ?? undefined;
     await new Promise<void>((resolve, reject) => {
@@ -2589,9 +2035,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
       needsEnrollment: mfaGate.needsEnrollment,
       nextStep: mfaGate.nextStep,
       returnToPath: returnToPath ?? null,
-      factorState: mfaGate.needsEnrollment
-        ? "enrollment_required"
-        : "challenge_required",
+      factorState: mfaGate.needsEnrollment ? "enrollment_required" : "challenge_required",
     });
     res.status(202).json({
       success: true,
@@ -2603,14 +2047,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
   }
 
   await establishPasswordSession(req, user.id, appSlug, stayLoggedIn);
-  await db
-    .update(usersTable)
-    .set({ lastLoginAt: new Date() })
-    .where(eq(usersTable.id, user.id));
-  const nextPath =
-    returnToPath ??
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug)) ??
-    "/dashboard";
+  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+  const nextPath = returnToPath ?? (await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard");
   logAuthDebug(req, "login_result", {
     userId: user.id,
     appSlug,
@@ -2624,9 +2062,7 @@ async function handleForgotPassword(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   let token: string | undefined;
   if (email) {
-    const user = await db.query.usersTable.findFirst({
-      where: sql`lower(${usersTable.email}) = ${email}`,
-    });
+    const user = await db.query.usersTable.findFirst({ where: sql`lower(${usersTable.email}) = ${email}` });
     if (user) {
       token = await createAuthToken(user.id, "password_reset", 30);
       const appSlug = getRequestedEmailPasswordAppSlug(req);
@@ -2640,19 +2076,13 @@ async function handleForgotPassword(req: Request, res: Response) {
           userEmail: user.email,
           userFullName: user.name,
           resetToken: token,
-          expirationDateTime: new Date(
-            Date.now() + 30 * 60 * 1000,
-          ).toISOString(),
+          expirationDateTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         });
       }
     }
   }
 
-  res.json({
-    success: true,
-    message: getGenericAuthResponseMessage(),
-    resetToken: process.env["NODE_ENV"] === "test" ? token : undefined,
-  });
+  res.json({ success: true, message: getGenericAuthResponseMessage(), resetToken: process.env["NODE_ENV"] === "test" ? token : undefined });
 }
 
 async function handleResetPassword(req: Request, res: Response) {
@@ -2670,42 +2100,17 @@ async function handleResetPassword(req: Request, res: Response) {
   }
 
   const hash = await hashPassword(password);
-  const existingCredential = await db.query.userCredentialsTable.findFirst({
-    where: and(
-      eq(userCredentialsTable.userId, consumed.token.userId),
-      eq(userCredentialsTable.credentialType, "password"),
-    ),
-  });
+  const existingCredential = await db.query.userCredentialsTable.findFirst({ where: and(eq(userCredentialsTable.userId, consumed.token.userId), eq(userCredentialsTable.credentialType, "password")) });
   if (existingCredential) {
-    await db
-      .update(userCredentialsTable)
-      .set({ passwordHash: hash, updatedAt: new Date() })
-      .where(eq(userCredentialsTable.id, existingCredential.id));
+    await db.update(userCredentialsTable).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(userCredentialsTable.id, existingCredential.id));
   } else {
-    await db
-      .insert(userCredentialsTable)
-      .values({
-        id: randomUUID(),
-        userId: consumed.token.userId,
-        credentialType: "password",
-        passwordHash: hash,
-      });
+    await db.insert(userCredentialsTable).values({ id: randomUUID(), userId: consumed.token.userId, credentialType: "password", passwordHash: hash });
   }
 
   await markPasswordResetSecurityEvent(consumed.token.userId);
-  await pool.query(getDeleteAllOtherSessionsForUserSql(), [
-    consumed.token.userId,
-    req.session.id ?? "",
-  ]);
-  await destroySessionAndClearCookie(
-    req,
-    res,
-    req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT,
-  );
-  res.clearCookie(
-    getTrustedDeviceCookieName(),
-    getTrustedDeviceCookieOptions(),
-  );
+  await pool.query(getDeleteAllOtherSessionsForUserSql(), [consumed.token.userId, req.session.id ?? ""]);
+  await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
+  res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
   res.json({ success: true });
 }
 
@@ -2714,10 +2119,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
   const token = String(req.body?.token ?? "").trim();
   const appSlug = String(req.body?.appSlug ?? "").trim();
   const correlationId = req.correlationId;
-  const logVerifyEmailOutcome = async (
-    outcome: string,
-    metadata?: Record<string, unknown>,
-  ) => {
+  const logVerifyEmailOutcome = async (outcome: string, metadata?: Record<string, unknown>) => {
     await writeAuditLog({
       action: "auth.verify_email",
       resourceType: "auth_verification",
@@ -2731,9 +2133,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
     });
   };
   if (!token) {
-    await logVerifyEmailOutcome("invalid_request", {
-      reasonCode: "missing_token",
-    });
+    await logVerifyEmailOutcome("invalid_request", { reasonCode: "missing_token" });
     res.status(400).json({ error: "Invalid verification token." });
     return;
   }
@@ -2742,55 +2142,29 @@ async function handleVerifyEmail(req: Request, res: Response) {
   if (consumed.status !== "consumed") {
     if (consumed.status === "expired") {
       await logVerifyEmailOutcome("token_rejected", { reasonCode: "expired" });
-      res
-        .status(400)
-        .json({
-          error: "Verification token has expired.",
-          code: "VERIFICATION_TOKEN_EXPIRED",
-        });
+      res.status(400).json({ error: "Verification token has expired.", code: "VERIFICATION_TOKEN_EXPIRED" });
       return;
     }
     if (consumed.status === "already_used") {
-      await logVerifyEmailOutcome("token_rejected", {
-        reasonCode: "already_used",
-      });
-      res
-        .status(409)
-        .json({
-          error: "Verification token was already used.",
-          code: "VERIFICATION_TOKEN_ALREADY_USED",
-        });
+      await logVerifyEmailOutcome("token_rejected", { reasonCode: "already_used" });
+      res.status(409).json({ error: "Verification token was already used.", code: "VERIFICATION_TOKEN_ALREADY_USED" });
       return;
     }
     await logVerifyEmailOutcome("token_rejected", { reasonCode: "invalid" });
-    res
-      .status(400)
-      .json({
-        error: "Verification token is invalid.",
-        code: "VERIFICATION_TOKEN_INVALID",
-      });
+    res.status(400).json({ error: "Verification token is invalid.", code: "VERIFICATION_TOKEN_INVALID" });
     return;
   }
 
-  await db
-    .update(usersTable)
-    .set({ emailVerifiedAt: new Date() })
-    .where(eq(usersTable.id, consumed.token.userId));
+  await db.update(usersTable).set({ emailVerifiedAt: new Date() }).where(eq(usersTable.id, consumed.token.userId));
   if (!appSlug) {
-    await logVerifyEmailOutcome("verified_no_app_slug", {
-      userId: consumed.token.userId,
-    });
+    await logVerifyEmailOutcome("verified_no_app_slug", { userId: consumed.token.userId });
     res.json({ success: true });
     return;
   }
 
-  const user = await db.query.usersTable.findFirst({
-    where: eq(usersTable.id, consumed.token.userId),
-  });
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, consumed.token.userId) });
   if (!user || !user.active || user.suspended || user.deletedAt) {
-    await logVerifyEmailOutcome("account_unavailable", {
-      userId: consumed.token.userId,
-    });
+    await logVerifyEmailOutcome("account_unavailable", { userId: consumed.token.userId });
     res.status(403).json({ error: "Account is unavailable." });
     return;
   }
@@ -2818,25 +2192,19 @@ async function handleVerifyEmail(req: Request, res: Response) {
   }
 
   await establishPasswordSession(req, user.id, appSlug, false);
-  await db
-    .update(usersTable)
-    .set({ lastLoginAt: new Date() })
-    .where(eq(usersTable.id, user.id));
-  const nextPath =
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug)) ??
-    "/dashboard";
+  await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+  const nextPath = await resolveNextPathForEstablishedSession(req, user.id, appSlug) ?? "/dashboard";
   logAuthDebug(req, "verify_email_result", {
     userId: user.id,
     appSlug,
     mfaRequired: false,
     nextPath,
   });
-  await logVerifyEmailOutcome("verified_session_established", {
-    userId: user.id,
-    nextPath,
-  });
+  await logVerifyEmailOutcome("verified_session_established", { userId: user.id, nextPath });
   res.json({ success: true, nextPath });
 }
+
+
 
 async function handleMfaEnrollStart(req: Request, res: Response) {
   ensureAuthFlowId(req);
@@ -2849,18 +2217,11 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
   try {
     alreadyEnrolled = await hasActiveMfaFactor(userId);
   } catch {
-    res
-      .status(503)
-      .json({
-        error:
-          "Unable to verify two-step verification status. Please try again.",
-      });
+    res.status(503).json({ error: "Unable to verify two-step verification status. Please try again." });
     return;
   }
   if (alreadyEnrolled) {
-    const shouldChallenge =
-      req.session.pendingMfaReason === "challenge_required" ||
-      Boolean(req.session.pendingUserId);
+    const shouldChallenge = req.session.pendingMfaReason === "challenge_required" || Boolean(req.session.pendingUserId);
     logAuthDebug(req, "mfa_enroll_start_decision", {
       userId,
       alreadyEnrolled: true,
@@ -2868,8 +2229,7 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
       nextStep: shouldChallenge ? "mfa_challenge" : null,
     });
     res.status(409).json({
-      error:
-        "Two-step verification is already active for this account. Use your authenticator code to continue.",
+      error: "Two-step verification is already active for this account. Use your authenticator code to continue.",
       ...(shouldChallenge
         ? {
             mfaRequired: true,
@@ -2887,20 +2247,11 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     delete req.session.pendingMfaReason;
     delete req.session.pendingStayLoggedIn;
     delete req.session.pendingReturnToPath;
-    res
-      .status(401)
-      .json({
-        error:
-          "Two-step verification session is no longer valid. Please sign in again.",
-      });
+    res.status(401).json({ error: "Two-step verification session is no longer valid. Please sign in again." });
     return;
   }
 
-  const issuer = await getMfaIssuerForSessionGroup(
-    req.session.sessionGroup ??
-      req.resolvedSessionGroup ??
-      SESSION_GROUPS.DEFAULT,
-  );
+  const issuer = await getMfaIssuerForSessionGroup(req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT);
   logAuthDebug(req, "mfa_enroll_start_decision", {
     userId,
     alreadyEnrolled: false,
@@ -2908,20 +2259,9 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     issuer,
     nextStep: "mfa_enroll",
   });
-  const user = await db.query.usersTable.findFirst({
-    where: eq(usersTable.id, userId),
-  });
-  const otpauthUrl = buildTotpOtpauthUrl({
-    issuer,
-    accountName: user?.email ?? userId,
-    secret: factor.secret,
-  });
-  res.json({
-    factorId: factor.factorId,
-    secret: factor.secret,
-    otpauthUrl,
-    issuer,
-  });
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+  const otpauthUrl = buildTotpOtpauthUrl({ issuer, accountName: user?.email ?? userId, secret: factor.secret });
+  res.json({ factorId: factor.factorId, secret: factor.secret, otpauthUrl, issuer });
 }
 
 async function handleMfaEnrollVerify(req: Request, res: Response) {
@@ -2931,9 +2271,7 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !factorId || !code) {
-    res
-      .status(400)
-      .json({ error: "Invalid two-step verification setup request." });
+    res.status(400).json({ error: "Invalid two-step verification setup request." });
     return;
   }
   const activated = await activateTotpEnrollment(userId, factorId, code);
@@ -2950,25 +2288,15 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   const completed = await completePendingMfaSession(req);
   if (completed && rememberDevice) {
     const token = await rememberTrustedDevice(userId);
-    res.cookie(
-      getTrustedDeviceCookieName(),
-      token,
-      getTrustedDeviceCookieOptions(),
-    );
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
 
   let nextPath: string | undefined;
   if (completed) {
     const appSlug = req.session.appSlug;
     if (appSlug) {
-      nextPath =
-        completed.returnToPath ??
-        (await resolveNextPathForEstablishedSession(
-          req,
-          completed.userId,
-          appSlug,
-        )) ??
-        undefined;
+      nextPath = completed.returnToPath
+        ?? (await resolveNextPathForEstablishedSession(req, completed.userId, appSlug) ?? undefined);
     }
   }
   logAuthDebug(req, "mfa_enroll_verify_result", {
@@ -2994,9 +2322,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
   const rememberDevice = req.body?.rememberDevice === true;
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   if (!userId || !code) {
-    res
-      .status(400)
-      .json({ error: "Invalid two-step verification challenge request." });
+    res.status(400).json({ error: "Invalid two-step verification challenge request." });
     return;
   }
 
@@ -3015,25 +2341,17 @@ async function handleMfaChallenge(req: Request, res: Response) {
   req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res
-      .status(400)
-      .json({ error: "Two-step verification session is not active." });
+    res.status(400).json({ error: "Two-step verification session is not active." });
     return;
   }
 
   if (rememberDevice) {
     const token = await rememberTrustedDevice(userId);
-    res.cookie(
-      getTrustedDeviceCookieName(),
-      token,
-      getTrustedDeviceCookieOptions(),
-    );
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? (completed.returnToPath ??
-      (await resolveNextPathForEstablishedSession(req, userId, appSlug)) ??
-      undefined)
+    ? completed.returnToPath ?? (await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined)
     : undefined;
   logAuthDebug(req, "mfa_challenge_result", {
     userId,
@@ -3071,24 +2389,16 @@ async function handleMfaRecovery(req: Request, res: Response) {
   req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res
-      .status(400)
-      .json({ error: "Two-step verification session is not active." });
+    res.status(400).json({ error: "Two-step verification session is not active." });
     return;
   }
   if (rememberDevice) {
     const token = await rememberTrustedDevice(userId);
-    res.cookie(
-      getTrustedDeviceCookieName(),
-      token,
-      getTrustedDeviceCookieOptions(),
-    );
+    res.cookie(getTrustedDeviceCookieName(), token, getTrustedDeviceCookieOptions());
   }
   const appSlug = req.session.appSlug;
   const nextPath = appSlug
-    ? (completed.returnToPath ??
-      (await resolveNextPathForEstablishedSession(req, userId, appSlug)) ??
-      undefined)
+    ? completed.returnToPath ?? (await resolveNextPathForEstablishedSession(req, userId, appSlug) ?? undefined)
     : undefined;
   logAuthDebug(req, "mfa_recovery_result", {
     userId,
@@ -3107,88 +2417,34 @@ async function handleMfaDisable(req: Request, res: Response) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  await db
-    .update(userAuthSecurityTable)
-    .set({ forceMfaEnrollment: true, mfaRequired: true, updatedAt: new Date() })
-    .where(eq(userAuthSecurityTable.userId, userId));
+  await db.update(userAuthSecurityTable).set({ forceMfaEnrollment: true, mfaRequired: true, updatedAt: new Date() }).where(eq(userAuthSecurityTable.userId, userId));
   await revokeTrustedDevicesForUser(userId, "mfa_reset");
-  res.clearCookie(
-    getTrustedDeviceCookieName(),
-    getTrustedDeviceCookieOptions(),
-  );
+  res.clearCookie(getTrustedDeviceCookieName(), getTrustedDeviceCookieOptions());
   res.json({ success: true });
 }
 
 router.get("/me", requireAuth, handleMe);
 router.post("/logout", handleLogout);
-router.post(
-  "/google/url",
-  authRateLimiter({ keyPrefix: "auth-google-url" }),
-  handleGoogleUrl,
-);
-router.post(
-  "/signup",
-  authRateLimiterWithIdentifier({
-    keyPrefix: "auth-signup",
-    opaqueIdentifier: (req) =>
-      getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
-  }),
-  handlePasswordSignup,
-);
-router.post(
-  "/login",
-  authRateLimiterWithIdentifier({
-    keyPrefix: "auth-login",
-    opaqueIdentifier: (req) =>
-      getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
-  }),
-  handlePasswordLogin,
-);
-router.post(
-  "/forgot-password",
-  authRateLimiterWithIdentifier({
-    keyPrefix: "auth-forgot-password",
-    opaqueIdentifier: (req) =>
-      getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
-  }),
-  handleForgotPassword,
-);
-router.post(
-  "/reset-password",
-  authRateLimiter({ keyPrefix: "auth-reset-password" }),
-  handleResetPassword,
-);
-router.post(
-  "/verify-email",
-  authRateLimiter({ keyPrefix: "auth-verify-email" }),
-  handleVerifyEmail,
-);
-router.post(
-  "/mfa/enroll/start",
-  authRateLimiter({ keyPrefix: "auth-mfa-enroll-start" }),
-  handleMfaEnrollStart,
-);
-router.post(
-  "/mfa/enroll/verify",
-  authRateLimiter({ keyPrefix: "auth-mfa-enroll-verify" }),
-  handleMfaEnrollVerify,
-);
-router.post(
-  "/mfa/challenge",
-  authRateLimiter({ keyPrefix: "auth-mfa-challenge" }),
-  handleMfaChallenge,
-);
-router.post(
-  "/mfa/recovery",
-  authRateLimiter({ keyPrefix: "auth-mfa-recovery" }),
-  handleMfaRecovery,
-);
-router.post(
-  "/mfa/disable",
-  requireAuth,
-  authRateLimiter({ keyPrefix: "auth-mfa-disable" }),
-  handleMfaDisable,
-);
+router.post("/google/url", authRateLimiter({ keyPrefix: "auth-google-url" }), handleGoogleUrl);
+router.post("/signup", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-signup",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handlePasswordSignup);
+router.post("/login", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-login",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handlePasswordLogin);
+router.post("/forgot-password", authRateLimiterWithIdentifier({
+  keyPrefix: "auth-forgot-password",
+  opaqueIdentifier: (req) => getPasswordAuthOpaqueIdentifier(String(req.body?.email ?? "")),
+}), handleForgotPassword);
+router.post("/reset-password", authRateLimiter({ keyPrefix: "auth-reset-password" }), handleResetPassword);
+router.post("/verify-email", authRateLimiter({ keyPrefix: "auth-verify-email" }), handleVerifyEmail);
+router.post("/mfa/enroll/start", authRateLimiter({ keyPrefix: "auth-mfa-enroll-start" }), handleMfaEnrollStart);
+router.post("/mfa/enroll/verify", authRateLimiter({ keyPrefix: "auth-mfa-enroll-verify" }), handleMfaEnrollVerify);
+router.post("/mfa/challenge", authRateLimiter({ keyPrefix: "auth-mfa-challenge" }), handleMfaChallenge);
+router.post("/mfa/recovery", authRateLimiter({ keyPrefix: "auth-mfa-recovery" }), handleMfaRecovery);
+router.post("/mfa/disable", requireAuth, authRateLimiter({ keyPrefix: "auth-mfa-disable" }), handleMfaDisable);
 router.get("/google/callback", handleGoogleCallback);
 
 export default router;

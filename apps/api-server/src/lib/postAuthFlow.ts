@@ -4,13 +4,13 @@ import type { NormalizedAccessProfile } from "./appAccessProfile.js";
 
 type PostAuthAppContext = {
   canAccess: boolean;
-  requiredOnboarding: "none" | "organization" | "user";
+  requiredOnboarding: "none" | "organization";
   normalizedAccessProfile: NormalizedAccessProfile;
 };
 
 export type PostAuthFlowDecision = {
   canAccess: boolean;
-  requiredOnboarding: "none" | "organization" | "user";
+  requiredOnboarding: "none" | "organization";
   normalizedAccessProfile: NormalizedAccessProfile;
   destination: string;
 };
@@ -23,14 +23,13 @@ export async function resolvePostAuthFlowDecision(params: {
 }): Promise<PostAuthFlowDecision | null> {
   const { userId, appSlug, isSuperAdmin, normalizedAccessProfile } = params;
 
-  const context: PostAuthAppContext | null =
-    normalizedAccessProfile === "superadmin"
-      ? {
-          canAccess: Boolean(isSuperAdmin),
-          normalizedAccessProfile: "superadmin",
-          requiredOnboarding: "none",
-        }
-      : await getAppContext(userId, appSlug);
+  const context: PostAuthAppContext | null = normalizedAccessProfile === "superadmin"
+    ? {
+        canAccess: Boolean(isSuperAdmin),
+        normalizedAccessProfile: "superadmin",
+        requiredOnboarding: "none",
+      }
+    : await getAppContext(userId, appSlug);
 
   if (!context) return null;
 

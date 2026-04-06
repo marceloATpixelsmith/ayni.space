@@ -6,20 +6,18 @@ export function getPostAuthRedirectPath(options: {
   appSlug: string;
   isSuperAdmin: boolean;
   normalizedAccessProfile: NormalizedAccessProfile;
-  requiredOnboarding: "none" | "organization" | "user";
+  requiredOnboarding: "none" | "organization";
 }): string {
-  const { appSlug, isSuperAdmin, normalizedAccessProfile, requiredOnboarding } =
-    options;
+  const { appSlug, isSuperAdmin, normalizedAccessProfile, requiredOnboarding } = options;
 
   if (normalizedAccessProfile === "superadmin") {
     if (isSuperAdmin) return "/dashboard";
     return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
   }
 
-  if (requiredOnboarding === "organization") {
+  if (requiredOnboarding !== "none") {
     return "/onboarding/organization";
   }
-  if (requiredOnboarding === "user") return "/onboarding/user";
 
   return "/dashboard";
 }

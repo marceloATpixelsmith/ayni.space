@@ -49,41 +49,14 @@ type AuthContextValue = {
     turnstileToken?: string | null,
     returnToPath?: string | null,
   ) => Promise<void>;
-  signupWithPassword: (
-    email: string,
-    password: string,
-    turnstileToken?: string | null,
-  ) => Promise<{ verifyToken?: string; appSlug?: string }>;
+  signupWithPassword: (email: string, password: string, name?: string, turnstileToken?: string | null) => Promise<{ verifyToken?: string; appSlug?: string }>;
   forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
   resetPassword: (token: string, password: string) => Promise<void>;
-  verifyEmail: (
-    token: string,
-    appSlug?: string,
-  ) => Promise<{
-    mfaRequired?: boolean;
-    needsEnrollment?: boolean;
-    nextPath?: string;
-  }>;
-  startMfaEnrollment: () => Promise<{
-    factorId: string;
-    secret: string;
-    otpauthUrl: string;
-    issuer: string;
-  }>;
-  verifyMfaEnrollment: (
-    factorId: string,
-    code: string,
-  ) => Promise<{ recoveryCodes: string[]; nextPath?: string }>;
-  completeMfaChallenge: (
-    code: string,
-    rememberDevice: boolean,
-    stayLoggedIn?: boolean,
-  ) => Promise<void>;
-  completeMfaRecovery: (
-    recoveryCode: string,
-    rememberDevice: boolean,
-    stayLoggedIn?: boolean,
-  ) => Promise<void>;
+  verifyEmail: (token: string, appSlug?: string) => Promise<{ mfaRequired?: boolean; needsEnrollment?: boolean; nextPath?: string }>;
+  startMfaEnrollment: () => Promise<{ factorId: string; secret: string; otpauthUrl: string; issuer: string }>;
+  verifyMfaEnrollment: (factorId: string, code: string) => Promise<{ recoveryCodes: string[]; nextPath?: string }>;
+  completeMfaChallenge: (code: string, rememberDevice: boolean, stayLoggedIn?: boolean) => Promise<void>;
+  completeMfaRecovery: (recoveryCode: string, rememberDevice: boolean, stayLoggedIn?: boolean) => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -121,9 +94,7 @@ export function isFullyAuthenticatedStatus(status: AuthStatus): boolean {
   return status === "authenticated_fully";
 }
 
-export function getMfaPendingRoute(
-  status: AuthStatus,
-): "/mfa/challenge" | "/mfa/enroll" | null {
+export function getMfaPendingRoute(status: AuthStatus): "/mfa/challenge" | "/mfa/enroll" | null {
   if (status === "authenticated_mfa_pending_enrolled") {
     return "/mfa/challenge";
   }
@@ -133,14 +104,13 @@ export function getMfaPendingRoute(
   return null;
 }
 
-function classifyMfaPendingUser(
-  payload: Pick<AuthUser, "mfaPending" | "mfaEnrolled" | "nextStep">,
-) {
+function classifyMfaPendingUser(payload: Pick<AuthUser, "mfaPending" | "mfaEnrolled" | "nextStep">) {
   const mfaPending = payload.mfaPending === true;
   const nextStep = payload.nextStep ?? null;
   const mfaEnrolled = payload.mfaEnrolled === true;
   const enrolled =
-    nextStep === "mfa_challenge" || (nextStep !== "mfa_enroll" && mfaEnrolled);
+    nextStep === "mfa_challenge" ||
+    (nextStep !== "mfa_enroll" && mfaEnrolled);
 
   return {
     mfaPending,
@@ -148,10 +118,10 @@ function classifyMfaPendingUser(
     mfaEnrolled,
     enrolled,
     status: enrolled
-      ? ("authenticated_mfa_pending_enrolled" as const)
-      : ("authenticated_mfa_pending_unenrolled" as const),
+      ? "authenticated_mfa_pending_enrolled" as const
+      : "authenticated_mfa_pending_unenrolled" as const,
     needsEnrollment: !enrolled,
-    route: enrolled ? ("/mfa/challenge" as const) : ("/mfa/enroll" as const),
+    route: enrolled ? "/mfa/challenge" as const : "/mfa/enroll" as const,
   };
 }
 
@@ -176,10 +146,7 @@ function isCredentialRequiredPath(path: string): boolean {
 }
 
 export async function fetchCsrfToken(): Promise<string> {
-  logAuthDebug("csrf_fetch_start", {
-    path: "/api/csrf-token",
-    credentialsMode: "include",
-  });
+  logAuthDebug("csrf_fetch_start", { path: "/api/csrf-token", credentialsMode: "include" });
   const response = await fetch(toApiUrl("/api/csrf-token"), {
     method: "GET",
     credentials: "include",
@@ -244,24 +211,15 @@ export function mapGoogleSignInError(
     return `Too many attempts. Please wait and retry.${retryHint}`;
   }
 
-  if (payload?.code === "TURNSTILE_MISSING_TOKEN")
-    return "Verification required. Please complete the challenge.";
-  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED")
-    return "Verification expired. Please complete the challenge again.";
-  if (payload?.code === "TURNSTILE_INVALID_TOKEN")
-    return "Verification failed. Please try again.";
-  if (payload?.code === "TURNSTILE_MISCONFIGURED")
-    return "Verification is temporarily unavailable due to configuration. Please contact support.";
-  if (payload?.code === "TURNSTILE_UNAVAILABLE")
-    return "Verification service is temporarily unavailable. Please try again.";
-  if (
-    payload?.code === "OAUTH_CONFIG_MISSING" ||
-    payload?.code === "OAUTH_URL_INVALID"
-  ) {
+  if (payload?.code === "TURNSTILE_MISSING_TOKEN") return "Verification required. Please complete the challenge.";
+  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") return "Verification expired. Please complete the challenge again.";
+  if (payload?.code === "TURNSTILE_INVALID_TOKEN") return "Verification failed. Please try again.";
+  if (payload?.code === "TURNSTILE_MISCONFIGURED") return "Verification is temporarily unavailable due to configuration. Please contact support.";
+  if (payload?.code === "TURNSTILE_UNAVAILABLE") return "Verification service is temporarily unavailable. Please try again.";
+  if (payload?.code === "OAUTH_CONFIG_MISSING" || payload?.code === "OAUTH_URL_INVALID") {
     return "Sign-in is temporarily unavailable due to configuration. Please contact support.";
   }
-  if (payload?.code === "ORIGIN_NOT_ALLOWED")
-    return "Access origin is not allowed for sign-in.";
+  if (payload?.code === "ORIGIN_NOT_ALLOWED") return "Access origin is not allowed for sign-in.";
 
   if (status === 403)
     return payload?.error ?? "Verification failed. Please try again.";
@@ -284,10 +242,7 @@ export function mapVerifyEmailError(
   if (payload?.code === "VERIFICATION_TOKEN_INVALID") {
     return "This verification link is invalid.";
   }
-  if (
-    response?.status === 403 &&
-    payload?.error?.toLowerCase().includes("csrf")
-  ) {
+  if (response?.status === 403 && payload?.error?.toLowerCase().includes("csrf")) {
     return "Security check failed. Please retry the verification link.";
   }
   return payload?.error ?? "Unable to verify email.";
@@ -327,11 +282,7 @@ export function deriveAppAuthRoutePolicy(
   app: PlatformAppMetadata | null | undefined,
 ): AppAuthRoutePolicy {
   if (!app) {
-    return {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   if (app.authRoutePolicy) {
@@ -339,26 +290,14 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "organization") {
-    return {
-      allowOnboarding: true,
-      allowInvitations: true,
-      allowCustomerRegistration: false,
-    };
+    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
   }
 
   if (app.normalizedAccessProfile === "solo") {
-    return {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
-  return {
-    allowOnboarding: false,
-    allowInvitations: false,
-    allowCustomerRegistration: false,
-  };
+  return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
 }
 
 export function isAuthRouteAllowed(
@@ -419,25 +358,13 @@ function normalizePlatformAppMetadata(
   const authRoutePolicy =
     authRoutePolicyCandidate &&
     typeof authRoutePolicyCandidate === "object" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowOnboarding"
-    ] === "boolean" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowInvitations"
-    ] === "boolean" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowCustomerRegistration"
-    ] === "boolean"
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowOnboarding"] === "boolean" &&
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowInvitations"] === "boolean" &&
+    typeof (authRoutePolicyCandidate as Record<string, unknown>)["allowCustomerRegistration"] === "boolean"
       ? {
-          allowOnboarding: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowOnboarding"],
-          allowInvitations: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowInvitations"],
-          allowCustomerRegistration: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowCustomerRegistration"],
+          allowOnboarding: (authRoutePolicyCandidate as Record<string, boolean>)["allowOnboarding"],
+          allowInvitations: (authRoutePolicyCandidate as Record<string, boolean>)["allowInvitations"],
+          allowCustomerRegistration: (authRoutePolicyCandidate as Record<string, boolean>)["allowCustomerRegistration"],
         }
       : undefined;
 
@@ -479,9 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [sessionRevoked, setSessionRevoked] = React.useState(false);
   const [authBootstrapping, setAuthBootstrapping] = React.useState(true);
   const csrfTokenRef = React.useRef<string | null>(null);
-  const csrfRefreshInFlightRef = React.useRef<Promise<string | null> | null>(
-    null,
-  );
+  const csrfRefreshInFlightRef = React.useRef<Promise<string | null> | null>(null);
   const loginRequestRef = React.useRef<Promise<void> | null>(null);
   const authCheckRef = React.useRef<Promise<void> | null>(null);
   const startupAuthInitializedRef = React.useRef(false);
@@ -505,19 +430,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const request = (async () => {
-        logAuthDebug("auth_bootstrap_check_start", {
-          retryAfterDelay: Boolean(options?.retryAfterDelay),
-        });
+        logAuthDebug("auth_bootstrap_check_start", { retryAfterDelay: Boolean(options?.retryAfterDelay) });
         const firstAttempt = await meQuery.refetch();
         const firstData = firstAttempt.data ?? null;
         const firstUserId = firstData?.id ?? null;
         const firstAllow = firstAttempt.isSuccess && Boolean(firstData);
         const firstMfaClassification = firstData
           ? classifyMfaPendingUser({
-              mfaPending: firstData.mfaPending,
-              mfaEnrolled: firstData.mfaEnrolled,
-              nextStep: firstData.nextStep,
-            })
+            mfaPending: firstData.mfaPending,
+            mfaEnrolled: firstData.mfaEnrolled,
+            nextStep: firstData.nextStep,
+          })
           : null;
         logAuthDebug("auth_bootstrap_check_result", {
           attempt: "initial",
@@ -527,15 +450,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           mfaPending: firstData ? firstData.mfaPending === true : false,
           mfaEnrolled: firstData ? firstData.mfaEnrolled === true : false,
           nextStep: firstData?.nextStep ?? null,
-          bootstrapStatus: firstData?.mfaPending
-            ? (firstMfaClassification?.status ?? null)
-            : null,
-          needsEnrollment: firstData?.mfaPending
-            ? (firstMfaClassification?.needsEnrollment ?? null)
-            : null,
-          route: firstData?.mfaPending
-            ? (firstMfaClassification?.route ?? null)
-            : null,
+          bootstrapStatus: firstData?.mfaPending ? firstMfaClassification?.status ?? null : null,
+          needsEnrollment: firstData?.mfaPending ? firstMfaClassification?.needsEnrollment ?? null : null,
+          route: firstData?.mfaPending ? firstMfaClassification?.route ?? null : null,
         });
 
         if (!options?.retryAfterDelay || firstAttempt.data) {
@@ -552,10 +469,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const retryAllow = retryAttempt.isSuccess && Boolean(retryData);
         const retryMfaClassification = retryData
           ? classifyMfaPendingUser({
-              mfaPending: retryData.mfaPending,
-              mfaEnrolled: retryData.mfaEnrolled,
-              nextStep: retryData.nextStep,
-            })
+            mfaPending: retryData.mfaPending,
+            mfaEnrolled: retryData.mfaEnrolled,
+            nextStep: retryData.nextStep,
+          })
           : null;
         logAuthDebug("auth_bootstrap_check_result", {
           attempt: "retry",
@@ -565,15 +482,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           mfaPending: retryData ? retryData.mfaPending === true : false,
           mfaEnrolled: retryData ? retryData.mfaEnrolled === true : false,
           nextStep: retryData?.nextStep ?? null,
-          bootstrapStatus: retryData?.mfaPending
-            ? (retryMfaClassification?.status ?? null)
-            : null,
-          needsEnrollment: retryData?.mfaPending
-            ? (retryMfaClassification?.needsEnrollment ?? null)
-            : null,
-          route: retryData?.mfaPending
-            ? (retryMfaClassification?.route ?? null)
-            : null,
+          bootstrapStatus: retryData?.mfaPending ? retryMfaClassification?.status ?? null : null,
+          needsEnrollment: retryData?.mfaPending ? retryMfaClassification?.needsEnrollment ?? null : null,
+          route: retryData?.mfaPending ? retryMfaClassification?.route ?? null : null,
         });
       })();
 
@@ -589,12 +500,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [meQuery],
   );
 
-  const refreshSession = React.useCallback(
-    async (options?: { retryAfterDelay?: boolean }) => {
-      await runAuthCheck({ retryAfterDelay: options?.retryAfterDelay });
-    },
-    [runAuthCheck],
-  );
+  const refreshSession = React.useCallback(async (options?: { retryAfterDelay?: boolean }) => {
+    await runAuthCheck({ retryAfterDelay: options?.retryAfterDelay });
+  }, [runAuthCheck]);
 
   React.useEffect(() => {
     csrfTokenRef.current = csrfToken;
@@ -608,10 +516,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const markAuthTransition = React.useCallback(() => {
-    window.sessionStorage.setItem(
-      AUTH_TRANSITION_STORAGE_KEY,
-      String(Date.now()),
-    );
+    window.sessionStorage.setItem(AUTH_TRANSITION_STORAGE_KEY, String(Date.now()));
     logAuthDebug("auth_transition_marked", {});
   }, []);
 
@@ -686,8 +591,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         Number.isFinite(authTransitionStartedAt) &&
         now - authTransitionStartedAt >= 0 &&
         now - authTransitionStartedAt <= OAUTH_GRACE_WINDOW_MS;
-      const shouldRetryAfterDelay =
-        recentlyStartedOauth || recentlyTransitionedAuth;
+      const shouldRetryAfterDelay = recentlyStartedOauth || recentlyTransitionedAuth;
 
       try {
         logAuthDebug("auth_bootstrap_start", {});
@@ -751,7 +655,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       returnToPath?: string | null,
     ) => {
       if (loginRequestRef.current) {
-        return loginRequestRef.current;
+      return loginRequestRef.current;
       }
 
       const request = (async () => {
@@ -881,14 +785,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         csrfToken,
       );
 
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & { nextPath?: string | null };
+      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { nextPath?: string | null });
 
       if (!response.ok) {
-        const error = new Error(
-          payload?.error ?? "Failed to accept invitation.",
-        ) as Error & { code?: string; status?: number };
+        const error = new Error(payload?.error ?? "Failed to accept invitation.") as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
         console.info("[INVITATION-FLOW] auth.acceptInvitation request failed", {
@@ -898,13 +798,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
-      console.info(
-        "[INVITATION-FLOW] auth.acceptInvitation request succeeded; refreshing session",
-      );
+      console.info("[INVITATION-FLOW] auth.acceptInvitation request succeeded; refreshing session");
       await refreshSession();
-      console.info(
-        "[INVITATION-FLOW] auth.acceptInvitation session refresh complete",
-      );
+      console.info("[INVITATION-FLOW] auth.acceptInvitation session refresh complete");
       return normalizeReturnToPath(payload?.nextPath) ?? null;
     },
     [refreshCsrfState, refreshSession],
@@ -930,28 +826,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
         csrfToken,
       );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & {
-        mfaRequired?: boolean;
-        needsEnrollment?: boolean;
-        nextStep?: "mfa_enroll" | "mfa_challenge";
-        nextPath?: string | null;
-      };
+      const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string | null });
       if (!response.ok) {
-        const error = new Error(
-          payload?.error ?? "Failed to set password for invitation.",
-        ) as Error & { code?: string; status?: number };
+        const error = new Error(payload?.error ?? "Failed to set password for invitation.") as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
         throw error;
       }
       if (payload?.mfaRequired) {
-        const target =
-          payload.nextStep === "mfa_enroll" ||
-          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
-            ? "/mfa/enroll"
-            : "/mfa/challenge";
+        const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+          ? "/mfa/enroll"
+          : "/mfa/challenge";
         window.location.assign(target);
         return target;
       }
@@ -961,270 +846,172 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshCsrfState, refreshSession],
   );
 
-  const loginWithPassword = React.useCallback(
-    async (
-      email: string,
-      password: string,
-      turnstileToken?: string | null,
-      returnToPath?: string | null,
-    ) => {
-      beginAuthDebugFlow("password_login");
-      const normalizedEmail = normalizeEmailForSubmission(email);
-      const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try signing in again.",
-      );
-      const response = await secureApiFetch(
-        "/api/auth/login",
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(turnstileToken
-              ? { "cf-turnstile-response": turnstileToken }
-              : {}),
-          },
-          body: JSON.stringify({
-            email: normalizedEmail,
-            password,
-            "cf-turnstile-response": turnstileToken ?? undefined,
-            returnToPath: normalizedReturnToPath,
-          }),
-        },
-        csrfToken,
-      );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & {
-        mfaRequired?: boolean;
-        needsEnrollment?: boolean;
-        nextStep?: "mfa_enroll" | "mfa_challenge";
-        nextPath?: string;
-      };
-      if (!response.ok) {
-        logAuthDebug("login_response_received", {
-          ok: false,
-          status: response.status,
-        });
-        throw new Error(payload?.error ?? "Invalid email or password.");
-      }
-      logAuthDebug("login_response_received", {
-        ok: true,
-        status: response.status,
-        mfaRequired: Boolean(payload?.mfaRequired),
-        needsEnrollment: Boolean(payload?.needsEnrollment),
-        nextStep: payload?.nextStep ?? null,
-        nextPath: payload?.nextPath ?? null,
-      });
-      if (payload?.mfaRequired) {
-        const target =
-          payload.nextStep === "mfa_enroll" ||
-          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
-            ? "/mfa/enroll"
-            : "/mfa/challenge";
-        logAuthDebug("route_selected", {
-          route: target,
-          reason: "login_response",
-        });
-        markAuthTransition();
-        logAuthDebug("post_login_bootstrap_start", {
-          firstEndpoint: "/api/auth/me",
-          reason: "mfa_required",
-        });
-        await refreshSession({ retryAfterDelay: true });
-        logAuthDebug("post_login_bootstrap_end", {
-          firstEndpoint: "/api/auth/me",
-          reason: "mfa_required",
-        });
-        await refreshCsrfState();
-        window.location.assign(target);
-        return;
-      }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        logAuthDebug("route_selected", {
-          route: payload.nextPath,
-          reason: "login_response",
-        });
-        markAuthTransition();
-        await refreshCsrfState();
-        window.location.assign(payload.nextPath);
-        return;
-      }
-      await refreshSession();
-    },
-    [markAuthTransition, refreshCsrfState, refreshSession],
-  );
 
-  const signupWithPassword = React.useCallback(
-    async (email: string, password: string, turnstileToken?: string | null) => {
-      const normalizedEmail = normalizeEmailForSubmission(email);
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try creating your account again.",
-      );
-      const response = await secureApiFetch(
-        "/api/auth/signup",
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(turnstileToken
-              ? { "cf-turnstile-response": turnstileToken }
-              : {}),
-          },
-          body: JSON.stringify({
-            email: normalizedEmail,
-            password,
-            "cf-turnstile-response": turnstileToken ?? undefined,
-          }),
-        },
-        csrfToken,
-      );
-      const payload = (await response.json().catch(() => null)) as {
-        verifyToken?: string;
-        appSlug?: string;
-      } & ApiErrorPayload;
-      if (!response.ok) {
-        throw new Error(payload?.error ?? "Unable to sign up.");
-      }
-      await refreshSession();
-      return { verifyToken: payload?.verifyToken, appSlug: payload?.appSlug };
-    },
-    [refreshCsrfState, refreshSession],
-  );
 
-  const forgotPassword = React.useCallback(
-    async (email: string) => {
-      const normalizedEmail = normalizeEmailForSubmission(email);
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try again.",
-      );
-      const response = await secureApiFetch(
-        "/api/auth/forgot-password",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail }),
-        },
-        csrfToken,
-      );
-      const payload = (await response.json().catch(() => null)) as {
-        resetToken?: string;
-      } & ApiErrorPayload;
-      if (!response.ok)
-        throw new Error(payload?.error ?? "Unable to process request.");
-      return { resetToken: payload?.resetToken };
-    },
-    [refreshCsrfState],
-  );
-
-  const resetPassword = React.useCallback(
-    async (token: string, password: string) => {
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try resetting your password again.",
-      );
-      const response = await secureApiFetch(
-        "/api/auth/reset-password",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token, password }),
-        },
-        csrfToken,
-      );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload;
-      if (!response.ok)
-        throw new Error(payload?.error ?? "Unable to reset password.");
-      await refreshSession();
-    },
-    [refreshCsrfState, refreshSession],
-  );
-
-  const verifyEmail = React.useCallback(
-    async (token: string, appSlug?: string) => {
-      beginAuthDebugFlow("verify_email");
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please retry the verification link.",
-      );
-      const response = await secureApiFetch(
-        "/api/auth/verify-email",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            token,
-            appSlug: appSlug?.trim() || undefined,
-          }),
-        },
-        csrfToken,
-      );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & {
-        mfaRequired?: boolean;
-        needsEnrollment?: boolean;
-        nextStep?: "mfa_enroll" | "mfa_challenge";
-        nextPath?: string;
-      };
-      logAuthDebug("verify_email_response_received", {
-        ok: response.ok,
-        status: response.status,
-        mfaRequired: Boolean(payload?.mfaRequired),
-        needsEnrollment: Boolean(payload?.needsEnrollment),
-        nextStep: payload?.nextStep ?? null,
-        nextPath: payload?.nextPath ?? null,
-        appSlug: appSlug ?? null,
-      });
-      if (!response.ok) throw new Error(mapVerifyEmailError(response, payload));
-      if (payload?.mfaRequired) {
-        const target =
-          payload.nextStep === "mfa_enroll" ||
-          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
-            ? "/mfa/enroll"
-            : "/mfa/challenge";
-        logAuthDebug("route_selected", {
-          route: target,
-          reason: "verify_email_response",
-        });
-        markAuthTransition();
-        await refreshSession({ retryAfterDelay: true });
-        await refreshCsrfState();
-        window.location.assign(target);
-        return payload;
-      }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        logAuthDebug("route_selected", {
-          route: payload.nextPath,
-          reason: "verify_email_response",
-        });
-        markAuthTransition();
-        await refreshSession({ retryAfterDelay: true });
-        await refreshCsrfState();
-        window.location.assign(payload.nextPath);
-        return payload;
-      }
+  const loginWithPassword = React.useCallback(async (
+    email: string,
+    password: string,
+    turnstileToken?: string | null,
+    returnToPath?: string | null,
+  ) => {
+    beginAuthDebugFlow("password_login");
+    const normalizedEmail = normalizeEmailForSubmission(email);
+    const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try signing in again.",
+    );
+    const response = await secureApiFetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
+      },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password,
+        "cf-turnstile-response": turnstileToken ?? undefined,
+        returnToPath: normalizedReturnToPath,
+      }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as (ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string });
+    if (!response.ok) {
+      logAuthDebug("login_response_received", { ok: false, status: response.status });
+      throw new Error(payload?.error ?? "Invalid email or password.");
+    }
+    logAuthDebug("login_response_received", {
+      ok: true,
+      status: response.status,
+      mfaRequired: Boolean(payload?.mfaRequired),
+      needsEnrollment: Boolean(payload?.needsEnrollment),
+      nextStep: payload?.nextStep ?? null,
+      nextPath: payload?.nextPath ?? null,
+    });
+    if (payload?.mfaRequired) {
+      const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+        ? "/mfa/enroll"
+        : "/mfa/challenge";
+      logAuthDebug("route_selected", { route: target, reason: "login_response" });
+      markAuthTransition();
+      logAuthDebug("post_login_bootstrap_start", { firstEndpoint: "/api/auth/me", reason: "mfa_required" });
       await refreshSession({ retryAfterDelay: true });
+      logAuthDebug("post_login_bootstrap_end", { firstEndpoint: "/api/auth/me", reason: "mfa_required" });
+      await refreshCsrfState();
+      window.location.assign(target);
+      return;
+    }
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      logAuthDebug("route_selected", { route: payload.nextPath, reason: "login_response" });
+      markAuthTransition();
+      await refreshCsrfState();
+      window.location.assign(payload.nextPath);
+      return;
+    }
+    await refreshSession();
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
+
+  const signupWithPassword = React.useCallback(async (email: string, password: string, name?: string, turnstileToken?: string | null) => {
+    const normalizedEmail = normalizeEmailForSubmission(email);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try creating your account again.",
+    );
+    const response = await secureApiFetch("/api/auth/signup", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(turnstileToken ? { "cf-turnstile-response": turnstileToken } : {}),
+      },
+      body: JSON.stringify({ email: normalizedEmail, password, name, "cf-turnstile-response": turnstileToken ?? undefined }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ({ verifyToken?: string; appSlug?: string } & ApiErrorPayload);
+    if (!response.ok) {
+      throw new Error(payload?.error ?? "Unable to sign up.");
+    }
+    await refreshSession();
+    return { verifyToken: payload?.verifyToken, appSlug: payload?.appSlug };
+  }, [refreshCsrfState, refreshSession]);
+
+  const forgotPassword = React.useCallback(async (email: string) => {
+    const normalizedEmail = normalizeEmailForSubmission(email);
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try again.",
+    );
+    const response = await secureApiFetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: normalizedEmail }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ({ resetToken?: string } & ApiErrorPayload);
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to process request.");
+    return { resetToken: payload?.resetToken };
+  }, [refreshCsrfState]);
+
+  const resetPassword = React.useCallback(async (token: string, password: string) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try resetting your password again.",
+    );
+    const response = await secureApiFetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to reset password.");
+    await refreshSession();
+  }, [refreshCsrfState, refreshSession]);
+
+  const verifyEmail = React.useCallback(async (token: string, appSlug?: string) => {
+    beginAuthDebugFlow("verify_email");
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please retry the verification link.",
+    );
+    const response = await secureApiFetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, appSlug: appSlug?.trim() || undefined }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { mfaRequired?: boolean; needsEnrollment?: boolean; nextStep?: "mfa_enroll" | "mfa_challenge"; nextPath?: string };
+    logAuthDebug("verify_email_response_received", {
+      ok: response.ok,
+      status: response.status,
+      mfaRequired: Boolean(payload?.mfaRequired),
+      needsEnrollment: Boolean(payload?.needsEnrollment),
+      nextStep: payload?.nextStep ?? null,
+      nextPath: payload?.nextPath ?? null,
+      appSlug: appSlug ?? null,
+    });
+    if (!response.ok) throw new Error(mapVerifyEmailError(response, payload));
+    if (payload?.mfaRequired) {
+      const target = payload.nextStep === "mfa_enroll" || (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+        ? "/mfa/enroll"
+        : "/mfa/challenge";
+      logAuthDebug("route_selected", { route: target, reason: "verify_email_response" });
+      markAuthTransition();
+      await refreshSession({ retryAfterDelay: true });
+      await refreshCsrfState();
+      window.location.assign(target);
       return payload;
-    },
-    [markAuthTransition, refreshCsrfState, refreshSession],
-  );
+    }
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      logAuthDebug("route_selected", { route: payload.nextPath, reason: "verify_email_response" });
+      markAuthTransition();
+      await refreshSession({ retryAfterDelay: true });
+      await refreshCsrfState();
+      window.location.assign(payload.nextPath);
+      return payload;
+    }
+    await refreshSession({ retryAfterDelay: true });
+    return payload;
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
   const startMfaEnrollment = React.useCallback(async () => {
     const csrfToken = await requireCsrfToken(
@@ -1233,195 +1020,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       "Security token is not ready. Please refresh and try two-step verification setup again.",
       { forceRefresh: true },
     );
-    const response = await secureApiFetch(
-      "/api/auth/mfa/enroll/start",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-      },
-      csrfToken,
-    );
-    const payload = (await response.json()) as {
-      factorId: string;
-      secret: string;
-      otpauthUrl: string;
-      issuer: string;
-      nextStep?: "mfa_enroll" | "mfa_challenge";
-    } & ApiErrorPayload;
+    const response = await secureApiFetch("/api/auth/mfa/enroll/start", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    }, csrfToken);
+    const payload = (await response.json()) as { factorId: string; secret: string; otpauthUrl: string; issuer: string; nextStep?: "mfa_enroll" | "mfa_challenge" } & ApiErrorPayload;
     if (!response.ok) {
       if (response.status === 409 && payload?.nextStep === "mfa_challenge") {
-        logAuthDebug("mfa_screen_mode_selected", {
-          mode: "challenge",
-          reason: "enroll_start_conflict",
-        });
+        logAuthDebug("mfa_screen_mode_selected", { mode: "challenge", reason: "enroll_start_conflict" });
         markAuthTransition();
         window.location.assign("/mfa/challenge");
         throw new Error("Redirecting to two-step verification challenge.");
       }
-      throw new Error(
-        payload?.error ?? "Unable to start two-step verification setup.",
-      );
+      throw new Error(payload?.error ?? "Unable to start two-step verification setup.");
     }
-    logAuthDebug("mfa_screen_mode_selected", {
-      mode: "enroll",
-      reason: "enroll_start_success",
-    });
+    logAuthDebug("mfa_screen_mode_selected", { mode: "enroll", reason: "enroll_start_success" });
     return payload;
   }, [markAuthTransition, refreshCsrfState]);
 
-  const finalizePostAuthNavigation = React.useCallback(
-    async (nextPath: string) => {
-      logAuthDebug("route_selected", {
-        route: nextPath,
-        reason: "post_auth_finalize",
-      });
-      markAuthTransition();
-      await refreshSession({ retryAfterDelay: true });
-      await refreshCsrfState();
-      window.location.assign(nextPath);
-    },
-    [markAuthTransition, refreshCsrfState, refreshSession],
-  );
+  const finalizePostAuthNavigation = React.useCallback(async (nextPath: string) => {
+    logAuthDebug("route_selected", { route: nextPath, reason: "post_auth_finalize" });
+    markAuthTransition();
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+    window.location.assign(nextPath);
+  }, [markAuthTransition, refreshCsrfState, refreshSession]);
 
-  const verifyMfaEnrollment = React.useCallback(
-    async (factorId: string, code: string) => {
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try two-step verification again.",
-        { forceRefresh: true },
-      );
-      const response = await secureApiFetch(
-        "/api/auth/mfa/enroll/verify",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ factorId, code }),
-        },
-        csrfToken,
-      );
-      const payload = (await response.json()) as {
-        recoveryCodes: string[];
-        nextPath?: string;
-      } & ApiErrorPayload;
-      if (!response.ok)
-        throw new Error(
-          payload?.error ?? "Unable to verify two-step verification setup.",
-        );
-      if (
-        !Array.isArray(payload?.recoveryCodes) ||
-        payload.recoveryCodes.length === 0
-      ) {
-        throw new Error(
-          "Two-step verification was activated, but recovery codes were not returned. Please contact support before continuing.",
-        );
-      }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
-      }
-      return {
-        recoveryCodes: payload.recoveryCodes,
-        nextPath: payload.nextPath,
-      };
-    },
-    [finalizePostAuthNavigation, refreshCsrfState],
-  );
+  const verifyMfaEnrollment = React.useCallback(async (factorId: string, code: string) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try two-step verification again.",
+      { forceRefresh: true },
+    );
+    const response = await secureApiFetch("/api/auth/mfa/enroll/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ factorId, code }),
+    }, csrfToken);
+    const payload = (await response.json()) as { recoveryCodes: string[]; nextPath?: string } & ApiErrorPayload;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to verify two-step verification setup.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      await finalizePostAuthNavigation(payload.nextPath);
+    }
+    return { recoveryCodes: payload.recoveryCodes ?? [], nextPath: payload.nextPath };
+  }, [finalizePostAuthNavigation, refreshCsrfState]);
 
-  const completeMfaChallenge = React.useCallback(
-    async (code: string, rememberDevice: boolean, stayLoggedIn = false) => {
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try two-step verification again.",
-        { forceRefresh: true },
-      );
-      const response = await secureApiFetch(
-        "/api/auth/mfa/challenge",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code, rememberDevice, stayLoggedIn }),
-        },
-        csrfToken,
-      );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & { nextPath?: string };
-      logAuthDebug("mfa_challenge_response_received", {
-        ok: response.ok,
-        status: response.status,
-        rememberDevice,
-        stayLoggedIn,
-        nextPath: payload?.nextPath ?? null,
-      });
-      if (!response.ok)
-        throw new Error(
-          payload?.error ??
-            "Unable to complete two-step verification challenge.",
-        );
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
-        return;
-      }
-      await refreshSession({ retryAfterDelay: true });
-      await refreshCsrfState();
-    },
-    [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
-  );
+  const completeMfaChallenge = React.useCallback(async (code: string, rememberDevice: boolean, stayLoggedIn = false) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try two-step verification again.",
+      { forceRefresh: true },
+    );
+    const response = await secureApiFetch("/api/auth/mfa/challenge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, rememberDevice, stayLoggedIn }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
+    logAuthDebug("mfa_challenge_response_received", {
+      ok: response.ok,
+      status: response.status,
+      rememberDevice,
+      stayLoggedIn,
+      nextPath: payload?.nextPath ?? null,
+    });
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step verification challenge.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      await finalizePostAuthNavigation(payload.nextPath);
+      return;
+    }
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+  }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
-  const completeMfaRecovery = React.useCallback(
-    async (
-      recoveryCode: string,
-      rememberDevice: boolean,
-      stayLoggedIn = false,
-    ) => {
-      const csrfToken = await requireCsrfToken(
-        csrfTokenRef.current,
-        refreshCsrfState,
-        "Security token is not ready. Please refresh and try recovery again.",
-        { forceRefresh: true },
-      );
-      const response = await secureApiFetch(
-        "/api/auth/mfa/recovery",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn }),
-        },
-        csrfToken,
-      );
-      const payload = (await response
-        .json()
-        .catch(() => null)) as ApiErrorPayload & { nextPath?: string };
-      logAuthDebug("mfa_recovery_response_received", {
-        ok: response.ok,
-        status: response.status,
-        rememberDevice,
-        stayLoggedIn,
-        nextPath: payload?.nextPath ?? null,
-      });
-      if (!response.ok)
-        throw new Error(
-          payload?.error ?? "Unable to complete two-step recovery.",
-        );
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
-        return;
-      }
-      await refreshSession({ retryAfterDelay: true });
-      await refreshCsrfState();
-    },
-    [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
-  );
+  const completeMfaRecovery = React.useCallback(async (recoveryCode: string, rememberDevice: boolean, stayLoggedIn = false) => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      "Security token is not ready. Please refresh and try recovery again.",
+      { forceRefresh: true },
+    );
+    const response = await secureApiFetch("/api/auth/mfa/recovery", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn }),
+    }, csrfToken);
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload & { nextPath?: string };
+    logAuthDebug("mfa_recovery_response_received", {
+      ok: response.ok,
+      status: response.status,
+      rememberDevice,
+      stayLoggedIn,
+      nextPath: payload?.nextPath ?? null,
+    });
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to complete two-step recovery.");
+    if (typeof payload?.nextPath === "string" && payload.nextPath.startsWith("/")) {
+      await finalizePostAuthNavigation(payload.nextPath);
+      return;
+    }
+    await refreshSession({ retryAfterDelay: true });
+    await refreshCsrfState();
+  }, [finalizePostAuthNavigation, refreshCsrfState, refreshSession]);
 
   const status: AuthStatus = React.useMemo(() => {
     if (sessionRevoked) return "unauthenticated";
@@ -1437,21 +1138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return "authenticated_fully";
-  }, [
-    authBootstrapping,
-    meQuery.data,
-    meQuery.isError,
-    meQuery.isLoading,
-    sessionRevoked,
-  ]);
+  }, [authBootstrapping, meQuery.data, meQuery.isError, meQuery.isLoading, sessionRevoked]);
 
   const value: AuthContextValue = React.useMemo(
     () => ({
       status,
-      user:
-        status === "loading" || status === "unauthenticated"
-          ? null
-          : (meQuery.data ?? null),
+      user: status === "loading" || status === "unauthenticated" ? null : (meQuery.data ?? null),
       authBootstrapping,
       csrfToken,
       csrfReady,
@@ -1528,8 +1220,4 @@ export function RequireAuth({
 }
 
 export { useTurnstileToken } from "./turnstile";
-export {
-  logAuthDebug,
-  isAuthDebugEnabled,
-  getLastAuthDebugEventSummary,
-} from "./authDebug";
+export { logAuthDebug, isAuthDebugEnabled, getLastAuthDebugEventSummary } from "./authDebug";
