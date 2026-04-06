@@ -14,7 +14,6 @@ import { validateEmailInput } from "./authValidation";
 import { AuthShell } from "./components/AuthShell";
 import { AuthMethodDivider } from "./components/AuthMethodDivider";
 import { FieldValidationMessage } from "./components/FieldValidationMessage";
-import { GoogleAuthButton } from "./components/GoogleAuthButton";
 
 const AUTH_DEBUG = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_AUTH_DEBUG === "true";
 
@@ -203,13 +202,15 @@ export default function Login() {
   return (
     <AuthShell title="Welcome" subtitle="Sign in or create your account to continue.">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
-        <GoogleAuthButton
+        <Button
+          size="lg"
+          className="w-full h-12 text-base font-medium"
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
-          loading={auth.loginInFlight}
-          idleLabel="Sign in with Google"
-          loadingLabel="Starting Google sign-in..."
-        />
+        >
+          <Chrome className="w-5 h-5 mr-3" />
+          {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
+        </Button>
 
         <Button size="lg" variant="outline" className="w-full h-12 text-base font-medium mt-3" onClick={() => handleGoogleLogin("create_account")} disabled={disabledReasons.length > 0}>
           <Chrome className="w-5 h-5 mr-3" />

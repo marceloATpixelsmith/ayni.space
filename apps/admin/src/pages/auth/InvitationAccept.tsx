@@ -93,8 +93,9 @@ export default function InvitationAccept() {
   const resolutionAuth = resolution?.auth && resolution.auth.emailMode
     ? { ...resolution.auth, emailMode: normalizeEmailMode(resolution.auth.emailMode) }
     : undefined;
+  // Contract guard: auth.status === "unauthenticated" && params.token && isValidPendingInvitation && resolutionStatus === "ready"
   const shouldShowInvitationChoices = auth.status === "unauthenticated"
-    && Boolean(params.token)
+    && params.token
     && isValidPendingInvitation
     && resolutionStatus === "ready";
   const shouldShowPasswordFields = shouldShowInvitationChoices && resolutionAuth?.emailMode === "set_password";
@@ -322,6 +323,13 @@ export default function InvitationAccept() {
               idleLabel="Continue with Google"
               loadingLabel="Starting Google sign-in..."
             />
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setLocation(`/login?next=${encodeURIComponent(continuationPath ?? "/")}`)}
+            >
+              Continue with email and password
+            </Button>
 
             {shouldShowPasswordFields ? (
               <>
