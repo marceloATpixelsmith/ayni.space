@@ -257,6 +257,56 @@ test("legacy /apps/:slug alias remains root-relative and redirects to org dashbo
   );
 });
 
+test("auth debug overlay supports collapse/expand, persistence, and keyboard accessibility", () => {
+  expectIncludes(
+    appSource,
+    'const storageKey = "auth-debug-overlay-collapsed";',
+    "Auth debug overlay should persist collapsed state with a dedicated localStorage key.",
+  );
+
+  expectIncludes(
+    appSource,
+    "window.localStorage.getItem(storageKey) === \"true\"",
+    "Auth debug overlay should restore collapsed state from localStorage on load.",
+  );
+
+  expectIncludes(
+    appSource,
+    "window.localStorage.setItem(storageKey, String(isCollapsed));",
+    "Auth debug overlay should write collapsed state changes to localStorage.",
+  );
+
+  expectIncludes(
+    appSource,
+    "if (event.key === \" \" || event.key === \"Enter\") {",
+    "Auth debug overlay toggle should support keyboard activation with Enter and Space.",
+  );
+
+  expectIncludes(
+    appSource,
+    "aria-expanded=\"false\"",
+    "Collapsed auth debug toggle should expose collapsed accessibility state.",
+  );
+
+  expectIncludes(
+    appSource,
+    "aria-expanded=\"true\"",
+    "Expanded auth debug toggle should expose expanded accessibility state.",
+  );
+
+  expectIncludes(
+    appSource,
+    "fixed bottom-3 right-3 z-[10000]",
+    "Collapsed auth debug affordance should remain a small fixed corner control to avoid blocking core UI.",
+  );
+
+  expectIncludes(
+    appSource,
+    "fixed right-3 top-3 z-[10000] max-h-[80vh]",
+    "Expanded auth debug panel should preserve existing full-panel rendering and scroll behavior.",
+  );
+});
+
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
