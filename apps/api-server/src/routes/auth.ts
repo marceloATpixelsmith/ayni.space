@@ -2752,6 +2752,13 @@ async function handleVerifyEmail(req: Request, res: Response) {
   ensureAuthFlowId(req);
   const token = String(req.body?.token ?? "").trim();
   const appSlug = String(req.body?.appSlug ?? "").trim();
+  const continuation = resolvePostAuthContinuation({
+    appSlug,
+    returnPath: normalizeReturnToPath(firstQueryParam(req.body?.returnToPath)),
+    continuationType: firstQueryParam(req.body?.continuationType),
+    orgId: firstQueryParam(req.body?.continuationOrgId),
+    resourceId: firstQueryParam(req.body?.continuationResourceId),
+  });
   const correlationId = req.correlationId;
   const logVerifyEmailOutcome = async (
     outcome: string,
@@ -2836,12 +2843,18 @@ async function handleVerifyEmail(req: Request, res: Response) {
 
   const mfaGate = await beginMfaPendingSession(req, user.id, appSlug, false);
   if (mfaGate.required) {
+    req.session.pendingPostAuthContinuation = continuation ?? undefined;
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+    });
     logAuthDebug(req, "verify_email_result", {
       userId: user.id,
       appSlug,
       mfaRequired: true,
       needsEnrollment: mfaGate.needsEnrollment,
       nextStep: mfaGate.nextStep,
+      continuationType: continuation?.type ?? null,
+      returnToPath: continuation?.returnPath ?? null,
     });
     await logVerifyEmailOutcome("verified_mfa_required", {
       userId: user.id,
@@ -2862,13 +2875,20 @@ async function handleVerifyEmail(req: Request, res: Response) {
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
   const nextPath =
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug)) ??
+    (await resolveNextPathForEstablishedSession(
+      req,
+      user.id,
+      appSlug,
+      continuation,
+    )) ??
     "/dashboard";
   logAuthDebug(req, "verify_email_result", {
     userId: user.id,
     appSlug,
     mfaRequired: false,
     nextPath,
+    continuationType: continuation?.type ?? null,
+    returnToPath: continuation?.returnPath ?? null,
   });
   await logVerifyEmailOutcome("verified_session_established", {
     userId: user.id,

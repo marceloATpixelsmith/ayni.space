@@ -39,6 +39,41 @@ test("post-auth resolver falls back to flow decision destination when continuati
   assert.equal(destination, "/onboarding/user");
 });
 
+test("post-auth resolver prioritizes continuation when onboarding is not required", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: resolvePostAuthContinuation({
+      appSlug: "admin",
+      returnPath: "/invitations/token-1/accept",
+    }),
+    flowDecision: {
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/invitations/token-1/accept");
+});
+
+test("post-auth resolver falls back to default destination when continuation is missing and onboarding is not required", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: null,
+    flowDecision: {
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/dashboard");
+});
+
 test("post-auth resolver returns fallback path when flow decision is unavailable", () => {
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: resolvePostAuthContinuation({
