@@ -211,7 +211,7 @@ export default function InvitationAccept() {
     if (auth.status === "unauthenticated") {
       inFlightRef.current = false;
       setStatus("idle");
-      setMessage("Sign in to continue accepting this invitation.");
+      setMessage("Continue to accept this invitation.");
       if (resolutionStatus === "loading") {
         setMessage("Checking invitation status...");
       } else if (resolutionStatus === "error") {

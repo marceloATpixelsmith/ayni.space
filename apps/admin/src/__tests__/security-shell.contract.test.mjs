@@ -95,7 +95,7 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 test("invitation accept route remains reachable pre-auth and controls login continuation itself", () => {
   expectIncludes(
     invitationAcceptSource,
-    "if (auth.status === \"unauthenticated\") {\n      inFlightRef.current = false;\n      setStatus(\"idle\");\n      setMessage(\"Sign in to continue accepting this invitation.\");",
+    "if (auth.status === \"unauthenticated\") {\n      inFlightRef.current = false;\n      setStatus(\"idle\");\n      setMessage(\"Continue to accept this invitation.\");",
     "Invitation page should own the unauthenticated pre-auth state instead of auto-redirecting.",
   );
 
@@ -1052,6 +1052,16 @@ test("invitation acceptance keeps first-time password creation and omits confirm
   );
   expectNotIncludes(
     invitationAcceptSource,
+    "Continue with email and password",
+    "Invitation acceptance should not render a generic email/password detour CTA.",
+  );
+  expectNotIncludes(
+    invitationAcceptSource,
+    "/login?next=",
+    "Invitation acceptance should not route first-time password setup through login?next.",
+  );
+  expectNotIncludes(
+    invitationAcceptSource,
     "setLocation(\"/login\")",
     "Invitation acceptance should not force a generic login redirect during first-time password setup.",
   );
@@ -1100,6 +1110,11 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
     verifyEmailSource,
     "setMessage(\"Email verified. Redirecting...\");",
     "Verify-email should transition directly to continuation when backend returns next-step routing.",
+  );
+  expectNotIncludes(
+    verifyEmailSource,
+    "After verification, sign in to continue onboarding.",
+    "Verify-email should not render stale sign-in-again onboarding copy.",
   );
   expectNotIncludes(
     verifyEmailSource,
