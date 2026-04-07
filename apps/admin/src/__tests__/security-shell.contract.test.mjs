@@ -168,7 +168,7 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
   );
   expectIncludes(
     invitationAcceptSource,
-    "return value === \"set_password\" || value === \"create_password\" || value === \"sign_in\" || value === \"none\";",
+    "return value === \"create_password\" || value === \"sign_in\" || value === \"none\";",
     "Invitation resolve parsing should accept backend 'create_password' email mode.",
   );
   expectIncludes(
@@ -176,12 +176,6 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
     "return value === \"pending\" ? \"valid\" : value;",
     "Invitation resolve parsing should normalize backend 'pending' to UI-valid invitation state.",
   );
-  expectIncludes(
-    invitationAcceptSource,
-    "return value === \"create_password\" ? \"set_password\" : value;",
-    "Invitation resolve parsing should normalize backend 'create_password' to UI set-password mode.",
-  );
-
   expectIncludes(
     invitationAcceptSource,
     "return `/api${invitationResolvePath}`;",
@@ -1020,6 +1014,11 @@ test("signup form only includes email + password and omits legacy fields", () =>
   );
   expectNotIncludes(
     signupSource,
+    "Create account with Google",
+    "Signup should not include Google create-account affordances in the dedicated email/password flow.",
+  );
+  expectNotIncludes(
+    signupSource,
     "Confirm Password",
     "Signup should not include a confirm-password field.",
   );
@@ -1071,6 +1070,11 @@ test("superadmin login hides signup affordances and blocks create-account intent
   );
   expectIncludes(
     loginSource,
+    "setHideSignupAffordances(CURRENT_APP_SLUG === \"admin\")",
+    "Login should fail closed and keep signup affordances hidden for admin app when metadata lookup fails.",
+  );
+  expectIncludes(
+    loginSource,
     "if (hideSignupAffordances && intent === \"create_account\") {",
     "Login should block create-account OAuth intent in superadmin mode.",
   );
@@ -1096,6 +1100,11 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
     verifyEmailSource,
     "sign in again",
     "Verify-email should not instruct users to sign in again after successful verification.",
+  );
+  expectNotIncludes(
+    verifyEmailSource,
+    "Back to sign in",
+    "Verify-email should not offer a manual back-to-login detour during verify-and-continue flow.",
   );
 });
 

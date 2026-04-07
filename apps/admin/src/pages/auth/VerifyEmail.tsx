@@ -1,7 +1,6 @@
 import React from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth, logAuthDebug } from "@workspace/frontend-security";
-import { Button } from "@/components/ui/button";
 import { AuthShell } from "./components/AuthShell";
 
 export default function VerifyEmail() {
@@ -69,18 +68,9 @@ export default function VerifyEmail() {
   return (
     <AuthShell
       title="Verify your email"
-      subtitle="Confirm your email address to finish signing in."
+      subtitle="Confirm your email address to continue automatically."
     >
       <p className="text-sm">{message}</p>
-      {phase === "error" ? (
-        <Button
-          className="mt-4"
-          type="button"
-          onClick={() => setLocation("/login")}
-        >
-          Back to sign in
-        </Button>
-      ) : null}
     </AuthShell>
   );
 }

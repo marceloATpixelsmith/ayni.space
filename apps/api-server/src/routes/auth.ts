@@ -2987,6 +2987,20 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
     return;
   }
 
+  if (!Array.isArray(activated.recoveryCodes) || activated.recoveryCodes.length === 0) {
+    logAuthDebug(req, "mfa_enroll_verify_result", {
+      userId,
+      verified: false,
+      factorIdPresent: Boolean(factorId),
+      error: "recovery_codes_missing",
+    });
+    res.status(500).json({
+      error:
+        "Two-step verification setup could not be completed safely. Please retry setup.",
+    });
+    return;
+  }
+
   const completed = await completePendingMfaSession(req);
   if (completed && rememberDevice) {
     const token = await rememberTrustedDevice(userId);

@@ -100,7 +100,7 @@ export default function Login() {
       })
       .catch(() => {
         if (cancelled) return;
-        setHideSignupAffordances(false);
+        setHideSignupAffordances(CURRENT_APP_SLUG === "admin");
       });
     return () => {
       cancelled = true;

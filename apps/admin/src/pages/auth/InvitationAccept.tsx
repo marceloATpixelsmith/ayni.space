@@ -21,7 +21,7 @@ type InvitationState =
   | "expired"
   | "accepted"
   | "revoked";
-type EmailMode = "set_password" | "create_password" | "sign_in" | "none";
+type EmailMode = "create_password" | "sign_in" | "none";
 type InvitationResolveResponse = {
   invitation?: {
     state?: InvitationState;
@@ -38,19 +38,13 @@ function isInvitationState(value: unknown): value is InvitationState {
 }
 
 function isEmailMode(value: unknown): value is EmailMode {
-  return value === "set_password" || value === "create_password" || value === "sign_in" || value === "none";
+  return value === "create_password" || value === "sign_in" || value === "none";
 }
 
 function normalizeInvitationState(
   value: InvitationState,
 ): Exclude<InvitationState, "pending"> {
   return value === "pending" ? "valid" : value;
-}
-
-function normalizeEmailMode(
-  value: EmailMode,
-): Exclude<EmailMode, "create_password"> {
-  return value === "create_password" ? "set_password" : value;
 }
 
 function isInvitationResolveResponse(
@@ -115,13 +109,7 @@ export default function InvitationAccept() {
     ? normalizeInvitationState(resolution.invitation.state)
     : undefined;
   const isValidPendingInvitation = invitationState === "valid";
-  const resolutionAuth =
-    resolution?.auth && resolution.auth.emailMode
-      ? {
-          ...resolution.auth,
-          emailMode: normalizeEmailMode(resolution.auth.emailMode),
-        }
-      : undefined;
+  const resolutionAuth = resolution?.auth;
   // Contract guard: auth.status === "unauthenticated" && params.token && isValidPendingInvitation && resolutionStatus === "ready"
   const shouldShowInvitationChoices =
     auth.status === "unauthenticated" &&
@@ -129,7 +117,7 @@ export default function InvitationAccept() {
     isValidPendingInvitation &&
     resolutionStatus === "ready";
   const shouldShowPasswordFields =
-    shouldShowInvitationChoices && resolutionAuth?.emailMode === "set_password";
+    shouldShowInvitationChoices && resolutionAuth?.emailMode === "create_password";
   const passwordError =
     passwordTouched || passwordSubmitting
       ? validatePasswordInput(password)
@@ -229,7 +217,7 @@ export default function InvitationAccept() {
       } else if (resolutionStatus === "error") {
         setStatus("error");
         setMessage("We couldn't load this invitation right now. Please retry.");
-      } else if (resolutionAuth?.emailMode === "set_password") {
+      } else if (resolutionAuth?.emailMode === "create_password") {
         setMessage("Set your password to join this invitation.");
       }
       setLoginError(null);
