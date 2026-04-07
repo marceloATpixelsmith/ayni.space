@@ -56,7 +56,7 @@ export default function Login() {
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [hideSignupAffordances, setHideSignupAffordances] =
-    React.useState(CURRENT_APP_SLUG === "admin");
+    React.useState(true);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
@@ -100,7 +100,7 @@ export default function Login() {
       })
       .catch(() => {
         if (cancelled) return;
-        setHideSignupAffordances(CURRENT_APP_SLUG === "admin");
+        setHideSignupAffordances(true);
       });
     return () => {
       cancelled = true;

@@ -1,7 +1,11 @@
 import React from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
+import {
+  fetchPlatformAppMetadataBySlug,
+  useAuth,
+  useTurnstileToken,
+} from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -15,7 +19,9 @@ import { FieldValidationMessage } from "./components/FieldValidationMessage";
 
 export default function Signup() {
   const auth = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [signupAllowed, setSignupAllowed] = React.useState(false);
+  const [metadataResolved, setMetadataResolved] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
@@ -27,6 +33,38 @@ export default function Signup() {
     emailTouched || submitted ? validateEmailInput(email) : null;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
+  const currentAppSlug = import.meta.env.VITE_APP_SLUG ?? "admin";
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPlatformAppMetadataBySlug(currentAppSlug)
+      .then((metadata) => {
+        if (cancelled) return;
+        setSignupAllowed(metadata?.normalizedAccessProfile !== "superadmin");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSignupAllowed(false);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setMetadataResolved(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAppSlug]);
+
+  React.useEffect(() => {
+    if (!metadataResolved || signupAllowed) return;
+    if (location !== "/signup") return;
+    setLocation("/login");
+  }, [location, metadataResolved, setLocation, signupAllowed]);
+
+  if (!metadataResolved || !signupAllowed) {
+    return null;
+  }
 
   const onSubmit = () => {
     setSubmitted(true);
