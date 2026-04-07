@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth, logAuthDebug } from "@workspace/frontend-security";
-import { AuthShell } from "./components/AuthShell";
+import { AuthShell } from "@workspace/auth-ui";
 
 export default function VerifyEmail() {
   const auth = useAuth();

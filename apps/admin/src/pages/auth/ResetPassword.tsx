@@ -4,8 +4,8 @@ import { useAuth } from "@workspace/frontend-security";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { validatePasswordInput } from "./authValidation";
-import { AuthShell } from "./components/AuthShell";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import { AuthShell } from "@workspace/auth-ui";
+import { FieldValidationMessage } from "@workspace/auth-ui";
 
 export default function ResetPassword() {
   const auth = useAuth();

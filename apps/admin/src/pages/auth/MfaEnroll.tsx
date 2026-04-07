@@ -6,8 +6,8 @@ import {
   secureApiFetch,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
-import { AuthShell } from "./components/AuthShell";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import { AuthShell } from "@workspace/auth-ui";
+import { FieldValidationMessage } from "@workspace/auth-ui";
 
 type MfaModeDecision = {
   mode: "enroll" | "challenge";

@@ -20,6 +20,10 @@ const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAc
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
 const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
 const verifyEmailPath = path.resolve(__dirname, "../pages/auth/VerifyEmail.tsx");
+const legacyAuthShellPath = path.resolve(__dirname, "../pages/auth/components/AuthShell.tsx");
+const legacyFieldValidationPath = path.resolve(__dirname, "../pages/auth/components/FieldValidationMessage.tsx");
+const legacyAuthMethodDividerPath = path.resolve(__dirname, "../pages/auth/components/AuthMethodDivider.tsx");
+const legacyGoogleAuthButtonPath = path.resolve(__dirname, "../pages/auth/components/GoogleAuthButton.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -1199,13 +1203,13 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
   expectNotIncludes(
     loginSource,
-    'from "./components/AuthShell"',
-    "Login must not own auth shell implementation directly under apps/admin.",
+    'from "./components/',
+    "Login must not import app-local auth shell primitives.",
   );
   expectNotIncludes(
     signupSource,
-    'from "./components/AuthShell"',
-    "Signup must not own auth shell implementation directly under apps/admin.",
+    'from "./components/',
+    "Signup must not import app-local auth shell primitives.",
   );
   expectIncludes(
     loginSource,
@@ -1216,5 +1220,28 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
     appSource,
     "const CURRENT_APP_SLUG = resolveCurrentAppSlug();",
     "App shell should resolve app slug via shared frontend-security helper instead of hardcoded defaults.",
+  );
+});
+
+test("admin app does not keep local auth shell primitive files", () => {
+  assert.equal(
+    fs.existsSync(legacyAuthShellPath),
+    false,
+    "AuthShell must be owned by @workspace/auth-ui, not apps/admin.",
+  );
+  assert.equal(
+    fs.existsSync(legacyFieldValidationPath),
+    false,
+    "FieldValidationMessage must be owned by @workspace/auth-ui, not apps/admin.",
+  );
+  assert.equal(
+    fs.existsSync(legacyAuthMethodDividerPath),
+    false,
+    "AuthMethodDivider must be owned by @workspace/auth-ui, not apps/admin.",
+  );
+  assert.equal(
+    fs.existsSync(legacyGoogleAuthButtonPath),
+    false,
+    "GoogleAuthButton must be owned by @workspace/auth-ui, not apps/admin.",
   );
 });

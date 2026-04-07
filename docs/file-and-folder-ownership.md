@@ -18,6 +18,7 @@
 - `lib/api-zod/**`: generated/shared zod/types output layer.
 - `lib/frontend-security/**`: shared frontend auth/security provider + helpers.
 - `lib/frontend-observability/**`: shared frontend monitoring/error capture layer.
+- `lib/auth-ui/**`: shared auth UI shell/primitives (auth shell, divider, validation message, auth motion, turnstile section, Google auth button).
 
 ### Package ownership status
 - `packages/opentelemetry-instrumentation-http/**`: local package implementation consumed as dependency by API app.
