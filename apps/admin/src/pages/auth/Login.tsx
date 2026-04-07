@@ -2,6 +2,11 @@ import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   useLoginRouteComposition,
+  useEmailValidationInteraction,
+  ensureTurnstileReadyForSubmit,
+  resetTurnstileOnFailure,
+  useAuthSubmitOrchestration,
+  validateEmailInput,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { ActivitySquare } from "lucide-react";
@@ -11,7 +16,6 @@ import {
   ADMIN_ACCESS_DENIED_MESSAGE,
   adminAccessDeniedLoginPath,
 } from "./accessDenied";
-import { validateEmailInput } from "./authValidation";
 import {
   AuthFormMotion,
   AuthMethodDivider,
@@ -31,8 +35,11 @@ export default function Login() {
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [emailInput, setEmailInput] = React.useState("");
   const [passwordInput, setPasswordInput] = React.useState("");
-  const [emailTouched, setEmailTouched] = React.useState(false);
-  const [submitted, setSubmitted] = React.useState(false);
+  const submit = useAuthSubmitOrchestration();
+  const emailValidation = useEmailValidationInteraction({
+    value: emailInput,
+    validate: validateEmailInput,
+  });
 
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
@@ -51,8 +58,7 @@ export default function Login() {
       onNavigate: setLocation,
     });
 
-  const emailError =
-    emailTouched || submitted ? validateEmailInput(emailInput) : null;
+  const emailError = emailValidation.error;
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -100,23 +106,22 @@ export default function Login() {
   }
 
   const handlePasswordLogin = () => {
-    setSubmitted(true);
+    emailValidation.markSubmitted();
     if (emailError) {
       setLoginError(emailError);
       return;
     }
-    if (turnstile.enabled && !turnstile.token) {
-      setLoginError("Please complete the verification challenge.");
+    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
+    if (turnstileError) {
+      setLoginError(turnstileError);
       return;
     }
 
     setLoginError(null);
-    auth
-      .loginWithPassword(emailInput, passwordInput, turnstile.token, nextPath)
+    void submit
+      .run(() => auth.loginWithPassword(emailInput, passwordInput, turnstile.token, nextPath))
       .catch((error) => {
-        setLoginError(
-          error instanceof Error ? error.message : "Unable to sign in.",
-        );
+        setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
       });
   };
 
@@ -127,13 +132,14 @@ export default function Login() {
     if (hideSignupAffordances && intent === "create_account") {
       return;
     }
-    if (turnstile.enabled && !turnstile.token) {
-      setLoginError("Please complete the verification challenge.");
+    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
+    if (turnstileError) {
+      setLoginError(turnstileError);
       return;
     }
 
     setLoginError(null);
-    auth.loginWithGoogle(turnstile.token, intent, nextPath).catch((error) => {
+    void submit.run(() => auth.loginWithGoogle(turnstile.token, intent, nextPath)).catch((error) => {
       const message =
         error instanceof Error
           ? error instanceof TypeError ||
@@ -142,7 +148,7 @@ export default function Login() {
             : error.message
           : "Unable to start Google sign-in right now. Please try again.";
       setLoginError(message);
-      if (turnstile.enabled) turnstile.reset();
+      resetTurnstileOnFailure(turnstile);
     });
   };
 
@@ -186,7 +192,7 @@ export default function Login() {
             placeholder="Email"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
-            onBlur={() => setEmailTouched(true)}
+            onBlur={emailValidation.markTouched}
             aria-invalid={Boolean(emailError)}
             aria-describedby={emailError ? "login-email-error" : undefined}
           />

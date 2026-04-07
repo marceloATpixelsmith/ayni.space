@@ -3,7 +3,7 @@ import { useSearch, useLocation } from "wouter";
 import { useAuth } from "@workspace/frontend-security";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
-import { validatePasswordInput } from "./authValidation";
+import { validatePasswordInput } from "@workspace/frontend-security";
 import { AuthShell } from "@workspace/auth-ui";
 import { FieldValidationMessage } from "@workspace/auth-ui";
 

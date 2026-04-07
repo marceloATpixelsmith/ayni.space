@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, X, Send } from "lucide-react";
-import { validateEmailInput } from "@/pages/auth/authValidation";
+import { validateEmailInput } from "@workspace/frontend-security";
 import { FieldValidationMessage } from "@workspace/auth-ui";
 
 export default function Invitations() {

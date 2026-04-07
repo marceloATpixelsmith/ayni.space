@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@workspace/frontend-security";
-import { validateEmailInput } from "./authValidation";
+import { validateEmailInput } from "@workspace/frontend-security";
 import { AuthShell } from "@workspace/auth-ui";
 import { FieldValidationMessage } from "@workspace/auth-ui";
 

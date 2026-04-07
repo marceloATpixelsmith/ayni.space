@@ -8,7 +8,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const validationSource = fs.readFileSync(
-  path.resolve(__dirname, "../pages/auth/authValidation.ts"),
+  path.resolve(__dirname, "../../../../lib/frontend-security/src/authValidation.ts"),
+  "utf8",
+);
+const formRuntimeSource = fs.readFileSync(
+  path.resolve(__dirname, "../../../../lib/frontend-security/src/auth-form-runtime.ts"),
   "utf8",
 );
 const loginSource = fs.readFileSync(
@@ -48,31 +52,25 @@ test("auth password policy is visible in signup UI", () => {
   assert.match(validationSource, /\/\[\^A-Za-z0-9\]\//);
 });
 
-test("login and signup gate email errors behind touch/submit interaction", () => {
+test("login and signup gate email errors behind shared touch/submit interaction hook", () => {
   assert.match(
     loginSource,
-    /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/,
+    /useEmailValidationInteraction/,
   );
   assert.match(
     loginSource,
-    /const \[submitted, setSubmitted\] = React\.useState\(false\);/,
+    /const emailError = emailValidation\.error;/,
   );
-  assert.match(
-    loginSource,
-    /const emailError =\s*emailTouched \|\| submitted \? validateEmailInput\(emailInput\) : null;/,
-  );
+  assert.match(formRuntimeSource, /const \[touched, setTouched\] = React\.useState\(false\);/);
+  assert.match(formRuntimeSource, /const \[submitted, setSubmitted\] = React\.useState\(false\);/);
 
   assert.match(
     signupSource,
-    /const \[emailTouched, setEmailTouched\] = React\.useState\(false\);/,
+    /useEmailValidationInteraction/,
   );
   assert.match(
     signupSource,
-    /const \[submitted, setSubmitted\] = React\.useState\(false\);/,
-  );
-  assert.match(
-    signupSource,
-    /const emailError =\s*emailTouched \|\| submitted \? validateEmailInput\(email\) : null;/,
+    /const emailError = emailValidation\.error;/,
   );
 });
 

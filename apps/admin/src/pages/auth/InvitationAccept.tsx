@@ -11,7 +11,7 @@ import { GoogleAuthButton } from "@workspace/auth-ui";
 import {
   getMissingPasswordRequirements,
   validatePasswordInput,
-} from "./authValidation";
+} from "@workspace/frontend-security";
 
 type Params = { token?: string };
 type InvitationState =
