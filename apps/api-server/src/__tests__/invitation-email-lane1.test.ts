@@ -312,6 +312,7 @@ test("invitation create persists invitee first and last name", async () => {
       role: "member",
     });
     assert.equal(response.status, 201);
+    assert.equal("invitationToken" in (response.body ?? {}), false);
     assert.equal(insertedInvitation?.["firstName"], "Jordan");
     assert.equal(insertedInvitation?.["lastName"], "Miles");
   } finally {
@@ -321,6 +322,94 @@ test("invitation create persists invitee first and last name", async () => {
   }
 });
 
+
+test("invitation resend omits plaintext token in API response while email link still contains token", async () => {
+  process.env["PLATFORM_BREVO_API_KEY"] = "test-key";
+  process.env["ALLOWED_ORIGINS"] = "https://app.example";
+
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-1",
+      email: "owner@example.com",
+      name: "Owner Name",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+    })),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({ id: "org-1", name: "Org One", appId: "app-1" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-1",
+      slug: "ayni",
+      name: "Ayni",
+      isActive: true,
+      accessMode: "organization",
+      staffInvitesEnabled: true,
+      transactionalFromEmail: "invites@ayni.space",
+      transactionalFromName: "Ayni Team",
+      transactionalReplyToEmail: "support@ayni.space",
+      invitationEmailSubject: "Join {{invitee_name}}",
+      invitationEmailHtml: "<a href='{{invitation_url}}'>Accept</a>",
+      metadata: {},
+    })),
+    patchProperty(db.query.invitationsTable, "findFirst", async () => ({
+      id: "inv-1",
+      orgId: "org-1",
+      appId: "app-1",
+      email: "invitee@example.com",
+      firstName: "Casey",
+      lastName: "Johnson",
+      invitedRole: "member",
+      invitationStatus: "pending",
+      invitedByUserId: "user-1",
+      expiresAt: new Date(Date.now() + 3600_000),
+    })),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => ({
+      id: "m-1",
+      userId: "user-1",
+      orgId: "org-1",
+      membershipStatus: "active",
+      role: "org_admin",
+    })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tpl-inv-resend",
+      appId: "app-1",
+      templateType: "invitation",
+      subjectTemplate: "Join {{invitee_name}}",
+      htmlTemplate: "<a href='{{invitation_url}}'>Accept</a>",
+      textTemplate: null,
+      isActive: true,
+    })),
+    patchProperty(db, "insert", ((_: unknown) => ({
+      values: async () => undefined,
+    })) as never),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: async () => undefined,
+      }),
+    })) as never),
+  ];
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string | URL | Request, _init?: RequestInit) => {
+    return new Response(JSON.stringify({ messageId: "brevo-msg-resend" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const app = createSessionApp(invitationsRouter, { userId: "user-1", sessionGroup: "default", appSlug: "ayni" });
+    const response = await performJsonRequest(app, "POST", "/api/organizations/org-1/invitations/inv-1/resend", {});
+
+    assert.equal(response.status, 200);
+    assert.equal("invitationToken" in (response.body ?? {}), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restores.reverse().forEach((restore) => restore());
+    delete process.env["PLATFORM_BREVO_API_KEY"];
+    delete process.env["ALLOWED_ORIGINS"];
+  }
+});
 
 test("template validation rejects unsupported tokens for template type", () => {
   const unsupported = validateTemplateTokens("password_reset", {

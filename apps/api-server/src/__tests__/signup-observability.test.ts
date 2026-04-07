@@ -213,13 +213,112 @@ test("signup duplicate-email denial logs duplicate_existing_email reason code", 
       name: "Duplicate",
     });
 
-    assert.equal(response.status, 409);
-    assert.equal(response.body?.error, "We couldn't create this account. Please use a different email and try again.");
+    assert.equal(response.status, 201);
+    assert.equal(response.body?.success, true);
+    assert.equal(response.body?.appSlug, "admin");
+    assert.equal(response.body?.message, "If your signup is valid, check your email for next steps.");
     const row = auditRows.find((entry) => entry.action === "auth.signup.decision");
     assert.ok(row);
     const metadata = row.metadata as Record<string, unknown>;
     assert.equal(metadata.reasonCode, "duplicate_existing_email");
     assert.equal(metadata.decisionCategory, "duplicate_email");
+  } finally {
+    globalThis.fetch = previousFetch;
+    restores.reverse().forEach((restore) => restore());
+    if (prevIpqsKey === undefined) delete process.env["IPQS_API_KEY"];
+    else process.env["IPQS_API_KEY"] = prevIpqsKey;
+  }
+});
+
+test("signup duplicate-email and fresh signup share public success contract", async () => {
+  const prevIpqsKey = process.env["IPQS_API_KEY"];
+  process.env["IPQS_API_KEY"] = "test-key";
+
+  let userLookupCount = 0;
+  let credentialLookupCount = 0;
+  const insertedCredentials: InsertPayload[] = [];
+  const previousFetch = globalThis.fetch;
+  const restores = [
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.usersTable, "findFirst", async () => {
+      userLookupCount += 1;
+      if (userLookupCount === 1) return null;
+      return { id: "user-existing", email: "existing@example.com", name: "Existing" };
+    }),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async () => {
+      credentialLookupCount += 1;
+      if (credentialLookupCount === 1) return null;
+      return { id: "cred-existing", userId: "user-existing", credentialType: "password" };
+    }),
+    patchProperty(db, "insert", ((table: unknown) => {
+      if (table === usersTable) {
+        return {
+          values: (payload: InsertPayload) => ({
+            returning: async () => [{ id: "user-created", email: payload.email, name: payload.name }],
+          }),
+        };
+      }
+      if (table === userCredentialsTable) {
+        return {
+          values: async (payload: InsertPayload) => {
+            insertedCredentials.push(payload);
+          },
+        };
+      }
+      if (table === authTokensTable || table === userAuthSecurityTable || table === auditLogsTable) {
+        return {
+          values: async () => undefined,
+        };
+      }
+      return {
+        values: async () => undefined,
+      };
+    }) as never),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: () => ({
+          returning: async () => [] as unknown[],
+        }),
+      }),
+    })) as never),
+  ];
+
+  globalThis.fetch = (async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("ipqualityscore.com")) {
+      return new Response(JSON.stringify({ fraud_score: 5, disposable: false, valid: true, smtp_score: 0.9 }), { status: 200 });
+    }
+    return previousFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const freshResponse = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: "fresh@example.com",
+      password: "SuperSecret123!",
+      name: "Fresh",
+    });
+    const duplicateResponse = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      email: "existing@example.com",
+      password: "SuperSecret123!",
+      name: "Existing",
+    });
+
+    assert.equal(freshResponse.status, 201);
+    assert.equal(duplicateResponse.status, 201);
+    assert.deepEqual(
+      {
+        success: freshResponse.body?.success,
+        appSlug: freshResponse.body?.appSlug,
+        message: freshResponse.body?.message,
+      },
+      {
+        success: duplicateResponse.body?.success,
+        appSlug: duplicateResponse.body?.appSlug,
+        message: duplicateResponse.body?.message,
+      },
+    );
+    assert.equal(insertedCredentials.length, 1);
   } finally {
     globalThis.fetch = previousFetch;
     restores.reverse().forEach((restore) => restore());

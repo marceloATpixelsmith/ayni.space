@@ -475,7 +475,6 @@ async function createInvitation(req: Request<{ orgId: string }>, res: Response) 
     status: invitation.invitationStatus,
     expiresAt: invitation.expiresAt,
     createdAt: invitation.createdAt,
-    invitationToken: rawInvitationToken,
   });
 }
 
@@ -581,7 +580,7 @@ async function resendInvitation(req: Request<{ orgId: string; invitationId: stri
     req,
   });
 
-  res.json({ success: true, invitationId, invitationToken: rawInvitationToken });
+  res.json({ success: true, invitationId });
 }
 
 async function acceptInvitation(req: Request<{ token: string }>, res: Response) {
