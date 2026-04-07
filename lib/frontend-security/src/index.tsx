@@ -1638,3 +1638,5 @@ export {
   isAuthDebugEnabled,
   getLastAuthDebugEventSummary,
 } from "./authDebug";
+
+export * from "./auth-page-orchestration";

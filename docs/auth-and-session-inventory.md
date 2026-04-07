@@ -5,6 +5,7 @@
 - Canonical companion: `docs/authentication-and-session-architecture.md`.
 
 ## Confirmed
+- Login/signup route orchestration ownership now sits in shared `lib/frontend-security/src/auth-page-orchestration.ts` (`useLoginRouteComposition`, `useSignupRoutePolicy`, `getLoginDisabledReasons`), with admin route files acting as thin composition pages over shared auth UI + shared auth logic.
 - Signup anti-enumeration hardening now keeps duplicate-email and fresh-email password-signup responses aligned on the same public status/contract (`201` + generic message), while duplicate credential creation is still prevented and recorded via audit reason code (`apps/api-server/src/routes/auth.ts`).
 - Invitation create/resend responses are now metadata-only and never include plaintext `invitationToken`; token material is confined to internal send-time email-link generation (`apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/lib/invitationEmail.ts`).
 - Login requests can now opt into 14-day persistence (`stayLoggedIn`) and backend session cookies are adjusted authoritatively in `apps/api-server/src/lib/session.ts`/`apps/api-server/src/routes/auth.ts` (including Google OAuth state handoff).

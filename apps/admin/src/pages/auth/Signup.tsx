@@ -1,8 +1,8 @@
 import React from "react";
 import { useLocation } from "wouter";
 import {
-  useCurrentPlatformAppMetadata,
   useAuth,
+  useSignupRoutePolicy,
   useTurnstileToken,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
@@ -23,31 +23,23 @@ import {
 export default function Signup() {
   const auth = useAuth();
   const [location, setLocation] = useLocation();
-  const [signupAllowed, setSignupAllowed] = React.useState(false);
-  const [metadataResolved, setMetadataResolved] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const turnstile = useTurnstileToken();
-  const { metadata, loading: metadataLoading } = useCurrentPlatformAppMetadata();
+
+  const { metadataResolved, signupAllowed } = useSignupRoutePolicy({
+    locationPath: location,
+    signupPath: "/signup",
+    onRedirect: setLocation,
+  });
 
   const emailError =
     emailTouched || submitted ? validateEmailInput(email) : null;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
-
-  React.useEffect(() => {
-    setSignupAllowed(metadata?.normalizedAccessProfile !== "superadmin");
-    setMetadataResolved(!metadataLoading);
-  }, [metadata, metadataLoading]);
-
-  React.useEffect(() => {
-    if (!metadataResolved || signupAllowed) return;
-    if (location !== "/signup") return;
-    setLocation("/login");
-  }, [location, metadataResolved, setLocation, signupAllowed]);
 
   if (!metadataResolved || !signupAllowed) {
     return null;
@@ -146,7 +138,12 @@ export default function Signup() {
           <Button
             className="w-full"
             onClick={onSubmit}
-            disabled={!email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password))}
+            disabled={
+              !email ||
+              !password ||
+              Boolean(validateEmailInput(email)) ||
+              Boolean(validatePasswordInput(password))
+            }
           >
             Sign up with email
           </Button>

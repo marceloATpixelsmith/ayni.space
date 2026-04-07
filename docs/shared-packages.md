@@ -6,6 +6,7 @@
 ## Confirmed
 
 ### Active shared runtime libraries (`lib/*`)
+- `lib/frontend-security/src/auth-page-orchestration.ts` owns reusable login/signup route orchestration helpers (`useLoginRouteComposition`, `useSignupRoutePolicy`, `getLoginDisabledReasons`) consumed by admin auth routes; app pages should not duplicate this orchestration logic.
 - `lib/db` (`@workspace/db`) is the active shared database layer used by API and scripts. It exposes DB client/pool and schema/migrations under `lib/db/src/index.ts`, `lib/db/src/schema/*.ts`, and `lib/db/migrations/*.sql`.
 - `lib/api-client-react` (`@workspace/api-client-react`) is the active frontend API client/hooks layer used by `apps/admin` and `lib/frontend-security`.
 - `lib/api-zod` (`@workspace/api-zod`) is a shared schema/types layer with narrow active usage (notably API health route parsing).
