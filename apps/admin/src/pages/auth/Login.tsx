@@ -9,7 +9,7 @@ import {
   useTurnstileToken,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
-import { Chrome, ActivitySquare } from "lucide-react";
+import { ActivitySquare } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
   ADMIN_ACCESS_DENIED_ERROR,
@@ -20,6 +20,7 @@ import { validateEmailInput } from "./authValidation";
 import {
   AuthFormMotion,
   AuthMethodDivider,
+  GoogleAuthButton,
   AuthShell,
   AuthTurnstileSection,
   FieldValidationMessage,
@@ -253,29 +254,24 @@ export default function Login() {
       }
     >
       <AuthFormMotion>
-        <Button
-          size="lg"
-          className="w-full h-12 text-base font-medium"
+        <GoogleAuthButton
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
-        >
-          <Chrome className="w-5 h-5 mr-3" />
-          {auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
-        </Button>
+          loading={auth.loginInFlight}
+          idleLabel="Sign in with Google"
+          loadingLabel="Starting Google sign-in..."
+        />
 
         {!hideSignupAffordances ? (
-          <Button
-            size="lg"
+          <GoogleAuthButton
             variant="outline"
-            className="w-full h-12 text-base font-medium mt-3"
+            className="mt-3"
             onClick={() => handleGoogleLogin("create_account")}
             disabled={disabledReasons.length > 0}
-          >
-            <Chrome className="w-5 h-5 mr-3" />
-            {auth.loginInFlight
-              ? "Starting account setup..."
-              : "Create account with Google"}
-          </Button>
+            loading={auth.loginInFlight}
+            idleLabel="Create account with Google"
+            loadingLabel="Starting account setup..."
+          />
         ) : null}
 
         <AuthMethodDivider />

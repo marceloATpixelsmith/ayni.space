@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@workspace/frontend-security";
 import { validateEmailInput } from "./authValidation";
-import { AuthShell } from "./components/AuthShell";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import { AuthShell } from "@workspace/auth-ui";
+import { FieldValidationMessage } from "@workspace/auth-ui";
 
 export default function ForgotPassword() {
   const auth = useAuth();

@@ -130,3 +130,14 @@ test("auth pages avoid hardcoded app slug defaults", () => {
   assert.doesNotMatch(loginSource, /VITE_APP_SLUG \?\? "admin"/);
   assert.doesNotMatch(signupSource, /VITE_APP_SLUG \?\? "admin"/);
 });
+
+test("auth pages consume shared auth-ui primitives from lib/auth-ui", () => {
+  assert.match(loginSource, /from "@workspace\/auth-ui"/);
+  assert.match(signupSource, /from "@workspace\/auth-ui"/);
+  assert.match(forgotSource, /from "@workspace\/auth-ui"/);
+  assert.match(invitationSource, /from "@workspace\/auth-ui"/);
+  assert.doesNotMatch(loginSource, /from "\.\/components\//);
+  assert.doesNotMatch(signupSource, /from "\.\/components\//);
+  assert.doesNotMatch(forgotSource, /from "\.\/components\//);
+  assert.doesNotMatch(invitationSource, /from "\.\/components\//);
+});

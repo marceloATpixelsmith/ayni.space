@@ -4,10 +4,10 @@ import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { motion } from "framer-motion";
-import { AuthShell } from "./components/AuthShell";
-import { AuthMethodDivider } from "./components/AuthMethodDivider";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
-import { GoogleAuthButton } from "./components/GoogleAuthButton";
+import { AuthShell } from "@workspace/auth-ui";
+import { AuthMethodDivider } from "@workspace/auth-ui";
+import { FieldValidationMessage } from "@workspace/auth-ui";
+import { GoogleAuthButton } from "@workspace/auth-ui";
 import {
   getMissingPasswordRequirements,
   validatePasswordInput,

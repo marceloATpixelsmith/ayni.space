@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, X, Send } from "lucide-react";
 import { validateEmailInput } from "@/pages/auth/authValidation";
-import { FieldValidationMessage } from "@/pages/auth/components/FieldValidationMessage";
+import { FieldValidationMessage } from "@workspace/auth-ui";
 
 export default function Invitations() {
   const [, setLocation] = useLocation();
