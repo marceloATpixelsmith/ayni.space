@@ -98,7 +98,18 @@ test("signup password feedback is progressive and hidden before interaction", ()
 
 test("signup and invitation flows avoid confirm-password fields", () => {
   assert.doesNotMatch(signupSource, /Confirm password/i);
+  assert.doesNotMatch(signupSource, /confirmPassword/);
+  assert.doesNotMatch(signupSource, /Full Name/i);
   assert.doesNotMatch(invitationSource, /Confirm password/i);
+});
+
+test("signup submit gating depends only on email and password validity", () => {
+  assert.match(
+    signupSource,
+    /disabled=\{!email \|\| !password \|\| Boolean\(validateEmailInput\(email\)\) \|\| Boolean\(validatePasswordInput\(password\)\)\}/,
+  );
+  assert.doesNotMatch(signupSource, /Full Name/i);
+  assert.doesNotMatch(signupSource, /confirmPassword/);
 });
 
 test("invitation flow performs password creation on invitation screen", () => {
