@@ -755,9 +755,7 @@ test("session revalidates on browser restore/navigation visibility", () => {
 test("login button disables while google oauth url request is pending", () => {
   expectIncludes(
     loginSource,
-    "if (auth.loginInFlight) {
-      return;
-    }",
+    "if (auth.loginInFlight) {\n      return;\n    }",
     "Login click handler should ignore duplicate clicks while request is pending.",
   );
 
