@@ -1080,13 +1080,13 @@ test("superadmin login hides signup affordances and blocks create-account intent
   );
   expectIncludes(
     loginSource,
-    "React.useState(CURRENT_APP_SLUG === \"admin\")",
-    "Login should default to hidden signup affordances for admin slug to avoid superadmin-mode create-account flashes before metadata resolves.",
+    "React.useState(true)",
+    "Login should default to hidden signup affordances to avoid superadmin-mode create-account flashes before metadata resolves.",
   );
   expectIncludes(
     loginSource,
-    "setHideSignupAffordances(CURRENT_APP_SLUG === \"admin\")",
-    "Login should fail closed and keep signup affordances hidden for admin app when metadata lookup fails.",
+    "setHideSignupAffordances(true)",
+    "Login should fail closed and keep signup affordances hidden when metadata lookup fails.",
   );
   expectIncludes(
     loginSource,
