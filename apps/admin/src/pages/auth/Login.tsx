@@ -7,6 +7,8 @@ import {
   resetTurnstileOnFailure,
   useAuthSubmitOrchestration,
   validateEmailInput,
+  isFullyAuthenticatedStatus,
+  resolveAuthenticatedNextStep,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { ActivitySquare } from "lucide-react";
@@ -44,12 +46,9 @@ export default function Login() {
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
   const accessErrorCode = query.get("error");
-  const accessError =
-    accessErrorCode === ADMIN_ACCESS_DENIED_ERROR
-      ? ADMIN_ACCESS_DENIED_MESSAGE
-      : null;
+  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
 
-  const { auth, turnstile, hideSignupAffordances, disabledReasons } =
+  const { auth, turnstile, hideSignupAffordances } =
     useLoginRouteComposition({
       nextPath,
       accessErrorPresent: Boolean(accessError),
@@ -58,7 +57,22 @@ export default function Login() {
       onNavigate: setLocation,
     });
 
+  const disabledReasons = React.useMemo(() => {
+    const reasons: string[] = [];
+    const input = {
+      csrfReady: auth.csrfReady,
+      csrfTokenPresent: Boolean(auth.csrfToken),
+      turnstileEnabled: turnstile.enabled,
+      turnstileTokenPresent: Boolean(turnstile.token),
+    };
+    if (!input.csrfReady) reasons.push("!auth.csrfReady");
+    if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
+    if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+    return reasons;
+  }, [auth.csrfReady, auth.csrfToken, turnstile.enabled, turnstile.token]);
+
   const emailError = emailValidation.error;
+  const deniedCleanupAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -97,6 +111,29 @@ export default function Login() {
     disabledReasons,
   ]);
 
+  React.useEffect(() => {
+    if (!accessError) {
+      deniedCleanupAttemptedRef.current = false;
+      return;
+    }
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    if (deniedCleanupAttemptedRef.current) return;
+    deniedCleanupAttemptedRef.current = true;
+    void auth.logout();
+  }, [accessError, auth.status, auth.logout]);
+
+  React.useEffect(() => {
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    const nextStep = resolveAuthenticatedNextStep({
+      authStatus: auth.status,
+      user: auth.user,
+      continuationPath: nextPath,
+      deniedLoginPath: adminAccessDeniedLoginPath(),
+      defaultPath: "/dashboard",
+    });
+    setLocation(nextStep.destination);
+  }, [auth.status, auth.user, nextPath, setLocation]);
+
   if (auth.status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -118,8 +155,9 @@ export default function Login() {
     }
 
     setLoginError(null);
+    const turnstileToken = turnstile.token;
     void submit
-      .run(() => auth.loginWithPassword(emailInput, passwordInput, turnstile.token, nextPath))
+      .run(() => auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath))
       .catch((error) => {
         setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
       });
@@ -139,7 +177,13 @@ export default function Login() {
     }
 
     setLoginError(null);
-    void submit.run(() => auth.loginWithGoogle(turnstile.token, intent, nextPath)).catch((error) => {
+    const turnstileToken = turnstile.token;
+    const oauthUrlRequest = { token: turnstileToken };
+    if (!oauthUrlRequest.token) {
+      setLoginError("Please complete verification before continuing.");
+      return;
+    }
+    void submit.run(() => auth.loginWithGoogle(turnstileToken, intent, nextPath)).catch((error) => {
       const message =
         error instanceof Error
           ? error instanceof TypeError ||
@@ -166,9 +210,7 @@ export default function Login() {
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
           loading={false}
-          idleLabel={
-            auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"
-          }
+          idleLabel={auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
           loadingLabel="Starting Google sign-in..."
         />
 
