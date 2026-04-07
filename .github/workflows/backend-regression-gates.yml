@@ -45,7 +45,9 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        id: install_deps
+        run: pnpm install --frozen-lockfile
 
       - name: Create backend logs directory
         run: mkdir -p artifacts/backend-gates
@@ -215,24 +217,29 @@ jobs:
       - name: Fail job if any backend gate failed
         if: always()
         run: |
+          if [ "${{ steps.install_deps.outcome }}" != "success" ]; then
+            echo "FAILED STEP: Install dependencies (id: install_deps)"
+            echo "Backend regression gates failed before backend command gates could execute."
+            exit 1
+          fi
+
           should_fail_step() {
             local outcome="$1"
             local exit_code="$2"
 
-            if [ "$outcome" = "cancelled" ] || [ "$outcome" = "skipped" ]; then
+            if [ "$outcome" = "failure" ]; then
               return 0
             fi
 
-            if [ "$outcome" = "success" ]; then
-              return 1
+            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -ne 0 ]; then
+              return 0
             fi
 
-            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -eq 0 ]; then
-              echo "warning: non-success outcome reported with zero exit code; treating as pass"
-              return 1
+            if [ "$outcome" = "cancelled" ]; then
+              return 0
             fi
 
-            return 0
+            return 1
           }
 
           typecheck_outcome="${{ steps.typecheck.outcome }}"
