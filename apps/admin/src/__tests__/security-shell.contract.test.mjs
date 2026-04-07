@@ -20,6 +20,7 @@ const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAc
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
 const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
 const verifyEmailPath = path.resolve(__dirname, "../pages/auth/VerifyEmail.tsx");
+const sharedAuthShellPath = path.resolve(__dirname, "../../../../lib/auth-ui/src/AuthShell.tsx");
 const legacyAuthShellPath = path.resolve(__dirname, "../pages/auth/components/AuthShell.tsx");
 const legacyFieldValidationPath = path.resolve(__dirname, "../pages/auth/components/FieldValidationMessage.tsx");
 const legacyAuthMethodDividerPath = path.resolve(__dirname, "../pages/auth/components/AuthMethodDivider.tsx");
@@ -41,6 +42,7 @@ const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
 const mfaEnrollSource = fs.readFileSync(mfaEnrollPath, "utf8");
 const mfaChallengeSource = fs.readFileSync(mfaChallengePath, "utf8");
 const verifyEmailSource = fs.readFileSync(verifyEmailPath, "utf8");
+const sharedAuthShellSource = fs.readFileSync(sharedAuthShellPath, "utf8");
 
 function expectIncludes(source, needle, message) {
   assert.ok(source.includes(needle), `${message}\nExpected snippet: ${needle}`);
@@ -1213,13 +1215,23 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
   expectIncludes(
     loginSource,
-    "const CURRENT_APP_SLUG = resolveCurrentAppSlug();",
-    "Login should resolve app slug via shared frontend-security helper instead of hardcoded defaults.",
+    "const { metadata } = useCurrentPlatformAppMetadata();",
+    "Login should consume shared app metadata hook instead of app-local metadata fetch logic.",
   );
   expectIncludes(
     appSource,
-    "const CURRENT_APP_SLUG = resolveCurrentAppSlug();",
-    "App shell should resolve app slug via shared frontend-security helper instead of hardcoded defaults.",
+    "const { metadata, loading } = useCurrentPlatformAppMetadata();",
+    "App shell should consume shared app metadata hook instead of app-local metadata fetch logic.",
+  );
+  expectNotIncludes(
+    loginSource,
+    "fetchPlatformAppMetadataBySlug(",
+    "Login should not perform app-local app metadata fetches.",
+  );
+  expectNotIncludes(
+    signupSource,
+    "fetchPlatformAppMetadataBySlug(",
+    "Signup should not perform app-local app metadata fetches.",
   );
 });
 
@@ -1243,5 +1255,18 @@ test("admin app does not keep local auth shell primitive files", () => {
     fs.existsSync(legacyGoogleAuthButtonPath),
     false,
     "GoogleAuthButton must be owned by @workspace/auth-ui, not apps/admin.",
+  );
+});
+
+test("shared auth shell has no admin-local asset path defaults", () => {
+  expectNotIncludes(
+    sharedAuthShellSource,
+    "images/logo.png",
+    "Shared AuthShell must not hardcode admin-local logo asset paths.",
+  );
+  expectNotIncludes(
+    sharedAuthShellSource,
+    "images/auth-bg.png",
+    "Shared AuthShell must not hardcode admin-local background asset paths.",
   );
 });

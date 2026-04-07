@@ -1,8 +1,7 @@
 import React from "react";
 import { useLocation } from "wouter";
 import {
-  fetchPlatformAppMetadataBySlug,
-  resolveCurrentAppSlug,
+  useCurrentPlatformAppMetadata,
   useAuth,
   useTurnstileToken,
 } from "@workspace/frontend-security";
@@ -32,41 +31,17 @@ export default function Signup() {
   const [submitted, setSubmitted] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const turnstile = useTurnstileToken();
+  const { metadata, loading: metadataLoading } = useCurrentPlatformAppMetadata();
 
   const emailError =
     emailTouched || submitted ? validateEmailInput(email) : null;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
-  const currentAppSlug = resolveCurrentAppSlug();
 
   React.useEffect(() => {
-    let cancelled = false;
-    if (!currentAppSlug) {
-      setSignupAllowed(false);
-      setMetadataResolved(true);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    fetchPlatformAppMetadataBySlug(currentAppSlug)
-      .then((metadata) => {
-        if (cancelled) return;
-        setSignupAllowed(metadata?.normalizedAccessProfile !== "superadmin");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSignupAllowed(false);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setMetadataResolved(true);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentAppSlug]);
+    setSignupAllowed(metadata?.normalizedAccessProfile !== "superadmin");
+    setMetadataResolved(!metadataLoading);
+  }, [metadata, metadataLoading]);
 
   React.useEffect(() => {
     if (!metadataResolved || signupAllowed) return;

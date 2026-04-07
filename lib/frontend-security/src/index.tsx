@@ -525,6 +525,47 @@ export async function fetchPlatformAppMetadataBySlug(
   return null;
 }
 
+export function useCurrentPlatformAppMetadata(): {
+  currentAppSlug: string | null;
+  metadata: PlatformAppMetadata | null;
+  loading: boolean;
+} {
+  const currentAppSlug = resolveCurrentAppSlug();
+  const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(
+    null,
+  );
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!currentAppSlug) {
+      setMetadata(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(true);
+    fetchPlatformAppMetadataBySlug(currentAppSlug)
+      .then((result) => {
+        if (cancelled) return;
+        setMetadata(result);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAppSlug]);
+
+  return { currentAppSlug, metadata, loading };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [csrfToken, setCsrfToken] = React.useState<string | null>(null);

@@ -51,6 +51,7 @@
 - Login/signup/forgot-password email field validation now defers inline errors until blur/touch or submit, while signup password feedback renders progressively after typing by showing only missing policy requirements (8+ chars, uppercase, lowercase, number) (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/admin/src/pages/auth/authValidation.ts`).
 
 - Frontend auth UI shell/layout primitives are centralized in `lib/auth-ui/src/*` and consumed directly by admin auth routes (login/signup/invitation/MFA/reset/verify/forgot), leaving app route files as thin composers of shared UI + shared auth logic and eliminating app-local auth shell wrapper files under `apps/admin/src/pages/auth/components/*` (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/InvitationAccept.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `lib/auth-ui/src/index.ts`).
+- Shared frontend auth route metadata resolution is centralized via `useCurrentPlatformAppMetadata()` in `lib/frontend-security/src/index.tsx` and consumed by admin shell/login/signup routes, replacing app-local metadata fetch effects and reducing app-owned auth-route policy logic (`apps/admin/src/App.tsx`, `apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `lib/frontend-security/src/index.tsx`).
 
 ## Inferred
 - Session/auth is backend-authoritative, with frontend consuming session state via shared provider and API client.
