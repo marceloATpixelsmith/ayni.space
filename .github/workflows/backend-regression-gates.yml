@@ -56,9 +56,10 @@ jobs:
         id: typecheck
         continue-on-error: true
         run: |
+          set +e
           set -o pipefail
           pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/backend-typecheck.log
-          status=${PIPESTATUS[0]}
+          status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
@@ -66,9 +67,10 @@ jobs:
         id: build
         continue-on-error: true
         run: |
+          set +e
           set -o pipefail
           pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/backend-build.log
-          status=${PIPESTATUS[0]}
+          status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
@@ -76,13 +78,12 @@ jobs:
         id: api_tests
         continue-on-error: true
         run: |
-          set -euo pipefail
+          set +e
+          set -o pipefail
 
           run_api_tests() {
             local log_file="$1"
-            if pnpm --filter @workspace/api-server run test:ci 2>&1 | tee "$log_file"; then
-              return 0
-            fi
+            pnpm --filter @workspace/api-server run test:ci 2>&1 | tee "$log_file"
             return $?
           }
 
@@ -109,9 +110,10 @@ jobs:
         id: regression
         continue-on-error: true
         run: |
+          set +e
           set -o pipefail
           pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
-          status=${PIPESTATUS[0]}
+          status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
