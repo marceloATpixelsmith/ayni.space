@@ -27,6 +27,11 @@ type RateLimitStore = {
   consume: (key: string, now: number, windowMs: number, max: number) => Promise<RateLimitConsumeResult>;
 };
 
+type PgLikeError = {
+  code?: string;
+  message?: string;
+};
+
 function getClientKey(req: Request): string {
   return req.ip || req.socket.remoteAddress || "unknown";
 }
@@ -92,6 +97,7 @@ const postgresStore: RateLimitStore = {
 };
 
 let rateLimitStoreOverride: RateLimitStore | null = null;
+const loggedLimiterFallbackReasons = new Set<string>();
 
 function getRateLimitStore(): RateLimitStore {
   if (rateLimitStoreOverride) return rateLimitStoreOverride;
@@ -101,6 +107,35 @@ function getRateLimitStore(): RateLimitStore {
 
 export function setRateLimitStoreForTests(store: RateLimitStore | null): void {
   rateLimitStoreOverride = store;
+}
+
+function isEmergencyLocalFallbackEligible(error: unknown): boolean {
+  const pgError = error as PgLikeError | null;
+  const code = pgError?.code;
+  const message = pgError?.message ?? "";
+  const indicatesRateLimitTableIssue =
+    message.includes("platform.rate_limits") ||
+    message.includes("rate_limits") ||
+    message.includes("schema \"platform\"");
+
+  return code === "42P01" || code === "3F000" || code === "42501" || indicatesRateLimitTableIssue;
+}
+
+function logEmergencyLocalFallback(error: unknown, scope: "ip" | "identifier"): void {
+  const pgError = error as PgLikeError | null;
+  const reason = pgError?.code ?? "unknown";
+  if (loggedLimiterFallbackReasons.has(`${scope}:${reason}`)) return;
+  loggedLimiterFallbackReasons.add(`${scope}:${reason}`);
+
+  console.error(
+    `[rate-limit] distributed ${scope} limiter backend unavailable; using emergency in-memory limiter until database rollout is fixed`,
+    {
+      code: pgError?.code ?? null,
+      message: pgError?.message ?? String(error),
+      remediation:
+        "apply migration lib/db/migrations/20260407_distributed_rate_limits.sql and ensure API DB role has INSERT/UPDATE/SELECT on platform.rate_limits",
+    },
+  );
 }
 
 export type RateLimitOptions = {
@@ -154,10 +189,14 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
         next();
       })
       .catch((error) => {
-        if (isProduction()) {
+        if (isProduction() && !isEmergencyLocalFallbackEligible(error)) {
           console.error("[rate-limit] distributed limiter failure", error);
           res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
           return;
+        }
+
+        if (isProduction()) {
+          logEmergencyLocalFallback(error, "ip");
         }
 
         memoryStore
@@ -223,10 +262,14 @@ export function authRateLimiterWithIdentifier(options: AuthRateLimiterWithIdenti
           next();
         })
         .catch((error) => {
-          if (isProduction()) {
+          if (isProduction() && !isEmergencyLocalFallbackEligible(error)) {
             console.error("[rate-limit] distributed identifier limiter failure", error);
             res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
             return;
+          }
+
+          if (isProduction()) {
+            logEmergencyLocalFallback(error, "identifier");
           }
 
           memoryStore

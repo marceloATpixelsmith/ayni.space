@@ -194,3 +194,34 @@ test("production rate limiter fails closed when distributed store is unavailable
     else process.env["NODE_ENV"] = prevNodeEnv;
   }
 });
+
+test("production rate limiter uses emergency local limiter when distributed table is missing", async () => {
+  const prevNodeEnv = process.env["NODE_ENV"];
+  process.env["NODE_ENV"] = "production";
+  setRateLimitStoreForTests({
+    consume: async () => {
+      const error = new Error('relation "platform.rate_limits" does not exist') as Error & { code: string };
+      error.code = "42P01";
+      throw error;
+    },
+  });
+
+  try {
+    const app = express();
+    app.use("/api/auth/google/url", authRateLimiter({ max: 1, keyPrefix: nextRateLimitTestPrefix("prod-emergency-fallback") }));
+    app.post("/api/auth/google/url", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    const first = await requestJson(app);
+    assert.equal(first.status, 200);
+
+    const second = await requestJson(app);
+    assert.equal(second.status, 429);
+    assert.equal(second.body.code, "RATE_LIMITED");
+  } finally {
+    setRateLimitStoreForTests(null);
+    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = prevNodeEnv;
+  }
+});
