@@ -1,10 +1,9 @@
 import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  fetchPlatformAppMetadataBySlug,
   isFullyAuthenticatedStatus,
   resolveAuthenticatedNextStep,
-  resolveCurrentAppSlug,
+  useCurrentPlatformAppMetadata,
   useAuth,
   useTurnstileToken,
 } from "@workspace/frontend-security";
@@ -29,7 +28,6 @@ import {
 const AUTH_DEBUG =
   (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
     ?.VITE_AUTH_DEBUG === "true";
-const CURRENT_APP_SLUG = resolveCurrentAppSlug();
 
 export function getLoginDisabledReasons(input: {
   authStatus: string;
@@ -64,6 +62,7 @@ export default function Login() {
     React.useState(true);
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
+  const { metadata } = useCurrentPlatformAppMetadata();
   const {
     token: turnstileToken,
     enabled: turnstileEnabled,
@@ -95,27 +94,8 @@ export default function Login() {
   }, [accessError, auth.status, auth.logout]);
 
   React.useEffect(() => {
-    let cancelled = false;
-    if (!CURRENT_APP_SLUG) {
-      setHideSignupAffordances(true);
-      return;
-    }
-
-    fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
-      .then((metadata) => {
-        if (cancelled) return;
-        setHideSignupAffordances(
-          metadata?.normalizedAccessProfile === "superadmin",
-        );
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setHideSignupAffordances(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setHideSignupAffordances(metadata?.normalizedAccessProfile === "superadmin");
+  }, [metadata]);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {

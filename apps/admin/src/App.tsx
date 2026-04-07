@@ -13,7 +13,6 @@ import {
   AuthProvider,
   getLastAuthDebugEventSummary,
   useAuth,
-  fetchPlatformAppMetadataBySlug,
   getDisallowedAuthRouteRedirect,
   getMfaPendingRoute,
   isAuthDebugEnabled,
@@ -21,9 +20,8 @@ import {
   isAuthRouteAllowed,
   logAuthDebug,
   resolveAuthenticatedNextStep,
-  resolveCurrentAppSlug,
+  useCurrentPlatformAppMetadata,
   type AuthRouteKind,
-  type PlatformAppMetadata,
 } from "@workspace/frontend-security";
 import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
 
@@ -55,8 +53,6 @@ const queryClient = new QueryClient({
   },
 });
 
-const CURRENT_APP_SLUG = resolveCurrentAppSlug();
-
 type AuthAppAccessSnapshot = {
   appSlug: string;
   canAccess: boolean;
@@ -67,13 +63,14 @@ type AuthAppAccessSnapshot = {
 
 function getCurrentAppAccess(
   user: ReturnType<typeof useAuth>["user"],
+  currentAppSlug: string | null,
 ): AuthAppAccessSnapshot | null {
   const candidate = (user as (typeof user & { appAccess?: unknown }) | null)
     ?.appAccess;
   if (!candidate || typeof candidate !== "object") return null;
   const record = candidate as unknown as Record<string, unknown>;
-  if (!CURRENT_APP_SLUG) return null;
-  if (record["appSlug"] !== CURRENT_APP_SLUG) return null;
+  if (!currentAppSlug) return null;
+  if (record["appSlug"] !== currentAppSlug) return null;
   if (typeof record["canAccess"] !== "boolean") return null;
   if (typeof record["appSlug"] !== "string") return null;
   if (
@@ -163,41 +160,6 @@ function AuthRedirect({ to }: { to: string }) {
   return <AuthLoading />;
 }
 
-function useCurrentAppMetadata() {
-  const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(
-    null,
-  );
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    if (!CURRENT_APP_SLUG) {
-      setMetadata(null);
-      setLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
-      .then((result) => {
-        if (cancelled) return;
-        setMetadata(result);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { metadata, loading };
-}
-
 function ConfigDrivenAuthRoute({
   routeKind,
   children,
@@ -207,7 +169,7 @@ function ConfigDrivenAuthRoute({
 }) {
   const auth = useAuth();
   const [location] = useLocation();
-  const { metadata, loading } = useCurrentAppMetadata();
+  const { metadata, loading } = useCurrentPlatformAppMetadata();
 
   if (routeKind === "invitation") {
     console.info("[INVITATION-FLOW] invitation route hit", {
@@ -273,6 +235,7 @@ function ConfigDrivenAuthRoute({
 
 function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
+  const { currentAppSlug } = useCurrentPlatformAppMetadata();
 
   if (auth.status === "loading") return <AuthLoading />;
 
@@ -283,7 +246,7 @@ function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
     return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
   }
 
-  const appAccess = getCurrentAppAccess(auth.user);
+  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
 
   if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
     return <AuthRedirect to="/onboarding/organization" />;
@@ -311,7 +274,8 @@ function DashboardRoute() {
   const section = isSectionMatch ? sectionParams?.section : undefined;
 
   const auth = useAuth();
-  const appAccess = getCurrentAppAccess(auth.user);
+  const { currentAppSlug } = useCurrentPlatformAppMetadata();
+  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
 
   if (appAccess?.normalizedAccessProfile === "superadmin") {
     return <AdminDashboard section={section} />;
