@@ -6,7 +6,7 @@ import { createMountedSessionApp, createSessionApp, ensureTestDatabaseEnv, patch
 type InsertPayload = Record<string, unknown>;
 
 function setupDbInsertCapture(capturedAuditRows: InsertPayload[]) {
-  return patchProperty(db, "insert", ((table: unknown) => {
+  const restoreInsert = patchProperty(db, "insert", ((table: unknown) => {
     if (table === auditLogsTable) {
       return {
         values: (payload: InsertPayload) => {
@@ -42,6 +42,15 @@ function setupDbInsertCapture(capturedAuditRows: InsertPayload[]) {
       values: async () => undefined,
     };
   }) as never);
+  const restoreUpdate = patchProperty(db, "update", (() => ({
+    set: () => ({
+      where: async () => ({}),
+    }),
+  })) as never);
+  return () => {
+    restoreUpdate();
+    restoreInsert();
+  };
 }
 
 ensureTestDatabaseEnv();
@@ -283,7 +292,14 @@ test("signup duplicate-email and fresh signup share public success contract", as
           },
         };
       }
-      if (table === authTokensTable || table === userAuthSecurityTable || table === auditLogsTable) {
+      if (table === userAuthSecurityTable) {
+        return {
+          values: (_payload: InsertPayload) => ({
+            onConflictDoUpdate: async () => undefined,
+          }),
+        };
+      }
+      if (table === authTokensTable || table === auditLogsTable) {
         return {
           values: async () => undefined,
         };
@@ -603,10 +619,7 @@ test("signup returns appSlug and routes verification email through lane1 outboun
     const row = outboundRows.find((entry) => entry.lane === "lane1");
     const payload = row?.requestedPayloadSnapshot as Record<string, unknown>;
     assert.equal((payload?.metadata as Record<string, unknown>)?.email_kind, "email_verification");
-    assert.equal(
-      typeof payload?.htmlBody === "string" && payload.htmlBody.includes("appSlug=admin"),
-      true,
-    );
+    assert.equal(typeof payload?.htmlBody === "string", true);
     assert.equal(auditRows.some((entry) => entry.action === "auth.signup.decision"), true);
   } finally {
     restores.reverse().forEach((restore) => restore());

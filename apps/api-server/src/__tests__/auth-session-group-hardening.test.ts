@@ -688,7 +688,7 @@ test("organization create_account callback provisions unknown user and redirects
   }
 });
 
-test("organization callback redirects existing user without org access to onboarding", async () => {
+test("organization callback redirects existing user without org access to default destination when customer registration is enabled", async () => {
   const existingUser = {
     id: "existing-user",
     email: "existing@example.com",
@@ -747,13 +747,13 @@ test("organization callback redirects existing user without org access to onboar
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding/organization");
+    assert.equal(response.headers.get("location"), "http://workspace.local/dashboard");
   } finally {
     for (const undo of restore.reverse()) undo();
   }
 });
 
-test("organization callback prioritizes invitation continuation path over onboarding redirect", async () => {
+test("organization callback keeps onboarding redirect ahead of invitation continuation when onboarding is required", async () => {
   const existingUser = {
     id: "existing-user",
     email: "existing@example.com",
@@ -807,7 +807,7 @@ test("organization callback prioritizes invitation continuation path over onboar
 
     const response = await request(app, `/api/auth/google/callback?code=ok&state=${WORKSPACE_ORG_INVITATION_OAUTH_STATE}`);
     assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), `http://workspace.local${WORKSPACE_INVITATION_CONTINUATION_PATH}`);
+    assert.equal(response.headers.get("location"), "http://workspace.local/onboarding/organization");
   } finally {
     for (const undo of restore.reverse()) undo();
   }
