@@ -5,7 +5,7 @@ import { createSessionApp, performJsonRequest, patchProperty, ensureTestDatabase
 ensureTestDatabaseEnv();
 
 const { turnstileVerifyMiddleware, isTurnstileEnabled, verifyTurnstileTokenDetailed } = await import("../middlewares/turnstile.js");
-const { recordAbuseSignal } = await import("../lib/authAbuse.js");
+const { recordAbuseSignal, getAbuseClientKey } = await import("../lib/authAbuse.js");
 const { db } = await import("@workspace/db");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
 
@@ -31,6 +31,18 @@ test("turnstile defaults to enabled in production", () => {
 });
 
 
+
+
+test("abuse client key derives from trusted req.ip instead of raw forwarded header", () => {
+  const req = {
+    ip: "127.0.0.1",
+    socket: { remoteAddress: "127.0.0.1" },
+    get: (name: string) => (name.toLowerCase() === "x-forwarded-for" ? "203.0.113.40" : undefined),
+  } as any;
+
+  const key = getAbuseClientKey(req);
+  assert.equal(key, "127.0.0.1");
+});
 
 test("abuse signal marks repeated events once threshold is reached", () => {
   const key = `abuse-test-${Date.now()}`;

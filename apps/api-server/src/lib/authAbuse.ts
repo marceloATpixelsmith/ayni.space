@@ -7,11 +7,7 @@ type Counter = { count: number; resetAt: number };
 const counters = new Map<string, Counter>();
 
 export function getAbuseClientKey(req: Request): string {
-  const forwarded = req.get("x-forwarded-for");
-  if (forwarded) {
-    return forwarded.split(",")[0]?.trim() || req.ip || "unknown";
-  }
-  return req.ip || "unknown";
+  return req.ip || req.socket.remoteAddress || "unknown";
 }
 
 export function recordAbuseSignal(key: string, options?: { windowMs?: number; threshold?: number }) {

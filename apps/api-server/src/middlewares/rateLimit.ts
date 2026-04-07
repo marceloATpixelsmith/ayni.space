@@ -1,11 +1,15 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler } from "express";
+import { pool } from "@workspace/db";
 import { infoVerboseTrace } from "../lib/traceLogging.js";
 
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
 const configuredRateLimitEnabled = process.env.RATE_LIMIT_ENABLED;
 const RATE_LIMIT_ENABLED =
   configuredRateLimitEnabled === undefined
-    ? IS_PRODUCTION
+    ? isProduction()
     : configuredRateLimitEnabled === "true";
 const RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION = process.env.RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION === "true";
 const DEFAULT_WINDOW_MS = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
@@ -15,10 +19,88 @@ const DEFAULT_AUTH_MAX = Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? "10"
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
 
-function getClientKey(req: Parameters<RequestHandler>[0]): string {
-  const forwarded = req.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || req.ip || "unknown";
-  return req.ip || "unknown";
+type RateLimitConsumeResult =
+  | { limited: false }
+  | { limited: true; retryAfterSeconds: number };
+
+type RateLimitStore = {
+  consume: (key: string, now: number, windowMs: number, max: number) => Promise<RateLimitConsumeResult>;
+};
+
+function getClientKey(req: Request): string {
+  return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+const memoryStore: RateLimitStore = {
+  async consume(key, now, windowMs, max) {
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return { limited: false };
+    }
+
+    if (current.count >= max) {
+      return {
+        limited: true,
+        retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+      };
+    }
+
+    current.count += 1;
+    return { limited: false };
+  },
+};
+
+const postgresStore: RateLimitStore = {
+  async consume(key, now, windowMs, max) {
+    const result = await pool.query<{ count: number; retry_after_seconds: number }>(
+      `
+        INSERT INTO platform.rate_limits AS rl (bucket_key, window_started_at, count)
+        VALUES ($1, to_timestamp($2::double precision / 1000.0), 1)
+        ON CONFLICT (bucket_key)
+        DO UPDATE
+        SET
+          count = CASE
+            WHEN rl.window_started_at <= to_timestamp(($2 - $3)::double precision / 1000.0) THEN 1
+            ELSE rl.count + 1
+          END,
+          window_started_at = CASE
+            WHEN rl.window_started_at <= to_timestamp(($2 - $3)::double precision / 1000.0)
+              THEN to_timestamp($2::double precision / 1000.0)
+            ELSE rl.window_started_at
+          END,
+          updated_at = now()
+        RETURNING
+          count,
+          GREATEST(
+            1,
+            CEIL(
+              EXTRACT(EPOCH FROM (window_started_at + (($3 || ' milliseconds')::interval - to_timestamp($2::double precision / 1000.0))))
+            )::int
+          ) AS retry_after_seconds
+      `,
+      [key, now, windowMs],
+    );
+
+    const row = result.rows[0];
+    if (!row || row.count <= max) return { limited: false };
+    return {
+      limited: true,
+      retryAfterSeconds: Math.max(1, Number(row.retry_after_seconds) || 1),
+    };
+  },
+};
+
+let rateLimitStoreOverride: RateLimitStore | null = null;
+
+function getRateLimitStore(): RateLimitStore {
+  if (rateLimitStoreOverride) return rateLimitStoreOverride;
+  if (isProduction()) return postgresStore;
+  return memoryStore;
+}
+
+export function setRateLimitStoreForTests(store: RateLimitStore | null): void {
+  rateLimitStoreOverride = store;
 }
 
 export type RateLimitOptions = {
@@ -28,26 +110,8 @@ export type RateLimitOptions = {
   skip?: (req: Parameters<RequestHandler>[0]) => boolean;
 };
 
-function consumeRateLimitBucket(key: string, now: number, windowMs: number, max: number) {
-  const current = buckets.get(key);
-  if (!current || current.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return { limited: false as const };
-  }
-
-  if (current.count >= max) {
-    return {
-      limited: true as const,
-      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
-    };
-  }
-
-  current.count += 1;
-  return { limited: false as const };
-}
-
 export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
-  if (!RATE_LIMIT_ENABLED && (!IS_PRODUCTION || RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION)) {
+  if (!RATE_LIMIT_ENABLED && (!isProduction() || RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION)) {
     return (_req, _res, next) => next();
   }
 
@@ -64,29 +128,52 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
 
     const now = Date.now();
     const key = `${keyPrefix}:${getClientKey(req)}`;
-    const result = consumeRateLimitBucket(key, now, windowMs, max);
+    getRateLimitStore()
+      .consume(key, now, windowMs, max)
+      .then((result) => {
+        if (result.limited) {
+          const retryAfterSeconds = result.retryAfterSeconds;
+          res.setHeader("Retry-After", String(retryAfterSeconds));
+          if (keyPrefix === "auth-google-url" || keyPrefix.startsWith("test-auth-google-url")) {
+            infoVerboseTrace("[auth/google/url]", {
+              branch: "rate_limited",
+              method: req.method,
+              path: req.path,
+              origin: typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
+              resolvedSessionGroup: req.resolvedSessionGroup ?? null,
+              keyPrefix,
+              retryAfterSeconds,
+              status: 429,
+              code: "RATE_LIMITED",
+            });
+          }
+          res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
+          return;
+        }
 
-    if (result.limited) {
-      const retryAfterSeconds = result.retryAfterSeconds;
-      res.setHeader("Retry-After", String(retryAfterSeconds));
-      if (keyPrefix === "auth-google-url" || keyPrefix.startsWith("test-auth-google-url")) {
-        infoVerboseTrace("[auth/google/url]", {
-          branch: "rate_limited",
-          method: req.method,
-          path: req.path,
-          origin: typeof req.headers["origin"] === "string" ? req.headers["origin"] : null,
-          resolvedSessionGroup: req.resolvedSessionGroup ?? null,
-          keyPrefix,
-          retryAfterSeconds,
-          status: 429,
-          code: "RATE_LIMITED",
-        });
-      }
-      res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
-      return;
-    }
+        next();
+      })
+      .catch((error) => {
+        if (isProduction()) {
+          console.error("[rate-limit] distributed limiter failure", error);
+          res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
+          return;
+        }
 
-    next();
+        memoryStore
+          .consume(key, now, windowMs, max)
+          .then((fallbackResult) => {
+            if (fallbackResult.limited) {
+              res.setHeader("Retry-After", String(fallbackResult.retryAfterSeconds));
+              res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
+              return;
+            }
+            next();
+          })
+          .catch(() => {
+            res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
+          });
+      });
   };
 }
 
@@ -124,14 +211,38 @@ export function authRateLimiterWithIdentifier(options: AuthRateLimiterWithIdenti
       }
 
       const key = `${keyPrefix}:opaque:${opaqueId}`;
-      const result = consumeRateLimitBucket(key, Date.now(), windowMs, max);
-      if (result.limited) {
-        res.setHeader("Retry-After", String(result.retryAfterSeconds));
-        res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
-        return;
-      }
+      getRateLimitStore()
+        .consume(key, Date.now(), windowMs, max)
+        .then((result) => {
+          if (result.limited) {
+            res.setHeader("Retry-After", String(result.retryAfterSeconds));
+            res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
+            return;
+          }
 
-      next();
+          next();
+        })
+        .catch((error) => {
+          if (isProduction()) {
+            console.error("[rate-limit] distributed identifier limiter failure", error);
+            res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
+            return;
+          }
+
+          memoryStore
+            .consume(key, Date.now(), windowMs, max)
+            .then((fallbackResult) => {
+              if (fallbackResult.limited) {
+                res.setHeader("Retry-After", String(fallbackResult.retryAfterSeconds));
+                res.status(429).json({ error: "Too many requests, please try again later.", code: "RATE_LIMITED" });
+                return;
+              }
+              next();
+            })
+            .catch(() => {
+              res.status(503).json({ error: "Request throttling is temporarily unavailable.", code: "RATE_LIMIT_UNAVAILABLE" });
+            });
+        });
     });
   };
 }

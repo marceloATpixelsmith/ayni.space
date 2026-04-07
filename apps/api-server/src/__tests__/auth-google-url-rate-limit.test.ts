@@ -1,9 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
+import { ensureTestDatabaseEnv } from "./helpers.js";
 
+ensureTestDatabaseEnv();
 process.env["RATE_LIMIT_ENABLED"] = "true";
-const { authRateLimiter } = await import("../middlewares/rateLimit.js");
+const {
+  authRateLimiter,
+  setRateLimitStoreForTests,
+} = await import("../middlewares/rateLimit.js");
 
 let rateLimitTestPrefixCounter = 0;
 
@@ -14,6 +19,7 @@ function nextRateLimitTestPrefix(base: string) {
 
 function createRateLimitedApp(max: number, clientIp: string, windowMs?: number) {
   const app = express();
+  app.set("trust proxy", true);
   app.use(
     "/api/auth/google/url",
     (req, _res, next) => {
@@ -29,7 +35,7 @@ function createRateLimitedApp(max: number, clientIp: string, windowMs?: number) 
   return app;
 }
 
-async function requestJson(app: express.Express, path = "/api/auth/google/url") {
+async function requestJson(app: express.Express, path = "/api/auth/google/url", headers: Record<string, string> = {}) {
   const server = app.listen(0);
   const address = server.address();
   if (!address || typeof address === "string") {
@@ -37,7 +43,7 @@ async function requestJson(app: express.Express, path = "/api/auth/google/url") 
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method: "POST" });
+    const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method: "POST", headers });
     const body = (await response.json()) as Record<string, unknown>;
     return {
       status: response.status,
@@ -105,6 +111,7 @@ test("google auth url limiter unlocks after rate limit window resets", async () 
 
 test("google auth url limiter does not consume generic auth limiter budget", async () => {
   const app = express();
+  app.set("trust proxy", true);
   app.use(
     "/api/auth/google/url",
     (req, _res, next) => {
@@ -135,4 +142,55 @@ test("google auth url limiter does not consume generic auth limiter budget", asy
   assert.equal((await requestJson(app, "/api/auth/me")).status, 200);
   const genericLimited = await requestJson(app, "/api/auth/me");
   assert.equal(genericLimited.status, 429);
+});
+
+test("rate limiter ignores spoofed forwarded headers when trust proxy is disabled", async () => {
+  const app = express();
+  app.set("trust proxy", false);
+  app.use("/api/auth/google/url", authRateLimiter({ max: 1, keyPrefix: nextRateLimitTestPrefix("spoof-check") }));
+  app.post("/api/auth/google/url", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  assert.equal((await requestJson(app, "/api/auth/google/url", { "x-forwarded-for": "203.0.113.1" })).status, 200);
+  const second = await requestJson(app, "/api/auth/google/url", { "x-forwarded-for": "198.51.100.2" });
+  assert.equal(second.status, 429);
+});
+
+test("rate limiter honors forwarded client ip when trust proxy is enabled", async () => {
+  const app = express();
+  app.set("trust proxy", true);
+  app.use("/api/auth/google/url", authRateLimiter({ max: 1, keyPrefix: nextRateLimitTestPrefix("trusted-proxy") }));
+  app.post("/api/auth/google/url", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  assert.equal((await requestJson(app, "/api/auth/google/url", { "x-forwarded-for": "203.0.113.50" })).status, 200);
+  assert.equal((await requestJson(app, "/api/auth/google/url", { "x-forwarded-for": "198.51.100.50" })).status, 200);
+});
+
+test("production rate limiter fails closed when distributed store is unavailable", async () => {
+  const prevNodeEnv = process.env["NODE_ENV"];
+  process.env["NODE_ENV"] = "production";
+  setRateLimitStoreForTests({
+    consume: async () => {
+      throw new Error("store down");
+    },
+  });
+
+  try {
+    const app = express();
+    app.use("/api/auth/google/url", authRateLimiter({ max: 1, keyPrefix: nextRateLimitTestPrefix("prod-fail-closed") }));
+    app.post("/api/auth/google/url", (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    const result = await requestJson(app);
+    assert.equal(result.status, 503);
+    assert.equal(result.body.code, "RATE_LIMIT_UNAVAILABLE");
+  } finally {
+    setRateLimitStoreForTests(null);
+    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = prevNodeEnv;
+  }
 });
