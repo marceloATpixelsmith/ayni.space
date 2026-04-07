@@ -12,6 +12,8 @@
 - `lib/frontend-security` (`@workspace/frontend-security`) is the active frontend auth/security layer used by admin app shell/routes.
 - `lib/frontend-observability` (`@workspace/frontend-observability`) is the active frontend monitoring layer used by `apps/admin` and wired in `apps/mockup-sandbox`.
 - `lib/auth-ui` (`@workspace/auth-ui`) is the active frontend auth UI shell/primitives runtime layer used by `apps/admin` auth routes.
+  - `lib/auth-ui/src/AuthShell.tsx` is the only allowed `AuthShell` implementation in the repository.
+  - `apps/admin` must consume auth shell primitives via `@workspace/auth-ui` imports only; app-local auth shell component ownership is not allowed.
 - `lib/api-spec` (`@workspace/api-spec`) is build-time contract/codegen source (OpenAPI + Orval), not a runtime app import target.
 
 ### Workspace `packages/*` status

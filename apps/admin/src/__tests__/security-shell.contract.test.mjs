@@ -20,11 +20,9 @@ const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAc
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
 const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
 const verifyEmailPath = path.resolve(__dirname, "../pages/auth/VerifyEmail.tsx");
+const adminSrcRoot = path.resolve(__dirname, "..");
+const authUiSrcRoot = path.resolve(__dirname, "../../../../lib/auth-ui/src");
 const sharedAuthShellPath = path.resolve(__dirname, "../../../../lib/auth-ui/src/AuthShell.tsx");
-const legacyAuthShellPath = path.resolve(__dirname, "../pages/auth/components/AuthShell.tsx");
-const legacyFieldValidationPath = path.resolve(__dirname, "../pages/auth/components/FieldValidationMessage.tsx");
-const legacyAuthMethodDividerPath = path.resolve(__dirname, "../pages/auth/components/AuthMethodDivider.tsx");
-const legacyGoogleAuthButtonPath = path.resolve(__dirname, "../pages/auth/components/GoogleAuthButton.tsx");
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -50,6 +48,25 @@ function expectIncludes(source, needle, message) {
 
 function expectNotIncludes(source, needle, message) {
   assert.ok(!source.includes(needle), `${message}\nUnexpected snippet: ${needle}`);
+}
+
+function collectFilePaths(rootDir, predicate) {
+  const results = [];
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectFilePaths(entryPath, predicate));
+      continue;
+    }
+
+    if (predicate(entryPath)) {
+      results.push(entryPath);
+    }
+  }
+
+  return results;
 }
 
 test("logged-out users are redirected to /login", () => {
@@ -1235,26 +1252,47 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
 });
 
-test("admin app does not keep local auth shell primitive files", () => {
-  assert.equal(
-    fs.existsSync(legacyAuthShellPath),
-    false,
-    "AuthShell must be owned by @workspace/auth-ui, not apps/admin.",
+test("auth shell primitives are owned only by shared auth-ui layer", () => {
+  const localPrimitiveFiles = collectFilePaths(adminSrcRoot, (filePath) =>
+    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(filePath),
   );
-  assert.equal(
-    fs.existsSync(legacyFieldValidationPath),
-    false,
-    "FieldValidationMessage must be owned by @workspace/auth-ui, not apps/admin.",
+
+  assert.deepEqual(
+    localPrimitiveFiles,
+    [],
+    "apps/admin must not own auth shell primitive component files.",
   );
-  assert.equal(
-    fs.existsSync(legacyAuthMethodDividerPath),
-    false,
-    "AuthMethodDivider must be owned by @workspace/auth-ui, not apps/admin.",
+
+  const sharedPrimitiveFiles = collectFilePaths(authUiSrcRoot, (filePath) =>
+    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(filePath),
+  ).map((filePath) => path.relative(authUiSrcRoot, filePath).replaceAll("\\", "/"));
+
+  assert.deepEqual(
+    sharedPrimitiveFiles.sort(),
+    [
+      "AuthFormMotion.tsx",
+      "AuthMethodDivider.tsx",
+      "AuthShell.tsx",
+      "AuthTurnstileSection.tsx",
+      "FieldValidationMessage.tsx",
+      "GoogleAuthButton.tsx",
+    ],
+    "Shared auth-ui layer should contain the sole auth shell primitive implementations.",
   );
-  assert.equal(
-    fs.existsSync(legacyGoogleAuthButtonPath),
-    false,
-    "GoogleAuthButton must be owned by @workspace/auth-ui, not apps/admin.",
+
+  const authShellImplementationMatches = collectFilePaths(path.resolve(__dirname, "../../.."), (filePath) => {
+    if (!filePath.endsWith(".tsx")) {
+      return false;
+    }
+
+    const fileSource = fs.readFileSync(filePath, "utf8");
+    return fileSource.includes("export function AuthShell(");
+  }).map((filePath) => path.relative(path.resolve(__dirname, "../../../../.."), filePath).replaceAll("\\", "/"));
+
+  assert.deepEqual(
+    authShellImplementationMatches,
+    ["lib/auth-ui/src/AuthShell.tsx"],
+    "AuthShell implementation must have a single source of truth in lib/auth-ui.",
   );
 });
 
