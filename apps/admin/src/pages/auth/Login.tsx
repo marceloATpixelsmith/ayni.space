@@ -56,7 +56,7 @@ export default function Login() {
   const [emailTouched, setEmailTouched] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [hideSignupAffordances, setHideSignupAffordances] =
-    React.useState(false);
+    React.useState(CURRENT_APP_SLUG === "admin");
   const deniedCleanupAttemptedRef = React.useRef(false);
   const auth = useAuth();
   const {
