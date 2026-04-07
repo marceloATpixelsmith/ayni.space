@@ -6,6 +6,8 @@
 
 ## Confirmed
 
+- Email/password signup now returns the same public success status/shape for both fresh and duplicate-email attempts (201 + generic next-steps message), while duplicate credential rows remain blocked internally and are only audit-classified server-side (`apps/api-server/src/routes/auth.ts`).
+- Invitation create/resend APIs no longer return plaintext invitation tokens in JSON; raw tokens are now used only internally for lane1 email rendering/link generation (`apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/lib/invitationEmail.ts`).
 - Email/password signup UI now captures only `email` + `password` (no full-name and no confirm-password fields) while keeping strong-password validation aligned with backend policy (`apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/authValidation.ts`, `apps/api-server/src/lib/passwordAuth.ts`).
 - Invitation acceptance no longer routes invitees through generic `/login` for password setup; invited users with `emailMode=create_password` now create password directly on invitation page with the same password policy and visibility-toggle input (`apps/admin/src/pages/auth/InvitationAccept.tsx`, `apps/api-server/src/routes/invitations.ts`).
 - Post-auth onboarding now supports both organization onboarding (`/onboarding/organization`) and user onboarding (`/onboarding/user`) using app-context `requiredOnboarding` decisions (`apps/api-server/src/lib/appAccess.ts`, `apps/api-server/src/lib/postAuthRedirect.ts`, `apps/admin/src/App.tsx`, `apps/admin/src/pages/auth/Onboarding.tsx`).

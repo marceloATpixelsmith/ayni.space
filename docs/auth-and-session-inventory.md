@@ -5,6 +5,8 @@
 - Canonical companion: `docs/authentication-and-session-architecture.md`.
 
 ## Confirmed
+- Signup anti-enumeration hardening now keeps duplicate-email and fresh-email password-signup responses aligned on the same public status/contract (`201` + generic message), while duplicate credential creation is still prevented and recorded via audit reason code (`apps/api-server/src/routes/auth.ts`).
+- Invitation create/resend responses are now metadata-only and never include plaintext `invitationToken`; token material is confined to internal send-time email-link generation (`apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/lib/invitationEmail.ts`).
 - Login requests can now opt into 14-day persistence (`stayLoggedIn`) and backend session cookies are adjusted authoritatively in `apps/api-server/src/lib/session.ts`/`apps/api-server/src/routes/auth.ts` (including Google OAuth state handoff).
 - Backend auth implementation location: `apps/api-server/src/lib/auth.ts`.
 - Backend auth/session route wiring: `apps/api-server/src/routes/auth.ts`.

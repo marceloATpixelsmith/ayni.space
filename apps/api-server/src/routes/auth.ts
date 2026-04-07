@@ -2411,6 +2411,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     });
 
     if (existingCredential) {
+      await hashPassword(password);
       await logSignupDecision(req, {
         category: "duplicate_email",
         reasonCode: "duplicate_existing_email",
@@ -2421,10 +2422,11 @@ async function handlePasswordSignup(req: Request, res: Response) {
         },
       });
       res
-        .status(409)
+        .status(201)
         .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
+          success: true,
+          appSlug: signupApp.slug,
+          message: "If your signup is valid, check your email for next steps.",
         });
       return;
     }
@@ -2525,6 +2527,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
       .json({
         success: true,
         appSlug: signupApp.slug,
+        message: "If your signup is valid, check your email for next steps.",
         verifyToken:
           process.env["NODE_ENV"] === "test" ? verificationToken : undefined,
       });
