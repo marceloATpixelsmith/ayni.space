@@ -8,7 +8,7 @@ import { createMountedSessionApp, ensureTestDatabaseEnv, patchProperty, performJ
 
 ensureTestDatabaseEnv();
 
-const { db } = await import("@workspace/db");
+const { authTokensTable, db } = await import("@workspace/db");
 const { default: authRouter } = await import("../routes/auth.js");
 const { createSessionMiddleware, getSessionCookieName, getSessionCookieOptions, getSessionPolicy } = await import("../lib/session.js");
 const { csrfTokenEndpoint } = await import("../middlewares/csrf.js");
@@ -278,6 +278,173 @@ test("mfa-required login persists pending invitation continuation returnToPath i
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
       email: "user@example.com",
       password: "StrongPassword123!",
+      returnToPath: "/invitations/test-token/accept",
+    });
+
+    assert.equal(response.status, 202);
+    assert.equal(
+      (persistedSession.pendingPostAuthContinuation as { returnPath?: string } | undefined)
+        ?.returnPath,
+      "/invitations/test-token/accept",
+    );
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("verify-email prioritizes continuation returnToPath over default destination when onboarding is not required", async () => {
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-1",
+      email: "user@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      emailVerifiedAt: new Date(),
+      isSuperAdmin: false,
+      activeOrgId: null,
+      name: "User",
+      avatarUrl: null,
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "superadmin",
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
+    })),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => null),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
+    patchProperty(db, "update", ((table: unknown) => {
+      const returningRows =
+        table === authTokensTable
+          ? [
+              {
+                id: "token-row-1",
+                userId: "user-1",
+                tokenType: "email_verification",
+                tokenHash: "hash",
+                expiresAt: new Date(Date.now() + 60_000),
+                consumedAt: null,
+              },
+            ]
+          : [];
+      return {
+        set: () => ({
+          where: () => ({
+            returning: async () => returningRows,
+          }),
+          returning: async () => returningRows,
+        }),
+      };
+    }) as unknown as typeof db.update),
+  ];
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
+    const response = await performJsonRequest(app, "POST", "/api/auth/verify-email", {
+      token: "verification-token",
+      appSlug: "admin",
+      returnToPath: "/invitations/test-token/accept",
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body?.nextPath, "/invitations/test-token/accept");
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
+test("verify-email with MFA requirement persists pending continuation in session", async () => {
+  const persistedSession: Record<string, unknown> = {};
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "user-1",
+      email: "user@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      emailVerifiedAt: new Date(),
+      isSuperAdmin: false,
+      activeOrgId: null,
+      name: "User",
+      avatarUrl: null,
+    })),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => ({
+      userId: "user-1",
+      mfaRequired: true,
+      forceMfaEnrollment: false,
+      firstAuthAfterResetPending: false,
+      highRiskUntilMfaAt: null,
+    })),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+      id: "factor-1",
+      userId: "user-1",
+      factorType: "totp",
+      status: "active",
+      secretCiphertext: "cipher",
+      secretIv: "iv",
+      secretTag: "tag",
+    })),
+    patchProperty(db, "update", ((table: unknown) => {
+      const returningRows =
+        table === authTokensTable
+          ? [
+              {
+                id: "token-row-1",
+                userId: "user-1",
+                tokenType: "email_verification",
+                tokenHash: "hash",
+                expiresAt: new Date(Date.now() + 60_000),
+                consumedAt: null,
+              },
+            ]
+          : [];
+      return {
+        set: () => ({
+          where: () => ({
+            returning: async () => returningRows,
+          }),
+          returning: async () => returningRows,
+        }),
+      };
+    }) as unknown as typeof db.update),
+  ];
+
+  try {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      (req as unknown as { session: Record<string, unknown> }).session = {
+        id: "test-session-id",
+        destroy: (cb?: (err?: unknown) => void) => cb?.(),
+        save(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          Object.assign(persistedSession, this);
+          cb?.();
+        },
+        regenerate(this: Record<string, unknown>, cb?: (err?: unknown) => void) {
+          for (const key of Object.keys(this)) {
+            delete this[key];
+          }
+          this.id = "regenerated-session-id";
+          this.destroy = (done?: (err?: unknown) => void) => done?.();
+          this.save = (done?: (err?: unknown) => void) => {
+            Object.assign(persistedSession, this);
+            done?.();
+          };
+          this.regenerate = (done?: (err?: unknown) => void) => done?.();
+          cb?.();
+        },
+        ...persistedSession,
+      };
+      next();
+    });
+    app.use("/api/auth", authRouter);
+
+    const response = await performJsonRequest(app, "POST", "/api/auth/verify-email", {
+      token: "verification-token",
+      appSlug: "admin",
       returnToPath: "/invitations/test-token/accept",
     });
 
