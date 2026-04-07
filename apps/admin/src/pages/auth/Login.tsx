@@ -94,7 +94,12 @@ export default function Login() {
   }, [accessError, auth.status, auth.logout]);
 
   React.useEffect(() => {
-    setHideSignupAffordances(metadata?.normalizedAccessProfile === "superadmin");
+    if (!metadata) {
+      setHideSignupAffordances(true);
+      return;
+    }
+
+    setHideSignupAffordances(metadata.normalizedAccessProfile === "superadmin");
   }, [metadata]);
 
   React.useEffect(() => {
@@ -237,8 +242,8 @@ export default function Login() {
         <GoogleAuthButton
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
-          loading={auth.loginInFlight}
-          idleLabel="Sign in with Google"
+          loading={false}
+          idleLabel={auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
           loadingLabel="Starting Google sign-in..."
         />
 
