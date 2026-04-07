@@ -616,8 +616,9 @@ test("admin MFA login regenerates to a new pending session id and preserves that
   app.use(express.json());
   app.use(createSessionMiddleware(middlewareByGroup));
   app.get("/api/debug/session", (req, res) => {
-    if (!(req.session as Record<string, unknown>)["csrfToken"]) {
-      (req.session as Record<string, unknown>)["csrfToken"] = "seed";
+    const sessionData = req.session as unknown as Record<string, unknown>;
+    if (!sessionData["csrfToken"]) {
+      sessionData["csrfToken"] = "seed";
     }
     res.json({
       sessionId: req.sessionID,

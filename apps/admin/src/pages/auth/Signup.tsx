@@ -180,7 +180,7 @@ export default function Signup() {
         <AuthTurnstileSection
           enabled={turnstile.enabled}
           TurnstileWidget={turnstile.TurnstileWidget}
-          guidanceMessage={turnstile.guidanceMessage}
+          guidanceMessage={turnstile.guidanceMessage ?? undefined}
           status={turnstile.status}
         />
         {error ? (

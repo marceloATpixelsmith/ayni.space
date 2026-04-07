@@ -1,10 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
-import authRouter from "../routes/auth.js";
 import { createMountedSessionApp, createSessionApp, ensureTestDatabaseEnv, patchProperty, performJsonRequest } from "./helpers.js";
-import { appsTable, auditLogsTable, authTokensTable, db, userAuthSecurityTable, userCredentialsTable, usersTable } from "@workspace/db";
-import { createSecurityEnforcementMiddleware } from "../lib/securityPolicy.js";
 
 type InsertPayload = Record<string, unknown>;
 
@@ -47,8 +44,29 @@ function setupDbInsertCapture(capturedAuditRows: InsertPayload[]) {
   }) as never);
 }
 
-test.before(() => {
-  ensureTestDatabaseEnv();
+ensureTestDatabaseEnv();
+
+const { default: authRouter } = await import("../routes/auth.js");
+const { appsTable, auditLogsTable, authTokensTable, db, userAuthSecurityTable, userCredentialsTable, usersTable } = await import("@workspace/db");
+const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const restoreEmailTemplateLookup = patchProperty(
+  db.query.emailTemplatesTable,
+  "findFirst",
+  async () => ({
+    id: "tmpl-1",
+    appId: "app-1",
+    templateType: "email_verification",
+    subjectTemplate: "Verify your email",
+    htmlTemplate: "<p>Verify {{verification_link}}</p>",
+    textTemplate: "Verify {{verification_link}}",
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
+);
+
+test.after(() => {
+  restoreEmailTemplateLookup();
 });
 
 test("signup denial logs disposable_email reason code", async () => {
@@ -59,7 +77,7 @@ test("signup denial logs disposable_email reason code", async () => {
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -106,7 +124,7 @@ test("signup step-up logs undeliverable_email reason code", async () => {
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -149,7 +167,7 @@ test("signup step-up logs ipqs_advisory_step_up reason code for high fraud score
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -192,7 +210,7 @@ test("signup duplicate-email denial logs duplicate_existing_email reason code", 
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "duplicate@example.com" })),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({ id: "cred-1", userId: "user-1", credentialType: "password" })),
   ];
@@ -361,7 +379,7 @@ test("signup provider-failure step-up logs ipqs_provider_failure_step_up reason 
   const previousFetch = globalThis.fetch;
   const restores = [
     setupDbInsertCapture(auditRows),
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => ({ id: "user-1", email: "provider@example.com" })),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => null),
   ];
@@ -472,7 +490,7 @@ test("signup internal exception path logs internal_exception reason code", async
   const auditRows: InsertPayload[] = [];
   const previousFetch = globalThis.fetch;
   const restores = [
-    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "superadmin", isActive: true, customerRegistrationEnabled: false, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({ id: "app-1", slug: "admin", accessMode: "organization", isActive: true, customerRegistrationEnabled: true, transactionalFromEmail: "no-reply@example.com", transactionalFromName: "Ayni", transactionalReplyToEmail: "support@example.com" })),
     patchProperty(db.query.usersTable, "findFirst", async () => null),
   ];
 
@@ -538,9 +556,9 @@ test("signup returns appSlug and routes verification email through lane1 outboun
       id: "app-1",
       slug: "admin",
       name: "Admin",
-      accessMode: "superadmin",
+      accessMode: "organization",
       isActive: true,
-      customerRegistrationEnabled: false,
+      customerRegistrationEnabled: true,
       transactionalFromEmail: "no-reply@example.com",
       transactionalFromName: "Ayni",
       transactionalReplyToEmail: "support@example.com",
