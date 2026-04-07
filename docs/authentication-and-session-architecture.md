@@ -51,6 +51,9 @@
 - OAuth callback app resolution is now strict: callback app context is derived from `state.appSlug` only, `getAppBySlug(appSlug)`/`getAppContext(userId, appSlug)` must succeed, and missing/invalid app slug state now returns explicit controlled login errors (`app_slug_invalid`, `app_not_found`, `app_context_unavailable`) instead of silent fallback redirects (`apps/api-server/src/routes/auth.ts`).
 - Organization-mode create-account callbacks now redirect to root-relative onboarding (`/onboarding/organization`) via `apps/api-server/src/lib/postAuthRedirect.ts` instead of legacy generic `/onboarding`.
 
+- Auth UI shell/primitives are now centralized in `lib/auth-ui/src/*` (AuthShell, divider, validation message, motion wrapper, Turnstile placement section), and admin auth pages consume that runtime layer instead of owning shell/layout components locally (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`).
+- App slug resolution for frontend auth routes now uses shared `resolveCurrentAppSlug()` in `lib/frontend-security/src/index.tsx` (fail-closed when `VITE_APP_SLUG` is unset) instead of hardcoded `"admin"` defaults in app pages/shell.
+
 ## Inferred
 
 - Auth/session is designed as backend-authoritative with frontend providers/guards consuming backend session state.

@@ -75,6 +75,7 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:",
-    "@workspace/frontend-observability": "workspace:*"
+    "@workspace/frontend-observability": "workspace:*",
+    "@workspace/auth-ui": "workspace:*"
   }
 }

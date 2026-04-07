@@ -1,10 +1,10 @@
 import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { motion } from "framer-motion";
 import {
   fetchPlatformAppMetadataBySlug,
   isFullyAuthenticatedStatus,
   resolveAuthenticatedNextStep,
+  resolveCurrentAppSlug,
   useAuth,
   useTurnstileToken,
 } from "@workspace/frontend-security";
@@ -17,14 +17,18 @@ import {
   adminAccessDeniedLoginPath,
 } from "./accessDenied";
 import { validateEmailInput } from "./authValidation";
-import { AuthShell } from "./components/AuthShell";
-import { AuthMethodDivider } from "./components/AuthMethodDivider";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import {
+  AuthFormMotion,
+  AuthMethodDivider,
+  AuthShell,
+  AuthTurnstileSection,
+  FieldValidationMessage,
+} from "@workspace/auth-ui";
 
 const AUTH_DEBUG =
   (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
     ?.VITE_AUTH_DEBUG === "true";
-const CURRENT_APP_SLUG = import.meta.env.VITE_APP_SLUG ?? "admin";
+const CURRENT_APP_SLUG = resolveCurrentAppSlug();
 
 export function getLoginDisabledReasons(input: {
   authStatus: string;
@@ -91,6 +95,11 @@ export default function Login() {
 
   React.useEffect(() => {
     let cancelled = false;
+    if (!CURRENT_APP_SLUG) {
+      setHideSignupAffordances(true);
+      return;
+    }
+
     fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
       .then((metadata) => {
         if (cancelled) return;
@@ -243,11 +252,7 @@ export default function Login() {
           : "Sign in or create your account to continue."
       }
     >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
+      <AuthFormMotion>
         <Button
           size="lg"
           className="w-full h-12 text-base font-medium"
@@ -316,9 +321,12 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="mt-6">
-          {turnstileEnabled ? <TurnstileWidget /> : null}
-        </div>
+        <AuthTurnstileSection
+          enabled={turnstileEnabled}
+          TurnstileWidget={TurnstileWidget}
+          guidanceMessage={turnstileGuidanceMessage}
+          status={turnstileStatus}
+        />
 
         {accessError ? (
           <p className="mt-4 text-sm text-destructive text-center" role="alert">
@@ -330,15 +338,7 @@ export default function Login() {
             {loginError}
           </p>
         ) : null}
-        {turnstileGuidanceMessage ? (
-          <p
-            className={`mt-4 text-sm text-center ${turnstileStatus === "error" || turnstileStatus === "expired" ? "text-destructive" : "text-muted-foreground"}`}
-            role="status"
-          >
-            {turnstileGuidanceMessage}
-          </p>
-        ) : null}
-      </motion.div>
+      </AuthFormMotion>
     </AuthShell>
   );
 }

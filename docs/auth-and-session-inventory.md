@@ -50,6 +50,8 @@
 - Verify-email backend outcomes are now audit-logged through the existing `writeAuditLog` pipeline (`auth.verify_email`) for branch-level traceability (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/audit.ts`).
 - Login/signup/forgot-password email field validation now defers inline errors until blur/touch or submit, while signup password feedback renders progressively after typing by showing only missing policy requirements (8+ chars, uppercase, lowercase, number) (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `apps/admin/src/pages/auth/ForgotPassword.tsx`, `apps/admin/src/pages/auth/authValidation.ts`).
 
+- Frontend auth UI shell/layout primitives are centralized in `lib/auth-ui/src/*` and consumed by admin login/signup routes, leaving app route files as thin composers of shared UI + shared auth logic (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`, `lib/auth-ui/src/index.ts`).
+
 ## Inferred
 - Session/auth is backend-authoritative, with frontend consuming session state via shared provider and API client.
 

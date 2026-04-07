@@ -122,3 +122,11 @@ test("login superadmin mode can hide signup affordances", () => {
   assert.match(loginSource, /hideSignupAffordances/);
   assert.match(loginSource, /normalizedAccessProfile === \"superadmin\"/);
 });
+
+
+test("auth pages avoid hardcoded app slug defaults", () => {
+  assert.match(loginSource, /resolveCurrentAppSlug\(\)/);
+  assert.match(signupSource, /resolveCurrentAppSlug\(\)/);
+  assert.doesNotMatch(loginSource, /VITE_APP_SLUG \?\? "admin"/);
+  assert.doesNotMatch(signupSource, /VITE_APP_SLUG \?\? "admin"/);
+});

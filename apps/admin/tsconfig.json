@@ -36,6 +36,9 @@
       ],
       "@workspace/frontend-observability": [
         "../../lib/frontend-observability/src/index.tsx"
+      ],
+      "@workspace/auth-ui": [
+        "../../lib/auth-ui/src/index.ts"
       ]
     }
   },
@@ -45,6 +48,9 @@
     },
     {
       "path": "../../lib/frontend-observability"
+    },
+    {
+      "path": "../../lib/auth-ui"
     }
   ]
 }

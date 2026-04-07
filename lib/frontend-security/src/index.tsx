@@ -495,6 +495,13 @@ function normalizePlatformAppMetadata(
   };
 }
 
+
+export function resolveCurrentAppSlug(): string | null {
+  const configuredSlug =
+    (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_APP_SLUG?.trim() ?? "";
+  return configuredSlug.length > 0 ? configuredSlug : null;
+}
+
 export async function fetchPlatformAppMetadataBySlug(
   appSlug: string,
 ): Promise<PlatformAppMetadata | null> {

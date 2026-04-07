@@ -655,7 +655,7 @@ test("login includes turnstile token when requesting oauth url", () => {
   );
 
   const signInButtonPosition = loginSource.indexOf("{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}");
-  const turnstileWidgetPosition = loginSource.indexOf("{turnstileEnabled ? <TurnstileWidget /> : null}");
+  const turnstileWidgetPosition = loginSource.indexOf("<AuthTurnstileSection");
   assert.ok(signInButtonPosition >= 0 && turnstileWidgetPosition >= 0, "Login source should render both sign-in button and Turnstile widget.");
   assert.ok(
     signInButtonPosition < turnstileWidgetPosition,
@@ -973,7 +973,7 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     signupSource,
-    "{turnstile.enabled ? <turnstile.TurnstileWidget /> : null}",
+    "<AuthTurnstileSection",
     "Signup should render Turnstile widget when enabled.",
   );
 
@@ -1182,5 +1182,39 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
     authProviderSource,
     '"Security token is not ready. Please refresh and try creating your account again."',
     "Signup should emit explicit CSRF readiness guidance when bootstrap has not completed.",
+  );
+});
+
+
+test("login and signup pages compose shared auth-ui runtime primitives", () => {
+  expectIncludes(
+    loginSource,
+    'from "@workspace/auth-ui"',
+    "Login should import auth shell/form primitives from shared auth-ui runtime layer.",
+  );
+  expectIncludes(
+    signupSource,
+    'from "@workspace/auth-ui"',
+    "Signup should import auth shell/form primitives from shared auth-ui runtime layer.",
+  );
+  expectNotIncludes(
+    loginSource,
+    'from "./components/AuthShell"',
+    "Login must not own auth shell implementation directly under apps/admin.",
+  );
+  expectNotIncludes(
+    signupSource,
+    'from "./components/AuthShell"',
+    "Signup must not own auth shell implementation directly under apps/admin.",
+  );
+  expectIncludes(
+    loginSource,
+    "const CURRENT_APP_SLUG = resolveCurrentAppSlug();",
+    "Login should resolve app slug via shared frontend-security helper instead of hardcoded defaults.",
+  );
+  expectIncludes(
+    appSource,
+    "const CURRENT_APP_SLUG = resolveCurrentAppSlug();",
+    "App shell should resolve app slug via shared frontend-security helper instead of hardcoded defaults.",
   );
 });

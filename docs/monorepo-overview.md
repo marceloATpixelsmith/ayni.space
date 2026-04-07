@@ -50,6 +50,8 @@
   - Imported by `apps/api-server/src/routes/health.ts`.
 - `lib/frontend-security` (`@workspace/frontend-security`) — runtime shared frontend auth/security layer:
   - Imported by `apps/admin/src/App.tsx`, `apps/admin/src/components/layout/AppLayout.tsx`, and auth/dashboard pages.
+- `lib/auth-ui` (`@workspace/auth-ui`) — runtime shared frontend auth UI shell/primitives layer:
+  - Imported by `apps/admin/src/pages/auth/Login.tsx` and `apps/admin/src/pages/auth/Signup.tsx` for shell/layout, divider, validation message, motion, and Turnstile placement patterns.
 - `lib/frontend-observability` (`@workspace/frontend-observability`) — runtime shared frontend monitoring layer:
   - Imported by `apps/admin/src/main.tsx`, `apps/admin/src/App.tsx`, and pages.
   - Referenced by `apps/mockup-sandbox` dependency + alias config.
@@ -140,7 +142,7 @@
 
 ### Build and runtime coupling
 - **Runtime-coupled app dependencies**
-  - `apps/admin` runtime depends on `lib/api-client-react`, `lib/frontend-security`, `lib/frontend-observability`.
+  - `apps/admin` runtime depends on `lib/api-client-react`, `lib/frontend-security`, `lib/frontend-observability`, and `lib/auth-ui`.
   - `apps/api-server` runtime depends on `lib/db` and route/middleware libs; `lib/api-zod` is currently used for health response parsing.
 - **Build-time-only layers**
   - `lib/api-spec` is build-time contract source for Orval code generation.
@@ -170,7 +172,7 @@
 ### Non-negotiable invariants
 - API runtime entry remains centralized in `apps/api-server` (`src/index.ts` + `src/app.ts` + `src/routes/index.ts`).
 - Authentication and authorization stay middleware-driven in API request handling (`requireAuth`, `requireOrgAccess`, `requireOrgAdmin`, `requireSuperAdmin`, `requireAppAccess`).
-- Admin frontend continues to use shared frontend security and observability layers (`@workspace/frontend-security`, `@workspace/frontend-observability`).
+- Admin frontend continues to use shared frontend security, auth UI, and observability layers (`@workspace/frontend-security`, `@workspace/auth-ui`, `@workspace/frontend-observability`).
 - Database access for app/server/script paths continues through `@workspace/db` rather than ad hoc DB clients inside apps.
 - Workspace lockfile integrity remains rooted at repository root (`pnpm-lock.yaml`) and validated against workspace manifests.
 
