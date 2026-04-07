@@ -11,7 +11,7 @@
 - Central security classification includes explicit ADMIN mapping for privileged non-`/api/admin` user suspend/unsuspend routes to prevent accidental under-classification (`apps/api-server/src/lib/securityPolicy.ts`).
 - Frontend security layer is centralized in `lib/frontend-security/src/index.tsx` with related Turnstile support in `lib/frontend-security/src/turnstile.tsx`.
 - Shared CSRF-aware API client behavior is in `lib/api-client-react/src/custom-fetch.ts`.
-- Shared DB client configuration now enforces CA/certificate validation in production (`ssl.rejectUnauthorized=true`) and keeps non-production behavior explicit (`ssl=false`) in `lib/db/src/index.ts`.
+- Shared DB client configuration now enforces CA/certificate validation in production by default (`ssl.rejectUnauthorized=true`), but honors explicit `DATABASE_URL` TLS intent (`sslmode=require|no-verify`) for managed providers that only expose self-signed/private certificate chains; non-production behavior remains explicit (`ssl=false`) in `lib/db/src/index.ts`.
 - Overview non-negotiables explicitly require middleware-driven auth/authz and continued use of shared frontend security layer.
 
 ## Inferred

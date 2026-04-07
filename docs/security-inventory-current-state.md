@@ -203,7 +203,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Evidence: `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/routes/admin.ts`.
 
 7. **DB TLS trust posture is now strict in production**
-   - DB pool configuration enforces `ssl.rejectUnauthorized=true` when `NODE_ENV=production`; non-production behavior is explicitly `ssl=false` for local ergonomics.
+   - DB pool configuration enforces `ssl.rejectUnauthorized=true` when `NODE_ENV=production` by default, but honors explicit `DATABASE_URL` `sslmode=require|no-verify` overrides for managed providers with private/self-signed certificate chains; non-production behavior is explicitly `ssl=false` for local ergonomics.
    - Evidence: `lib/db/src/index.ts`, `apps/api-server/src/__tests__/db-tls-config.test.ts`.
 
 ---
@@ -319,7 +319,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Backend observability & correlation IDs | Implemented | `apps/api-server/src/middlewares/observability.ts` | Includes header sanitization and correlation context. |
 | Frontend security shell | Implemented | `lib/frontend-security/src/index.tsx`, admin tests/workflow | Guarded route shell and CI contract checks. |
 | Secrets/env validation | Implemented/Partial | `apps/api-server/src/lib/env.ts`, `apps/api-server/src/lib/assertions.ts` | Core vars enforced; secret hygiene policy docs limited. |
-| DB TLS posture | Implemented | `lib/db/src/index.ts`, `apps/api-server/src/__tests__/db-tls-config.test.ts` | Production enforces CA/cert validation with `rejectUnauthorized=true`; non-production is explicit (`ssl=false`). |
+| DB TLS posture | Implemented | `lib/db/src/index.ts`, `apps/api-server/src/__tests__/db-tls-config.test.ts` | Production enforces CA/cert validation with `rejectUnauthorized=true` by default and supports explicit `sslmode=require|no-verify` compatibility for self-signed/private CA providers; non-production is explicit (`ssl=false`). |
 | Dependency integrity lockfile check | Implemented | `.github/workflows/lockfile-sync-check.yml` | Good baseline integrity check. |
 | Dependency vulnerability scanning | Implemented | `.github/dependabot.yml`, `.github/workflows/dependency-vulnerability-scan.yml` | Runs Dependabot and high-severity production audit checks. |
 | SAST/CodeQL | Implemented | `.github/workflows/codeql.yml` | JavaScript/TypeScript CodeQL runs on PR, master push, and weekly schedule. |
@@ -343,7 +343,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 2. **Edge/perimeter policy not codified in repo** — keep deployment checklist aligned outside-in.
 3. **Restore-drill evidence still operational** — run drills on cadence and keep entries current in `docs/security-restore-drill-log.md`.
 4. **Session anomaly controls remain limited** — no risk-based re-auth or device heuristics.
-5. **DB TLS trust hardening no longer blocks production** — production config now requires certificate validation (`rejectUnauthorized=true`) and regression tests cover this posture.
+5. **DB TLS trust hardening no longer blocks production** — production config defaults to certificate validation (`rejectUnauthorized=true`) while allowing explicit `DATABASE_URL sslmode=require|no-verify` compatibility for providers using self-signed/private chains; regression tests cover both secure-default and compatibility paths.
 
 ### Ranked by easiest to implement
 1. Keep CodeQL tuned for low-noise (query pack/path exclusions only when justified by real false positives).
@@ -397,7 +397,7 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
 1. Distributed/persistent rate limiter (or hardened single-instance defaults).
 2. Edge free-tier baseline checklist (Cloudflare/Nginx) committed in docs.
 3. Restore-drill log entries kept current on the defined cadence.
-4. DB TLS CA validation (`rejectUnauthorized=true`) where provider supports it.
+4. DB TLS CA validation (`rejectUnauthorized=true`) by default, with explicit `DATABASE_URL sslmode=require|no-verify` compatibility when provider certificate chains are private/self-signed.
 5. Session anomaly controls (risk-based re-auth / suspicious-login heuristics).
 6. Continued audit-log coverage checks as new privileged endpoints are added.
 7. Endpoint-level OpenAPI security annotations for each unsafe operation.
