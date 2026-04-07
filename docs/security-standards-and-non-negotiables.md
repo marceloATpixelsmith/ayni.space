@@ -5,6 +5,7 @@
 
 ## Confirmed
 - Security-critical controls are centralized in API middleware stack (`apps/api-server/src/app.ts`) including security headers, CORS, CSRF, origin/referer checks, and auth/session middleware integration.
+- Proxy trust for backend client-IP derivation is explicit in app bootstrap (`trust proxy` only when expected in production), and abuse/rate-limit identity derives from `req.ip` so raw forwarded headers are not trusted directly by auth abuse controls (`apps/api-server/src/app.ts`, `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/lib/authAbuse.ts`).
 - Origin/referer protection now denies unsafe requests missing both headers by default, with explicit machine exception only for Stripe webhook ingestion (`apps/api-server/src/middlewares/csrf.ts`).
 - Authorization controls are middleware-based (`requireAuth`, `requireOrgAccess`, `requireAppAccess`, plus overview-listed `requireOrgAdmin` and `requireSuperAdmin`).
 - Central security classification includes explicit ADMIN mapping for privileged non-`/api/admin` user suspend/unsuspend routes to prevent accidental under-classification (`apps/api-server/src/lib/securityPolicy.ts`).
