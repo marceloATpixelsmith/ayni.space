@@ -284,3 +284,87 @@ jobs:
             echo "Backend regression gates failed."
             exit 1
           fi
+
+      - name: CI Failure Summary
+        id: ci_summary
+        if: always()
+        run: |
+          install_outcome="${{ steps.install_deps.outcome }}"
+          typecheck_outcome="${{ steps.typecheck.outcome }}"
+          typecheck_exit="${{ steps.typecheck.outputs.exit_code || '' }}"
+          build_outcome="${{ steps.build.outcome }}"
+          build_exit="${{ steps.build.outputs.exit_code || '' }}"
+          api_tests_outcome="${{ steps.api_tests.outcome }}"
+          api_tests_exit="${{ steps.api_tests.outputs.exit_code || '' }}"
+          regression_outcome="${{ steps.regression.outcome }}"
+          regression_exit="${{ steps.regression.outputs.exit_code || '' }}"
+
+          typecheck_exit="${typecheck_exit:-unknown}"
+          build_exit="${build_exit:-unknown}"
+          api_tests_exit="${api_tests_exit:-unknown}"
+          regression_exit="${regression_exit:-unknown}"
+
+          is_failed_step() {
+            local outcome="$1"
+            local exit_code="$2"
+
+            if [ "$outcome" = "failure" ] || [ "$outcome" = "cancelled" ]; then
+              return 0
+            fi
+
+            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -ne 0 ]; then
+              return 0
+            fi
+
+            return 1
+          }
+
+          failed_lines=()
+
+          if is_failed_step "$typecheck_outcome" "$typecheck_exit"; then
+            failed_lines+=("- TYPECHECK (exit $typecheck_exit)")
+          fi
+
+          if is_failed_step "$build_outcome" "$build_exit"; then
+            failed_lines+=("- BUILD (exit $build_exit)")
+          fi
+
+          if is_failed_step "$api_tests_outcome" "$api_tests_exit"; then
+            failed_lines+=("- API_TESTS (exit $api_tests_exit)")
+          fi
+
+          if is_failed_step "$regression_outcome" "$regression_exit"; then
+            failed_lines+=("- REGRESSION (exit $regression_exit)")
+          fi
+
+          {
+            echo "================ CI FAILURE SUMMARY ================"
+            echo
+            echo "INSTALL_DEPS:"
+            echo "  outcome: $install_outcome"
+            echo
+            echo "TYPECHECK:"
+            echo "  outcome: $typecheck_outcome"
+            echo "  exit_code: $typecheck_exit"
+            echo
+            echo "BUILD:"
+            echo "  outcome: $build_outcome"
+            echo "  exit_code: $build_exit"
+            echo
+            echo "API_TESTS:"
+            echo "  outcome: $api_tests_outcome"
+            echo "  exit_code: $api_tests_exit"
+            echo
+            echo "REGRESSION:"
+            echo "  outcome: $regression_outcome"
+            echo "  exit_code: $regression_exit"
+            echo
+            echo "FAILED STEPS:"
+            if [ "${#failed_lines[@]}" -gt 0 ]; then
+              printf '%s\n' "${failed_lines[@]}"
+            else
+              echo "ALL CHECKS PASSED"
+            fi
+            echo
+            echo "==================================================="
+          } | tee -a "$GITHUB_STEP_SUMMARY"
