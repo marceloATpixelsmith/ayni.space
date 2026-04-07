@@ -21,6 +21,7 @@ import {
   isAuthRouteAllowed,
   logAuthDebug,
   resolveAuthenticatedNextStep,
+  resolveCurrentAppSlug,
   type AuthRouteKind,
   type PlatformAppMetadata,
 } from "@workspace/frontend-security";
@@ -54,7 +55,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const CURRENT_APP_SLUG = import.meta.env.VITE_APP_SLUG ?? "admin";
+const CURRENT_APP_SLUG = resolveCurrentAppSlug();
 
 type AuthAppAccessSnapshot = {
   appSlug: string;
@@ -71,6 +72,7 @@ function getCurrentAppAccess(
     ?.appAccess;
   if (!candidate || typeof candidate !== "object") return null;
   const record = candidate as unknown as Record<string, unknown>;
+  if (!CURRENT_APP_SLUG) return null;
   if (record["appSlug"] !== CURRENT_APP_SLUG) return null;
   if (typeof record["canAccess"] !== "boolean") return null;
   if (typeof record["appSlug"] !== "string") return null;
@@ -169,6 +171,14 @@ function useCurrentAppMetadata() {
 
   React.useEffect(() => {
     let cancelled = false;
+
+    if (!CURRENT_APP_SLUG) {
+      setMetadata(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetchPlatformAppMetadataBySlug(CURRENT_APP_SLUG)
       .then((result) => {

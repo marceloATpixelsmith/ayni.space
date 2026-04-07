@@ -11,6 +11,7 @@
 - `lib/api-zod` (`@workspace/api-zod`) is a shared schema/types layer with narrow active usage (notably API health route parsing).
 - `lib/frontend-security` (`@workspace/frontend-security`) is the active frontend auth/security layer used by admin app shell/routes.
 - `lib/frontend-observability` (`@workspace/frontend-observability`) is the active frontend monitoring layer used by `apps/admin` and wired in `apps/mockup-sandbox`.
+- `lib/auth-ui` (`@workspace/auth-ui`) is the active frontend auth UI shell/primitives runtime layer used by `apps/admin` auth routes.
 - `lib/api-spec` (`@workspace/api-spec`) is build-time contract/codegen source (OpenAPI + Orval), not a runtime app import target.
 
 ### Workspace `packages/*` status
@@ -20,7 +21,7 @@
 
 ### Dependency flow (as implemented)
 - `apps/api-server` consumes `@workspace/db` and `@workspace/api-zod`.
-- `apps/admin` consumes `@workspace/api-client-react`, `@workspace/frontend-security`, and `@workspace/frontend-observability`.
+- `apps/admin` consumes `@workspace/api-client-react`, `@workspace/frontend-security`, `@workspace/auth-ui`, and `@workspace/frontend-observability`.
 - `scripts` consumes `@workspace/db`.
 - `lib/frontend-security` consumes `@workspace/api-client-react`.
 

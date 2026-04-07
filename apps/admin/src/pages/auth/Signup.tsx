@@ -1,8 +1,8 @@
 import React from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
 import {
   fetchPlatformAppMetadataBySlug,
+  resolveCurrentAppSlug,
   useAuth,
   useTurnstileToken,
 } from "@workspace/frontend-security";
@@ -14,8 +14,12 @@ import {
   validateEmailInput,
   validatePasswordInput,
 } from "./authValidation";
-import { AuthShell } from "./components/AuthShell";
-import { FieldValidationMessage } from "./components/FieldValidationMessage";
+import {
+  AuthFormMotion,
+  AuthShell,
+  AuthTurnstileSection,
+  FieldValidationMessage,
+} from "@workspace/auth-ui";
 
 export default function Signup() {
   const auth = useAuth();
@@ -33,10 +37,18 @@ export default function Signup() {
     emailTouched || submitted ? validateEmailInput(email) : null;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
-  const currentAppSlug = import.meta.env.VITE_APP_SLUG ?? "admin";
+  const currentAppSlug = resolveCurrentAppSlug();
 
   React.useEffect(() => {
     let cancelled = false;
+    if (!currentAppSlug) {
+      setSignupAllowed(false);
+      setMetadataResolved(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     fetchPlatformAppMetadataBySlug(currentAppSlug)
       .then((metadata) => {
         if (cancelled) return;
@@ -110,11 +122,7 @@ export default function Signup() {
       title="Create account"
       subtitle="Create your account to continue."
     >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
+      <AuthFormMotion>
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
@@ -169,20 +177,16 @@ export default function Signup() {
           </Button>
         </div>
 
-        <div className="mt-6">
-          {turnstile.enabled ? <turnstile.TurnstileWidget /> : null}
-        </div>
+        <AuthTurnstileSection
+          enabled={turnstile.enabled}
+          TurnstileWidget={turnstile.TurnstileWidget}
+          guidanceMessage={turnstile.guidanceMessage}
+          status={turnstile.status}
+        />
         {error ? (
           <p className="mt-4 text-sm text-destructive">{error}</p>
         ) : null}
-        {turnstile.guidanceMessage ? (
-          <p
-            className={`mt-4 text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            {turnstile.guidanceMessage}
-          </p>
-        ) : null}
-      </motion.div>
+      </AuthFormMotion>
     </AuthShell>
   );
 }

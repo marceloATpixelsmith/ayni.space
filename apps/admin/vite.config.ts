@@ -43,6 +43,7 @@ export default defineConfig({
       "@workspace/frontend-security": path.resolve(import.meta.dirname, "..", "..", "lib", "frontend-security", "src", "index.tsx"),
       "@workspace/api-client-react": path.resolve(import.meta.dirname, "..", "..", "lib", "api-client-react", "src", "index.ts"),
       "@workspace/frontend-observability": path.resolve(import.meta.dirname, "..", "..", "lib", "frontend-observability", "src", "index.tsx"),
+      "@workspace/auth-ui": path.resolve(import.meta.dirname, "..", "..", "lib", "auth-ui", "src", "index.ts"),
     },
     dedupe: ["react", "react-dom"],
   },
