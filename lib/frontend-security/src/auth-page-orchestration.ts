@@ -6,7 +6,6 @@ import {
   useCurrentPlatformAppMetadata,
   useTurnstileToken,
   type AuthStatus,
-  type AuthUser,
 } from "./index";
 
 export function getLoginDisabledReasons(input: {
@@ -66,7 +65,7 @@ export function useLoginRouteComposition(options: {
 
     const nextStep = resolveAuthenticatedNextStep({
       authStatus: auth.status,
-      user: auth.user as AuthUser | null,
+      user: auth.user,
       continuationPath: options.nextPath,
       deniedLoginPath: options.deniedLoginPath,
       defaultPath: options.defaultPath ?? "/dashboard",
