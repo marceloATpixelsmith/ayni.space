@@ -202,9 +202,9 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
    - Admin page redirects non-super-admin users in UI, but true enforcement is backend-side (good); still, UI checks should not be interpreted as security boundary by themselves.
    - Evidence: `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/routes/admin.ts`.
 
-7. **DB TLS config exists but uses permissive trust setting**
-   - DB pool is configured with `ssl.rejectUnauthorized=false`, which may be acceptable for some managed services but is weaker than CA-validated TLS where available.
-   - Evidence: `lib/db/src/index.ts`.
+7. **DB TLS trust posture is now strict in production**
+   - DB pool configuration enforces `ssl.rejectUnauthorized=true` when `NODE_ENV=production`; non-production behavior is explicitly `ssl=false` for local ergonomics.
+   - Evidence: `lib/db/src/index.ts`, `apps/api-server/src/__tests__/db-tls-config.test.ts`.
 
 ---
 
@@ -319,7 +319,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Backend observability & correlation IDs | Implemented | `apps/api-server/src/middlewares/observability.ts` | Includes header sanitization and correlation context. |
 | Frontend security shell | Implemented | `lib/frontend-security/src/index.tsx`, admin tests/workflow | Guarded route shell and CI contract checks. |
 | Secrets/env validation | Implemented/Partial | `apps/api-server/src/lib/env.ts`, `apps/api-server/src/lib/assertions.ts` | Core vars enforced; secret hygiene policy docs limited. |
-| DB TLS posture | Partial | `lib/db/src/index.ts` | TLS on, but `rejectUnauthorized=false` weakens trust verification. |
+| DB TLS posture | Implemented | `lib/db/src/index.ts`, `apps/api-server/src/__tests__/db-tls-config.test.ts` | Production enforces CA/cert validation with `rejectUnauthorized=true`; non-production is explicit (`ssl=false`). |
 | Dependency integrity lockfile check | Implemented | `.github/workflows/lockfile-sync-check.yml` | Good baseline integrity check. |
 | Dependency vulnerability scanning | Implemented | `.github/dependabot.yml`, `.github/workflows/dependency-vulnerability-scan.yml` | Runs Dependabot and high-severity production audit checks. |
 | SAST/CodeQL | Implemented | `.github/workflows/codeql.yml` | JavaScript/TypeScript CodeQL runs on PR, master push, and weekly schedule. |
@@ -343,7 +343,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 2. **Edge/perimeter policy not codified in repo** — keep deployment checklist aligned outside-in.
 3. **Restore-drill evidence still operational** — run drills on cadence and keep entries current in `docs/security-restore-drill-log.md`.
 4. **Session anomaly controls remain limited** — no risk-based re-auth or device heuristics.
-5. **DB TLS trust hardening remains partial** — `rejectUnauthorized=false` remains a tradeoff.
+5. **DB TLS trust hardening no longer blocks production** — production config now requires certificate validation (`rejectUnauthorized=true`) and regression tests cover this posture.
 
 ### Ranked by easiest to implement
 1. Keep CodeQL tuned for low-noise (query pack/path exclusions only when justified by real false positives).
