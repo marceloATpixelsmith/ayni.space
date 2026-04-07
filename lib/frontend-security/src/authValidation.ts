@@ -11,11 +11,6 @@ export function validateEmailInput(value: string): string | null {
   return null;
 }
 
-export function validatePasswordInput(password: string): string | null {
-  const [firstMissingRequirement] = getMissingPasswordRequirements(password);
-  return firstMissingRequirement ?? null;
-}
-
 export function getMissingPasswordRequirements(password: string): string[] {
   const missing: string[] = [];
   if (password.length < 8)
@@ -31,4 +26,9 @@ export function getMissingPasswordRequirements(password: string): string[] {
   if (!/[^A-Za-z0-9]/.test(password))
     missing.push("Password must include at least 1 special character.");
   return missing;
+}
+
+export function validatePasswordInput(password: string): string | null {
+  const [firstMissingRequirement] = getMissingPasswordRequirements(password);
+  return firstMissingRequirement ?? null;
 }

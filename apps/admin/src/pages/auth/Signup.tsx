@@ -4,15 +4,17 @@ import {
   useAuth,
   useSignupRoutePolicy,
   useTurnstileToken,
-} from "@workspace/frontend-security";
-import { Button } from "@/components/ui/button";
-import { PasswordInput } from "@/components/ui/password-input";
-import {
+  useEmailValidationInteraction,
+  ensureTurnstileReadyForSubmit,
+  resetTurnstileOnFailure,
+  useAuthSubmitOrchestration,
   getMissingPasswordRequirements,
   normalizeEmailInput,
   validateEmailInput,
   validatePasswordInput,
-} from "./authValidation";
+} from "@workspace/frontend-security";
+import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   AuthFormMotion,
   AuthShell,
@@ -25,10 +27,12 @@ export default function Signup() {
   const [location, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [emailTouched, setEmailTouched] = React.useState(false);
-  const [submitted, setSubmitted] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const turnstile = useTurnstileToken();
+  const submit = useAuthSubmitOrchestration();
+  const emailValidation = useEmailValidationInteraction({
+    value: email,
+    validate: validateEmailInput,
+  });
 
   const { metadataResolved, signupAllowed } = useSignupRoutePolicy({
     locationPath: location,
@@ -36,8 +40,7 @@ export default function Signup() {
     onRedirect: setLocation,
   });
 
-  const emailError =
-    emailTouched || submitted ? validateEmailInput(email) : null;
+  const emailError = emailValidation.error;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
 
@@ -46,31 +49,31 @@ export default function Signup() {
   }
 
   const onSubmit = () => {
-    setSubmitted(true);
+    emailValidation.markSubmitted();
     if (!auth.csrfReady || !auth.csrfToken) {
-      setError(
+      submit.setError(
         "Security token is not ready. Please wait a moment and try again.",
       );
       return;
     }
     if (emailError) {
-      setError(emailError);
+      submit.setError(emailError);
       return;
     }
     const passwordError = validatePasswordInput(password);
     if (passwordError) {
-      setError(passwordError);
+      submit.setError(passwordError);
       return;
     }
-    if (turnstile.enabled && !turnstile.token) {
-      setError("Please complete the verification challenge.");
+    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
+    if (turnstileError) {
+      submit.setError(turnstileError);
       return;
     }
 
-    setError(null);
     const normalizedEmail = normalizeEmailInput(email);
-    auth
-      .signupWithPassword(normalizedEmail, password, turnstile.token)
+    void submit
+      .run(() => auth.signupWithPassword(normalizedEmail, password, turnstile.token))
       .then((result) => {
         const query = new URLSearchParams();
         query.set("email", normalizedEmail);
@@ -79,8 +82,8 @@ export default function Signup() {
         setLocation(`/verify-email?${query.toString()}`);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unable to sign up.");
-        if (turnstile.enabled) turnstile.reset();
+        submit.setError(err instanceof Error ? err.message : "Unable to sign up.");
+        resetTurnstileOnFailure(turnstile);
       });
   };
 
@@ -97,7 +100,7 @@ export default function Signup() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => setEmailTouched(true)}
+            onBlur={emailValidation.markTouched}
             aria-invalid={Boolean(emailError)}
             aria-describedby={emailError ? "signup-email-error" : undefined}
           />
@@ -155,8 +158,8 @@ export default function Signup() {
           guidanceMessage={turnstile.guidanceMessage ?? undefined}
           status={turnstile.status}
         />
-        {error ? (
-          <p className="mt-4 text-sm text-destructive">{error}</p>
+        {submit.error ? (
+          <p className="mt-4 text-sm text-destructive">{submit.error}</p>
         ) : null}
       </AuthFormMotion>
     </AuthShell>
