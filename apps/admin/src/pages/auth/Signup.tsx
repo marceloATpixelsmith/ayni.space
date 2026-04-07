@@ -1,7 +1,6 @@
 import React from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Chrome } from "lucide-react";
 import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -68,23 +67,6 @@ export default function Signup() {
       });
   };
 
-  const onGoogleSignup = () => {
-    if (turnstile.enabled && !turnstile.token) {
-      setError("Please complete the verification challenge.");
-      return;
-    }
-
-    setError(null);
-    auth.loginWithGoogle(turnstile.token, "create_account").catch((err) => {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to start Google account setup.",
-      );
-      if (turnstile.enabled) turnstile.reset();
-    });
-  };
-
   return (
     <AuthShell
       title="Create account"
@@ -95,29 +77,6 @@ export default function Signup() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <Button
-          size="lg"
-          className="w-full h-12 text-base font-medium shadow-md transition-all group"
-          onClick={onGoogleSignup}
-          disabled={
-            auth.loginInFlight ||
-            !auth.csrfReady ||
-            !auth.csrfToken ||
-            !turnstile.canSubmit
-          }
-        >
-          <Chrome className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform" />
-          {auth.loginInFlight
-            ? "Starting account setup..."
-            : "Create account with Google"}
-        </Button>
-
-        <div className="my-5 flex items-center gap-4">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-sm text-muted-foreground">or</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
