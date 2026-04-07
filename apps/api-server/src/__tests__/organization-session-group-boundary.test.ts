@@ -7,8 +7,18 @@ ensureTestDatabaseEnv();
 const { db } = await import("@workspace/db");
 const { default: organizationsRouter } = await import("../routes/organizations.js");
 
+function objectContainsValue(input: unknown, target: string, seen = new WeakSet<object>()): boolean {
+  if (input === target) return true;
+  if (!input || typeof input !== "object") return false;
+  if (seen.has(input as object)) return false;
+  seen.add(input as object);
+  for (const value of Object.values(input as Record<string, unknown>)) {
+    if (objectContainsValue(value, target, seen)) return true;
+  }
+  return false;
+}
+
 test("organization listing keeps same-session-group memberships and drops cross-group memberships", async () => {
-  let appLookupCallCount = 0;
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "u-boundary",
@@ -27,10 +37,11 @@ test("organization listing keeps same-session-group memberships and drops cross-
         }),
       }),
     } as never)),
-    patchProperty(db.query.appsTable, "findFirst", async () => {
-      appLookupCallCount += 1;
-      if (appLookupCallCount === 1) return { id: "app-default", slug: "ayni", metadata: {}, isActive: true };
-      return { id: "app-admin", slug: "admin", metadata: {}, isActive: true };
+    patchProperty(db.query.appsTable, "findFirst", async (query?: unknown) => {
+      if (objectContainsValue(query, "app-admin")) {
+        return { id: "app-admin", slug: "admin", metadata: {}, isActive: true };
+      }
+      return { id: "app-default", slug: "ayni", metadata: {}, isActive: true };
     }),
     patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
   ];
