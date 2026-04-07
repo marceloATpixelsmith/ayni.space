@@ -1280,14 +1280,15 @@ test("auth shell primitives are owned only by shared auth-ui layer", () => {
     "Shared auth-ui layer should contain the sole auth shell primitive implementations.",
   );
 
-  const authShellImplementationMatches = collectFilePaths(path.resolve(__dirname, "../../.."), (filePath) => {
+  const repoRoot = path.resolve(__dirname, "../../../../");
+  const authShellImplementationMatches = collectFilePaths(repoRoot, (filePath) => {
     if (!filePath.endsWith(".tsx")) {
       return false;
     }
 
     const fileSource = fs.readFileSync(filePath, "utf8");
     return fileSource.includes("export function AuthShell(");
-  }).map((filePath) => path.relative(path.resolve(__dirname, "../../../../.."), filePath).replaceAll("\\", "/"));
+  }).map((filePath) => path.relative(repoRoot, filePath).replaceAll("\\", "/"));
 
   assert.deepEqual(
     authShellImplementationMatches,
