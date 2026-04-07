@@ -37,3 +37,24 @@ test("non-production db pool config behavior is explicit", () => {
 
   assert.equal(config.ssl, false);
 });
+
+test("production db pool config disables certificate validation on Render runtime", () => {
+  const config = buildDbPoolConfig({
+    DATABASE_URL: "postgres://postgres:postgres@localhost:5432/ayni_test",
+    NODE_ENV: "production",
+    RENDER: "true",
+  });
+
+  assert.deepEqual(config.ssl, { rejectUnauthorized: false });
+});
+
+test("production db pool config respects explicit verify-full on Render runtime", () => {
+  const config = buildDbPoolConfig({
+    DATABASE_URL: "postgres://postgres:postgres@localhost:5432/ayni_test?sslmode=verify-full",
+    NODE_ENV: "production",
+    RENDER: "true",
+  });
+
+  assert.deepEqual(config.ssl, { rejectUnauthorized: true });
+});
+
