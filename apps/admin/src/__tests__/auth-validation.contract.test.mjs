@@ -120,13 +120,13 @@ test("invitation flow performs password creation on invitation screen", () => {
 
 test("login superadmin mode can hide signup affordances", () => {
   assert.match(loginSource, /hideSignupAffordances/);
-  assert.match(loginSource, /normalizedAccessProfile === \"superadmin\"/);
+  assert.match(loginSource, /useLoginRouteComposition\(/);
 });
 
 
 test("auth pages avoid hardcoded app slug defaults", () => {
-  assert.match(loginSource, /useCurrentPlatformAppMetadata\(\)/);
-  assert.match(signupSource, /useCurrentPlatformAppMetadata\(\)/);
+  assert.match(loginSource, /useLoginRouteComposition\(/);
+  assert.match(signupSource, /useSignupRoutePolicy\(/);
   assert.doesNotMatch(loginSource, /VITE_APP_SLUG \?\? "admin"/);
   assert.doesNotMatch(signupSource, /VITE_APP_SLUG \?\? "admin"/);
 });

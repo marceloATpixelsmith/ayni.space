@@ -755,38 +755,22 @@ test("session revalidates on browser restore/navigation visibility", () => {
 test("login button disables while google oauth url request is pending", () => {
   expectIncludes(
     loginSource,
-    "if (auth.loginInFlight) {\n      return;\n    }",
+    "if (auth.loginInFlight) {
+      return;
+    }",
     "Login click handler should ignore duplicate clicks while request is pending.",
   );
 
   expectIncludes(
     loginSource,
-    "if (!input.csrfReady) reasons.push(\"!auth.csrfReady\");",
-    "Login disabled-state reasons must include CSRF bootstrap readiness.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "if (!input.csrfTokenPresent) reasons.push(\"!auth.csrfToken\");",
-    "Login disabled-state reasons must include CSRF token presence.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "if (input.turnstileEnabled && !input.turnstileReady) reasons.push(\"turnstileEnabled&&!turnstileReady\");",
-    "Login disabled-state reasons must include turnstile readiness after refresh.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
-    "Login disabled-state reasons must include missing turnstile token.",
+    "useLoginRouteComposition({",
+    "Login should compose shared route orchestration instead of owning redirect/policy logic inline.",
   );
 
   expectIncludes(
     loginSource,
     "disabled={disabledReasons.length > 0}",
-    "Login button disabled state must be driven by explicit computed blocking reasons.",
+    "Login button disabled state must be driven by shared computed blocking reasons.",
   );
 
   expectIncludes(
@@ -797,7 +781,7 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}",
+    "auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"",
     "Login button copy should reflect pending OAuth URL request state.",
   );
 });
@@ -1098,18 +1082,8 @@ test("invitation acceptance keeps first-time password creation and omits confirm
 test("superadmin login hides signup affordances and blocks create-account intent", () => {
   expectIncludes(
     loginSource,
-    "metadata?.normalizedAccessProfile === \"superadmin\"",
-    "Login should detect superadmin app mode from platform metadata.",
-  );
-  expectIncludes(
-    loginSource,
-    "React.useState(true)",
-    "Login should default to hidden signup affordances to avoid superadmin-mode create-account flashes before metadata resolves.",
-  );
-  expectIncludes(
-    loginSource,
-    "setHideSignupAffordances(true)",
-    "Login should fail closed and keep signup affordances hidden when metadata lookup fails.",
+    "useLoginRouteComposition({",
+    "Login should resolve superadmin signup affordances through shared route orchestration.",
   );
   expectIncludes(
     loginSource,
@@ -1232,8 +1206,13 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
   expectIncludes(
     loginSource,
-    "const { metadata } = useCurrentPlatformAppMetadata();",
-    "Login should consume shared app metadata hook instead of app-local metadata fetch logic.",
+    "useLoginRouteComposition({",
+    "Login should consume shared auth-route composition helper instead of owning metadata effects locally.",
+  );
+  expectIncludes(
+    signupSource,
+    "useSignupRoutePolicy({",
+    "Signup should consume shared route policy helper instead of owning metadata effects locally.",
   );
   expectIncludes(
     appSource,

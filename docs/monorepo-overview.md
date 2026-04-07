@@ -99,6 +99,7 @@
   - Active org switching and session rotation: `apps/api-server/src/routes/users.ts`, `apps/api-server/src/lib/session.ts`.
   - Tenant tables: `lib/db/src/schema/organizations.ts`, `memberships.ts`, `users.ts`.
 - **Frontend security layer**
+  - Shared auth-page orchestration for thin admin Login/Signup routes lives in `lib/frontend-security/src/auth-page-orchestration.ts` and is consumed by `apps/admin/src/pages/auth/Login.tsx` and `apps/admin/src/pages/auth/Signup.tsx`.
   - Auth provider + CSRF bootstrap + route guard: `lib/frontend-security/src/index.tsx`.
   - Turnstile frontend hook: `lib/frontend-security/src/turnstile.tsx`.
   - CSRF-aware shared fetch: `lib/api-client-react/src/custom-fetch.ts`.

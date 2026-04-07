@@ -5,6 +5,7 @@
 - `docs/monorepo-overview.md` is the canonical baseline for consistency checks.
 
 ## Confirmed
+- Auth route composition helpers for thin admin auth pages now live in `lib/frontend-security/src/auth-page-orchestration.ts` and are consumed by `apps/admin/src/pages/auth/Login.tsx` and `Signup.tsx`.
 - Architecture docs currently live under `docs/*.md` and are intended to be read with `monorepo-overview.md` as source of truth.
 - Current GitHub Actions workflows are CI/policy automation (validation, lockfile integrity, history policy, and Codex PR automation) rather than frontend deploy execution.
 - Admin frontend deploys are intended to be handled by Vercel Git integration from `master` (configured in Vercel, not as a repository workflow).
