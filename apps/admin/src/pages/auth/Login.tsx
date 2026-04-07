@@ -99,7 +99,9 @@ export default function Login() {
       return;
     }
 
-    setHideSignupAffordances(metadata.normalizedAccessProfile === "superadmin");
+    setHideSignupAffordances(
+      metadata?.normalizedAccessProfile === "superadmin",
+    );
   }, [metadata]);
 
   React.useEffect(() => {
