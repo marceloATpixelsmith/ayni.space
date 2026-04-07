@@ -91,3 +91,14 @@ test("organization profile onboarding redirect never includes /admin prefix", ()
   assert.equal(destination, "/onboarding/organization");
   assert.equal(destination.includes("/admin/"), false);
 });
+
+test("default post-auth redirect remains dashboard when no onboarding is required", () => {
+  const destination = getPostAuthRedirectPath({
+    appSlug: "workspace",
+    isSuperAdmin: false,
+    normalizedAccessProfile: "organization",
+    requiredOnboarding: "none",
+  });
+
+  assert.equal(destination, "/dashboard");
+});

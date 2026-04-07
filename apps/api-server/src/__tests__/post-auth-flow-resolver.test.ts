@@ -58,6 +58,80 @@ test("post-auth resolver prioritizes continuation when onboarding is not require
   assert.equal(destination, "/invitations/token-1/accept");
 });
 
+test("login without onboarding and with continuation resolves continuation destination", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/invitations/token-2/accept",
+  });
+
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation,
+    flowDecision: {
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(continuation?.type, "invitation_acceptance");
+  assert.equal(destination, "/invitations/token-2/accept");
+});
+
+test("verify-email without onboarding and with continuation resolves continuation destination", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/register/client",
+    continuationType: "client_registration",
+  });
+
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation,
+    flowDecision: {
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(continuation?.type, "client_registration");
+  assert.equal(destination, "/register/client");
+});
+
+test("login with onboarding and continuation resolves onboarding first, then continuation post-onboarding", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/invitations/token-3/accept",
+  });
+  const flowDecision = {
+    canAccess: true,
+    normalizedAccessProfile: "organization" as const,
+    requiredOnboarding: "organization" as const,
+    destination: "/onboarding/organization",
+  };
+
+  const postAuthDestination = resolveAuthenticatedPostAuthDestination({
+    continuation,
+    flowDecision,
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+  const postOnboardingDestination = resolveAuthenticatedPostAuthDestination({
+    continuation,
+    flowDecision,
+    fallbackPath: "/dashboard",
+    stage: "post_onboarding",
+  });
+
+  assert.equal(postAuthDestination, "/onboarding/organization");
+  assert.equal(postOnboardingDestination, "/invitations/token-3/accept");
+});
+
 test("post-auth resolver falls back to default destination when continuation is missing and onboarding is not required", () => {
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: null,
@@ -106,4 +180,20 @@ test("post-onboarding resolver resumes continuation before default destination",
   });
 
   assert.equal(destination, "/register/client");
+});
+
+test("post-onboarding resolver uses default destination when continuation is missing", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: null,
+    flowDecision: {
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_onboarding",
+  });
+
+  assert.equal(destination, "/dashboard");
 });
