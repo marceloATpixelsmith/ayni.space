@@ -55,3 +55,5 @@
 - API startup in `apps/api-server/src/index.ts` intentionally does **not** execute database migrations; it logs that migration execution is handled by Render pre-deploy, then proceeds with startup validation and session-store infrastructure checks.
 - Migration execution remains centralized in `@workspace/db` (`lib/db/src/migrate.ts`) and uses Drizzle's migration table tracking (`drizzle-orm/node-postgres/migrator`) against `lib/db/migrations`.
 - Because Drizzle tracks applied files in the database, each migration is applied once per database and skipped on subsequent deploys.
+- Distributed auth limiter rollout requires `lib/db/migrations/20260407_distributed_rate_limits.sql` to be present before deploying any backend version that expects `platform.rate_limits`.
+- The API database role used by `apps/api-server` must retain `SELECT`, `INSERT`, and `UPDATE` on `platform.rate_limits`; missing privileges can force the limiter into emergency local mode and should be treated as a deploy misconfiguration.
