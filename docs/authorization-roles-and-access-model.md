@@ -15,6 +15,7 @@
   - `apps/api-server/src/middlewares/requireOrganizationAppSession.ts`
 - App-level access logic is implemented in `apps/api-server/src/lib/appAccess.ts`.
 - App-level access/onboarding is centered on `platform.apps.access_mode` (`superadmin`, `solo`, `organization`) with no `platform.apps.onboarding_mode` column (`apps/api-server/src/lib/appAccess.ts`, `apps/api-server/src/lib/appAccessProfile.ts`, `lib/db/src/schema/apps.ts`).
+- Auth entry affordances align with app access mode: create-account actions/routes are available only for `solo`/`organization` profiles, while `superadmin` mode hides signup links on login and redirects `/signup` to `/login` (`apps/admin/src/pages/auth/Login.tsx`, `apps/admin/src/pages/auth/Signup.tsx`).
 - Solo/direct access is granted through active `platform.user_app_access` rows, while organization access is granted through active membership (`platform.org_memberships`) + enabled org-app grant (`platform.org_app_access`) for the target app (`apps/api-server/src/lib/appAccess.ts`).
 - Organization access still uses organization-creation onboarding when no eligible org membership+grant pair is available (`requiredOnboarding = "organization"`).
 - Runtime organization onboarding/invitation routes now fail closed to organization-mode sessions only, which blocks superadmin and solo sessions from org creation and invitation acceptance APIs (`apps/api-server/src/routes/organizations.ts`, `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/middlewares/requireOrganizationAppSession.ts`).
