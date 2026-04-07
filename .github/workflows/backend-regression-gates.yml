@@ -289,26 +289,35 @@ jobs:
         id: ci_summary
         if: always()
         run: |
-          install_outcome="${{ steps.install_deps.outcome }}"
-          typecheck_outcome="${{ steps.typecheck.outcome }}"
+          set +e
+          set +u
+
+          install_outcome="${{ steps.install_deps.outcome || '' }}"
+          typecheck_outcome="${{ steps.typecheck.outcome || '' }}"
           typecheck_exit="${{ steps.typecheck.outputs.exit_code || '' }}"
-          build_outcome="${{ steps.build.outcome }}"
+          build_outcome="${{ steps.build.outcome || '' }}"
           build_exit="${{ steps.build.outputs.exit_code || '' }}"
-          api_tests_outcome="${{ steps.api_tests.outcome }}"
+          api_tests_outcome="${{ steps.api_tests.outcome || '' }}"
           api_tests_exit="${{ steps.api_tests.outputs.exit_code || '' }}"
-          regression_outcome="${{ steps.regression.outcome }}"
+          regression_outcome="${{ steps.regression.outcome || '' }}"
           regression_exit="${{ steps.regression.outputs.exit_code || '' }}"
 
-          typecheck_exit="${typecheck_exit:-unknown}"
-          build_exit="${build_exit:-unknown}"
-          api_tests_exit="${api_tests_exit:-unknown}"
-          regression_exit="${regression_exit:-unknown}"
+          install_outcome="${install_outcome:-unknown}"
+          typecheck_outcome="${typecheck_outcome:-unknown}"
+          build_outcome="${build_outcome:-unknown}"
+          api_tests_outcome="${api_tests_outcome:-unknown}"
+          regression_outcome="${regression_outcome:-unknown}"
+
+          typecheck_exit="${typecheck_exit:-N/A}"
+          build_exit="${build_exit:-N/A}"
+          api_tests_exit="${api_tests_exit:-N/A}"
+          regression_exit="${regression_exit:-N/A}"
 
           is_failed_step() {
             local outcome="$1"
             local exit_code="$2"
 
-            if [ "$outcome" = "failure" ] || [ "$outcome" = "cancelled" ]; then
+            if [ "$outcome" = "failure" ]; then
               return 0
             fi
 
