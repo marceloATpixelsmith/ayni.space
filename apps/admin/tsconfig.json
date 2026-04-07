@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "../../lib/auth-ui/src/**/*"
   ],
   "exclude": [
     "node_modules",
@@ -48,9 +49,6 @@
     },
     {
       "path": "../../lib/frontend-observability"
-    },
-    {
-      "path": "../../lib/auth-ui"
     }
   ]
 }

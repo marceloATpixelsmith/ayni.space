@@ -95,6 +95,7 @@ test("organization mode allows active membership + org_app_access without user_a
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "user-org-member",
       email: "member@example.com",
+      name: "Member",
       active: true,
       suspended: false,
       deletedAt: null,

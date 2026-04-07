@@ -320,7 +320,7 @@ export default function Login() {
         <AuthTurnstileSection
           enabled={turnstileEnabled}
           TurnstileWidget={TurnstileWidget}
-          guidanceMessage={turnstileGuidanceMessage}
+          guidanceMessage={turnstileGuidanceMessage ?? undefined}
           status={turnstileStatus}
         />
 

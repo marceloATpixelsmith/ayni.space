@@ -34,7 +34,10 @@ export default function Invitations() {
 
   const orgId = user?.activeOrgId ?? "";
   const { data: invitations, isLoading } = useGetOrgInvitations(orgId, {
-    query: { enabled: !!orgId },
+    query: {
+      queryKey: getGetOrgInvitationsQueryKey(orgId),
+      enabled: !!orgId,
+    },
   });
   const createInvitation = useCreateInvitation();
   const cancelInvitation = useCancelInvitation();

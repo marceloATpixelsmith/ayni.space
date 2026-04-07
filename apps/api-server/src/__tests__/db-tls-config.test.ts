@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDbPoolConfig } from "@workspace/db";
+
+process.env["DATABASE_URL"] ??= "postgres://postgres:postgres@localhost:5432/ayni_test";
+
+const { buildDbPoolConfig } = await import("@workspace/db");
 
 test("production db pool config enforces certificate validation by default", () => {
   const config = buildDbPoolConfig({
@@ -57,4 +60,3 @@ test("production db pool config respects explicit verify-full on Render runtime"
 
   assert.deepEqual(config.ssl, { rejectUnauthorized: true });
 });
-

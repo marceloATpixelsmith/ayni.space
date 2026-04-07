@@ -210,12 +210,12 @@ test("MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret",
       values: async () => {
         return [];
       },
-    })) as typeof db.insert),
+    })) as unknown as typeof db.insert),
     patchProperty(db, "update", (() => ({
       set: () => ({
         where: async () => [],
       }),
-    })) as typeof db.update),
+    })) as unknown as typeof db.update),
     patchProperty(Date, "now", () => nowMs),
   ];
 

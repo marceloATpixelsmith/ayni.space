@@ -640,7 +640,7 @@ test("organization create_account callback provisions unknown user and redirects
       isActive: true,
       accessMode: "organization",
       staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => {
       userLookupCount += 1;
@@ -779,7 +779,7 @@ test("organization callback prioritizes invitation continuation path over onboar
       isActive: true,
       accessMode: "organization",
       staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => existingUser),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
@@ -839,7 +839,7 @@ test("organization oauth callback redirect is unchanged across authIntent values
       isActive: true,
       accessMode: "organization",
       staffInvitesEnabled: true,
-      customerRegistrationEnabled: true,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.usersTable, "findFirst", async () => existingUser),
     patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),

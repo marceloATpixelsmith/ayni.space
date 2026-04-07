@@ -45,6 +45,17 @@ test("invitation creation for org in App A stores App A on invitation", async ()
       invitationEmailHtml: "<p>{{invitee_email}}</p>",
       metadata: {},
     })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tmpl-a",
+      appId: "app-a",
+      templateType: "invitation",
+      subjectTemplate: "Invite {{organization_name}}",
+      htmlTemplate: "<p>{{invitee_email}}</p>",
+      textTemplate: "Invite {{invitee_email}}",
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
     patchProperty(db, "insert", () => ({
       values: (payload: Record<string, unknown>) => {
         if ("action" in payload) {
@@ -122,6 +133,17 @@ test("invitation creation for org in App B stores App B on invitation", async ()
       invitationEmailSubject: "Invite {{organization_name}}",
       invitationEmailHtml: "<p>{{invitee_email}}</p>",
       metadata: {},
+    })),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
+      id: "tmpl-b",
+      appId: "app-b",
+      templateType: "invitation",
+      subjectTemplate: "Invite {{organization_name}}",
+      htmlTemplate: "<p>{{invitee_email}}</p>",
+      textTemplate: "Invite {{invitee_email}}",
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })),
     patchProperty(db, "insert", () => ({
       values: (payload: Record<string, unknown>) => {
@@ -271,7 +293,7 @@ test("invitation org routes fail closed when session group is missing", async ()
   }
 });
 
-test("invitation accept keeps member destination when post-auth resolver reports organization onboarding", async () => {
+test("invitation accept prioritizes organization onboarding when post-auth resolver requires it", async () => {
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => ({
       id: "invitee-1",
@@ -331,7 +353,7 @@ test("invitation accept keeps member destination when post-auth resolver reports
 
     const response = await performJsonRequest(app, "POST", "/api/invitations/token/accept", {});
     assert.equal(response.status, 200);
-    assert.equal(response.body.nextPath, "/dashboard");
+    assert.equal(response.body.nextPath, "/onboarding/organization");
   } finally {
     restores.reverse().forEach((restore) => restore());
   }

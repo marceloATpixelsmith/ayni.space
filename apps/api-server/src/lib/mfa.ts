@@ -136,7 +136,7 @@ export async function beginTotpEnrollment(userId: string) {
         return null;
       }
 
-      let factorId = insertedFactorId;
+      let factorId: string = insertedFactorId;
       if (existingFactor) {
         await tx
           .update(mfaFactorsTable)

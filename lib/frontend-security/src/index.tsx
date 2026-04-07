@@ -161,7 +161,7 @@ export function resolveAuthenticatedNextStep(params: {
 
   const appAccess =
     params.user && typeof params.user === "object"
-      ? (params.user as AuthUser & {
+      ? (params.user as unknown as {
           appAccess?: {
             normalizedAccessProfile?: "superadmin" | "solo" | "organization";
             canAccess?: boolean;
@@ -577,7 +577,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           attempt: "initial",
           userId: firstUserId,
           allow: firstAllow,
-          authenticated: firstData ? firstData.authenticated === true : false,
+          authenticated:
+            firstData && "authenticated" in firstData
+              ? firstData.authenticated === true
+              : false,
           mfaPending: firstData ? firstData.mfaPending === true : false,
           mfaEnrolled: firstData ? firstData.mfaEnrolled === true : false,
           nextStep: firstData?.nextStep ?? null,
@@ -615,7 +618,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           attempt: "retry",
           userId: retryUserId,
           allow: retryAllow,
-          authenticated: retryData ? retryData.authenticated === true : false,
+          authenticated:
+            retryData && "authenticated" in retryData
+              ? retryData.authenticated === true
+              : false,
           mfaPending: retryData ? retryData.mfaPending === true : false,
           mfaEnrolled: retryData ? retryData.mfaEnrolled === true : false,
           nextStep: retryData?.nextStep ?? null,
@@ -705,7 +711,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshCsrfState]);
 
   React.useEffect(() => {
-    setCsrfTokenRefresher(() => refreshCsrfState);
+    setCsrfTokenRefresher(refreshCsrfState);
     return () => {
       setCsrfTokenRefresher(null);
     };
