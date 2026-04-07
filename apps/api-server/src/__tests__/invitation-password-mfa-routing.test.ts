@@ -7,6 +7,8 @@ ensureTestDatabaseEnv();
 
 const { db } = await import("@workspace/db");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
+const { resolvePostAuthContinuation } = await import("../lib/postAuthContinuation.js");
+const { resolveAuthenticatedPostAuthDestination } = await import("../lib/postAuthDestination.js");
 
 test("invitation password acceptance returns MFA enrollment step when user is not enrolled", async () => {
   const persistedSession: Record<string, unknown> = {
@@ -115,6 +117,43 @@ test("invitation password acceptance returns MFA enrollment step when user is no
     assert.equal(
       (persistedSession.pendingPostAuthContinuation as { returnPath?: string } | undefined)
         ?.returnPath,
+      "/invitations/token-1/accept",
+    );
+
+    const continuation = resolvePostAuthContinuation({
+      appSlug: "admin",
+      returnPath:
+        (persistedSession.pendingPostAuthContinuation as { returnPath?: string } | undefined)
+          ?.returnPath,
+      continuationType: "invitation_acceptance",
+      orgId: "org-1",
+      resourceId: "token-1",
+    });
+
+    const flowDecision = {
+      canAccess: true,
+      normalizedAccessProfile: "organization" as const,
+      requiredOnboarding: "organization" as const,
+      destination: "/onboarding/organization",
+    };
+
+    assert.equal(
+      resolveAuthenticatedPostAuthDestination({
+        continuation,
+        flowDecision,
+        fallbackPath: "/dashboard",
+        stage: "post_auth",
+      }),
+      "/onboarding/organization",
+    );
+
+    assert.equal(
+      resolveAuthenticatedPostAuthDestination({
+        continuation,
+        flowDecision,
+        fallbackPath: "/dashboard",
+        stage: "post_onboarding",
+      }),
       "/invitations/token-1/accept",
     );
   } finally {
