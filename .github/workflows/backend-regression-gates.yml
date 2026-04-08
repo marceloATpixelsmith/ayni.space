@@ -11,6 +11,7 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/ci-summary.yml"
   push:
     branches: [master]
     paths:
@@ -21,6 +22,7 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/ci-summary.yml"
   schedule:
     - cron: "0 3 * * *"
 
@@ -35,18 +37,6 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       BACKEND_TRACE_VERBOSE: "0"
       CI: "true"
-    outputs:
-      logs_artifact_name: backend-gates-logs
-      typecheck_outcome: ${{ steps.typecheck.outcome }}
-      typecheck_exit_code: ${{ steps.typecheck.outputs.exit_code || 'N/A' }}
-      build_outcome: ${{ steps.build.outcome }}
-      build_exit_code: ${{ steps.build.outputs.exit_code || 'N/A' }}
-      api_tests_outcome: ${{ steps.api_tests.outcome }}
-      api_tests_exit_code: ${{ steps.api_tests.outputs.exit_code || 'N/A' }}
-      api_regression_outcome: ${{ steps.api_regression.outcome }}
-      api_regression_exit_code: ${{ steps.api_regression.outputs.exit_code || 'N/A' }}
-      auth_security_regression_outcome: ${{ steps.auth_security_regression.outcome }}
-      auth_security_regression_exit_code: ${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -149,6 +139,22 @@ jobs:
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
+      - name: Persist backend gate status metadata
+        if: always()
+        run: |
+          cat > artifacts/backend-gates/status.env <<EOF
+          TYPECHECK_OUTCOME=${{ steps.typecheck.outcome || 'skipped' }}
+          TYPECHECK_EXIT=${{ steps.typecheck.outputs.exit_code || 'N/A' }}
+          BUILD_OUTCOME=${{ steps.build.outcome || 'skipped' }}
+          BUILD_EXIT=${{ steps.build.outputs.exit_code || 'N/A' }}
+          API_TESTS_OUTCOME=${{ steps.api_tests.outcome || 'skipped' }}
+          API_TESTS_EXIT=${{ steps.api_tests.outputs.exit_code || 'N/A' }}
+          API_REGRESSION_OUTCOME=${{ steps.api_regression.outcome || 'skipped' }}
+          API_REGRESSION_EXIT=${{ steps.api_regression.outputs.exit_code || 'N/A' }}
+          AUTH_SECURITY_REGRESSION_OUTCOME=${{ steps.auth_security_regression.outcome || 'skipped' }}
+          AUTH_SECURITY_REGRESSION_EXIT=${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}
+          EOF
+
       - name: Upload backend gate logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -233,49 +239,3 @@ jobs:
             echo "Backend regression gates failed."
             exit 1
           fi
-
-  ci-summary:
-    name: ci-summary
-    runs-on: ubuntu-latest
-    needs: backend-gates
-    if: always()
-    steps:
-      - name: Ensure backend logs directory exists
-        run: mkdir -p artifacts/backend-gates
-
-      - name: Download backend gate logs artifact
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.backend-gates.outputs.logs_artifact_name }}
-          path: artifacts/backend-gates
-
-      - name: Display combined backend gate summary
-        run: |
-          emit_log() {
-            local outcome="$1"
-            local exit_code="$2"
-            local title="$3"
-            local log_path="$4"
-
-            echo "${title} (outcome=${outcome}, exit=${exit_code})"
-            if [ -f "$log_path" ]; then
-              tail -n 250 "$log_path"
-            else
-              echo "No log captured."
-            fi
-            echo
-          }
-
-          {
-            echo '```text'
-            emit_log "${{ needs.backend-gates.outputs.typecheck_outcome || 'unknown' }}" "${{ needs.backend-gates.outputs.typecheck_exit_code || 'N/A' }}" "TYPECHECK" "artifacts/backend-gates/typecheck.log"
-            emit_log "${{ needs.backend-gates.outputs.build_outcome || 'unknown' }}" "${{ needs.backend-gates.outputs.build_exit_code || 'N/A' }}" "BUILD" "artifacts/backend-gates/build.log"
-            emit_log "${{ needs.backend-gates.outputs.api_tests_outcome || 'unknown' }}" "${{ needs.backend-gates.outputs.api_tests_exit_code || 'N/A' }}" "API TESTS" "artifacts/backend-gates/api-tests.log"
-            emit_log "${{ needs.backend-gates.outputs.api_regression_outcome || 'unknown' }}" "${{ needs.backend-gates.outputs.api_regression_exit_code || 'N/A' }}" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
-            emit_log "${{ needs.backend-gates.outputs.auth_security_regression_outcome || 'unknown' }}" "${{ needs.backend-gates.outputs.auth_security_regression_exit_code || 'N/A' }}" "AUTH SECURITY REGRESSION" "artifacts/backend-gates/auth-security-regression.log"
-            echo '```'
-          } > ci-summary.txt
-
-          cat ci-summary.txt
-          cat ci-summary.txt >> "$GITHUB_STEP_SUMMARY"
