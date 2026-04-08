@@ -6,10 +6,17 @@ import {
   resolveAuthenticatedPostAuthDestination,
 } from "../lib/postAuthDestination.js";
 import { resolvePostAuthContinuation } from "../lib/postAuthContinuation.js";
-import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_FROM_REDIRECT } from "../lib/postAuthRedirect.js";
+import {
+  DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_FROM_REDIRECT,
+  buildAccessDeniedLoginPath as buildAccessDeniedLoginPathFromRedirect,
+} from "../lib/postAuthRedirect.js";
+import {
+  AUTH_LOGIN_PATH as AUTH_LOGIN_PATH_CANONICAL,
+  buildAccessDeniedLoginPath as buildAccessDeniedLoginPathCanonical,
+} from "../../../../packages/auth/src/index.ts";
 import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_CANONICAL } from "../../../../packages/auth/src/index.ts";
 
-test("post-auth default path contract remains consistent across canonical and backend modules", () => {
+test("post-auth redirect helper exports remain consistent with canonical auth contract", () => {
   assert.equal(
     DEFAULT_POST_AUTH_PATH_FROM_REDIRECT,
     DEFAULT_POST_AUTH_PATH_CANONICAL,
@@ -18,6 +25,9 @@ test("post-auth default path contract remains consistent across canonical and ba
     DEFAULT_POST_AUTH_PATH_FROM_DESTINATION,
     DEFAULT_POST_AUTH_PATH_CANONICAL,
   );
+
+  assert.equal(buildAccessDeniedLoginPathFromRedirect(), buildAccessDeniedLoginPathCanonical());
+  assert.equal(buildAccessDeniedLoginPathFromRedirect(), `${AUTH_LOGIN_PATH_CANONICAL}?error=access_denied`);
 });
 
 test("post-auth resolver prioritizes onboarding over continuation path", () => {
