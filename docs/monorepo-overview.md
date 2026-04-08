@@ -127,12 +127,9 @@
   - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
   - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
 - `.github/workflows/backend-regression-gates.yml`:
-  - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
-  - Uploads `backend-gates-logs` artifact containing gate logs plus status metadata for downstream reporting.
-- `.github/workflows/ci-summary.yml`:
-  - Runs as a separate backend-only top-level check via `workflow_run` after `Backend Regression Gates` completes and renders one combined backend gate summary block in logs and `$GITHUB_STEP_SUMMARY`.
-- `.github/workflows/pr-checks-summary.yml`:
-  - Runs as an additional separate top-level check on PR/push events, deterministically tracks an allowlisted set of top-level checks (backend gates, auth-security suite, admin test, lockfile, linear-history), excludes itself/non-allowlisted checks, scopes to the exact commit SHA with duplicate-name de-duplication, and renders one consolidated copy-pasteable failure block across tracked checks in logs and `$GITHUB_STEP_SUMMARY`.
+  - Enforces backend install integrity via separate jobs (`typecheck`, `build-api`, `api-tests`, `api-regression`, `auth-security-regression`) for backend-affecting changes.
+  - Captures per-job failure logs under `ci-output/<job>.log` and uploads artifacts named `<job>-failure-log` only when a job fails.
+  - Includes an always-run `CI Failure Summary` job that renders one deterministic copy-pasteable summary block from `needs.<job>.result` and available failure artifacts without cross-workflow polling.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
