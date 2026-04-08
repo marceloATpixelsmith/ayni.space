@@ -36,6 +36,7 @@ jobs:
       BACKEND_TRACE_VERBOSE: "0"
       CI: "true"
     outputs:
+      logs_artifact_name: backend-gates-logs
       typecheck_outcome: ${{ steps.typecheck.outcome }}
       typecheck_exit_code: ${{ steps.typecheck.outputs.exit_code || 'N/A' }}
       build_outcome: ${{ steps.build.outcome }}
@@ -246,7 +247,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: backend-gates-logs
+          name: ${{ needs.backend-gates.outputs.logs_artifact_name }}
           path: artifacts/backend-gates
 
       - name: Display combined backend gate summary
