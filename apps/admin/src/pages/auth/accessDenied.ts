@@ -1,15 +1,15 @@
 import {
-  AUTH_ERROR_CODES,
-  buildAuthErrorLoginPath,
+  ADMIN_ACCESS_DENIED_ERROR,
+  buildAdminAccessDeniedLoginPath,
   getAuthErrorMessage,
 } from "@workspace/frontend-security";
 
-export const ADMIN_ACCESS_DENIED_ERROR = AUTH_ERROR_CODES.ACCESS_DENIED;
+export { ADMIN_ACCESS_DENIED_ERROR };
 
 export const ADMIN_ACCESS_DENIED_MESSAGE = getAuthErrorMessage(
   ADMIN_ACCESS_DENIED_ERROR,
 ) ?? "You are not authorized to access this application.";
 
 export function adminAccessDeniedLoginPath() {
-  return buildAuthErrorLoginPath(ADMIN_ACCESS_DENIED_ERROR);
+  return buildAdminAccessDeniedLoginPath();
 }
