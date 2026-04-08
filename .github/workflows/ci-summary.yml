@@ -1,0 +1,74 @@
+name: ci-summary
+
+on:
+  workflow_run:
+    workflows: ["Backend Regression Gates"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  ci-summary:
+    name: ci-summary
+    if: ${{ github.event.workflow_run.conclusion != 'cancelled' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure backend logs directory exists
+        run: mkdir -p artifacts/backend-gates
+
+      - name: Download backend gate logs artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-gates-logs
+          path: artifacts/backend-gates
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Display combined backend gate summary
+        run: |
+          TYPECHECK_OUTCOME="unknown"
+          TYPECHECK_EXIT="N/A"
+          BUILD_OUTCOME="unknown"
+          BUILD_EXIT="N/A"
+          API_TESTS_OUTCOME="unknown"
+          API_TESTS_EXIT="N/A"
+          API_REGRESSION_OUTCOME="unknown"
+          API_REGRESSION_EXIT="N/A"
+          AUTH_SECURITY_REGRESSION_OUTCOME="unknown"
+          AUTH_SECURITY_REGRESSION_EXIT="N/A"
+
+          if [ -f "artifacts/backend-gates/status.env" ]; then
+            # shellcheck disable=SC1091
+            source artifacts/backend-gates/status.env
+          fi
+
+          emit_log() {
+            local outcome="$1"
+            local exit_code="$2"
+            local title="$3"
+            local log_path="$4"
+
+            echo "${title} (outcome=${outcome}, exit=${exit_code})"
+            if [ -f "$log_path" ]; then
+              tail -n 250 "$log_path"
+            else
+              echo "No log captured."
+            fi
+            echo
+          }
+
+          {
+            echo '```text'
+            emit_log "$TYPECHECK_OUTCOME" "$TYPECHECK_EXIT" "TYPECHECK" "artifacts/backend-gates/typecheck.log"
+            emit_log "$BUILD_OUTCOME" "$BUILD_EXIT" "BUILD" "artifacts/backend-gates/build.log"
+            emit_log "$API_TESTS_OUTCOME" "$API_TESTS_EXIT" "API TESTS" "artifacts/backend-gates/api-tests.log"
+            emit_log "$API_REGRESSION_OUTCOME" "$API_REGRESSION_EXIT" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
+            emit_log "$AUTH_SECURITY_REGRESSION_OUTCOME" "$AUTH_SECURITY_REGRESSION_EXIT" "AUTH SECURITY REGRESSION" "artifacts/backend-gates/auth-security-regression.log"
+            echo '```'
+          } > ci-summary.txt
+
+          cat ci-summary.txt
+          cat ci-summary.txt >> "$GITHUB_STEP_SUMMARY"
