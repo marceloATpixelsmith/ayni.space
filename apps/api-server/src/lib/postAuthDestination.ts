@@ -5,6 +5,7 @@ import {
 } from "./postAuthContinuation.js";
 
 export type PostAuthResolutionStage = "post_auth" | "post_onboarding";
+export const DEFAULT_POST_AUTH_PATH = "/dashboard";
 
 export function resolveAuthenticatedPostAuthDestination(options: {
   continuation?: PostAuthContinuation | null;
@@ -31,5 +32,5 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     return flowDestination;
   }
 
-  return options.fallbackPath ?? "/dashboard";
+  return options.fallbackPath ?? DEFAULT_POST_AUTH_PATH;
 }
