@@ -130,8 +130,8 @@ jobs:
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
-      - name: CI Failure Summary
-        id: ci_summary
+      - name: Prepare CI Failure Summary
+        id: ci_summary_prepare
         if: always()
         run: |
           typecheck_outcome="${{ steps.typecheck.outcome || 'unknown' }}"
@@ -168,7 +168,20 @@ jobs:
             emit_log "$api_regression_outcome" "$api_regression_exit" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
             emit_log "$auth_security_regression_outcome" "$auth_security_regression_exit" "AUTH SECURITY REGRESSION" "artifacts/backend-gates/auth-security-regression.log"
             echo '```'
-          } > "$GITHUB_STEP_SUMMARY"
+          } > artifacts/backend-gates/ci-summary.txt
+
+      - name: Display Copyable CI Summary
+        if: always()
+        run: |
+          if [ -f artifacts/backend-gates/ci-summary.txt ]; then
+            cat artifacts/backend-gates/ci-summary.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo '```text'
+              echo 'No log captured.'
+              echo '```'
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Fail job if any backend gate failed
         if: always()
