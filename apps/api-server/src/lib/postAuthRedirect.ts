@@ -6,7 +6,7 @@ import {
 
 // Compatibility export for modules that still consume this symbol from
 // postAuthRedirect during auth contract cleanup.
-export { DEFAULT_POST_AUTH_PATH };
+export { DEFAULT_POST_AUTH_PATH, buildAccessDeniedLoginPath };
 
 export function getPostAuthRedirectPath(options: {
   appSlug: string;
