@@ -58,7 +58,7 @@ import {
 } from "../middlewares/rateLimit.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
-import { ADMIN_ACCESS_DENIED_ERROR } from "../lib/postAuthRedirect.js";
+import { buildAccessDeniedLoginPath } from "../lib/postAuthRedirect.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 import {
   generateOpaqueToken,
@@ -446,9 +446,9 @@ function logAuthCheckTrace(
 }
 
 function getAccessDeniedRedirect(frontendBase: string | null): string {
-  const encodedCode = encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR);
-  if (!frontendBase) return `/login?error=${encodedCode}`;
-  return `${frontendBase}/login?error=${encodedCode}`;
+  const path = buildAccessDeniedLoginPath();
+  if (!frontendBase) return path;
+  return `${frontendBase}${path}`;
 }
 
 function getControlledAuthErrorRedirect(

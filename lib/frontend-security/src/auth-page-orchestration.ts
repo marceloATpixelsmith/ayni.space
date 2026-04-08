@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  deriveAppAuthRoutePolicy,
   DEFAULT_POST_AUTH_PATH,
   isFullyAuthenticatedStatus,
   resolveAuthenticatedNextStep,
@@ -119,9 +120,7 @@ export function useSignupRoutePolicy(options: {
 }) {
   const { metadata, loading } = useCurrentPlatformAppMetadata();
   const metadataResolved = !loading;
-  const signupAllowed =
-    metadata?.authRoutePolicy?.allowCustomerRegistration ??
-    metadata?.normalizedAccessProfile !== "superadmin";
+  const signupAllowed = deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
   const signupPath = options.signupPath ?? "/signup";
 
   React.useEffect(() => {

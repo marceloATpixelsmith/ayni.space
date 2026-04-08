@@ -3,9 +3,9 @@ import {
   normalizeContinuationPath,
   type PostAuthContinuation,
 } from "./postAuthContinuation.js";
+import { DEFAULT_POST_AUTH_PATH } from "./postAuthRedirect.js";
 
 export type PostAuthResolutionStage = "post_auth" | "post_onboarding";
-export const DEFAULT_POST_AUTH_PATH = "/dashboard";
 
 export function resolveAuthenticatedPostAuthDestination(options: {
   continuation?: PostAuthContinuation | null;
