@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  DEFAULT_POST_AUTH_PATH,
   isFullyAuthenticatedStatus,
   resolveAuthenticatedNextStep,
   useAuth,
@@ -46,6 +47,7 @@ export function useLoginRouteComposition(options: {
   const deniedCleanupAttemptedRef = React.useRef(false);
 
   const hideSignupAffordances =
+    metadata?.authRoutePolicy?.allowCustomerRegistration === false ||
     metadata?.normalizedAccessProfile === "superadmin";
 
   React.useEffect(() => {
@@ -68,7 +70,7 @@ export function useLoginRouteComposition(options: {
       user: auth.user,
       continuationPath: options.nextPath,
       deniedLoginPath: options.deniedLoginPath,
-      defaultPath: options.defaultPath ?? "/dashboard",
+      defaultPath: options.defaultPath ?? DEFAULT_POST_AUTH_PATH,
     });
     options.onNavigate(nextStep.destination);
   }, [
@@ -117,7 +119,9 @@ export function useSignupRoutePolicy(options: {
 }) {
   const { metadata, loading } = useCurrentPlatformAppMetadata();
   const metadataResolved = !loading;
-  const signupAllowed = metadata?.normalizedAccessProfile !== "superadmin";
+  const signupAllowed =
+    metadata?.authRoutePolicy?.allowCustomerRegistration ??
+    metadata?.normalizedAccessProfile !== "superadmin";
   const signupPath = options.signupPath ?? "/signup";
 
   React.useEffect(() => {

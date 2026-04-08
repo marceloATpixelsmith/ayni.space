@@ -28,6 +28,7 @@ import {
   getAllowedOrigins,
   resolveSessionGroupForRequest,
   resolveSessionGroupFromOrigin,
+  resolveSessionGroupFromAppSlug,
   SESSION_GROUPS,
 } from "../lib/sessionGroup.js";
 import { writeAuditLog } from "../lib/audit.js";
@@ -35,6 +36,7 @@ import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
 import {
   resolveAuthenticatedPostAuthDestination,
+  DEFAULT_POST_AUTH_PATH,
   type PostAuthResolutionStage,
 } from "../lib/postAuthDestination.js";
 import {
@@ -56,6 +58,7 @@ import {
 } from "../middlewares/rateLimit.js";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
+import { ADMIN_ACCESS_DENIED_ERROR } from "../lib/postAuthRedirect.js";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 import {
   generateOpaqueToken,
@@ -443,8 +446,9 @@ function logAuthCheckTrace(
 }
 
 function getAccessDeniedRedirect(frontendBase: string | null): string {
-  if (!frontendBase) return "/login?error=access_denied";
-  return `${frontendBase}/login?error=access_denied`;
+  const encodedCode = encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR);
+  if (!frontendBase) return `/login?error=${encodedCode}`;
+  return `${frontendBase}/login?error=${encodedCode}`;
 }
 
 function getControlledAuthErrorRedirect(
@@ -1372,8 +1376,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
       stateSessionGroup ??
       SESSION_GROUPS.DEFAULT;
     const appSlug = parsedStateContext.appSlug;
-    const oauthSessionGroup =
-      appSlug === "admin" ? SESSION_GROUPS.ADMIN : stateSessionGroupCandidate;
+    const oauthSessionGroup = appSlug
+      ? resolveSessionGroupFromAppSlug(appSlug)
+      : stateSessionGroupCandidate;
     callbackSessionGroup = oauthSessionGroup;
     logSuperadminTrace("A1. PRE-CALLBACK-CONTEXT", {
       appSlug,
@@ -1651,8 +1656,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         logSuperadminTrace("H. ACCESS PROFILE DECISION", {
           appSlug: activeAppSlug,
           accessMode:
-            app?.accessMode ??
-            (activeAppSlug === "admin" ? "superadmin" : null),
+            app?.accessMode ?? null,
           normalizedAccessProfile,
           allow: false,
           denyReason: "user_not_found_in_superadmin_mode",
@@ -1708,7 +1712,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+          app?.accessMode ?? null,
         normalizedAccessProfile,
         allow: false,
         denyReason: "inactive_or_suspended_user",
@@ -1721,7 +1725,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+          app?.accessMode ?? null,
         normalizedAccessProfile,
         allow: false,
         denyReason: "not_superadmin",
@@ -1873,7 +1877,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode:
-          app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+          app?.accessMode ?? null,
         normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
         allow: false,
         denyReason: "app_context_denied",
@@ -1890,7 +1894,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("H. ACCESS PROFILE DECISION", {
       appSlug: activeAppSlug,
       accessMode:
-        app?.accessMode ?? (activeAppSlug === "admin" ? "superadmin" : null),
+        app?.accessMode ?? null,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       allow: true,
       denyReason: null,
@@ -1912,7 +1916,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         activeAppSlug,
         oauthContinuation,
         "post_auth",
-      )) ?? "/dashboard";
+      )) ?? DEFAULT_POST_AUTH_PATH;
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
       redirectPath: finalDestination,
@@ -2274,7 +2278,7 @@ async function resolveNextPathForEstablishedSession(
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
-      fallbackPath: "/dashboard",
+      fallbackPath: DEFAULT_POST_AUTH_PATH,
       stage,
     });
     const shouldKeepContinuation =
@@ -2652,7 +2656,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     .where(eq(usersTable.id, user.id));
   const nextPath =
     (await resolveNextPathForEstablishedSession(req, user.id, appSlug, continuation)) ??
-    "/dashboard";
+    DEFAULT_POST_AUTH_PATH;
   logAuthDebug(req, "login_result", {
     userId: user.id,
     appSlug,
@@ -2884,7 +2888,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
       appSlug,
       continuation,
     )) ??
-    "/dashboard";
+    DEFAULT_POST_AUTH_PATH;
   logAuthDebug(req, "verify_email_result", {
     userId: user.id,
     appSlug,
@@ -3205,7 +3209,7 @@ async function handlePostOnboardingNextPath(req: Request, res: Response) {
       appSlug,
       req.session.postAuthContinuation ?? null,
       "post_onboarding",
-    )) ?? "/dashboard";
+    )) ?? DEFAULT_POST_AUTH_PATH;
   delete req.session.postAuthContinuation;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));

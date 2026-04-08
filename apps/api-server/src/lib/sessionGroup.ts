@@ -4,6 +4,7 @@ const DEFAULT_SESSION_GROUP = "default";
 const ADMIN_SESSION_GROUP = "admin";
 const DEFAULT_SESSION_COOKIE_NAME = "saas.workspace.sid";
 const ADMIN_SESSION_COOKIE_NAME = "saas.admin.sid";
+const SESSION_GROUP_APP_SLUGS = "SESSION_GROUP_APP_SLUGS";
 
 function parseCsv(value: string | undefined): string[] {
   return (value ?? "")
@@ -60,6 +61,16 @@ function parseSessionGroupCookieNames(raw: string | undefined): Map<string, stri
   return map;
 }
 
+function parseSessionGroupAppSlugMap(raw: string | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of parseCsv(raw)) {
+    const [sessionGroup, appSlug] = entry.split("=").map((value) => value?.trim() ?? "");
+    if (!sessionGroup || !appSlug) continue;
+    map.set(appSlug.toLowerCase(), sessionGroup);
+  }
+  return map;
+}
+
 export function getSessionGroupCookieNameMap(): Map<string, string> {
   const configuredCookieNames = parseSessionGroupCookieNames(process.env["SESSION_GROUP_COOKIE_NAMES"]);
 
@@ -82,6 +93,18 @@ export function getSessionCookieNameForGroup(sessionGroup: string): string {
   const configuredCookieName = getSessionGroupCookieNameMap().get(sessionGroup);
   if (configuredCookieName) return configuredCookieName;
   return getSessionGroupCookieNameMap().get(DEFAULT_SESSION_GROUP) ?? DEFAULT_SESSION_COOKIE_NAME;
+}
+
+export function resolveSessionGroupFromAppSlug(appSlug: string | null | undefined): string {
+  const normalizedAppSlug = typeof appSlug === "string" ? appSlug.trim().toLowerCase() : "";
+  if (!normalizedAppSlug) return DEFAULT_SESSION_GROUP;
+
+  const mappedGroup = parseSessionGroupAppSlugMap(process.env[SESSION_GROUP_APP_SLUGS]).get(normalizedAppSlug);
+  if (mappedGroup && getKnownSessionGroups().includes(mappedGroup)) {
+    return mappedGroup;
+  }
+  if (normalizedAppSlug === "admin") return ADMIN_SESSION_GROUP;
+  return DEFAULT_SESSION_GROUP;
 }
 
 function getCookieNamesPresent(req: Request): Set<string> {
@@ -133,12 +156,7 @@ function parseGroupFromAuthAppSlug(req: Request): string | null {
   if (!rawAppSlug) return null;
   const normalizedAppSlug = rawAppSlug.trim().toLowerCase();
   if (!normalizedAppSlug) return null;
-
-  if (normalizedAppSlug === "admin") {
-    return ADMIN_SESSION_GROUP;
-  }
-
-  return DEFAULT_SESSION_GROUP;
+  return resolveSessionGroupFromAppSlug(normalizedAppSlug);
 }
 
 function parseGroupFromOAuthState(req: Request): string | null {

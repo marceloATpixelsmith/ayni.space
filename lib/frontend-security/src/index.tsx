@@ -19,6 +19,27 @@ export type AuthStatus =
   | "authenticated_mfa_pending_enrolled"
   | "authenticated_mfa_pending_unenrolled";
 
+export const AUTH_LOGIN_PATH = "/login";
+export const DEFAULT_POST_AUTH_PATH = "/dashboard";
+export const AUTH_ERROR_CODES = {
+  ACCESS_DENIED: "access_denied",
+} as const;
+export type AuthErrorCode =
+  (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
+
+export function buildAuthErrorLoginPath(code: AuthErrorCode): string {
+  return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(code)}`;
+}
+
+export function getAuthErrorMessage(
+  code: string | null | undefined,
+): string | null {
+  if (code === AUTH_ERROR_CODES.ACCESS_DENIED) {
+    return "You are not authorized to access this application.";
+  }
+  return null;
+}
+
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
@@ -154,7 +175,7 @@ export function resolveAuthenticatedNextStep(params: {
 }): ResolvedPostAuthDestination {
   if (isMfaPendingStatus(params.authStatus)) {
     return {
-      destination: getMfaPendingRoute(params.authStatus) ?? "/login",
+      destination: getMfaPendingRoute(params.authStatus) ?? AUTH_LOGIN_PATH,
       reason: "mfa_pending",
     };
   }
@@ -185,20 +206,23 @@ export function resolveAuthenticatedNextStep(params: {
   if (appAccess?.normalizedAccessProfile === "superadmin") {
     return {
       destination: params.user?.isSuperAdmin
-        ? "/dashboard"
-        : (params.deniedLoginPath ?? "/login"),
+        ? DEFAULT_POST_AUTH_PATH
+        : (params.deniedLoginPath ?? AUTH_LOGIN_PATH),
       reason: "superadmin_policy",
     };
   }
 
   if (appAccess && appAccess.canAccess === false) {
     return {
-      destination: params.deniedLoginPath ?? "/login",
+      destination: params.deniedLoginPath ?? AUTH_LOGIN_PATH,
       reason: "access_denied",
     };
   }
 
-  return { destination: params.defaultPath ?? "/dashboard", reason: "default" };
+  return {
+    destination: params.defaultPath ?? DEFAULT_POST_AUTH_PATH,
+    reason: "default",
+  };
 }
 
 function classifyMfaPendingUser(
@@ -431,22 +455,24 @@ export function getDisallowedAuthRouteRedirect({
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
     if (isFullyAuthenticatedStatus(authStatus)) {
-      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
+      return isSuperAdmin
+        ? DEFAULT_POST_AUTH_PATH
+        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
     }
     if (isMfaPendingStatus(authStatus)) {
-      return getMfaPendingRoute(authStatus) ?? "/login";
+      return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
     }
-    return "/login";
+    return AUTH_LOGIN_PATH;
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
-    return "/dashboard";
+    return DEFAULT_POST_AUTH_PATH;
   }
   if (isMfaPendingStatus(authStatus)) {
-    return getMfaPendingRoute(authStatus) ?? "/login";
+    return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
   }
 
-  return "/login";
+  return AUTH_LOGIN_PATH;
 }
 
 function normalizePlatformAppMetadata(
