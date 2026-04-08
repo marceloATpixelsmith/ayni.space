@@ -20,6 +20,29 @@ jobs:
     name: pr-checks-summary
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate summary CLI wiring
+        run: |
+          set -euo pipefail
+
+          summary_cli_path="scripts/ci/pr-checks-summary-targeting-cli.mjs"
+          summary_module_path="scripts/ci/pr-checks-summary-targeting.mjs"
+
+          echo "Resolved summary CLI path: $(realpath "$summary_cli_path")"
+          echo "Resolved summary module path: $(realpath "$summary_module_path")"
+
+          for required_file in "$summary_cli_path" "$summary_module_path"; do
+            if [ ! -f "$required_file" ]; then
+              echo "Required summary script is missing: $required_file" >&2
+              exit 1
+            fi
+          done
+
+          node --check "$summary_cli_path"
+          node --check "$summary_module_path"
+
       - name: Build consolidated check summary block
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
