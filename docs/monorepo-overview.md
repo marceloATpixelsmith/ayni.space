@@ -130,7 +130,9 @@
   - Enforces backend install integrity, build, typecheck, backend route/middleware regression tests, and API codegen artifact validation for backend-affecting changes.
   - Uploads `backend-gates-logs` artifact containing gate logs plus status metadata for downstream reporting.
 - `.github/workflows/ci-summary.yml`:
-  - Runs as a separate top-level check via `workflow_run` after `Backend Regression Gates` completes and renders one combined backend gate summary block in logs and `$GITHUB_STEP_SUMMARY`.
+  - Runs as a separate backend-only top-level check via `workflow_run` after `Backend Regression Gates` completes and renders one combined backend gate summary block in logs and `$GITHUB_STEP_SUMMARY`.
+- `.github/workflows/pr-checks-summary.yml`:
+  - Runs as an additional separate top-level check on PR/push events, waits for targeted validation checks to finish, and renders one consolidated copy-pasteable failure block across targeted checks in logs and `$GITHUB_STEP_SUMMARY`.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
