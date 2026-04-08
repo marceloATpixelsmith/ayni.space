@@ -13,8 +13,8 @@ import {
 import {
   AUTH_LOGIN_PATH as AUTH_LOGIN_PATH_CANONICAL,
   buildAccessDeniedLoginPath as buildAccessDeniedLoginPathCanonical,
-} from "../../../../packages/auth/src/index.ts";
-import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_CANONICAL } from "../../../../packages/auth/src/index.ts";
+  DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_CANONICAL,
+} from "@workspace/auth";
 
 test("post-auth redirect helper exports remain consistent with canonical auth contract", () => {
   assert.equal(
