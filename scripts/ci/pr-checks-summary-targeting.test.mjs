@@ -50,3 +50,19 @@ test('trackedNames forces deterministic target set and flags missing checks as u
   );
   assert.equal(pendingTrackedChecks(tracked).length, 1);
 });
+
+test('trackedNames merges newly discovered allowlisted checks during polling', () => {
+  const tracked = selectLatestTrackedRuns({
+    checkRuns: [
+      { id: 31, name: 'backend-gates', status: 'completed', conclusion: 'failure' },
+      { id: 32, name: 'auth-security-regression-suite', status: 'completed', conclusion: 'success' },
+    ],
+    allowlist: ['backend-gates', 'auth-security-regression-suite', 'check'],
+    summaryCheckName: 'pr-checks-summary',
+    headSha: '',
+    trackedNames: ['auth-security-regression-suite', 'check'],
+  });
+
+  assert.deepEqual(tracked.map((c) => c.name), ['auth-security-regression-suite', 'check', 'backend-gates']);
+  assert.equal(tracked.find((c) => c.name === 'backend-gates')?.conclusion, 'failure');
+});

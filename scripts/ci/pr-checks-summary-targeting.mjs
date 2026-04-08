@@ -16,9 +16,13 @@ export function selectLatestTrackedRuns({ checkRuns, allowlist, summaryCheckName
     }
   }
 
-  const orderedNames = trackedNames && trackedNames.length
-    ? trackedNames
-    : allowlist.filter((name) => latestByName.has(name));
+  const discoveredNames = (allowlist || []).filter(
+    (name) => name && name !== summaryCheckName && allow.has(name) && latestByName.has(name),
+  );
+  const forcedNames = (trackedNames || []).filter((name) => name && name !== summaryCheckName && allow.has(name));
+  const orderedNames = forcedNames.length
+    ? Array.from(new Set([...forcedNames, ...discoveredNames]))
+    : discoveredNames;
 
   return orderedNames.map((name) => {
     const run = latestByName.get(name);
