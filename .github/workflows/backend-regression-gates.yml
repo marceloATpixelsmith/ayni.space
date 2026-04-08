@@ -7,20 +7,22 @@ on:
       - "apps/api-server/**"
       - "lib/**"
       - "packages/**"
+      - "scripts/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/**"
   push:
     branches: [master]
     paths:
       - "apps/api-server/**"
       - "lib/**"
       - "packages/**"
+      - "scripts/**"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "package.json"
-      - ".github/workflows/backend-regression-gates.yml"
+      - ".github/workflows/**"
   schedule:
     - cron: "0 3 * * *"
 
