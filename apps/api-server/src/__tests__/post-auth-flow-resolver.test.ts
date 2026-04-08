@@ -223,3 +223,22 @@ test("post-onboarding resolver uses default destination when continuation is mis
 
   assert.equal(destination, "/dashboard");
 });
+
+test("post-auth resolver ignores continuation when app access is denied", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: resolvePostAuthContinuation({
+      appSlug: "workspace",
+      returnPath: "/invitations/token-99/accept",
+    }),
+    flowDecision: {
+      canAccess: false,
+      normalizedAccessProfile: "superadmin",
+      requiredOnboarding: "none",
+      destination: "/login?error=access_denied",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/login?error=access_denied");
+});

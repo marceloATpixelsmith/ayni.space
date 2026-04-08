@@ -98,7 +98,7 @@ function getSignupAuditContext(req: Request): Record<string, unknown> {
   const sessionGroup = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
   const appSlugFromBody = typeof req.body?.appSlug === "string" ? req.body.appSlug.trim() : "";
   const appSlugFromSession = typeof req.session?.appSlug === "string" ? req.session.appSlug : "";
-  const appSlug = appSlugFromBody || appSlugFromSession || "admin";
+  const appSlug = appSlugFromBody || appSlugFromSession || null;
 
   return {
     sessionGroup,
