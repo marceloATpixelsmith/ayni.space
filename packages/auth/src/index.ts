@@ -3,6 +3,10 @@ export const DEFAULT_POST_AUTH_PATH = "/dashboard";
 
 export const AUTH_ERROR_CODES = {
   ACCESS_DENIED: "access_denied",
+  APP_SLUG_INVALID: "app_slug_invalid",
+  APP_SLUG_MISSING: "app_slug_missing",
+  APP_NOT_FOUND: "app_not_found",
+  APP_CONTEXT_UNAVAILABLE: "app_context_unavailable",
 } as const;
 
 export type AuthErrorCode =
@@ -33,6 +37,18 @@ export function getAuthErrorMessage(
 ): string | null {
   if (code === AUTH_ERROR_CODES.ACCESS_DENIED) {
     return "You are not authorized to access this application.";
+  }
+  if (code === AUTH_ERROR_CODES.APP_SLUG_INVALID) {
+    return "Sign-in context was invalid. Please start sign-in again.";
+  }
+  if (code === AUTH_ERROR_CODES.APP_SLUG_MISSING) {
+    return "Sign-in context is missing required application information.";
+  }
+  if (code === AUTH_ERROR_CODES.APP_NOT_FOUND) {
+    return "The requested application could not be found.";
+  }
+  if (code === AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE) {
+    return "Application access context is unavailable. Please try again.";
   }
   return null;
 }
