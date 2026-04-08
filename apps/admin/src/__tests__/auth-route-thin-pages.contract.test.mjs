@@ -24,7 +24,7 @@ const sharedOrchestrationSource = fs.readFileSync(
 );
 
 test("login route is thin and composes shared auth-page orchestration", () => {
-  assert.match(loginSource, /useLoginRouteComposition\(\{/);
+  assert.match(loginSource, /useLoginRouteComposition\(/);
   assert.match(loginSource, /from "@workspace\/frontend-security"/);
   assert.doesNotMatch(loginSource, /export function getLoginDisabledReasons/);
   assert.doesNotMatch(loginSource, /useCurrentPlatformAppMetadata\(\)/);

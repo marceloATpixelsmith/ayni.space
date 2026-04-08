@@ -78,7 +78,8 @@
   - `apps/mockup-sandbox` → `@workspace/frontend-observability`.
 - **apps → packages**
   - `apps/api-server` → `@opentelemetry/instrumentation-http` declared dependency.
-  - No `apps/*` package depends on `@workspace/auth`, `@workspace/config`, `@workspace/security`, `@workspace/types`, or `@workspace/ui`.
+  - `apps/api-server` depends on `@workspace/auth` for shared auth route/error contracts.
+  - No `apps/*` package depends on `@workspace/config`, `@workspace/security`, `@workspace/types`, or `@workspace/ui`.
 - **lib → lib**
   - `lib/frontend-security` imports `@workspace/api-client-react`.
   - Other `lib/*` modules are consumed by apps/scripts and do not import each other broadly.

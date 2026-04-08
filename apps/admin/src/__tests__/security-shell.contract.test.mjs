@@ -12,6 +12,7 @@ const signupPath = path.resolve(__dirname, "../pages/auth/Signup.tsx");
 const resetPasswordPath = path.resolve(__dirname, "../pages/auth/ResetPassword.tsx");
 const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
 const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
+const sharedOrchestrationPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/auth-page-orchestration.ts");
 const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
 const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
 const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
@@ -30,6 +31,7 @@ const signupSource = fs.readFileSync(signupPath, "utf8");
 const resetPasswordSource = fs.readFileSync(resetPasswordPath, "utf8");
 const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
+const sharedOrchestrationSource = fs.readFileSync(sharedOrchestrationPath, "utf8");
 const turnstileSource = fs.readFileSync(turnstilePath, "utf8");
 const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
 const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
@@ -395,7 +397,7 @@ test("super-admin users are sent to /dashboard after login", () => {
 
   expectIncludes(
     loginSource,
-    "deniedLoginPath: adminAccessDeniedLoginPath()",
+    "deniedLoginPath: buildAdminAccessDeniedLoginPath()",
     "Login resolver call should preserve explicit superadmin denied-login behavior.",
   );
 
@@ -407,14 +409,14 @@ test("super-admin users are sent to /dashboard after login", () => {
 
   expectIncludes(
     loginSource,
-    "const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;",
+    "const accessError = getAuthErrorMessage(accessErrorCode);",
     "Login page should render stable access-denied feedback from redirect state.",
   );
 
   expectIncludes(
-    accessDeniedSource,
-    '"You are not authorized to access this application."',
-    "Login-page access error copy should explain the authorization failure.",
+    loginSource,
+    "const accessError = getAuthErrorMessage(accessErrorCode);",
+    "Login page should resolve access-denied message via shared frontend-security contract helper.",
   );
 });
 
@@ -441,7 +443,7 @@ test("superadmin-only dashboard component remains fail-closed", () => {
 
   expectIncludes(
     accessDeniedSource,
-    'return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;',
+    'return buildAdminAccessDeniedLoginPath();',
     "Access denied helper should remain shared and stable.",
   );
 });
@@ -464,7 +466,7 @@ test("direct protected-route access fail-closes to login with access error", () 
 test("login screen has stable inline access-denied message state", () => {
   expectIncludes(
     accessDeniedSource,
-    'export const ADMIN_ACCESS_DENIED_ERROR = "access_denied";',
+    'import { buildAdminAccessDeniedLoginPath } from "@workspace/frontend-security";',
     "Login access-denied error code should be stable.",
   );
 
@@ -660,19 +662,19 @@ test("login includes turnstile token when requesting oauth url", () => {
   );
 
   expectIncludes(
-    loginSource,
+    sharedOrchestrationSource,
     "if (!input.csrfReady) reasons.push(\"!auth.csrfReady\");",
     "Login button should stay disabled until CSRF bootstrap is complete.",
   );
 
   expectIncludes(
-    loginSource,
+    sharedOrchestrationSource,
     "if (!input.csrfTokenPresent) reasons.push(\"!auth.csrfToken\");",
     "Login button should stay disabled until a CSRF token is available.",
   );
 
   expectIncludes(
-    loginSource,
+    sharedOrchestrationSource,
     "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
     "Login button should stay disabled until required turnstile token is present.",
   );
@@ -761,7 +763,7 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "useLoginRouteComposition({",
+    "useLoginRouteComposition(",
     "Login should compose shared route orchestration instead of owning redirect/policy logic inline.",
   );
 
@@ -1080,7 +1082,7 @@ test("invitation acceptance keeps first-time password creation and omits confirm
 test("superadmin login hides signup affordances and blocks create-account intent", () => {
   expectIncludes(
     loginSource,
-    "useLoginRouteComposition({",
+    "useLoginRouteComposition(",
     "Login should resolve superadmin signup affordances through shared route orchestration.",
   );
   expectIncludes(
@@ -1204,7 +1206,7 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
   expectIncludes(
     loginSource,
-    "useLoginRouteComposition({",
+    "useLoginRouteComposition(",
     "Login should consume shared auth-route composition helper instead of owning metadata effects locally.",
   );
   expectIncludes(

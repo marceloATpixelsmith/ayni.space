@@ -23,7 +23,8 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
-    "express": "^5"
+    "express": "^5",
+    "@workspace/auth": "workspace:*"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",

@@ -9,7 +9,8 @@
   "dependencies": {
     "@workspace/api-client-react": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "react": "catalog:"
+    "react": "catalog:",
+    "@workspace/auth": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

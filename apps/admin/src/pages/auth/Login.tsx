@@ -11,15 +11,13 @@ import {
   resetTurnstileOnFailure,
   useAuthSubmitOrchestration,
   validateEmailInput,
+  getLoginDisabledReasons,
+  getAuthErrorMessage,
+  buildAdminAccessDeniedLoginPath,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { ActivitySquare } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  ADMIN_ACCESS_DENIED_ERROR,
-  ADMIN_ACCESS_DENIED_MESSAGE,
-  adminAccessDeniedLoginPath,
-} from "./accessDenied";
 import {
   AuthFormMotion,
   AuthMethodDivider,
@@ -32,27 +30,6 @@ import {
 const AUTH_DEBUG =
   (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
     ?.VITE_AUTH_DEBUG === "true";
-
-function getLoginDisabledReasons(input: {
-  authStatus: ReturnType<typeof useLoginRouteComposition>["auth"]["status"];
-  loginInFlight: boolean;
-  csrfReady: boolean;
-  csrfTokenPresent: boolean;
-  turnstileEnabled: boolean;
-  turnstileReady: boolean;
-  turnstileTokenPresent: boolean;
-}) {
-  const reasons: string[] = [];
-  if (input.authStatus === "authenticated_fully") {
-    reasons.push("auth.status===authenticated_fully");
-  }
-  if (input.loginInFlight) reasons.push("auth.loginInFlight");
-  if (!input.csrfReady) reasons.push("!auth.csrfReady");
-  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
-  return reasons;
-}
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -69,12 +46,9 @@ export default function Login() {
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
   const accessErrorCode = parseAuthErrorCode(query.get("error"));
-  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
+  const accessError = getAuthErrorMessage(accessErrorCode);
 
-  const { auth, turnstile, hideSignupAffordances } =
-    useLoginRouteComposition({
-      accessErrorPresent: Boolean(accessError),
-    });
+  const { auth, turnstile, hideSignupAffordances } = useLoginRouteComposition();
   const deniedCleanupAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -96,7 +70,7 @@ export default function Login() {
       authStatus: auth.status,
       user: auth.user,
       continuationPath: nextPath,
-      deniedLoginPath: adminAccessDeniedLoginPath(),
+      deniedLoginPath: buildAdminAccessDeniedLoginPath(),
       defaultPath: DEFAULT_POST_AUTH_PATH,
     });
     setLocation(nextStep.destination);
