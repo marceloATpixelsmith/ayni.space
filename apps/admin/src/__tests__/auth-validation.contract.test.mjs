@@ -139,3 +139,10 @@ test("auth pages consume shared auth-ui primitives from lib/auth-ui", () => {
   assert.doesNotMatch(forgotSource, /from "\.\/components\//);
   assert.doesNotMatch(invitationSource, /from "\.\/components\//);
 });
+
+
+test("login consumes shared auth error contract helpers instead of app-local adapter", () => {
+  assert.match(loginSource, /getAuthErrorMessage/);
+  assert.match(loginSource, /buildAdminAccessDeniedLoginPath/);
+  assert.doesNotMatch(loginSource, /from "\.\/accessDenied"/);
+});

@@ -455,9 +455,10 @@ function getControlledAuthErrorRedirect(
   frontendBase: string | null,
   code: string,
 ): string {
-  const encodedCode = encodeURIComponent(code);
-  if (!frontendBase) return `/login?error=${encodedCode}`;
-  return `${frontendBase}/login?error=${encodedCode}`;
+  const parsedCode = parseAuthErrorCode(code);
+  const path = buildAuthErrorLoginPath(parsedCode ?? "access_denied");
+  if (!frontendBase) return path;
+  return `${frontendBase}${path}`;
 }
 
 function getFrontendBaseForDeny(

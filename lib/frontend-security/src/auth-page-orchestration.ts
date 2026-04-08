@@ -6,9 +6,28 @@ import {
   useTurnstileToken,
 } from "./index";
 
-export function useLoginRouteComposition(options: {
-  accessErrorPresent?: boolean;
+export function getLoginDisabledReasons(input: {
+  authStatus: ReturnType<typeof useAuth>["status"];
+  loginInFlight: boolean;
+  csrfReady: boolean;
+  csrfTokenPresent: boolean;
+  turnstileEnabled: boolean;
+  turnstileReady: boolean;
+  turnstileTokenPresent: boolean;
 }) {
+  const reasons: string[] = [];
+  if (input.authStatus === "authenticated_fully") {
+    reasons.push("auth.status===authenticated_fully");
+  }
+  if (input.loginInFlight) reasons.push("auth.loginInFlight");
+  if (!input.csrfReady) reasons.push("!auth.csrfReady");
+  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
+  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+  return reasons;
+}
+
+export function useLoginRouteComposition() {
   const auth = useAuth();
   const { metadata } = useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
