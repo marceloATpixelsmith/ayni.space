@@ -460,7 +460,7 @@ export function getDisallowedAuthRouteRedirect({
     if (isMfaPendingStatus(authStatus)) {
       return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
     }
-    return AUTH_LOGIN_PATH;
+    return "/login";
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
@@ -470,7 +470,7 @@ export function getDisallowedAuthRouteRedirect({
     return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
   }
 
-  return AUTH_LOGIN_PATH;
+  return "/login";
 }
 
 function normalizePlatformAppMetadata(
