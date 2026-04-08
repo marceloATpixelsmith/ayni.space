@@ -132,7 +132,7 @@
 - `.github/workflows/ci-summary.yml`:
   - Runs as a separate backend-only top-level check via `workflow_run` after `Backend Regression Gates` completes and renders one combined backend gate summary block in logs and `$GITHUB_STEP_SUMMARY`.
 - `.github/workflows/pr-checks-summary.yml`:
-  - Runs as an additional separate top-level check on PR/push events, waits for targeted validation checks to finish, and renders one consolidated copy-pasteable failure block across targeted checks in logs and `$GITHUB_STEP_SUMMARY`.
+  - Runs as an additional separate top-level check on PR/push events, deterministically tracks an allowlisted set of top-level checks (backend gates, auth-security suite, admin test, lockfile, linear-history), excludes itself/non-allowlisted checks, scopes to the exact commit SHA with duplicate-name de-duplication, and renders one consolidated copy-pasteable failure block across tracked checks in logs and `$GITHUB_STEP_SUMMARY`.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
