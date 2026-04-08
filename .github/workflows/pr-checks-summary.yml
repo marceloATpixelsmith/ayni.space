@@ -1,0 +1,257 @@
+name: PR Checks Summary Aggregator
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+concurrency:
+  group: pr-checks-summary-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks-summary:
+    name: pr-checks-summary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build consolidated check summary block
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SUMMARY_CHECK_NAME: pr-checks-summary
+          TARGET_CHECKS: |
+            backend-gates
+            auth-security-regression-suite
+            api-regression
+            test
+            Verify pnpm lockfile is up to date
+            check
+        run: |
+          set -euo pipefail
+
+          mkdir -p artifacts/pr-checks-summary
+
+          target_checks_file="artifacts/pr-checks-summary/target-checks.txt"
+          printf '%s\n' "$TARGET_CHECKS" | sed '/^\s*$/d' > "$target_checks_file"
+
+          fetch_checks() {
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100"
+          }
+
+          echo "Waiting for targeted checks to complete for ${HEAD_SHA}..."
+          attempts=0
+          max_attempts=90
+          sleep_seconds=20
+
+          while true; do
+            attempts=$((attempts + 1))
+            fetch_checks > artifacts/pr-checks-summary/check-runs.json
+
+            jq -r '.check_runs[] | [.name, .status, (.conclusion // "null")] | @tsv' artifacts/pr-checks-summary/check-runs.json \
+              > artifacts/pr-checks-summary/check-runs.tsv
+
+            unresolved=0
+            while IFS= read -r check_name; do
+              [ -z "$check_name" ] && continue
+
+              status_lines=$(awk -F'\t' -v target="$check_name" '$1==target {print $2"\t"$3}' artifacts/pr-checks-summary/check-runs.tsv || true)
+              if [ -z "$status_lines" ]; then
+                continue
+              fi
+
+              if echo "$status_lines" | awk -F'\t' '$1 != "completed" {exit 0} END {exit 1}'; then
+                unresolved=$((unresolved + 1))
+              fi
+            done < "$target_checks_file"
+
+            if [ "$unresolved" -eq 0 ]; then
+              echo "All discovered targeted checks are completed."
+              break
+            fi
+
+            if [ "$attempts" -ge "$max_attempts" ]; then
+              echo "Timed out waiting for some checks to complete; continuing with best-effort aggregation."
+              break
+            fi
+
+            echo "Attempt ${attempts}/${max_attempts}: waiting on ${unresolved} targeted check(s)..."
+            sleep "$sleep_seconds"
+          done
+
+          fetch_checks > artifacts/pr-checks-summary/check-runs.final.json
+          jq -r '.check_runs[] | [.name, .status, (.conclusion // "null"), .html_url, .details_url] | @tsv' artifacts/pr-checks-summary/check-runs.final.json \
+            > artifacts/pr-checks-summary/check-runs.final.tsv
+
+          summary_file="artifacts/pr-checks-summary/consolidated-summary.txt"
+          run_cache_dir="artifacts/pr-checks-summary/run-logs"
+          mkdir -p "$run_cache_dir"
+
+          {
+            echo "PR CHECK FAILURE SUMMARY (commit ${HEAD_SHA})"
+            echo
+          } > "$summary_file"
+
+          failures=0
+
+          extract_run_and_job_ids() {
+            local details_url="$1"
+            local run_id
+            local job_id
+
+            run_id=$(echo "$details_url" | sed -n 's#.*\/runs\/\([0-9]\+\)\/job\/\([0-9]\+\).*#\1#p')
+            job_id=$(echo "$details_url" | sed -n 's#.*\/runs\/\([0-9]\+\)\/job\/\([0-9]\+\).*#\2#p')
+
+            if [ -n "$run_id" ] && [ -n "$job_id" ]; then
+              echo "$run_id $job_id"
+            fi
+          }
+
+          ensure_run_logs_downloaded() {
+            local run_id="$1"
+            local run_dir="${run_cache_dir}/${run_id}"
+            local zip_path="${run_dir}/logs.zip"
+
+            if [ -d "$run_dir/extracted" ]; then
+              return 0
+            fi
+
+            mkdir -p "$run_dir/extracted"
+            if gh api -H "Accept: application/vnd.github+json" "/repos/${REPO}/actions/runs/${run_id}/logs" > "$zip_path"; then
+              if ! unzip -o -q "$zip_path" -d "$run_dir/extracted"; then
+                return 1
+              fi
+            else
+              return 1
+            fi
+
+            return 0
+          }
+
+          find_job_log_file() {
+            local run_id="$1"
+            local job_id="$2"
+            local run_dir="${run_cache_dir}/${run_id}/extracted"
+
+            find "$run_dir" -type f -name "*${job_id}*.txt" | head -n 1
+          }
+
+          extract_failure_chunk() {
+            local log_path="$1"
+
+            if [ ! -f "$log_path" ]; then
+              echo "Unable to locate extracted job log file."
+              return
+            fi
+
+            awk '
+              /##\[error\]|\bERROR\b|\bError:\b|\bFAIL\b|AssertionError|Traceback|Exception/ {
+                start=NR-30; if (start<1) start=1; end=NR+30
+              }
+              { lines[NR]=$0 }
+              END {
+                if (end==0) {
+                  s=NR-220; if (s<1) s=1;
+                  for (i=s; i<=NR; i++) print lines[i];
+                } else {
+                  for (i=start; i<=end && i<=NR; i++) print lines[i];
+                }
+              }
+            ' "$log_path"
+          }
+
+          while IFS=$'\t' read -r name status conclusion html_url details_url; do
+            grep -Fxq "$name" "$target_checks_file" || continue
+
+            if [ "$status" != "completed" ]; then
+              {
+                echo "CHECK: ${name}"
+                echo "STATUS: ${status}"
+                echo "NOTE: Check did not complete before summary timeout."
+                echo "URL: ${html_url}"
+                echo "---"
+              } >> "$summary_file"
+              continue
+            fi
+
+            if [ "$conclusion" = "success" ] || [ "$conclusion" = "skipped" ] || [ "$conclusion" = "neutral" ]; then
+              {
+                echo "CHECK: ${name}"
+                echo "STATUS: PASS (${conclusion})"
+                echo "URL: ${html_url}"
+                echo "---"
+              } >> "$summary_file"
+              continue
+            fi
+
+            failures=$((failures + 1))
+
+            run_job_ids=$(extract_run_and_job_ids "$details_url" || true)
+            run_id=""
+            job_id=""
+            if [ -n "$run_job_ids" ]; then
+              run_id=$(echo "$run_job_ids" | awk '{print $1}')
+              job_id=$(echo "$run_job_ids" | awk '{print $2}')
+            fi
+
+            error_text=""
+            retrieval_note=""
+
+            if [ -n "$run_id" ] && [ -n "$job_id" ] && ensure_run_logs_downloaded "$run_id"; then
+              job_log_file=$(find_job_log_file "$run_id" "$job_id" || true)
+              if [ -n "$job_log_file" ]; then
+                error_text=$(extract_failure_chunk "$job_log_file")
+              else
+                retrieval_note="Could not match job log file by job ID ${job_id}."
+              fi
+            else
+              retrieval_note="Could not download or parse run/job logs from details URL."
+            fi
+
+            if [ -z "$error_text" ]; then
+              check_output=$(gh api -H "Accept: application/vnd.github+json" "/repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq -r --arg check_name "$name" '.check_runs[] | select(.name == $check_name) | .output.text // .output.summary // ""' | head -n 1)
+              error_text="$check_output"
+            fi
+
+            if [ -z "$error_text" ]; then
+              error_text="No error text available from logs or check output."
+            fi
+
+            {
+              echo "CHECK: ${name}"
+              echo "STATUS: FAIL (${conclusion})"
+              echo "JOB: ${name}"
+              echo "STEP: see error context below"
+              echo "URL: ${html_url}"
+              if [ -n "$retrieval_note" ]; then
+                echo "NOTE: ${retrieval_note}"
+              fi
+              echo "ERROR:"
+              echo "$error_text"
+              echo "---"
+            } >> "$summary_file"
+          done < artifacts/pr-checks-summary/check-runs.final.tsv
+
+          if [ "$failures" -eq 0 ]; then
+            {
+              echo "All relevant checks passed."
+              echo "No failed targeted checks were detected for this commit."
+            } >> "$summary_file"
+          fi
+
+          {
+            echo '```text'
+            cat "$summary_file"
+            echo '```'
+          } | tee artifacts/pr-checks-summary/consolidated-summary-block.md
+
+          cat artifacts/pr-checks-summary/consolidated-summary-block.md
+          cat artifacts/pr-checks-summary/consolidated-summary-block.md >> "$GITHUB_STEP_SUMMARY"
