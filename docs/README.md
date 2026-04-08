@@ -13,7 +13,7 @@
 ## Required reading order
 1. `monorepo-overview.md` (source of truth)
 2. Domain docs (`shared-packages.md` through `ci-cd-and-deploy-rules.md`, plus ownership/codex docs)
-3. Supporting inventories (`app-catalog.md`, auth/session and other inventory companions)
+3. Supporting inventories (`app-catalog.md`, auth/session and other inventory companions, including `system-baseline-audit.md`)
 4. `open-questions-and-conflicts.md` for unresolved items
 
 ## Document index (all current docs)
@@ -50,6 +50,7 @@
 30. `open-questions-and-conflicts.md`
 31. `auth-security-regression-suite.md`
 32. `transactional-email-lane2-architecture.md`
+33. `system-baseline-audit.md`
 
 ### Numbered compatibility copies
 - `06-authorization-and-access-model-inventory.md`
