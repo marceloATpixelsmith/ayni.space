@@ -21,14 +21,19 @@ export type AuthStatus =
 
 export const AUTH_LOGIN_PATH = "/login";
 export const DEFAULT_POST_AUTH_PATH = "/dashboard";
+export const ADMIN_ACCESS_DENIED_ERROR = "access_denied";
 export const AUTH_ERROR_CODES = {
-  ACCESS_DENIED: "access_denied",
+  ACCESS_DENIED: ADMIN_ACCESS_DENIED_ERROR,
 } as const;
 export type AuthErrorCode =
   (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
 
 export function buildAuthErrorLoginPath(code: AuthErrorCode): string {
   return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(code)}`;
+}
+
+export function buildAdminAccessDeniedLoginPath(): string {
+  return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
 }
 
 export function parseAuthErrorCode(raw: string | null | undefined): AuthErrorCode | null {

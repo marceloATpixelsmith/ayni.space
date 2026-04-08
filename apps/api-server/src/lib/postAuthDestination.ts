@@ -3,7 +3,10 @@ import {
   normalizeContinuationPath,
   type PostAuthContinuation,
 } from "./postAuthContinuation.js";
-import { DEFAULT_POST_AUTH_PATH } from "./postAuthRedirect.js";
+import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_COMPAT } from "./postAuthRedirect.js";
+
+// Compatibility export consumed by auth routes/tests that import from this module.
+export const DEFAULT_POST_AUTH_PATH = DEFAULT_POST_AUTH_PATH_COMPAT;
 
 export type PostAuthResolutionStage = "post_auth" | "post_onboarding";
 
