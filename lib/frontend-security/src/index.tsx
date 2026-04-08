@@ -31,6 +31,16 @@ export function buildAuthErrorLoginPath(code: AuthErrorCode): string {
   return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(code)}`;
 }
 
+export function parseAuthErrorCode(raw: string | null | undefined): AuthErrorCode | null {
+  if (!raw) return null;
+  const candidate = raw.trim();
+  const values = Object.values(AUTH_ERROR_CODES) as string[];
+  if (values.includes(candidate)) {
+    return candidate as AuthErrorCode;
+  }
+  return null;
+}
+
 export function getAuthErrorMessage(
   code: string | null | undefined,
 ): string | null {
@@ -455,22 +465,24 @@ export function getDisallowedAuthRouteRedirect({
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
     if (isFullyAuthenticatedStatus(authStatus)) {
-      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
+      return isSuperAdmin
+        ? DEFAULT_POST_AUTH_PATH
+        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
     }
     if (isMfaPendingStatus(authStatus)) {
       return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
     }
-    return "/login";
+    return AUTH_LOGIN_PATH;
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
-    return "/dashboard";
+    return DEFAULT_POST_AUTH_PATH;
   }
   if (isMfaPendingStatus(authStatus)) {
     return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
   }
 
-  return "/login";
+  return AUTH_LOGIN_PATH;
 }
 
 function normalizePlatformAppMetadata(

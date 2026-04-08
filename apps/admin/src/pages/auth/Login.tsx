@@ -2,9 +2,7 @@ import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   useLoginRouteComposition,
-  DEFAULT_POST_AUTH_PATH,
-  isFullyAuthenticatedStatus,
-  resolveAuthenticatedNextStep,
+  parseAuthErrorCode,
   useEmailValidationInteraction,
   ensureTurnstileReadyForSubmit,
   resetTurnstileOnFailure,
@@ -46,58 +44,21 @@ export default function Login() {
 
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
-  const accessErrorCode = query.get("error");
-  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
+  const accessErrorCode = parseAuthErrorCode(query.get("error"));
+  const accessError =
+    accessErrorCode === ADMIN_ACCESS_DENIED_ERROR
+      ? ADMIN_ACCESS_DENIED_MESSAGE
+      : null;
 
-  const { auth, turnstile, hideSignupAffordances } =
+  const { auth, turnstile, hideSignupAffordances, disabledReasons } =
     useLoginRouteComposition({
       nextPath,
       accessErrorPresent: Boolean(accessError),
       deniedLoginPath: adminAccessDeniedLoginPath(),
-      defaultPath: DEFAULT_POST_AUTH_PATH,
       onNavigate: setLocation,
     });
 
   const emailError = emailValidation.error;
-  const disabledReasons = React.useMemo(
-    () =>
-      getLoginDisabledReasons({
-        authStatus: auth.status,
-        loginInFlight: auth.loginInFlight,
-        csrfReady: auth.csrfReady,
-        csrfTokenPresent: Boolean(auth.csrfToken),
-        turnstileEnabled: turnstile.enabled,
-        turnstileReady: turnstile.ready,
-        turnstileTokenPresent: Boolean(turnstile.token),
-      }),
-    [
-      auth.status,
-      auth.loginInFlight,
-      auth.csrfReady,
-      auth.csrfToken,
-      turnstile.enabled,
-      turnstile.ready,
-      turnstile.token,
-    ],
-  );
-
-  React.useEffect(() => {
-    if (!accessError) return;
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
-    void auth.logout();
-  }, [accessError, auth.status, auth.logout]);
-
-  React.useEffect(() => {
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
-    const nextStep = resolveAuthenticatedNextStep({
-      authStatus: auth.status,
-      user: auth.user,
-      continuationPath: nextPath,
-      deniedLoginPath: adminAccessDeniedLoginPath(),
-      defaultPath: DEFAULT_POST_AUTH_PATH,
-    });
-    setLocation(nextStep.destination);
-  }, [auth.status, auth.user, nextPath, setLocation]);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -291,27 +252,4 @@ export default function Login() {
       </AuthFormMotion>
     </AuthShell>
   );
-}
-
-function getLoginDisabledReasons(input: {
-  authStatus: string;
-  loginInFlight: boolean;
-  csrfReady: boolean;
-  csrfTokenPresent: boolean;
-  turnstileEnabled: boolean;
-  turnstileReady: boolean;
-  turnstileTokenPresent: boolean;
-}) {
-  const reasons: string[] = [];
-  if (input.authStatus === "authenticated_fully") {
-    reasons.push("auth.status===authenticated_fully");
-  }
-  if (input.loginInFlight) reasons.push("auth.loginInFlight");
-  if (!input.csrfReady) reasons.push("!auth.csrfReady");
-  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady) {
-    reasons.push("turnstileEnabled&&!turnstileReady");
-  }
-  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
-  return reasons;
 }

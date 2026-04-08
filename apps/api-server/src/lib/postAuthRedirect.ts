@@ -1,6 +1,12 @@
 import type { NormalizedAccessProfile } from "./appAccessProfile.js";
 
 export const ADMIN_ACCESS_DENIED_ERROR = "access_denied";
+export const AUTH_LOGIN_PATH = "/login";
+export const DEFAULT_POST_AUTH_PATH = "/dashboard";
+
+export function buildAccessDeniedLoginPath(): string {
+  return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
+}
 
 export function getPostAuthRedirectPath(options: {
   appSlug: string;
@@ -12,8 +18,8 @@ export function getPostAuthRedirectPath(options: {
     options;
 
   if (normalizedAccessProfile === "superadmin") {
-    if (isSuperAdmin) return "/dashboard";
-    return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
+    if (isSuperAdmin) return DEFAULT_POST_AUTH_PATH;
+    return buildAccessDeniedLoginPath();
   }
 
   if (requiredOnboarding === "organization") {
@@ -21,5 +27,5 @@ export function getPostAuthRedirectPath(options: {
   }
   if (requiredOnboarding === "user") return "/onboarding/user";
 
-  return "/dashboard";
+  return DEFAULT_POST_AUTH_PATH;
 }
