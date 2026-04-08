@@ -58,7 +58,7 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/backend-typecheck.log
+          pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/typecheck.log
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -69,7 +69,7 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/backend-build.log
+          pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/build.log
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -83,19 +83,21 @@ jobs:
 
           run_api_tests() {
             local log_file="$1"
-            pnpm --filter @workspace/api-server run test:ci 2>&1 | tee "$log_file"
+            pnpm --filter @workspace/api-server run test:ci 2>&1 | tee -a "$log_file"
             return $?
           }
 
           status=0
-          if run_api_tests artifacts/backend-gates/backend-test.log; then
+          : > artifacts/backend-gates/api-tests.log
+          if run_api_tests artifacts/backend-gates/api-tests.log; then
             echo "api-tests passed on first attempt"
           else
             first_status=$?
             echo "api-tests first attempt failed with exit code: $first_status"
             echo "Retrying API tests once to reduce transient CI flakes..."
+            echo "--- RETRY ---" | tee -a artifacts/backend-gates/api-tests.log
 
-            if run_api_tests artifacts/backend-gates/backend-test-retry.log; then
+            if run_api_tests artifacts/backend-gates/api-tests.log; then
               echo "api-tests passed on retry"
             else
               status=$?
@@ -112,109 +114,47 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/backend-regression.log
+          pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/api-regression.log
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
-      - name: Backend gate failure summary (action output + step summary)
+      - name: CI Failure Summary
+        id: ci_summary
         if: always()
         run: |
-          summarize_if_failed() {
+          typecheck_outcome="${{ steps.typecheck.outcome || 'unknown' }}"
+          typecheck_exit="${{ steps.typecheck.outputs.exit_code || 'N/A' }}"
+          build_outcome="${{ steps.build.outcome || 'unknown' }}"
+          build_exit="${{ steps.build.outputs.exit_code || 'N/A' }}"
+          api_tests_outcome="${{ steps.api_tests.outcome || 'unknown' }}"
+          api_tests_exit="${{ steps.api_tests.outputs.exit_code || 'N/A' }}"
+          regression_outcome="${{ steps.regression.outcome || 'unknown' }}"
+          regression_exit="${{ steps.regression.outputs.exit_code || 'N/A' }}"
+
+          emit_log() {
             local outcome="$1"
-            local log_path="$2"
-            local output_path="$3"
-            local step_name="$4"
-            local command="$5"
+            local exit_code="$2"
+            local title="$3"
+            local log_path="$4"
 
-            if [ "$outcome" = "success" ]; then
-              return
+            echo "${title} (outcome=${outcome}, exit=${exit_code})"
+            if [ -f "$log_path" ]; then
+              tail -n 250 "$log_path"
+            else
+              echo "No log captured."
             fi
-
-            node scripts/ci/summarize-backend-test-failures.mjs \
-              "$log_path" \
-              "$output_path" \
-              --step-name "$step_name" \
-              --command "$command" \
-              --step-summary "$GITHUB_STEP_SUMMARY"
+            echo
           }
 
-          summarize_if_failed "${{ steps.typecheck.outcome }}" \
-            artifacts/backend-gates/backend-typecheck.log \
-            artifacts/backend-gates/backend-typecheck-failure-summary.txt \
-            "Typecheck" \
-            "pnpm -w typecheck"
-
-          summarize_if_failed "${{ steps.build.outcome }}" \
-            artifacts/backend-gates/backend-build.log \
-            artifacts/backend-gates/backend-build-failure-summary.txt \
-            "Build API Server" \
-            "pnpm --filter @workspace/api-server build"
-
-          summarize_if_failed "${{ steps.api_tests.outcome }}" \
-            artifacts/backend-gates/backend-test.log \
-            artifacts/backend-gates/backend-test-failure-summary.txt \
-            "Run API Test Suite" \
-            "pnpm --filter @workspace/api-server run test:ci"
-
-          summarize_if_failed "${{ steps.regression.outcome }}" \
-            artifacts/backend-gates/backend-regression.log \
-            artifacts/backend-gates/backend-regression-failure-summary.txt \
-            "Run API Regression Suite (Phase A)" \
-            "pnpm --filter @workspace/api-server run test:regression:ci"
-
-          if [ "${{ steps.typecheck.outcome }}" = "success" ] && \
-             [ "${{ steps.build.outcome }}" = "success" ] && \
-             [ "${{ steps.api_tests.outcome }}" = "success" ] && \
-             [ "${{ steps.regression.outcome }}" = "success" ]; then
-            echo "All backend gate steps passed; no failure summary required." | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload backend gate logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-log
-          path: |
-            artifacts/backend-gates/backend-test.log
-            artifacts/backend-gates/backend-test-retry.log
-          if-no-files-found: warn
-
-      - name: Upload backend typecheck log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-typecheck-log
-          path: artifacts/backend-gates/backend-typecheck.log
-          if-no-files-found: warn
-
-      - name: Upload backend build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-build-log
-          path: artifacts/backend-gates/backend-build.log
-          if-no-files-found: warn
-
-      - name: Upload backend regression log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-regression-log
-          path: artifacts/backend-gates/backend-regression.log
-          if-no-files-found: warn
-
-      - name: Upload backend parsed failure summaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-failure-summaries
-          path: |
-            artifacts/backend-gates/backend-typecheck-failure-summary.txt
-            artifacts/backend-gates/backend-build-failure-summary.txt
-            artifacts/backend-gates/backend-test-failure-summary.txt
-            artifacts/backend-gates/backend-regression-failure-summary.txt
-          if-no-files-found: warn
+          {
+            echo '```text'
+            emit_log "$typecheck_outcome" "$typecheck_exit" "TYPECHECK" "artifacts/backend-gates/typecheck.log"
+            emit_log "$build_outcome" "$build_exit" "BUILD" "artifacts/backend-gates/build.log"
+            emit_log "$api_tests_outcome" "$api_tests_exit" "API TESTS" "artifacts/backend-gates/api-tests.log"
+            emit_log "$regression_outcome" "$regression_exit" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
+            echo '```'
+          } > "$GITHUB_STEP_SUMMARY"
 
       - name: Fail job if any backend gate failed
         if: always()
@@ -284,96 +224,3 @@ jobs:
             echo "Backend regression gates failed."
             exit 1
           fi
-
-      - name: CI Failure Summary
-        id: ci_summary
-        if: always()
-        run: |
-          set +e
-          set +u
-
-          install_outcome="${{ steps.install_deps.outcome || '' }}"
-          typecheck_outcome="${{ steps.typecheck.outcome || '' }}"
-          typecheck_exit="${{ steps.typecheck.outputs.exit_code || '' }}"
-          build_outcome="${{ steps.build.outcome || '' }}"
-          build_exit="${{ steps.build.outputs.exit_code || '' }}"
-          api_tests_outcome="${{ steps.api_tests.outcome || '' }}"
-          api_tests_exit="${{ steps.api_tests.outputs.exit_code || '' }}"
-          regression_outcome="${{ steps.regression.outcome || '' }}"
-          regression_exit="${{ steps.regression.outputs.exit_code || '' }}"
-
-          install_outcome="${install_outcome:-unknown}"
-          typecheck_outcome="${typecheck_outcome:-unknown}"
-          build_outcome="${build_outcome:-unknown}"
-          api_tests_outcome="${api_tests_outcome:-unknown}"
-          regression_outcome="${regression_outcome:-unknown}"
-
-          typecheck_exit="${typecheck_exit:-N/A}"
-          build_exit="${build_exit:-N/A}"
-          api_tests_exit="${api_tests_exit:-N/A}"
-          regression_exit="${regression_exit:-N/A}"
-
-          is_failed_step() {
-            local outcome="$1"
-            local exit_code="$2"
-
-            if [ "$outcome" = "failure" ]; then
-              return 0
-            fi
-
-            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -ne 0 ]; then
-              return 0
-            fi
-
-            return 1
-          }
-
-          failed_lines=()
-
-          if is_failed_step "$typecheck_outcome" "$typecheck_exit"; then
-            failed_lines+=("- TYPECHECK (exit $typecheck_exit)")
-          fi
-
-          if is_failed_step "$build_outcome" "$build_exit"; then
-            failed_lines+=("- BUILD (exit $build_exit)")
-          fi
-
-          if is_failed_step "$api_tests_outcome" "$api_tests_exit"; then
-            failed_lines+=("- API_TESTS (exit $api_tests_exit)")
-          fi
-
-          if is_failed_step "$regression_outcome" "$regression_exit"; then
-            failed_lines+=("- REGRESSION (exit $regression_exit)")
-          fi
-
-          {
-            echo "================ CI FAILURE SUMMARY ================"
-            echo
-            echo "INSTALL_DEPS:"
-            echo "  outcome: $install_outcome"
-            echo
-            echo "TYPECHECK:"
-            echo "  outcome: $typecheck_outcome"
-            echo "  exit_code: $typecheck_exit"
-            echo
-            echo "BUILD:"
-            echo "  outcome: $build_outcome"
-            echo "  exit_code: $build_exit"
-            echo
-            echo "API_TESTS:"
-            echo "  outcome: $api_tests_outcome"
-            echo "  exit_code: $api_tests_exit"
-            echo
-            echo "REGRESSION:"
-            echo "  outcome: $regression_outcome"
-            echo "  exit_code: $regression_exit"
-            echo
-            echo "FAILED STEPS:"
-            if [ "${#failed_lines[@]}" -gt 0 ]; then
-              printf '%s\n' "${failed_lines[@]}"
-            else
-              echo "ALL CHECKS PASSED"
-            fi
-            echo
-            echo "==================================================="
-          } | tee -a "$GITHUB_STEP_SUMMARY"
