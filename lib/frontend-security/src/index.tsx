@@ -33,7 +33,7 @@ export function buildAuthErrorLoginPath(code: AuthErrorCode): string {
 }
 
 export function buildAdminAccessDeniedLoginPath(): string {
-  return `${AUTH_LOGIN_PATH}?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
+  return `/login?error=${encodeURIComponent(ADMIN_ACCESS_DENIED_ERROR)}`;
 }
 
 export function parseAuthErrorCode(raw: string | null | undefined): AuthErrorCode | null {
@@ -470,18 +470,16 @@ export function getDisallowedAuthRouteRedirect({
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
     if (isFullyAuthenticatedStatus(authStatus)) {
-      return isSuperAdmin
-        ? DEFAULT_POST_AUTH_PATH
-        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
+      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
     }
     if (isMfaPendingStatus(authStatus)) {
       return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
     }
-    return AUTH_LOGIN_PATH;
+    return "/login";
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
-    return DEFAULT_POST_AUTH_PATH;
+    return "/dashboard";
   }
   if (isMfaPendingStatus(authStatus)) {
     return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
