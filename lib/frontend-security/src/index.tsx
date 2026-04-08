@@ -455,9 +455,7 @@ export function getDisallowedAuthRouteRedirect({
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
     if (isFullyAuthenticatedStatus(authStatus)) {
-      return isSuperAdmin
-        ? DEFAULT_POST_AUTH_PATH
-        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
+      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
     }
     if (isMfaPendingStatus(authStatus)) {
       return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
@@ -466,7 +464,7 @@ export function getDisallowedAuthRouteRedirect({
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
-    return DEFAULT_POST_AUTH_PATH;
+    return "/dashboard";
   }
   if (isMfaPendingStatus(authStatus)) {
     return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;

@@ -3,17 +3,20 @@ import { Link, useLocation, useSearch } from "wouter";
 import {
   useLoginRouteComposition,
   DEFAULT_POST_AUTH_PATH,
+  isFullyAuthenticatedStatus,
+  resolveAuthenticatedNextStep,
   useEmailValidationInteraction,
   ensureTurnstileReadyForSubmit,
   resetTurnstileOnFailure,
   useAuthSubmitOrchestration,
   validateEmailInput,
-  getAuthErrorMessage,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { ActivitySquare } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
+  ADMIN_ACCESS_DENIED_ERROR,
+  ADMIN_ACCESS_DENIED_MESSAGE,
   adminAccessDeniedLoginPath,
 } from "./accessDenied";
 import {
@@ -44,7 +47,7 @@ export default function Login() {
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
   const accessErrorCode = query.get("error");
-  const accessError = getAuthErrorMessage(accessErrorCode);
+  const accessError = accessErrorCode === ADMIN_ACCESS_DENIED_ERROR ? ADMIN_ACCESS_DENIED_MESSAGE : null;
 
   const { auth, turnstile, hideSignupAffordances } =
     useLoginRouteComposition({
@@ -56,6 +59,45 @@ export default function Login() {
     });
 
   const emailError = emailValidation.error;
+  const disabledReasons = React.useMemo(
+    () =>
+      getLoginDisabledReasons({
+        authStatus: auth.status,
+        loginInFlight: auth.loginInFlight,
+        csrfReady: auth.csrfReady,
+        csrfTokenPresent: Boolean(auth.csrfToken),
+        turnstileEnabled: turnstile.enabled,
+        turnstileReady: turnstile.ready,
+        turnstileTokenPresent: Boolean(turnstile.token),
+      }),
+    [
+      auth.status,
+      auth.loginInFlight,
+      auth.csrfReady,
+      auth.csrfToken,
+      turnstile.enabled,
+      turnstile.ready,
+      turnstile.token,
+    ],
+  );
+
+  React.useEffect(() => {
+    if (!accessError) return;
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    void auth.logout();
+  }, [accessError, auth.status, auth.logout]);
+
+  React.useEffect(() => {
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    const nextStep = resolveAuthenticatedNextStep({
+      authStatus: auth.status,
+      user: auth.user,
+      continuationPath: nextPath,
+      deniedLoginPath: adminAccessDeniedLoginPath(),
+      defaultPath: DEFAULT_POST_AUTH_PATH,
+    });
+    setLocation(nextStep.destination);
+  }, [auth.status, auth.user, nextPath, setLocation]);
 
   React.useEffect(() => {
     if (AUTH_DEBUG) {
@@ -168,7 +210,7 @@ export default function Login() {
       <AuthFormMotion>
         <GoogleAuthButton
           onClick={() => handleGoogleLogin("sign_in")}
-          disabled={!turnstile.canSubmit || auth.loginInFlight}
+          disabled={disabledReasons.length > 0}
           loading={false}
           idleLabel={auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
           loadingLabel="Starting Google sign-in..."
@@ -179,7 +221,7 @@ export default function Login() {
             variant="outline"
             className="mt-3"
             onClick={() => handleGoogleLogin("create_account")}
-            disabled={!turnstile.canSubmit || auth.loginInFlight}
+            disabled={disabledReasons.length > 0}
             loading={auth.loginInFlight}
             idleLabel="Create account with Google"
             loadingLabel="Starting account setup..."
@@ -249,4 +291,27 @@ export default function Login() {
       </AuthFormMotion>
     </AuthShell>
   );
+}
+
+function getLoginDisabledReasons(input: {
+  authStatus: string;
+  loginInFlight: boolean;
+  csrfReady: boolean;
+  csrfTokenPresent: boolean;
+  turnstileEnabled: boolean;
+  turnstileReady: boolean;
+  turnstileTokenPresent: boolean;
+}) {
+  const reasons: string[] = [];
+  if (input.authStatus === "authenticated_fully") {
+    reasons.push("auth.status===authenticated_fully");
+  }
+  if (input.loginInFlight) reasons.push("auth.loginInFlight");
+  if (!input.csrfReady) reasons.push("!auth.csrfReady");
+  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
+  if (input.turnstileEnabled && !input.turnstileReady) {
+    reasons.push("turnstileEnabled&&!turnstileReady");
+  }
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+  return reasons;
 }
