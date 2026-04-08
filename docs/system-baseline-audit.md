@@ -44,14 +44,14 @@ Schema source: `lib/db/src/schema/apps.ts`.
 #### 2.1 Superadmin (admin app)
 - **Entry routes/pages**: `/login` (password/google), `/api/auth/login`, `/api/auth/google/url`, `/api/auth/google/callback`.
 - **Session creation/regeneration points**:
-  - password: `beginMfaPendingSession()` may regenerate to pending MFA session; `establishPasswordSession()` regenerates on full login.
-  - OAuth: callback regenerates session before user binding.
+  - password: `beginMfaPendingSession()` and `establishPasswordSession()` in `apps/api-server/src/routes/auth.ts`.
+  - OAuth: Google callback flow calls `req.session.regenerate(...)` before user binding in `handleGoogleCallback`.
 - **Email verification timing**: password login blocks until `emailVerifiedAt` exists; Google-created users are set `emailVerifiedAt=now` at create.
-- **MFA timing**: `isMfaRequiredForUser()` forces MFA for `users.isSuperAdmin=true`; pending session created until challenge/enroll done.
+- **MFA timing**: `isMfaRequiredForUser()` forces MFA for `users.isSuperAdmin=true`; pending session is established by `beginMfaPendingSession()` until `completePendingMfaSession()`.
 - **Trusted device**: trusted cookie bypasses challenge in `beginMfaPendingSession()` when valid.
 - **Onboarding trigger**: none (superadmin profile maps required onboarding to `none`).
 - **Invitation continuation**: generally not relevant; continuation path still parsed if provided.
-- **Final destination**: `/dashboard` if true superadmin, else `/login?error=access_denied`.
+- **Final destination**: `/dashboard` if true superadmin, else `/login?error=access_denied`, via `resolveAuthenticatedPostAuthDestination()` and `getAccessDeniedRedirect()`.
 - **EXPECTED**: strict superadmin-only access.
 - **ACTUAL**: strict check enforced in backend flow + frontend route guard.
 - **MISMATCH / DRIFT**: fallback app slug resolution defaults to `admin` in password login slug resolver when app cannot be resolved, which can misclassify non-admin contexts.
@@ -59,13 +59,13 @@ Schema source: `lib/db/src/schema/apps.ts`.
 #### 2.2 Organization admin (org_owner/org_admin in organization app)
 - **Entry routes/pages**: `/login`, OAuth flow, invitation accept route, onboarding routes.
 - **Backend endpoints**: `/api/auth/login`, `/api/auth/google/*`, `/api/auth/me`, `/api/auth/post-onboarding/next-path`, org/invite APIs.
-- **Session points**: same as above; plus `switchOrganization` updates active org in session (`/api/users/switch-org` path not re-documented here).
+- **Session points**: same as above; plus `router.post("/switch-org", requireAuth, ...)` in `apps/api-server/src/routes/users.ts` updates `req.session.activeOrgId`.
 - **Email verification**: required for password login unless verified via `/api/auth/verify-email`.
-- **MFA timing**: role-based MFA required by `isMfaRequiredForUser()` active membership role check.
+- **MFA timing**: role-based MFA required by `isMfaRequiredForUser()` membership-role checks in `apps/api-server/src/lib/mfa.ts`.
 - **Trusted device**: same bypass behavior.
-- **Onboarding trigger**: `requiredOnboarding` from `getAppContext()` (`organization` or `user`).
+- **Onboarding trigger**: `requiredOnboarding` from `getAppContext()` (`apps/api-server/src/lib/appAccess.ts`) and applied by `resolveAuthenticatedPostAuthDestination()` (`apps/api-server/src/lib/postAuthDestination.ts`) plus frontend `resolveAuthenticatedNextStep()` (`lib/frontend-security/src/index.tsx`).
 - **Invitation continuation**: invitation pages set continuation path `/invitations/:token/accept`; backend stores pending continuation through MFA.
-- **Final destination**: precedence from `resolveAuthenticatedPostAuthDestination`: onboarding (post_auth stage) > continuation > flow destination > `/dashboard`.
+- **Final destination**: precedence from `resolveAuthenticatedPostAuthDestination()` and `resolveNextPathForEstablishedSession()`: onboarding (`post_auth`) > continuation > flow destination > `/dashboard`.
 - **EXPECTED**: org leaders challenged for MFA, then onboarding/continuation.
 - **ACTUAL**: implemented as expected.
 - **MISMATCH / DRIFT**: `requiredOnboarding=organization` is treated specially (`canAccess=false` but still routed to onboarding), creating subtle “deny-but-onboard” dual semantics.
@@ -74,12 +74,12 @@ Schema source: `lib/db/src/schema/apps.ts`.
 - **Entry routes/pages**: `/invitations/:token/accept` (pre-auth allowed), optional Google start from invitation page, optional password bootstrap via `accept-email`.
 - **Backend endpoints**: `GET /api/invitations/:token/resolve`, `POST /api/invitations/:token/accept-email`, `POST /api/invitations/:token/accept`.
 - **Session points**:
-  - `accept-email`: creates credential, then either pending MFA session (regenerate) or full invitation session (regenerate).
-  - `accept` requires authenticated org-app session.
+  - `router.post("/:token/accept-email", ...)` in `apps/api-server/src/routes/invitations.ts`: creates credential and then uses `beginInvitationMfaPendingSession()` / `establishInvitationSession()`.
+  - `router.post("/:token/accept", requireAuth, requireOrganizationAppSession, ...)` requires an authenticated org-app-compatible session.
 - **Email verification timing**: `accept-email` auto-creates user with `emailVerifiedAt` set; no extra verify step.
-- **MFA timing**: invite acceptance password path runs `beginInvitationMfaPendingSession()` before finalize.
+- **MFA timing**: invite acceptance password path runs `beginInvitationMfaPendingSession()` and finalizes with `/api/auth/mfa/*` completion (`completePendingMfaSession()` in `apps/api-server/src/routes/auth.ts`).
 - **Trusted device**: checked during invitation MFA gating.
-- **Onboarding trigger**: post-accept destination computed with post-auth flow decision (could route to onboarding/user).
+- **Onboarding trigger**: post-accept destination computed by `resolvePostAuthFlowDecision()` (`apps/api-server/src/lib/postAuthFlow.ts`) + `resolveAuthenticatedPostAuthDestination()` (`apps/api-server/src/lib/postAuthDestination.ts`).
 - **Invitation continuation**: preserved via return path `/invitations/:token/accept` through login/OAuth/MFA.
 - **Final destination**: post-accept computed nextPath or `/dashboard` fallback.
 - **EXPECTED**: invite-specific continuation survives OAuth/password/MFA.
@@ -93,7 +93,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 - **Email verification**: required for password login.
 - **MFA timing**: only if user security flags/step-up demand it (not by role).
 - **Trusted device**: supported.
-- **Onboarding trigger**: `requiredOnboarding=user` when missing name.
+- **Onboarding trigger**: `requiredOnboarding="user"` from `getAppContext()` when `users.name` is missing.
 - **Invitation continuation**: not typically used.
 - **Final destination**: `/onboarding/user` or continuation/default.
 - **EXPECTED**: direct access + optional user onboarding.
@@ -102,7 +102,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 
 #### 2.5 Client / participant / registration user
 - **Entry routes/pages**: no dedicated frontend route implemented in `apps/admin` for customer registration.
-- **Backend signals**: continuation parser supports `client_registration` and `event_registration` types.
+- **Backend signals**: continuation parser `resolvePostAuthContinuation()` in `apps/api-server/src/lib/postAuthContinuation.ts` supports `client_registration` and `event_registration` path typing.
 - **Session points**: continuation can be stored and used in destination resolver.
 - **Email verification/MFA**: same generic auth logic.
 - **Onboarding trigger**: only generic `requiredOnboarding` states.
@@ -117,16 +117,18 @@ Schema source: `lib/db/src/schema/apps.ts`.
 
 | Edge case | Exact code path(s) | Status | Actual behavior + failure mode |
 |---|---|---|---|
-| Invitation accept continuation | `InvitationAccept.tsx` sets continuation `/invitations/:token/accept`; `loginWithGoogle/loginWithPassword` pass `returnToPath`; backend `resolvePostAuthContinuation()` + pending continuation session fields | **Correct (partial constraints)** | Continuation is preserved across password/OAuth/MFA. Constraint: final `/accept` API requires authenticated org-app session middleware. |
-| Login page `next` param handling | `Login.tsx` reads `query.get("next")`; passes into `auth.loginWithPassword` / `auth.loginWithGoogle`; `resolveAuthenticatedNextStep()` uses normalized return path | **Correct** | Open redirects blocked (must start with `/`, no `//`). |
-| OAuth start/callback continuation preservation | `/api/auth/google/url` stores `returnToPath` in OAuth state + session; callback parses state, reconstructs continuation, uses `resolveNextPathForEstablishedSession()` | **Correct** | Continuation survives callback and MFA pending transitions. |
-| Password login continuation preservation | `/api/auth/login` parses return path to `PostAuthContinuation`; stores in `pendingPostAuthContinuation` for MFA path; immediate session path passes continuation directly | **Correct** | Preserved with or without MFA. |
-| MFA-pending session behavior | `beginMfaPendingSession()`, `completePendingMfaSession()`, `/api/auth/me` pending contract branch | **Correct** | Pending sessions return `authState=mfa_pending`, `appAccess=null`, `nextStep` derived fail-closed when factor read fails. |
-| Trusted device cookie behavior | `mfa.ts` trusted device storage/check/revoke; login and invite MFA gate consult cookie; challenge/enroll can set cookie | **Correct** | Valid trusted cookie bypasses challenge; revoked/expired/invalid tokens fail closed silently. |
-| Session regeneration points | `establishPasswordSession()`, `beginMfaPendingSession()`, OAuth callback regenerate, invitation session establish regenerate | **Correct** | Regeneration used at privilege boundaries; reduces fixation risk. |
-| Post-auth destination precedence | `resolveAuthenticatedPostAuthDestination()` | **Correct** | `post_auth`: onboarding destination first, then continuation, then flow, then fallback. `post_onboarding`: continuation can resume after onboarding. |
-| Email verification redirect behavior | `VerifyEmail.tsx` -> `auth.verifyEmail`; backend `/api/auth/verify-email` returns nextPath or MFA requirements | **Partial** | Works when `appSlug` provided; if omitted, backend returns success without session establishment (`verified_no_app_slug`) causing no direct authenticated continuation. |
-| Onboarding redirect behavior | Backend computes `requiredOnboarding`; frontend `ProtectedAppAccess` + `resolveAuthenticatedNextStep` enforce redirects; post-onboarding endpoint resolves next path | **Partial** | Works for organization/user onboarding; drift risk due to frontend metadata fallback policy differences and hardcoded `/dashboard` fallback. |
+| Invitation accept continuation | `apps/admin/src/pages/auth/InvitationAccept.tsx` (`continuationPath`, `auth.loginWithGoogle(...)`), `apps/admin/src/pages/auth/Login.tsx` (`next` param forwarding), `lib/frontend-security/src/index.tsx` (`loginWithGoogle`, `loginWithPassword`), backend `apps/api-server/src/lib/postAuthContinuation.ts` (`resolvePostAuthContinuation`), `apps/api-server/src/routes/auth.ts` (`resolveNextPathForEstablishedSession`) | **PARTIAL** | Continuation is preserved across password/OAuth/MFA. Constraint: final invitation acceptance write (`POST /api/invitations/:token/accept`) is guarded by `requireAuth` + `requireOrganizationAppSession` in `apps/api-server/src/routes/invitations.ts`. |
+| Login page `next` param handling | `apps/admin/src/pages/auth/Login.tsx` (`query.get("next")`, `auth.loginWithPassword`, `auth.loginWithGoogle`) + `lib/frontend-security/src/index.tsx` (`normalizeReturnToPath`, `resolveAuthenticatedNextStep`) | **CORRECT** | Open redirects are blocked because continuation normalization allows only root-relative paths and rejects `//` prefixes. |
+| OAuth start/callback continuation preservation | `apps/api-server/src/routes/auth.ts` (`router.post("/google/url", ...)`, `parseOAuthState`, `handleGoogleCallback`) + `apps/api-server/src/lib/postAuthContinuation.ts` (`resolvePostAuthContinuation`) + `apps/api-server/src/routes/auth.ts` (`resolveNextPathForEstablishedSession`) | **CORRECT** | `returnToPath` is stored in signed OAuth state/session and survives callback plus MFA-pending transitions. |
+| Password login continuation preservation | `apps/api-server/src/routes/auth.ts` (`router.post("/login", ...)`, `resolvePostAuthContinuation`, `req.session.pendingPostAuthContinuation`, `resolveNextPathForEstablishedSession`) | **CORRECT** | Continuation is preserved with or without MFA. |
+| MFA-pending session behavior | `apps/api-server/src/routes/auth.ts` (`beginMfaPendingSession`, `completePendingMfaSession`, `handleMe` `authState: "mfa_pending"` branch) + `apps/api-server/src/middlewares/requireAuth.ts` (`mfaPendingPathAllowed`) | **CORRECT** | Pending sessions return `authState="mfa_pending"`, `appAccess=null`, and `nextStep` fails closed to challenge when factor state is unreadable. |
+| Trusted device cookie behavior | `apps/api-server/src/lib/mfa.ts` (`consumeTrustedDeviceToken`, `issueTrustedDeviceToken`, `clearTrustedDeviceCookie`) + `apps/api-server/src/routes/auth.ts` / `apps/api-server/src/routes/invitations.ts` MFA gates | **CORRECT** | Valid trusted cookies bypass challenge; revoked/expired/invalid tokens are ignored and MFA challenge proceeds. |
+| Session regeneration points | `apps/api-server/src/routes/auth.ts` (`establishPasswordSession`, `beginMfaPendingSession`, OAuth callback `req.session.regenerate`) + `apps/api-server/src/routes/invitations.ts` (`establishInvitationSession`, `beginInvitationMfaPendingSession`) | **CORRECT** | Session IDs are regenerated at auth privilege boundaries to reduce fixation risk. |
+| Post-auth destination precedence | `apps/api-server/src/lib/postAuthDestination.ts` (`resolveAuthenticatedPostAuthDestination`) + `apps/api-server/src/routes/auth.ts` (`resolveNextPathForEstablishedSession`) | **CORRECT** | `post_auth`: onboarding first, then continuation, then flow destination, then fallback. `post_onboarding`: continuation resumes after onboarding. |
+| Email verification redirect behavior | `apps/admin/src/pages/auth/VerifyEmail.tsx` (`auth.verifyEmail`) + `lib/frontend-security/src/index.tsx` (`verifyEmail`) + `apps/api-server/src/routes/auth.ts` (`router.post("/verify-email", ...)`) | **PARTIAL** | Works for app-scoped links. If `appSlug` is absent, backend returns `verified_no_app_slug` without session establishment, so authenticated continuation is unavailable. |
+| Onboarding redirect behavior | `apps/api-server/src/lib/appAccess.ts` (`getAppContext.requiredOnboarding`) + `apps/api-server/src/lib/postAuthDestination.ts` + `lib/frontend-security/src/index.tsx` (`resolveAuthenticatedNextStep`) + `apps/admin/src/App.tsx` (`ProtectedAppAccess`) + `apps/admin/src/pages/auth/Onboarding.tsx` (`/api/auth/post-onboarding/next-path`) | **PARTIAL** | Organization/user onboarding redirects are implemented, but frontend fallback policy and `/dashboard` defaults can diverge from backend route policy payloads when metadata contracts are missing. |
+| `/api/auth/me` consistency during MFA pending | `apps/api-server/src/middlewares/requireAuth.ts` (`mfaPendingPathAllowed`, `effectiveUserId`) + `apps/api-server/src/routes/auth.ts` (`handleMe` pending branch) | **CORRECT** | `/api/auth/me` returns HTTP 200 pending payload with `authState="mfa_pending"` and `nextStep`; other protected endpoints continue returning `401 MFA_REQUIRED` while pending. |
+| Throttling/error handling behavior | `apps/api-server/src/middlewares/rateLimit.ts` (`rateLimiter`, `authRateLimiterWithIdentifier`, postgres→memory fallback, `429`/`503`) + auth route mounts in `apps/api-server/src/routes/auth.ts` | **CORRECT** | Rate-limited requests return `429 RATE_LIMITED` with `Retry-After`; production distributed limiter failures return `503 RATE_LIMIT_UNAVAILABLE` unless migration/schema errors trigger emergency in-memory fallback. |
 
 ---
 
@@ -205,6 +207,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 | `postAuthRedirect.ts` + frontend resolver | fallback `/dashboard`, onboarding paths fixed | Multi-app route divergence risk | App metadata route policy |
 | `routes/auth.ts` | host-based admin slug detection (`admin.ayni.space` / `admin.*`) | Environment/domain coupling | Explicit origin→app mapping only |
 | `routes/auth.ts` | password auth slug fallback returns `admin` when unresolved | Can mis-route or mis-apply superadmin policy | Required explicit app slug/session app binding |
+| `lib/frontend-security resolveAuthenticatedNextStep()` | default destination fallback `/dashboard` | Non-admin apps may inherit admin-biased post-auth route | Backend-issued default-route metadata per app |
 | `sessionGroupCompatibility.ts` | slug `admin` => admin session group fallback | Hidden slug/session coupling | Canonical metadata `sessionGroup` required |
 | `postAuthContinuation.ts` | invitation/event/client regex path typing | Path contract fragility, duplicates routing semantics | Explicit continuation type from caller + server-side allowlist registry |
 | `frontend-security deriveAppAuthRoutePolicy()` | fallback policy map (organization/solo/superadmin) | Frontend/back drift if backend policy changes | Always consume backend `authRoutePolicy` |
@@ -248,6 +251,8 @@ Schema source: `lib/db/src/schema/apps.ts`.
 - `customerRegistrationEnabled` affects backend access and signup admission, but frontend route policy intentionally fail-closes customer registration surface.
 - Onboarding continuation preservation works, but depends on session-stored `postAuthContinuation` and hardcoded route defaults.
 - `metadata.sessionGroup` is honored by backend compatibility checks but not surfaced as an explicit cross-layer contract.
+- Invitation → login → continuation is preserved end-to-end, but completion still depends on org-app-compatible authenticated session middleware at the final invitation accept endpoint.
+- Email verification continuation is appSlug-dependent; verification without `appSlug` is intentionally non-session-establishing.
 
 ### BROKEN
 - No direct runtime consumer for `platform.apps.invitationEmailSubject` and `platform.apps.invitationEmailHtml`; schema fields are inert while email behavior is template-table-driven.
