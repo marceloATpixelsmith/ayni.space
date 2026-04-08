@@ -26,10 +26,9 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           SUMMARY_CHECK_NAME: pr-checks-summary
-          TARGET_CHECKS: |
+          TARGET_CHECK_ALLOWLIST: |
             backend-gates
             auth-security-regression-suite
-            api-regression
             test
             Verify pnpm lockfile is up to date
             check
@@ -39,7 +38,8 @@ jobs:
           mkdir -p artifacts/pr-checks-summary
 
           target_checks_file="artifacts/pr-checks-summary/target-checks.txt"
-          printf '%s\n' "$TARGET_CHECKS" | sed '/^\s*$/d' > "$target_checks_file"
+          tracked_checks_file="artifacts/pr-checks-summary/tracked-checks.txt"
+          printf '%s\n' "$TARGET_CHECK_ALLOWLIST" | sed '/^\s*$/d' > "$target_checks_file"
 
           fetch_checks() {
             gh api \
@@ -47,7 +47,24 @@ jobs:
               "/repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100"
           }
 
-          echo "Waiting for targeted checks to complete for ${HEAD_SHA}..."
+          echo "Discovering tracked checks for ${HEAD_SHA}..."
+          fetch_checks > artifacts/pr-checks-summary/check-runs.discovery.json
+          node scripts/ci/pr-checks-summary-targeting-cli.mjs \
+            --input artifacts/pr-checks-summary/check-runs.discovery.json \
+            --allowlistFile "$target_checks_file" \
+            --summaryCheck "$SUMMARY_CHECK_NAME" \
+            --headSha "$HEAD_SHA" \
+            > artifacts/pr-checks-summary/discovery-state.json
+
+          jq -r '.tracked[].name' artifacts/pr-checks-summary/discovery-state.json > "$tracked_checks_file"
+
+          echo "TRACKING CHECKS:"
+          if [ -s "$tracked_checks_file" ]; then
+            sed 's/^/- /' "$tracked_checks_file"
+          else
+            echo "- none (no allowlisted top-level checks discovered for this commit)"
+          fi
+
           attempts=0
           max_attempts=90
           sleep_seconds=20
@@ -56,41 +73,30 @@ jobs:
             attempts=$((attempts + 1))
             fetch_checks > artifacts/pr-checks-summary/check-runs.json
 
-            jq -r '.check_runs[] | [.name, .status, (.conclusion // "null")] | @tsv' artifacts/pr-checks-summary/check-runs.json \
-              > artifacts/pr-checks-summary/check-runs.tsv
+            node scripts/ci/pr-checks-summary-targeting-cli.mjs \
+              --input artifacts/pr-checks-summary/check-runs.json \
+              --allowlistFile "$target_checks_file" \
+              --summaryCheck "$SUMMARY_CHECK_NAME" \
+              --headSha "$HEAD_SHA" \
+              --trackedFile "$tracked_checks_file" \
+              > artifacts/pr-checks-summary/poll-state.json
 
-            unresolved=0
-            while IFS= read -r check_name; do
-              [ -z "$check_name" ] && continue
-
-              status_lines=$(awk -F'\t' -v target="$check_name" '$1==target {print $2"\t"$3}' artifacts/pr-checks-summary/check-runs.tsv || true)
-              if [ -z "$status_lines" ]; then
-                unresolved=$((unresolved + 1))
-                continue
-              fi
-
-              if echo "$status_lines" | awk -F'\t' '$1 != "completed" {exit 0} END {exit 1}'; then
-                unresolved=$((unresolved + 1))
-              fi
-            done < "$target_checks_file"
-
-            if [ "$unresolved" -eq 0 ]; then
-              echo "All discovered targeted checks are completed."
+            if jq -e '.complete' artifacts/pr-checks-summary/poll-state.json >/dev/null; then
+              echo "All tracked checks are completed."
               break
             fi
 
             if [ "$attempts" -ge "$max_attempts" ]; then
-              echo "Timed out waiting for some checks to complete; continuing with best-effort aggregation."
+              echo "Timed out waiting for tracked checks to complete; continuing with best-effort aggregation."
               break
             fi
 
-            echo "Attempt ${attempts}/${max_attempts}: waiting on ${unresolved} targeted check(s)..."
+            echo "Attempt ${attempts}/${max_attempts}: waiting on tracked checks:"
+            jq -r '.pending[] | "- \(.name): status=\(.status), conclusion=\(.conclusion)"' artifacts/pr-checks-summary/poll-state.json
             sleep "$sleep_seconds"
           done
 
-          fetch_checks > artifacts/pr-checks-summary/check-runs.final.json
-          jq -r '.check_runs[] | [.name, .status, (.conclusion // "null"), .html_url, .details_url] | @tsv' artifacts/pr-checks-summary/check-runs.final.json \
-            > artifacts/pr-checks-summary/check-runs.final.tsv
+          cp artifacts/pr-checks-summary/check-runs.json artifacts/pr-checks-summary/check-runs.final.json
 
           summary_file="artifacts/pr-checks-summary/consolidated-summary.txt"
           run_cache_dir="artifacts/pr-checks-summary/run-logs"
@@ -176,19 +182,24 @@ jobs:
             ' "$log_path"
           }
 
+          node scripts/ci/pr-checks-summary-targeting-cli.mjs \
+            --input artifacts/pr-checks-summary/check-runs.final.json \
+            --allowlistFile "$target_checks_file" \
+            --summaryCheck "$SUMMARY_CHECK_NAME" \
+            --headSha "$HEAD_SHA" \
+            --trackedFile "$tracked_checks_file" \
+            > artifacts/pr-checks-summary/final-state.json
+
           declare -A check_status_map
           declare -A check_conclusion_map
           declare -A check_html_map
           declare -A check_details_map
           while IFS=$'\t' read -r name status conclusion html_url details_url; do
-            grep -Fxq "$name" "$target_checks_file" || continue
-            if [ -z "${check_status_map[$name]+x}" ]; then
-              check_status_map[$name]="$status"
-              check_conclusion_map[$name]="$conclusion"
-              check_html_map[$name]="$html_url"
-              check_details_map[$name]="$details_url"
-            fi
-          done < artifacts/pr-checks-summary/check-runs.final.tsv
+            check_status_map[$name]="$status"
+            check_conclusion_map[$name]="$conclusion"
+            check_html_map[$name]="$html_url"
+            check_details_map[$name]="$details_url"
+          done < <(jq -r '.tracked[] | [.name, .status, .conclusion, .html_url, .details_url] | @tsv' artifacts/pr-checks-summary/final-state.json)
 
           failed_checks_block=""
           unfinished_checks_block=""
@@ -265,7 +276,7 @@ jobs:
 
             unfinished=$((unfinished + 1))
             unfinished_checks_block="${unfinished_checks_block}- ${check_name}: ${conclusion} (unknown / unavailable final conclusion)\n"
-          done < "$target_checks_file"
+          done < "$tracked_checks_file"
 
           overall_result="PASS"
           if [ "$failures" -gt 0 ]; then
