@@ -37,6 +37,18 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       BACKEND_TRACE_VERBOSE: "0"
       CI: "true"
+    outputs:
+      install_outcome: ${{ steps.install_deps.outcome }}
+      typecheck_outcome: ${{ steps.typecheck.outcome || 'skipped' }}
+      typecheck_exit: ${{ steps.typecheck.outputs.exit_code || 'N/A' }}
+      build_outcome: ${{ steps.build.outcome || 'skipped' }}
+      build_exit: ${{ steps.build.outputs.exit_code || 'N/A' }}
+      api_tests_outcome: ${{ steps.api_tests.outcome || 'skipped' }}
+      api_tests_exit: ${{ steps.api_tests.outputs.exit_code || 'N/A' }}
+      api_regression_outcome: ${{ steps.api_regression.outcome || 'skipped' }}
+      api_regression_exit: ${{ steps.api_regression.outputs.exit_code || 'N/A' }}
+      auth_security_regression_outcome: ${{ steps.auth_security_regression.outcome || 'skipped' }}
+      auth_security_regression_exit: ${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -239,3 +251,43 @@ jobs:
             echo "Backend regression gates failed."
             exit 1
           fi
+
+  backend-gates-summary:
+    name: backend-gates-summary
+    runs-on: ubuntu-latest
+    needs: [backend-gates]
+    if: always()
+    steps:
+      - name: Report backend gate summary
+        run: |
+          overall="${{ needs.backend-gates.result }}"
+          install_outcome="${{ needs.backend-gates.outputs.install_outcome }}"
+
+          render_suite() {
+            local label="$1"
+            local outcome="$2"
+            local exit_code="$3"
+            local icon="✅"
+
+            if [ "$outcome" = "failure" ] || [ "$outcome" = "cancelled" ] || { [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -ne 0 ]; }; then
+              icon="❌"
+            elif [ "$outcome" = "skipped" ]; then
+              icon="⚪"
+            fi
+
+            printf "%s %s — outcome: %s, exit: %s\n" "$icon" "$label" "$outcome" "$exit_code"
+          }
+
+          {
+            echo "## Backend Gates Summary"
+            echo
+            echo "Overall backend-gates job result: **$overall**"
+            echo "Install dependencies outcome: **$install_outcome**"
+            echo
+            echo "### Gate results"
+            render_suite "typecheck" "${{ needs.backend-gates.outputs.typecheck_outcome }}" "${{ needs.backend-gates.outputs.typecheck_exit }}"
+            render_suite "build" "${{ needs.backend-gates.outputs.build_outcome }}" "${{ needs.backend-gates.outputs.build_exit }}"
+            render_suite "api-tests" "${{ needs.backend-gates.outputs.api_tests_outcome }}" "${{ needs.backend-gates.outputs.api_tests_exit }}"
+            render_suite "api-regression" "${{ needs.backend-gates.outputs.api_regression_outcome }}" "${{ needs.backend-gates.outputs.api_regression_exit }}"
+            render_suite "auth-security-regression" "${{ needs.backend-gates.outputs.auth_security_regression_outcome }}" "${{ needs.backend-gates.outputs.auth_security_regression_exit }}"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
