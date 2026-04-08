@@ -65,6 +65,7 @@ jobs:
 
               status_lines=$(awk -F'\t' -v target="$check_name" '$1==target {print $2"\t"$3}' artifacts/pr-checks-summary/check-runs.tsv || true)
               if [ -z "$status_lines" ]; then
+                unresolved=$((unresolved + 1))
                 continue
               fi
 
@@ -101,6 +102,13 @@ jobs:
           } > "$summary_file"
 
           failures=0
+          unfinished=0
+          passes=0
+          summary_timed_out=0
+
+          if [ "$attempts" -ge "$max_attempts" ]; then
+            summary_timed_out=1
+          fi
 
           extract_run_and_job_ids() {
             local details_url="$1"
@@ -168,83 +176,148 @@ jobs:
             ' "$log_path"
           }
 
+          declare -A check_status_map
+          declare -A check_conclusion_map
+          declare -A check_html_map
+          declare -A check_details_map
           while IFS=$'\t' read -r name status conclusion html_url details_url; do
             grep -Fxq "$name" "$target_checks_file" || continue
-
-            if [ "$status" != "completed" ]; then
-              {
-                echo "CHECK: ${name}"
-                echo "STATUS: ${status}"
-                echo "NOTE: Check did not complete before summary timeout."
-                echo "URL: ${html_url}"
-                echo "---"
-              } >> "$summary_file"
-              continue
+            if [ -z "${check_status_map[$name]+x}" ]; then
+              check_status_map[$name]="$status"
+              check_conclusion_map[$name]="$conclusion"
+              check_html_map[$name]="$html_url"
+              check_details_map[$name]="$details_url"
             fi
-
-            if [ "$conclusion" = "success" ] || [ "$conclusion" = "skipped" ] || [ "$conclusion" = "neutral" ]; then
-              {
-                echo "CHECK: ${name}"
-                echo "STATUS: PASS (${conclusion})"
-                echo "URL: ${html_url}"
-                echo "---"
-              } >> "$summary_file"
-              continue
-            fi
-
-            failures=$((failures + 1))
-
-            run_job_ids=$(extract_run_and_job_ids "$details_url" || true)
-            run_id=""
-            job_id=""
-            if [ -n "$run_job_ids" ]; then
-              run_id=$(echo "$run_job_ids" | awk '{print $1}')
-              job_id=$(echo "$run_job_ids" | awk '{print $2}')
-            fi
-
-            error_text=""
-            retrieval_note=""
-
-            if [ -n "$run_id" ] && [ -n "$job_id" ] && ensure_run_logs_downloaded "$run_id"; then
-              job_log_file=$(find_job_log_file "$run_id" "$job_id" || true)
-              if [ -n "$job_log_file" ]; then
-                error_text=$(extract_failure_chunk "$job_log_file")
-              else
-                retrieval_note="Could not match job log file by job ID ${job_id}."
-              fi
-            else
-              retrieval_note="Could not download or parse run/job logs from details URL."
-            fi
-
-            if [ -z "$error_text" ]; then
-              check_output=$(gh api -H "Accept: application/vnd.github+json" "/repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq -r --arg check_name "$name" '.check_runs[] | select(.name == $check_name) | .output.text // .output.summary // ""' | head -n 1)
-              error_text="$check_output"
-            fi
-
-            if [ -z "$error_text" ]; then
-              error_text="No error text available from logs or check output."
-            fi
-
-            {
-              echo "CHECK: ${name}"
-              echo "STATUS: FAIL (${conclusion})"
-              echo "JOB: ${name}"
-              echo "STEP: see error context below"
-              echo "URL: ${html_url}"
-              if [ -n "$retrieval_note" ]; then
-                echo "NOTE: ${retrieval_note}"
-              fi
-              echo "ERROR:"
-              echo "$error_text"
-              echo "---"
-            } >> "$summary_file"
           done < artifacts/pr-checks-summary/check-runs.final.tsv
 
-          if [ "$failures" -eq 0 ]; then
-            {
+          failed_checks_block=""
+          unfinished_checks_block=""
+          passed_checks_block=""
+
+          while IFS= read -r check_name; do
+            [ -z "$check_name" ] && continue
+
+            status="${check_status_map[$check_name]-}"
+            conclusion="${check_conclusion_map[$check_name]-}"
+            html_url="${check_html_map[$check_name]-}"
+            details_url="${check_details_map[$check_name]-}"
+
+            if [ -z "$status" ]; then
+              unfinished=$((unfinished + 1))
+              unfinished_checks_block="${unfinished_checks_block}- ${check_name}: unknown / unavailable (targeted check run not found for commit)\n"
+              continue
+            fi
+
+            if [ "$status" != "completed" ]; then
+              unfinished=$((unfinished + 1))
+              unfinished_checks_block="${unfinished_checks_block}- ${check_name}: ${status} (not completed before summary timeout)\n"
+              continue
+            fi
+
+            if [ "$conclusion" = "success" ]; then
+              passes=$((passes + 1))
+              passed_checks_block="${passed_checks_block}- ${check_name}: success\n"
+              continue
+            fi
+
+            if [ "$conclusion" = "failure" ] || [ "$conclusion" = "cancelled" ] || [ "$conclusion" = "timed_out" ]; then
+              failures=$((failures + 1))
+
+              run_job_ids=$(extract_run_and_job_ids "$details_url" || true)
+              run_id=""
+              job_id=""
+              if [ -n "$run_job_ids" ]; then
+                run_id=$(echo "$run_job_ids" | awk '{print $1}')
+                job_id=$(echo "$run_job_ids" | awk '{print $2}')
+              fi
+
+              error_text=""
+              retrieval_note=""
+
+              if [ -n "$run_id" ] && [ -n "$job_id" ] && ensure_run_logs_downloaded "$run_id"; then
+                job_log_file=$(find_job_log_file "$run_id" "$job_id" || true)
+                if [ -n "$job_log_file" ]; then
+                  error_text=$(extract_failure_chunk "$job_log_file")
+                else
+                  retrieval_note="Could not match job log file by job ID ${job_id}."
+                fi
+              else
+                retrieval_note="Could not download or parse run/job logs from details URL."
+              fi
+
+              if [ -z "$error_text" ]; then
+                check_output=$(gh api -H "Accept: application/vnd.github+json" "/repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" | jq -r --arg check_name "$check_name" '.check_runs[] | select(.name == $check_name) | .output.text // .output.summary // ""' | head -n 1)
+                error_text="$check_output"
+              fi
+
+              if [ -z "$error_text" ]; then
+                error_text="No error text available from logs or check output."
+              fi
+
+              failed_checks_block="${failed_checks_block}- ${check_name}: ${conclusion} (${html_url})\n"
+              failed_checks_block="${failed_checks_block}  ERROR CONTEXT:\n"
+              failed_checks_block="${failed_checks_block}$(echo "$error_text" | sed 's/^/  /')\n"
+              if [ -n "$retrieval_note" ]; then
+                failed_checks_block="${failed_checks_block}  NOTE: ${retrieval_note}\n"
+              fi
+              continue
+            fi
+
+            unfinished=$((unfinished + 1))
+            unfinished_checks_block="${unfinished_checks_block}- ${check_name}: ${conclusion} (unknown / unavailable final conclusion)\n"
+          done < "$target_checks_file"
+
+          overall_result="PASS"
+          if [ "$failures" -gt 0 ]; then
+            overall_result="FAIL"
+          elif [ "$unfinished" -gt 0 ]; then
+            overall_result="INCOMPLETE"
+          fi
+
+          {
+            echo "OVERALL RESULT: ${overall_result}"
+            if [ "$overall_result" = "PASS" ]; then
               echo "All relevant checks passed."
-              echo "No failed targeted checks were detected for this commit."
-            } >> "$summary_file"
+            elif [ "$overall_result" = "FAIL" ]; then
+              echo "One or more targeted checks failed."
+            else
+              if [ "$summary_timed_out" -eq 1 ]; then
+                echo "Summary is incomplete: at least one targeted check is unfinished or unavailable at timeout."
+              else
+                echo "Summary is incomplete: at least one targeted check is unfinished or unavailable."
+              fi
+            fi
+            echo
+            echo "FAILED CHECKS:"
+            if [ -n "$failed_checks_block" ]; then
+              printf '%b' "$failed_checks_block"
+            else
+              echo "- none"
+            fi
+            echo
+            echo "UNFINISHED CHECKS:"
+            if [ -n "$unfinished_checks_block" ]; then
+              printf '%b' "$unfinished_checks_block"
+            else
+              echo "- none"
+            fi
+            echo
+            echo "PASSED CHECKS:"
+            if [ -n "$passed_checks_block" ]; then
+              printf '%b' "$passed_checks_block"
+            else
+              echo "- none"
+            fi
+          } >> "$summary_file"
+
+          if [ "$overall_result" != "PASS" ] && grep -Fq "All relevant checks passed." "$summary_file"; then
+            echo "Invalid summary state: non-PASS summary included PASS messaging." >&2
+            exit 1
+          fi
+
+          if [ "$overall_result" = "PASS" ] && { [ "$failures" -gt 0 ] || [ "$unfinished" -gt 0 ]; }; then
+            echo "Invalid summary state: PASS requires zero failed and zero unfinished checks." >&2
+            exit 1
           fi
 
           {
