@@ -97,6 +97,45 @@ test("turnstile middleware logs repeated failures when verification fails", asyn
   else process.env["TURNSTILE_ENABLED"] = prevEnabled;
 });
 
+test("turnstile signup audit context does not default appSlug to admin", async () => {
+  const prevEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "true";
+  const events: Array<{ metadata?: Record<string, unknown> }> = [];
+  const middleware = turnstileVerifyMiddleware({
+    verifyFn: async () => false,
+    writeAuditLogFn: (event) => {
+      events.push(event as { metadata?: Record<string, unknown> });
+    },
+  });
+
+  const req: any = {
+    method: "POST",
+    path: "/api/auth/signup",
+    ip: "10.0.0.50",
+    headers: { "cf-turnstile-response": "bad-token" },
+    body: { email: "new.user@example.com" },
+    get: () => undefined,
+    session: {},
+    resolvedSessionGroup: "default",
+  };
+
+  const res: any = {
+    status: () => ({ json: () => undefined }),
+  };
+
+  await new Promise<void>((resolve) => {
+    middleware(req, res, () => resolve());
+    setTimeout(resolve, 0);
+  });
+
+  const signupEvent = events.find((entry) => entry.metadata?.["normalizedEmailHash"]);
+  assert.ok(signupEvent);
+  assert.equal(signupEvent?.metadata?.["appSlug"] ?? null, null);
+
+  if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+  else process.env["TURNSTILE_ENABLED"] = prevEnabled;
+});
+
 test("turnstile detailed verification marks stale tokens as token-expired", async () => {
   const previousEnabled = process.env["TURNSTILE_ENABLED"];
   const previousSecret = process.env["TURNSTILE_SECRET_KEY"];

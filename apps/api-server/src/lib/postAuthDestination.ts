@@ -19,9 +19,14 @@ export function resolveAuthenticatedPostAuthDestination(options: {
   const stage = options.stage ?? "post_auth";
   const continuationPath = normalizeContinuationPath(options.continuation);
   const flowDestination = options.flowDecision?.destination;
+  const canAccess = options.flowDecision?.canAccess ?? false;
   const requiresOnboarding =
     options.flowDecision?.requiredOnboarding !== undefined &&
     options.flowDecision.requiredOnboarding !== "none";
+
+  if (!canAccess) {
+    return flowDestination ?? options.fallbackPath ?? DEFAULT_POST_AUTH_PATH;
+  }
 
   if (stage === "post_auth" && requiresOnboarding && flowDestination) {
     return flowDestination;
