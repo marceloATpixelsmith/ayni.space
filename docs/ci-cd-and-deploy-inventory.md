@@ -7,9 +7,9 @@
 ## Confirmed
 - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs **admin frontend PR tests only** for `apps/admin/**` changes and does not deploy.
 - `.github/workflows/backend-regression-gates.yml` runs **backend PR regression gates only** for API/package/workspace changes and does not deploy.
-- Backend regression gates now capture raw logs to `artifacts/backend-gates/*.log`, upload them as workflow artifacts, and print step-labeled failure summaries in action output for any failed gate step (typecheck/build/test/regression).
-- The same backend failure summary content is appended to `$GITHUB_STEP_SUMMARY` so failing error details are visible on the run summary page without downloading artifacts.
-- If structured parsing cannot extract explicit failures, backend failure summaries explicitly report parse failure and print a raw fallback excerpt selected from marker-based failure blocks or the final meaningful log tail.
+- Backend regression gates execute and summarize these commands in a single `$GITHUB_STEP_SUMMARY` fenced block: `pnpm -w typecheck`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/api-server run test:ci`, `pnpm run test:api-regression`, and `pnpm run test:auth-security-regression`.
+- Each backend gate step writes raw logs to dedicated files under `artifacts/backend-gates/*.log`, captures command exit code to `$GITHUB_OUTPUT`, and uses `continue-on-error: true` so all gate sections are always included in the combined summary block.
+- Backend regression gates intentionally avoid artifact uploads; the job summary is the single copy source for backend/auth gate failures.
 - Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
 - Final backend gate job-fail evaluation now keys off each step's captured `exit_code`, treats `skipped` as pass, treats `cancelled` as fail, and fails explicitly when dependency install fails before command gates run.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.

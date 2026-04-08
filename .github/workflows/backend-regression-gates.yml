@@ -69,7 +69,7 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          pnpm --filter @workspace/api-server build 2>&1 | tee artifacts/backend-gates/build.log
+          pnpm --filter @workspace/api-server run build 2>&1 | tee artifacts/backend-gates/build.log
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -108,13 +108,24 @@ jobs:
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
 
-      - name: Run API Regression Suite (Phase A)
-        id: regression
+      - name: Run API Regression Suite
+        id: api_regression
         continue-on-error: true
         run: |
           set +e
           set -o pipefail
-          pnpm --filter @workspace/api-server run test:regression:ci 2>&1 | tee artifacts/backend-gates/api-regression.log
+          pnpm run test:api-regression 2>&1 | tee artifacts/backend-gates/api-regression.log
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Run Auth Security Regression Suite
+        id: auth_security_regression
+        continue-on-error: true
+        run: |
+          set +e
+          set -o pipefail
+          pnpm run test:auth-security-regression 2>&1 | tee artifacts/backend-gates/auth-security-regression.log
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -129,8 +140,10 @@ jobs:
           build_exit="${{ steps.build.outputs.exit_code || 'N/A' }}"
           api_tests_outcome="${{ steps.api_tests.outcome || 'unknown' }}"
           api_tests_exit="${{ steps.api_tests.outputs.exit_code || 'N/A' }}"
-          regression_outcome="${{ steps.regression.outcome || 'unknown' }}"
-          regression_exit="${{ steps.regression.outputs.exit_code || 'N/A' }}"
+          api_regression_outcome="${{ steps.api_regression.outcome || 'unknown' }}"
+          api_regression_exit="${{ steps.api_regression.outputs.exit_code || 'N/A' }}"
+          auth_security_regression_outcome="${{ steps.auth_security_regression.outcome || 'unknown' }}"
+          auth_security_regression_exit="${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}"
 
           emit_log() {
             local outcome="$1"
@@ -152,7 +165,8 @@ jobs:
             emit_log "$typecheck_outcome" "$typecheck_exit" "TYPECHECK" "artifacts/backend-gates/typecheck.log"
             emit_log "$build_outcome" "$build_exit" "BUILD" "artifacts/backend-gates/build.log"
             emit_log "$api_tests_outcome" "$api_tests_exit" "API TESTS" "artifacts/backend-gates/api-tests.log"
-            emit_log "$regression_outcome" "$regression_exit" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
+            emit_log "$api_regression_outcome" "$api_regression_exit" "API REGRESSION" "artifacts/backend-gates/api-regression.log"
+            emit_log "$auth_security_regression_outcome" "$auth_security_regression_exit" "AUTH SECURITY REGRESSION" "artifacts/backend-gates/auth-security-regression.log"
             echo '```'
           } > "$GITHUB_STEP_SUMMARY"
 
@@ -190,13 +204,16 @@ jobs:
           build_exit="${{ steps.build.outputs.exit_code || '0' }}"
           api_tests_outcome="${{ steps.api_tests.outcome }}"
           api_tests_exit="${{ steps.api_tests.outputs.exit_code || '0' }}"
-          regression_outcome="${{ steps.regression.outcome }}"
-          regression_exit="${{ steps.regression.outputs.exit_code || '0' }}"
+          api_regression_outcome="${{ steps.api_regression.outcome }}"
+          api_regression_exit="${{ steps.api_regression.outputs.exit_code || '0' }}"
+          auth_security_regression_outcome="${{ steps.auth_security_regression.outcome }}"
+          auth_security_regression_exit="${{ steps.auth_security_regression.outputs.exit_code || '0' }}"
 
           echo "typecheck: outcome=$typecheck_outcome, exit_code=$typecheck_exit"
           echo "build: outcome=$build_outcome, exit_code=$build_exit"
           echo "api-tests: outcome=$api_tests_outcome, exit_code=$api_tests_exit"
-          echo "api-regression: outcome=$regression_outcome, exit_code=$regression_exit"
+          echo "api-regression: outcome=$api_regression_outcome, exit_code=$api_regression_exit"
+          echo "auth-security-regression: outcome=$auth_security_regression_outcome, exit_code=$auth_security_regression_exit"
 
           failed=0
 
@@ -215,8 +232,13 @@ jobs:
             failed=1
           fi
 
-          if should_fail_step "$regression_outcome" "$regression_exit"; then
-            echo "FAILED STEP: Run API Regression Suite (Phase A) (id: regression, exit: ${{ steps.regression.outputs.exit_code || 'unknown' }})"
+          if should_fail_step "$api_regression_outcome" "$api_regression_exit"; then
+            echo "FAILED STEP: Run API Regression Suite (id: api_regression, exit: ${{ steps.api_regression.outputs.exit_code || 'unknown' }})"
+            failed=1
+          fi
+
+          if should_fail_step "$auth_security_regression_outcome" "$auth_security_regression_exit"; then
+            echo "FAILED STEP: Run Auth Security Regression Suite (id: auth_security_regression, exit: ${{ steps.auth_security_regression.outputs.exit_code || 'unknown' }})"
             failed=1
           fi
 
