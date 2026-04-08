@@ -59,6 +59,11 @@ import {
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { resolveNormalizedAccessProfile } from "../lib/appAccessProfile.js";
 import { buildAccessDeniedLoginPath } from "../lib/postAuthRedirect.js";
+import {
+  AUTH_ERROR_CODES,
+  buildAuthErrorLoginPath,
+  parseAuthErrorCode,
+} from "@workspace/auth";
 import { infoVerboseTrace, logVerboseTrace } from "../lib/traceLogging.js";
 import {
   generateOpaqueToken,
@@ -456,7 +461,9 @@ function getControlledAuthErrorRedirect(
   code: string,
 ): string {
   const parsedCode = parseAuthErrorCode(code);
-  const path = buildAuthErrorLoginPath(parsedCode ?? "access_denied");
+  const path = buildAuthErrorLoginPath(
+    parsedCode ?? AUTH_ERROR_CODES.ACCESS_DENIED,
+  );
   if (!frontendBase) return path;
   return `${frontendBase}${path}`;
 }
