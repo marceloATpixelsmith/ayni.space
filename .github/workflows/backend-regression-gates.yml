@@ -11,7 +11,6 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/backend-regression-gates.yml"
-      - ".github/workflows/ci-summary.yml"
   push:
     branches: [master]
     paths:
@@ -22,7 +21,6 @@ on:
       - "pnpm-workspace.yaml"
       - "package.json"
       - ".github/workflows/backend-regression-gates.yml"
-      - ".github/workflows/ci-summary.yml"
   schedule:
     - cron: "0 3 * * *"
 
@@ -30,224 +28,336 @@ permissions:
   contents: read
 
 jobs:
-  backend-gates:
-    name: backend-gates
+  typecheck:
+    name: typecheck
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      BACKEND_TRACE_VERBOSE: "0"
       CI: "true"
-    outputs:
-      install_outcome: ${{ steps.install_deps.outcome }}
-      typecheck_outcome: ${{ steps.typecheck.outcome || 'skipped' }}
-      typecheck_exit: ${{ steps.typecheck.outputs.exit_code || 'N/A' }}
-      build_outcome: ${{ steps.build.outcome || 'skipped' }}
-      build_exit: ${{ steps.build.outputs.exit_code || 'N/A' }}
-      api_tests_outcome: ${{ steps.api_tests.outcome || 'skipped' }}
-      api_tests_exit: ${{ steps.api_tests.outputs.exit_code || 'N/A' }}
-      api_regression_outcome: ${{ steps.api_regression.outcome || 'skipped' }}
-      api_regression_exit: ${{ steps.api_regression.outputs.exit_code || 'N/A' }}
-      auth_security_regression_outcome: ${{ steps.auth_security_regression.outcome || 'skipped' }}
-      auth_security_regression_exit: ${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}
-
+      BACKEND_TRACE_VERBOSE: "0"
     steps:
       - uses: actions/checkout@v6
-
       - uses: pnpm/action-setup@v5
-
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install dependencies
-        id: install_deps
         run: pnpm install --frozen-lockfile
-
-      - name: Create backend logs directory
-        if: always()
-        run: mkdir -p artifacts/backend-gates
-
-      - name: Typecheck
-        id: typecheck
+      - name: Run typecheck
+        id: run_gate
         continue-on-error: true
-        if: ${{ steps.install_deps.outcome == 'success' }}
         run: |
           set +e
+          mkdir -p ci-output
+          log_file="ci-output/typecheck.log"
+          command="pnpm -w typecheck"
+          {
+            echo "Failing command: ${command}"
+            echo "----------------------------------------"
+          } > "$log_file"
+
           set -o pipefail
-          pnpm -w typecheck 2>&1 | tee artifacts/backend-gates/typecheck.log
+          $command 2>&1 | tee -a "$log_file"
           status=$?
+
+          echo "----------------------------------------" >> "$log_file"
+          echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
-      - name: Build API Server
-        id: build
-        continue-on-error: true
-        if: ${{ steps.install_deps.outcome == 'success' }}
-        run: |
-          set +e
-          set -o pipefail
-          pnpm --filter @workspace/api-server run build 2>&1 | tee artifacts/backend-gates/build.log
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
-      - name: Run API Test Suite
-        id: api_tests
-        continue-on-error: true
-        if: ${{ steps.install_deps.outcome == 'success' }}
-        run: |
-          set +e
-          set -o pipefail
-
-          run_api_tests() {
-            local log_file="$1"
-            pnpm --filter @workspace/api-server run test:ci 2>&1 | tee -a "$log_file"
-            return $?
-          }
-
-          status=0
-          : > artifacts/backend-gates/api-tests.log
-          if run_api_tests artifacts/backend-gates/api-tests.log; then
-            echo "api-tests passed on first attempt"
-          else
-            first_status=$?
-            echo "api-tests first attempt failed with exit code: $first_status"
-            echo "Retrying API tests once to reduce transient CI flakes..."
-            echo "--- RETRY ---" | tee -a artifacts/backend-gates/api-tests.log
-
-            if run_api_tests artifacts/backend-gates/api-tests.log; then
-              echo "api-tests passed on retry"
-            else
-              status=$?
-            fi
-          fi
-
-          echo "api-tests exit code: $status"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
-      - name: Run API Regression Suite
-        id: api_regression
-        continue-on-error: true
-        if: ${{ steps.install_deps.outcome == 'success' }}
-        run: |
-          set +e
-          set -o pipefail
-          pnpm run test:api-regression 2>&1 | tee artifacts/backend-gates/api-regression.log
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
-      - name: Run Auth Security Regression Suite
-        id: auth_security_regression
-        continue-on-error: true
-        if: ${{ steps.install_deps.outcome == 'success' }}
-        run: |
-          set +e
-          set -o pipefail
-          pnpm run test:auth-security-regression 2>&1 | tee artifacts/backend-gates/auth-security-regression.log
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
-      - name: Persist backend gate status metadata
-        if: always()
-        run: |
-          cat > artifacts/backend-gates/status.env <<EOF
-          TYPECHECK_OUTCOME=${{ steps.typecheck.outcome || 'skipped' }}
-          TYPECHECK_EXIT=${{ steps.typecheck.outputs.exit_code || 'N/A' }}
-          BUILD_OUTCOME=${{ steps.build.outcome || 'skipped' }}
-          BUILD_EXIT=${{ steps.build.outputs.exit_code || 'N/A' }}
-          API_TESTS_OUTCOME=${{ steps.api_tests.outcome || 'skipped' }}
-          API_TESTS_EXIT=${{ steps.api_tests.outputs.exit_code || 'N/A' }}
-          API_REGRESSION_OUTCOME=${{ steps.api_regression.outcome || 'skipped' }}
-          API_REGRESSION_EXIT=${{ steps.api_regression.outputs.exit_code || 'N/A' }}
-          AUTH_SECURITY_REGRESSION_OUTCOME=${{ steps.auth_security_regression.outcome || 'skipped' }}
-          AUTH_SECURITY_REGRESSION_EXIT=${{ steps.auth_security_regression.outputs.exit_code || 'N/A' }}
-          EOF
-
-      - name: Upload backend gate logs
-        if: always()
+      - name: Upload failure log
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
         with:
-          name: backend-gates-logs
-          path: artifacts/backend-gates
-          if-no-files-found: warn
+          name: typecheck-failure-log
+          path: ci-output/typecheck.log
+          if-no-files-found: error
+      - name: Fail job when gate fails
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        run: exit 1
 
-      - name: Fail job if any backend gate failed
-        if: always()
+  build-api:
+    name: build-api
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      BACKEND_TRACE_VERBOSE: "0"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build API server
+        id: run_gate
+        continue-on-error: true
         run: |
-          if [ "${{ steps.install_deps.outcome }}" != "success" ]; then
-            echo "FAILED STEP: Install dependencies (id: install_deps)"
-            echo "Backend regression gates failed before backend command gates could execute."
-            exit 1
-          fi
+          set +e
+          mkdir -p ci-output
+          log_file="ci-output/build-api.log"
+          command="pnpm --filter @workspace/api-server run build"
+          {
+            echo "Failing command: ${command}"
+            echo "----------------------------------------"
+          } > "$log_file"
 
-          should_fail_step() {
-            local outcome="$1"
-            local exit_code="$2"
+          set -o pipefail
+          $command 2>&1 | tee -a "$log_file"
+          status=$?
 
-            if [ "$outcome" = "failure" ]; then
-              return 0
+          echo "----------------------------------------" >> "$log_file"
+          echo "Exit code: $status" >> "$log_file"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload failure log
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-api-failure-log
+          path: ci-output/build-api.log
+          if-no-files-found: error
+      - name: Fail job when gate fails
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        run: exit 1
+
+  api-tests:
+    name: api-tests
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      BACKEND_TRACE_VERBOSE: "0"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run API tests
+        id: run_gate
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p ci-output
+          log_file="ci-output/api-tests.log"
+          command="pnpm --filter @workspace/api-server run test:ci"
+          {
+            echo "Failing command: ${command}"
+            echo "----------------------------------------"
+          } > "$log_file"
+
+          set -o pipefail
+          $command 2>&1 | tee -a "$log_file"
+          status=$?
+
+          echo "----------------------------------------" >> "$log_file"
+          echo "Exit code: $status" >> "$log_file"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload failure log
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-tests-failure-log
+          path: ci-output/api-tests.log
+          if-no-files-found: error
+      - name: Fail job when gate fails
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        run: exit 1
+
+  api-regression:
+    name: api-regression
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      BACKEND_TRACE_VERBOSE: "0"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run API regression tests
+        id: run_gate
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p ci-output
+          log_file="ci-output/api-regression.log"
+          command="pnpm --filter @workspace/api-server run test:regression:ci"
+          {
+            echo "Failing command: ${command}"
+            echo "----------------------------------------"
+          } > "$log_file"
+
+          set -o pipefail
+          $command 2>&1 | tee -a "$log_file"
+          status=$?
+
+          echo "----------------------------------------" >> "$log_file"
+          echo "Exit code: $status" >> "$log_file"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload failure log
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-regression-failure-log
+          path: ci-output/api-regression.log
+          if-no-files-found: error
+      - name: Fail job when gate fails
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        run: exit 1
+
+  auth-security-regression:
+    name: auth-security-regression
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      BACKEND_TRACE_VERBOSE: "0"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run auth security regression tests
+        id: run_gate
+        continue-on-error: true
+        run: |
+          set +e
+          mkdir -p ci-output
+          log_file="ci-output/auth-security-regression.log"
+          command="pnpm run test:auth-security-regression"
+          {
+            echo "Failing command: ${command}"
+            echo "----------------------------------------"
+          } > "$log_file"
+
+          set -o pipefail
+          $command 2>&1 | tee -a "$log_file"
+          status=$?
+
+          echo "----------------------------------------" >> "$log_file"
+          echo "Exit code: $status" >> "$log_file"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload failure log
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-security-regression-failure-log
+          path: ci-output/auth-security-regression.log
+          if-no-files-found: error
+      - name: Fail job when gate fails
+        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        run: exit 1
+
+  summary:
+    name: CI Failure Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - typecheck
+      - build-api
+      - api-tests
+      - api-regression
+      - auth-security-regression
+    steps:
+      - name: Download failure artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          path: ci-output
+          pattern: "*-failure-log"
+          merge-multiple: true
+
+      - name: Print consolidated summary
+        run: |
+          typecheck_result="${{ needs.typecheck.result }}"
+          build_api_result="${{ needs.build-api.result }}"
+          api_tests_result="${{ needs.api-tests.result }}"
+          api_regression_result="${{ needs.api-regression.result }}"
+          auth_security_result="${{ needs.auth-security-regression.result }}"
+
+          failed_jobs=()
+          passed_jobs=()
+
+          collect_result() {
+            local job_name="$1"
+            local result="$2"
+            if [ "$result" = "success" ]; then
+              passed_jobs+=("$job_name")
+            else
+              failed_jobs+=("$job_name")
             fi
-
-            if [[ "$exit_code" =~ ^[0-9]+$ ]] && [ "$exit_code" -ne 0 ]; then
-              return 0
-            fi
-
-            if [ "$outcome" = "cancelled" ]; then
-              return 0
-            fi
-
-            return 1
           }
 
-          typecheck_outcome="${{ steps.typecheck.outcome }}"
-          typecheck_exit="${{ steps.typecheck.outputs.exit_code || '0' }}"
-          build_outcome="${{ steps.build.outcome }}"
-          build_exit="${{ steps.build.outputs.exit_code || '0' }}"
-          api_tests_outcome="${{ steps.api_tests.outcome }}"
-          api_tests_exit="${{ steps.api_tests.outputs.exit_code || '0' }}"
-          api_regression_outcome="${{ steps.api_regression.outcome }}"
-          api_regression_exit="${{ steps.api_regression.outputs.exit_code || '0' }}"
-          auth_security_regression_outcome="${{ steps.auth_security_regression.outcome }}"
-          auth_security_regression_exit="${{ steps.auth_security_regression.outputs.exit_code || '0' }}"
+          collect_result "typecheck" "$typecheck_result"
+          collect_result "build-api" "$build_api_result"
+          collect_result "api-tests" "$api_tests_result"
+          collect_result "api-regression" "$api_regression_result"
+          collect_result "auth-security-regression" "$auth_security_result"
 
-          echo "typecheck: outcome=$typecheck_outcome, exit_code=$typecheck_exit"
-          echo "build: outcome=$build_outcome, exit_code=$build_exit"
-          echo "api-tests: outcome=$api_tests_outcome, exit_code=$api_tests_exit"
-          echo "api-regression: outcome=$api_regression_outcome, exit_code=$api_regression_exit"
-          echo "auth-security-regression: outcome=$auth_security_regression_outcome, exit_code=$auth_security_regression_exit"
-
-          failed=0
-
-          if should_fail_step "$typecheck_outcome" "$typecheck_exit"; then
-            echo "FAILED STEP: Typecheck (id: typecheck, exit: ${{ steps.typecheck.outputs.exit_code || 'unknown' }})"
-            failed=1
+          overall="PASS"
+          if [ "${#failed_jobs[@]}" -gt 0 ]; then
+            overall="FAIL"
           fi
 
-          if should_fail_step "$build_outcome" "$build_exit"; then
-            echo "FAILED STEP: Build API Server (id: build, exit: ${{ steps.build.outputs.exit_code || 'unknown' }})"
-            failed=1
-          fi
+          {
+            echo "=================================================="
+            echo "CI FAILURE SUMMARY"
+            echo "=================================================="
+            echo
+            echo "OVERALL RESULT: ${overall}"
+            echo
+            echo "FAILED JOBS:"
+            if [ "${#failed_jobs[@]}" -eq 0 ]; then
+              echo "- none"
+            else
+              for job in "${failed_jobs[@]}"; do
+                echo "- ${job}"
+              done
+            fi
+            echo
+            echo "DETAILS:"
+            echo
 
-          if should_fail_step "$api_tests_outcome" "$api_tests_exit"; then
-            echo "FAILED STEP: Run API Test Suite (id: api_tests, exit: ${{ steps.api_tests.outputs.exit_code || 'unknown' }})"
-            failed=1
-          fi
+            for job in "${failed_jobs[@]}"; do
+              echo "[${job}]"
+              log_file="ci-output/${job}.log"
+              if [ -f "$log_file" ]; then
+                cat "$log_file"
+              else
+                echo "No failure log artifact found for ${job}."
+              fi
+              echo
+            done
 
-          if should_fail_step "$api_regression_outcome" "$api_regression_exit"; then
-            echo "FAILED STEP: Run API Regression Suite (id: api_regression, exit: ${{ steps.api_regression.outputs.exit_code || 'unknown' }})"
-            failed=1
-          fi
+            echo "---"
+            echo
+            echo "PASSED JOBS:"
+            if [ "${#passed_jobs[@]}" -eq 0 ]; then
+              echo "- none"
+            else
+              for job in "${passed_jobs[@]}"; do
+                echo "- ${job}"
+              done
+            fi
+            echo
+            echo "=================================================="
+          } | tee ci-failure-summary.txt
 
-          if should_fail_step "$auth_security_regression_outcome" "$auth_security_regression_exit"; then
-            echo "FAILED STEP: Run Auth Security Regression Suite (id: auth_security_regression, exit: ${{ steps.auth_security_regression.outputs.exit_code || 'unknown' }})"
-            failed=1
-          fi
-
-          if [ "$failed" -ne 0 ]; then
-            echo "Backend regression gates failed."
-            exit 1
-          fi
+          {
+            echo '```text'
+            cat ci-failure-summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
