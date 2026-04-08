@@ -1,8 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveAuthenticatedPostAuthDestination } from "../lib/postAuthDestination.js";
+import {
+  DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_FROM_DESTINATION,
+  resolveAuthenticatedPostAuthDestination,
+} from "../lib/postAuthDestination.js";
 import { resolvePostAuthContinuation } from "../lib/postAuthContinuation.js";
+import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_FROM_REDIRECT } from "../lib/postAuthRedirect.js";
+import { DEFAULT_POST_AUTH_PATH as DEFAULT_POST_AUTH_PATH_CANONICAL } from "../../../../packages/auth/src/index.ts";
+
+test("post-auth default path contract remains consistent across canonical and backend modules", () => {
+  assert.equal(
+    DEFAULT_POST_AUTH_PATH_FROM_REDIRECT,
+    DEFAULT_POST_AUTH_PATH_CANONICAL,
+  );
+  assert.equal(
+    DEFAULT_POST_AUTH_PATH_FROM_DESTINATION,
+    DEFAULT_POST_AUTH_PATH_CANONICAL,
+  );
+});
 
 test("post-auth resolver prioritizes onboarding over continuation path", () => {
   const destination = resolveAuthenticatedPostAuthDestination({

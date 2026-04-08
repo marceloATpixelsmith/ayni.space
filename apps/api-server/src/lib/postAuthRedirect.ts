@@ -4,6 +4,10 @@ import {
   buildAccessDeniedLoginPath,
 } from "@workspace/auth";
 
+// Compatibility export for modules that still consume this symbol from
+// postAuthRedirect during auth contract cleanup.
+export { DEFAULT_POST_AUTH_PATH };
+
 export function getPostAuthRedirectPath(options: {
   appSlug: string;
   isSuperAdmin: boolean;
