@@ -2,29 +2,9 @@ name: Backend Regression Gates
 
 on:
   pull_request:
-    branches: [master]
-    paths:
-      - "apps/api-server/**"
-      - "lib/**"
-      - "packages/**"
-      - "scripts/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/**"
   push:
-    branches: [master]
-    paths:
-      - "apps/api-server/**"
-      - "lib/**"
-      - "packages/**"
-      - "scripts/**"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "package.json"
-      - ".github/workflows/**"
-  schedule:
-    - cron: "0 3 * * *"
+    branches:
+      - master
 
 permissions:
   contents: read
