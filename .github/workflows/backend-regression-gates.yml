@@ -45,32 +45,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run typecheck
-        id: run_gate
+      - name: Run backend-typecheck
         run: |
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-typecheck.log"
-          command=(pnpm -w typecheck)
           {
             echo "Failing command: pnpm -w typecheck"
             echo "----------------------------------------"
           } > "$log_file"
-
           set -o pipefail
-          "${command[@]}" 2>&1 | tee -a "$log_file"
+          pnpm -w typecheck 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
-
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" -ne 0 ]; then
-            echo "Typecheck failed; replaying captured log:"
-            cat "$log_file"
-          fi
           exit "$status"
-      - name: Upload failure log
-        if: ${{ failure() }}
+      - name: Upload backend-typecheck failure log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-typecheck-failure-log
@@ -92,32 +83,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build API server
-        id: run_gate
+      - name: Run backend-build-api
         run: |
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-build-api.log"
-          command=(pnpm --filter @workspace/api-server run build)
           {
             echo "Failing command: pnpm --filter @workspace/api-server run build"
             echo "----------------------------------------"
           } > "$log_file"
-
           set -o pipefail
-          "${command[@]}" 2>&1 | tee -a "$log_file"
+          pnpm --filter @workspace/api-server run build 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
-
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" -ne 0 ]; then
-            echo "Build failed; replaying captured log:"
-            cat "$log_file"
-          fi
           exit "$status"
-      - name: Upload failure log
-        if: ${{ failure() }}
+      - name: Upload backend-build-api failure log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-build-api-failure-log
@@ -140,30 +122,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run API tests
-        id: run_gate
+      - name: Run backend-api-tests
         run: |
+          set +e
           mkdir -p ci-output
           log_file="ci-output/backend-api-tests.log"
           {
             echo "Failing command: pnpm --filter @workspace/api-server run test:ci"
             echo "----------------------------------------"
           } > "$log_file"
-
           set -o pipefail
           pnpm --filter @workspace/api-server run test:ci 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
-
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" -ne 0 ]; then
-            echo "API tests failed. Full captured output:"
-            cat "$log_file"
-          fi
           exit "$status"
-      - name: Upload failure log
-        if: ${{ failure() }}
+      - name: Upload backend-api-tests failure log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-api-tests-failure-log
@@ -186,32 +161,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run API regression tests
-        id: run_gate
+      - name: Run backend-api-regression
         run: |
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-api-regression.log"
-          command=(pnpm --filter @workspace/api-server run test:regression:ci)
           {
-            echo "Failing command: pnpm --filter @workspace/api-server run test:regression:ci"
+            echo "Failing command: pnpm run test:api-regression"
             echo "----------------------------------------"
           } > "$log_file"
-
           set -o pipefail
-          "${command[@]}" 2>&1 | tee -a "$log_file"
+          pnpm run test:api-regression 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
-
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" -ne 0 ]; then
-            echo "API regression tests failed; replaying captured log:"
-            cat "$log_file"
-          fi
           exit "$status"
-      - name: Upload failure log
-        if: ${{ failure() }}
+      - name: Upload backend-api-regression failure log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-api-regression-failure-log
@@ -234,32 +200,23 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run auth security regression tests
-        id: run_gate
+      - name: Run backend-auth-security-regression
         run: |
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-auth-security-regression.log"
-          command=(pnpm run test:auth-security-regression)
           {
             echo "Failing command: pnpm run test:auth-security-regression"
             echo "----------------------------------------"
           } > "$log_file"
-
           set -o pipefail
-          "${command[@]}" 2>&1 | tee -a "$log_file"
+          pnpm run test:auth-security-regression 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
-
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" -ne 0 ]; then
-            echo "Auth security regression tests failed; replaying captured log:"
-            cat "$log_file"
-          fi
           exit "$status"
-      - name: Upload failure log
-        if: ${{ failure() }}
+      - name: Upload backend-auth-security-regression failure log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: backend-auth-security-regression-failure-log
@@ -277,9 +234,6 @@ jobs:
       - backend-api-regression
       - backend-auth-security-regression
     steps:
-      - name: Prepare summary workspace
-        run: mkdir -p ci-output
-
       - name: Download failure artifacts
         if: always()
         continue-on-error: true
@@ -289,7 +243,7 @@ jobs:
           path: ci-output
           merge-multiple: true
 
-      - name: Print consolidated backend summary
+      - name: Print backend CI summary
         env:
           BACKEND_NEEDS_JSON: ${{ toJson(needs) }}
         run: |
@@ -308,7 +262,7 @@ jobs:
           overall="PASS"
 
           for job_name in "${jobs[@]}"; do
-            job_result="$(printf '%s' "$BACKEND_NEEDS_JSON" | python -c 'import json,sys; data=json.load(sys.stdin); print(data.get(sys.argv[1], {}).get("result", "missing"))' "$job_name")"
+            job_result="$(python -c 'import json,os,sys; d=json.loads(os.environ["BACKEND_NEEDS_JSON"]); print(d.get(sys.argv[1], {}).get("result", "missing"))' "$job_name")"
             if [ "$job_result" = "success" ]; then
               passed_jobs+=("$job_name")
             else
@@ -316,6 +270,46 @@ jobs:
               overall="FAIL"
             fi
           done
+
+          log_for_job() {
+            local job="$1"
+            local candidate="ci-output/${job}.log"
+            if [ -f "$candidate" ]; then
+              printf '%s' "$candidate"
+              return
+            fi
+
+            local found
+            found="$(find ci-output -type f -name "${job}.log" | head -n 1 || true)"
+            if [ -n "$found" ] && [ -f "$found" ]; then
+              printf '%s' "$found"
+              return
+            fi
+
+            printf ''
+          }
+
+          print_detail() {
+            local job="$1"
+            local log_path
+            log_path="$(log_for_job "$job")"
+
+            if [ -z "$log_path" ]; then
+              echo "no failure log"
+              return
+            fi
+
+            if [ "$job" = "backend-api-tests" ] || [ "$job" = "backend-api-regression" ]; then
+              if grep -q "✖ failing tests:" "$log_path"; then
+                awk '/✖ failing tests:/{flag=1} flag{print}' "$log_path" | tail -n 80
+              else
+                tail -n 40 "$log_path"
+              fi
+              return
+            fi
+
+            grep -E "Failing command:|Error:|ERROR|AssertionError|failed|Exit code:" "$log_path" | tail -n 20 || tail -n 20 "$log_path"
+          }
 
           {
             echo "=================================================="
@@ -342,20 +336,23 @@ jobs:
               done
             fi
             echo
-            echo "DETAILS (actionable excerpts):"
+            echo "DETAILS:"
             echo
-
-            for job in "${failed_jobs[@]}"; do
-              log_file="ci-output/${job}.log"
-              echo "[${job}]"
-              if [ -f "$log_file" ]; then
-                grep -E "Failing command:|Error:|ERROR|AssertionError|✖|failed|Exit code:" "$log_file" | tail -n 25 || tail -n 25 "$log_file"
-              else
-                echo "No failure log artifact was available for this job."
-              fi
-              echo
-            done
-
+            echo "[backend-typecheck]"
+            print_detail "backend-typecheck"
+            echo
+            echo "[backend-build-api]"
+            print_detail "backend-build-api"
+            echo
+            echo "[backend-api-tests]"
+            print_detail "backend-api-tests"
+            echo
+            echo "[backend-api-regression]"
+            print_detail "backend-api-regression"
+            echo
+            echo "[backend-auth-security-regression]"
+            print_detail "backend-auth-security-regression"
+            echo
             echo "=================================================="
           } | tee backend-ci-failure-summary.txt
 
