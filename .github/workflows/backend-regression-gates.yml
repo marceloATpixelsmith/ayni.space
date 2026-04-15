@@ -47,7 +47,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run typecheck
         id: run_gate
-        continue-on-error: true
         run: |
           set +e
           mkdir -p ci-output
@@ -71,17 +70,12 @@ jobs:
           fi
           exit "$status"
       - name: Upload failure log
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-typecheck-failure-log
           path: ci-output/backend-typecheck.log
           if-no-files-found: error
-      - name: Fail job when gate fails
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: |
-          echo "backend-typecheck failed"
-          exit 1
 
   backend-build-api:
     name: backend-build-api
@@ -100,7 +94,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build API server
         id: run_gate
-        continue-on-error: true
         run: |
           set +e
           mkdir -p ci-output
@@ -124,17 +117,12 @@ jobs:
           fi
           exit "$status"
       - name: Upload failure log
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-build-api-failure-log
           path: ci-output/backend-build-api.log
           if-no-files-found: error
-      - name: Fail job when gate fails
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: |
-          echo "backend-build-api failed"
-          exit 1
 
   backend-api-tests:
     name: backend-api-tests
@@ -154,7 +142,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run API tests
         id: run_gate
-        continue-on-error: true
         run: |
           set +e
           mkdir -p ci-output
@@ -178,17 +165,12 @@ jobs:
           fi
           exit "$status"
       - name: Upload failure log
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-api-tests-failure-log
           path: ci-output/backend-api-tests.log
           if-no-files-found: error
-      - name: Fail job when gate fails
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: |
-          echo "backend-api-tests failed"
-          exit 1
 
   backend-api-regression:
     name: backend-api-regression
@@ -208,7 +190,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run API regression tests
         id: run_gate
-        continue-on-error: true
         run: |
           set +e
           mkdir -p ci-output
@@ -232,17 +213,12 @@ jobs:
           fi
           exit "$status"
       - name: Upload failure log
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-api-regression-failure-log
           path: ci-output/backend-api-regression.log
           if-no-files-found: error
-      - name: Fail job when gate fails
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: |
-          echo "backend-api-regression failed"
-          exit 1
 
   backend-auth-security-regression:
     name: backend-auth-security-regression
@@ -262,7 +238,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run auth security regression tests
         id: run_gate
-        continue-on-error: true
         run: |
           set +e
           mkdir -p ci-output
@@ -286,17 +261,12 @@ jobs:
           fi
           exit "$status"
       - name: Upload failure log
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-auth-security-regression-failure-log
           path: ci-output/backend-auth-security-regression.log
           if-no-files-found: error
-      - name: Fail job when gate fails
-        if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: |
-          echo "backend-auth-security-regression failed"
-          exit 1
 
   backend-ci-summary:
     name: backend-ci-summary
@@ -310,7 +280,7 @@ jobs:
       - backend-auth-security-regression
     steps:
       - name: Download backend-typecheck failure artifact
-        if: ${{ needs.backend-typecheck.result != 'success' }}
+        if: ${{ needs['backend-typecheck'].result != 'success' }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -351,7 +321,7 @@ jobs:
 
       - name: Print consolidated backend summary
         run: |
-          backend_typecheck_result="${{ needs.backend-typecheck.result }}"
+          backend_typecheck_result="${{ needs['backend-typecheck'].result }}"
           backend_build_api_result="${{ needs['backend-build-api'].result }}"
           backend_api_tests_result="${{ needs['backend-api-tests'].result }}"
           backend_api_regression_result="${{ needs['backend-api-regression'].result }}"
