@@ -269,7 +269,7 @@ jobs:
   backend-ci-summary:
     name: backend-ci-summary
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: always()
     needs:
       - backend-typecheck
       - backend-build-api
