@@ -277,98 +277,50 @@ jobs:
       - backend-api-regression
       - backend-auth-security-regression
     steps:
-      - uses: actions/checkout@v6
-
       - name: Prepare summary workspace
         run: mkdir -p ci-output
 
-      - name: Download backend-typecheck failure artifact
+      - name: Download failure artifacts
         if: always()
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: backend-typecheck-failure-log
+          pattern: backend-*-failure-log
           path: ci-output
-
-      - name: Download backend-build-api failure artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-build-api-failure-log
-          path: ci-output
-
-      - name: Download backend-api-tests failure artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-api-tests-failure-log
-          path: ci-output
-
-      - name: Download backend-api-regression failure artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-api-regression-failure-log
-          path: ci-output
-
-      - name: Download backend-auth-security-regression failure artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-auth-security-regression-failure-log
-          path: ci-output
+          merge-multiple: true
 
       - name: Print consolidated backend summary
         env:
-          BACKEND_TYPECHECK_RESULT: ${{ needs.backend-typecheck.result }}
-          BACKEND_BUILD_API_RESULT: ${{ needs.backend-build-api.result }}
-          BACKEND_API_TESTS_RESULT: ${{ needs.backend-api-tests.result }}
-          BACKEND_API_REGRESSION_RESULT: ${{ needs.backend-api-regression.result }}
-          BACKEND_AUTH_SECURITY_REGRESSION_RESULT: ${{ needs.backend-auth-security-regression.result }}
+          BACKEND_TYPECHECK_RESULT: ${{ needs['backend-typecheck'].result }}
+          BACKEND_BUILD_API_RESULT: ${{ needs['backend-build-api'].result }}
+          BACKEND_API_TESTS_RESULT: ${{ needs['backend-api-tests'].result }}
+          BACKEND_API_REGRESSION_RESULT: ${{ needs['backend-api-regression'].result }}
+          BACKEND_AUTH_SECURITY_REGRESSION_RESULT: ${{ needs['backend-auth-security-regression'].result }}
         run: |
           set -euo pipefail
 
+          jobs=(
+            "backend-typecheck|$BACKEND_TYPECHECK_RESULT"
+            "backend-build-api|$BACKEND_BUILD_API_RESULT"
+            "backend-api-tests|$BACKEND_API_TESTS_RESULT"
+            "backend-api-regression|$BACKEND_API_REGRESSION_RESULT"
+            "backend-auth-security-regression|$BACKEND_AUTH_SECURITY_REGRESSION_RESULT"
+          )
+
           failed_jobs=()
           passed_jobs=()
+          overall="PASS"
 
-          collect_result() {
-            local job_name="$1"
-            local result="$2"
-            if [ "$result" = "success" ]; then
+          for item in "${jobs[@]}"; do
+            job_name="${item%%|*}"
+            job_result="${item##*|}"
+            if [ "$job_result" = "success" ]; then
               passed_jobs+=("$job_name")
             else
               failed_jobs+=("$job_name")
+              overall="FAIL"
             fi
-          }
-
-          collect_result "backend-typecheck" "$BACKEND_TYPECHECK_RESULT"
-          collect_result "backend-build-api" "$BACKEND_BUILD_API_RESULT"
-          collect_result "backend-api-tests" "$BACKEND_API_TESTS_RESULT"
-          collect_result "backend-api-regression" "$BACKEND_API_REGRESSION_RESULT"
-          collect_result "backend-auth-security-regression" "$BACKEND_AUTH_SECURITY_REGRESSION_RESULT"
-
-          overall="PASS"
-          if [ "${#failed_jobs[@]}" -gt 0 ]; then
-            overall="FAIL"
-          fi
-
-          resolve_log_file() {
-            local job_name="$1"
-            local direct="ci-output/${job_name}.log"
-            local nested="ci-output/ci-output/${job_name}.log"
-
-            if [ -f "$direct" ]; then
-              printf '%s' "$direct"
-            elif [ -f "$nested" ]; then
-              printf '%s' "$nested"
-            else
-              printf ''
-            fi
-          }
+          done
 
           {
             echo "=================================================="
@@ -395,14 +347,14 @@ jobs:
               done
             fi
             echo
-            echo "DETAILS (excerpted):"
+            echo "DETAILS (actionable excerpts):"
             echo
 
             for job in "${failed_jobs[@]}"; do
+              log_file="ci-output/${job}.log"
               echo "[${job}]"
-              log_file="$(resolve_log_file "$job")"
-              if [ -n "$log_file" ]; then
-                tail -n 40 "$log_file"
+              if [ -f "$log_file" ]; then
+                grep -E "Failing command:|Error:|ERROR|AssertionError|✖|failed|Exit code:" "$log_file" | tail -n 25 || tail -n 25 "$log_file"
               else
                 echo "No failure log artifact was available for this job."
               fi
