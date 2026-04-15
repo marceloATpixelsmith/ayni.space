@@ -52,19 +52,24 @@ jobs:
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-typecheck.log"
-          command="pnpm -w typecheck"
+          command=(pnpm -w typecheck)
           {
-            echo "Failing command: ${command}"
+            echo "Failing command: pnpm -w typecheck"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          $command 2>&1 | tee -a "$log_file"
-          status=$?
+          "${command[@]}" 2>&1 | tee -a "$log_file"
+          status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "Typecheck failed; replaying captured log:"
+            cat "$log_file"
+          fi
+          exit "$status"
       - name: Upload failure log
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
@@ -74,7 +79,9 @@ jobs:
           if-no-files-found: error
       - name: Fail job when gate fails
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: exit 1
+        run: |
+          echo "backend-typecheck failed"
+          exit 1
 
   backend-build-api:
     name: backend-build-api
@@ -98,19 +105,24 @@ jobs:
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-build-api.log"
-          command="pnpm --filter @workspace/api-server run build"
+          command=(pnpm --filter @workspace/api-server run build)
           {
-            echo "Failing command: ${command}"
+            echo "Failing command: pnpm --filter @workspace/api-server run build"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          $command 2>&1 | tee -a "$log_file"
-          status=$?
+          "${command[@]}" 2>&1 | tee -a "$log_file"
+          status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "Build failed; replaying captured log:"
+            cat "$log_file"
+          fi
+          exit "$status"
       - name: Upload failure log
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
@@ -120,7 +132,9 @@ jobs:
           if-no-files-found: error
       - name: Fail job when gate fails
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: exit 1
+        run: |
+          echo "backend-build-api failed"
+          exit 1
 
   backend-api-tests:
     name: backend-api-tests
@@ -145,19 +159,24 @@ jobs:
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-api-tests.log"
-          command="pnpm --filter @workspace/api-server run test:ci"
+          command=(pnpm --filter @workspace/api-server run test:ci)
           {
-            echo "Failing command: ${command}"
+            echo "Failing command: pnpm --filter @workspace/api-server run test:ci"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          $command 2>&1 | tee -a "$log_file"
-          status=$?
+          "${command[@]}" 2>&1 | tee -a "$log_file"
+          status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "API tests failed; replaying captured log:"
+            cat "$log_file"
+          fi
+          exit "$status"
       - name: Upload failure log
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
@@ -167,7 +186,9 @@ jobs:
           if-no-files-found: error
       - name: Fail job when gate fails
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: exit 1
+        run: |
+          echo "backend-api-tests failed"
+          exit 1
 
   backend-api-regression:
     name: backend-api-regression
@@ -192,19 +213,24 @@ jobs:
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-api-regression.log"
-          command="pnpm --filter @workspace/api-server run test:regression:ci"
+          command=(pnpm --filter @workspace/api-server run test:regression:ci)
           {
-            echo "Failing command: ${command}"
+            echo "Failing command: pnpm --filter @workspace/api-server run test:regression:ci"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          $command 2>&1 | tee -a "$log_file"
-          status=$?
+          "${command[@]}" 2>&1 | tee -a "$log_file"
+          status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "API regression tests failed; replaying captured log:"
+            cat "$log_file"
+          fi
+          exit "$status"
       - name: Upload failure log
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
@@ -214,7 +240,9 @@ jobs:
           if-no-files-found: error
       - name: Fail job when gate fails
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: exit 1
+        run: |
+          echo "backend-api-regression failed"
+          exit 1
 
   backend-auth-security-regression:
     name: backend-auth-security-regression
@@ -239,19 +267,24 @@ jobs:
           set +e
           mkdir -p ci-output
           log_file="ci-output/backend-auth-security-regression.log"
-          command="pnpm run test:auth-security-regression"
+          command=(pnpm run test:auth-security-regression)
           {
-            echo "Failing command: ${command}"
+            echo "Failing command: pnpm run test:auth-security-regression"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          $command 2>&1 | tee -a "$log_file"
-          status=$?
+          "${command[@]}" 2>&1 | tee -a "$log_file"
+          status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -ne 0 ]; then
+            echo "Auth security regression tests failed; replaying captured log:"
+            cat "$log_file"
+          fi
+          exit "$status"
       - name: Upload failure log
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
         uses: actions/upload-artifact@v4
@@ -261,7 +294,9 @@ jobs:
           if-no-files-found: error
       - name: Fail job when gate fails
         if: ${{ steps.run_gate.outputs.exit_code != '0' }}
-        run: exit 1
+        run: |
+          echo "backend-auth-security-regression failed"
+          exit 1
 
   backend-ci-summary:
     name: backend-ci-summary
@@ -283,7 +318,7 @@ jobs:
           path: ci-output
 
       - name: Download backend-build-api failure artifact
-        if: ${{ needs.backend-build-api.result != 'success' }}
+        if: ${{ needs['backend-build-api'].result != 'success' }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -291,7 +326,7 @@ jobs:
           path: ci-output
 
       - name: Download backend-api-tests failure artifact
-        if: ${{ needs.backend-api-tests.result != 'success' }}
+        if: ${{ needs['backend-api-tests'].result != 'success' }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -299,7 +334,7 @@ jobs:
           path: ci-output
 
       - name: Download backend-api-regression failure artifact
-        if: ${{ needs.backend-api-regression.result != 'success' }}
+        if: ${{ needs['backend-api-regression'].result != 'success' }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -307,7 +342,7 @@ jobs:
           path: ci-output
 
       - name: Download backend-auth-security-regression failure artifact
-        if: ${{ needs.backend-auth-security-regression.result != 'success' }}
+        if: ${{ needs['backend-auth-security-regression'].result != 'success' }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -317,10 +352,10 @@ jobs:
       - name: Print consolidated backend summary
         run: |
           backend_typecheck_result="${{ needs.backend-typecheck.result }}"
-          backend_build_api_result="${{ needs.backend-build-api.result }}"
-          backend_api_tests_result="${{ needs.backend-api-tests.result }}"
-          backend_api_regression_result="${{ needs.backend-api-regression.result }}"
-          backend_auth_security_regression_result="${{ needs.backend-auth-security-regression.result }}"
+          backend_build_api_result="${{ needs['backend-build-api'].result }}"
+          backend_api_tests_result="${{ needs['backend-api-tests'].result }}"
+          backend_api_regression_result="${{ needs['backend-api-regression'].result }}"
+          backend_auth_security_regression_result="${{ needs['backend-auth-security-regression'].result }}"
 
           failed_jobs=()
           passed_jobs=()
