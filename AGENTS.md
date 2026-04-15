@@ -22,8 +22,6 @@ This file is the authoritative operating manual for AI coding agents working in 
 
 ## 3) CI Workflow File Map (Live-File Anchored)
 
-> Required map entries are listed below exactly as requested.
-
 - `.github/workflows/backend-regression-gates.yml`
   - **Status:** Present.
   - **Purpose:** Backend regression gate workflow with per-job execution and an internal summary job.
@@ -37,7 +35,7 @@ This file is the authoritative operating manual for AI coding agents working in 
   - **Status:** Present.
   - **Purpose:** Lockfile/workspace install integrity check.
 
-## 4) Allowed Backend Workflow Scope (Exact)
+## 4) Exact Allowed Backend Workflow Scope
 
 The backend workflow scope is exactly the scope implemented by `.github/workflows/backend-regression-gates.yml`:
 
@@ -45,15 +43,9 @@ The backend workflow scope is exactly the scope implemented by `.github/workflow
   - `pull_request` targeting `master`
   - `push` to `master`
   - scheduled cron (`0 3 * * *`)
-- Path-scoped triggers (for `pull_request` and `push`):
-  - `apps/api-server/**`
-  - `lib/**`
-  - `packages/**`
-  - `scripts/**`
-  - `pnpm-lock.yaml`
-  - `pnpm-workspace.yaml`
-  - `package.json`
-  - `.github/workflows/**`
+- Path-scoped triggers:
+  - No `paths` filters are currently configured in this workflow.
+  - Do not assume any backend path filtering for this workflow unless live YAML adds it.
 
 No additional backend scope may be assumed from other workflows unless explicitly requested.
 
