@@ -291,29 +291,24 @@ jobs:
 
       - name: Print consolidated backend summary
         env:
-          BACKEND_TYPECHECK_RESULT: ${{ needs['backend-typecheck'].result }}
-          BACKEND_BUILD_API_RESULT: ${{ needs['backend-build-api'].result }}
-          BACKEND_API_TESTS_RESULT: ${{ needs['backend-api-tests'].result }}
-          BACKEND_API_REGRESSION_RESULT: ${{ needs['backend-api-regression'].result }}
-          BACKEND_AUTH_SECURITY_REGRESSION_RESULT: ${{ needs['backend-auth-security-regression'].result }}
+          BACKEND_NEEDS_JSON: ${{ toJson(needs) }}
         run: |
           set -euo pipefail
 
           jobs=(
-            "backend-typecheck|$BACKEND_TYPECHECK_RESULT"
-            "backend-build-api|$BACKEND_BUILD_API_RESULT"
-            "backend-api-tests|$BACKEND_API_TESTS_RESULT"
-            "backend-api-regression|$BACKEND_API_REGRESSION_RESULT"
-            "backend-auth-security-regression|$BACKEND_AUTH_SECURITY_REGRESSION_RESULT"
+            "backend-typecheck"
+            "backend-build-api"
+            "backend-api-tests"
+            "backend-api-regression"
+            "backend-auth-security-regression"
           )
 
           failed_jobs=()
           passed_jobs=()
           overall="PASS"
 
-          for item in "${jobs[@]}"; do
-            job_name="${item%%|*}"
-            job_result="${item##*|}"
+          for job_name in "${jobs[@]}"; do
+            job_result="$(printf '%s' "$BACKEND_NEEDS_JSON" | python -c 'import json,sys; data=json.load(sys.stdin); print(data.get(sys.argv[1], {}).get("result", "missing"))' "$job_name")"
             if [ "$job_result" = "success" ]; then
               passed_jobs+=("$job_name")
             else
