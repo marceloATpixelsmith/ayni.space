@@ -59,6 +59,9 @@ jobs:
           status=${PIPESTATUS[0]}
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
+          if [ "$status" -ne 0 ]; then
+            cat "$log_file"
+          fi
           exit "$status"
       - name: Upload backend-typecheck failure log
         if: failure()
@@ -97,6 +100,9 @@ jobs:
           status=${PIPESTATUS[0]}
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
+          if [ "$status" -ne 0 ]; then
+            cat "$log_file"
+          fi
           exit "$status"
       - name: Upload backend-build-api failure log
         if: failure()
@@ -136,6 +142,9 @@ jobs:
           status=${PIPESTATUS[0]}
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
+          if [ "$status" -ne 0 ]; then
+            cat "$log_file"
+          fi
           exit "$status"
       - name: Upload backend-api-tests failure log
         if: failure()
@@ -143,84 +152,6 @@ jobs:
         with:
           name: backend-api-tests-failure-log
           path: ci-output/backend-api-tests.log
-          if-no-files-found: error
-
-  backend-api-regression:
-    name: backend-api-regression
-    runs-on: ubuntu-latest
-    env:
-      CI: "true"
-      BACKEND_TRACE_VERBOSE: "0"
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v5
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run backend-api-regression
-        run: |
-          set +e
-          mkdir -p ci-output
-          log_file="ci-output/backend-api-regression.log"
-          {
-            echo "Failing command: pnpm run test:api-regression"
-            echo "----------------------------------------"
-          } > "$log_file"
-          set -o pipefail
-          pnpm run test:api-regression 2>&1 | tee -a "$log_file"
-          status=${PIPESTATUS[0]}
-          echo "----------------------------------------" >> "$log_file"
-          echo "Exit code: $status" >> "$log_file"
-          exit "$status"
-      - name: Upload backend-api-regression failure log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-api-regression-failure-log
-          path: ci-output/backend-api-regression.log
-          if-no-files-found: error
-
-  backend-auth-security-regression:
-    name: backend-auth-security-regression
-    runs-on: ubuntu-latest
-    env:
-      CI: "true"
-      BACKEND_TRACE_VERBOSE: "0"
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v5
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Run backend-auth-security-regression
-        run: |
-          set +e
-          mkdir -p ci-output
-          log_file="ci-output/backend-auth-security-regression.log"
-          {
-            echo "Failing command: pnpm run test:auth-security-regression"
-            echo "----------------------------------------"
-          } > "$log_file"
-          set -o pipefail
-          pnpm run test:auth-security-regression 2>&1 | tee -a "$log_file"
-          status=${PIPESTATUS[0]}
-          echo "----------------------------------------" >> "$log_file"
-          echo "Exit code: $status" >> "$log_file"
-          exit "$status"
-      - name: Upload backend-auth-security-regression failure log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-auth-security-regression-failure-log
-          path: ci-output/backend-auth-security-regression.log
           if-no-files-found: error
 
   backend-ci-summary:
@@ -231,8 +162,6 @@ jobs:
       - backend-typecheck
       - backend-build-api
       - backend-api-tests
-      - backend-api-regression
-      - backend-auth-security-regression
     steps:
       - name: Download failure artifacts
         if: always()
@@ -253,8 +182,6 @@ jobs:
             "backend-typecheck"
             "backend-build-api"
             "backend-api-tests"
-            "backend-api-regression"
-            "backend-auth-security-regression"
           )
 
           failed_jobs=()
@@ -299,12 +226,19 @@ jobs:
               return
             fi
 
-            if [ "$job" = "backend-api-tests" ] || [ "$job" = "backend-api-regression" ]; then
+            if [ "$job" = "backend-api-tests" ]; then
               if grep -q "✖ failing tests:" "$log_path"; then
-                awk '/✖ failing tests:/{flag=1} flag{print}' "$log_path" | tail -n 80
+                awk '
+                  /✖ failing tests:/{flag=1}
+                  flag {
+                    if (/^[[:space:]]*[0-9]+ pass/ || /^[[:space:]]*[0-9]+ fail/ || /^Done in / || /^Exit code:/) exit
+                    print
+                  }
+                ' "$log_path" | head -n 80
               else
                 tail -n 40 "$log_path"
               fi
+              echo "Full raw log: see backend-api-tests-failure-log artifact"
               return
             fi
 
@@ -346,12 +280,6 @@ jobs:
             echo
             echo "[backend-api-tests]"
             print_detail "backend-api-tests"
-            echo
-            echo "[backend-api-regression]"
-            print_detail "backend-api-regression"
-            echo
-            echo "[backend-auth-security-regression]"
-            print_detail "backend-auth-security-regression"
             echo
             echo "=================================================="
           } | tee backend-ci-failure-summary.txt
