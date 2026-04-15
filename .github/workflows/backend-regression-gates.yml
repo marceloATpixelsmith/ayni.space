@@ -143,24 +143,22 @@ jobs:
       - name: Run API tests
         id: run_gate
         run: |
-          set +e
           mkdir -p ci-output
           log_file="ci-output/backend-api-tests.log"
-          command=(pnpm --filter @workspace/api-server run test:ci)
           {
             echo "Failing command: pnpm --filter @workspace/api-server run test:ci"
             echo "----------------------------------------"
           } > "$log_file"
 
           set -o pipefail
-          "${command[@]}" 2>&1 | tee -a "$log_file"
+          pnpm --filter @workspace/api-server run test:ci 2>&1 | tee -a "$log_file"
           status=${PIPESTATUS[0]}
 
           echo "----------------------------------------" >> "$log_file"
           echo "Exit code: $status" >> "$log_file"
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           if [ "$status" -ne 0 ]; then
-            echo "API tests failed; replaying captured log:"
+            echo "API tests failed. Full captured output:"
             cat "$log_file"
           fi
           exit "$status"
@@ -271,7 +269,7 @@ jobs:
   backend-ci-summary:
     name: backend-ci-summary
     runs-on: ubuntu-latest
-    if: always()
+    if: ${{ always() }}
     needs:
       - backend-typecheck
       - backend-build-api
@@ -279,44 +277,13 @@ jobs:
       - backend-api-regression
       - backend-auth-security-regression
     steps:
-      - name: Download backend-typecheck failure artifact
-        if: ${{ needs['backend-typecheck'].result != 'success' }}
+      - name: Download all backend failure artifacts
+        if: ${{ always() }}
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: backend-typecheck-failure-log
-          path: ci-output
-
-      - name: Download backend-build-api failure artifact
-        if: ${{ needs['backend-build-api'].result != 'success' }}
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-build-api-failure-log
-          path: ci-output
-
-      - name: Download backend-api-tests failure artifact
-        if: ${{ needs['backend-api-tests'].result != 'success' }}
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-api-tests-failure-log
-          path: ci-output
-
-      - name: Download backend-api-regression failure artifact
-        if: ${{ needs['backend-api-regression'].result != 'success' }}
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-api-regression-failure-log
-          path: ci-output
-
-      - name: Download backend-auth-security-regression failure artifact
-        if: ${{ needs['backend-auth-security-regression'].result != 'success' }}
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-auth-security-regression-failure-log
+          pattern: backend-*-failure-log
+          merge-multiple: true
           path: ci-output
 
       - name: Print consolidated backend summary
