@@ -248,7 +248,7 @@ jobs:
                   }
                 ' "$log_path" \
                   | grep -E "✖ failing tests:|^[[:space:]]*[✖×❯>-][[:space:]]|AssertionError|Expected:|Received:|Difference:|^[[:space:]]*[-+]" \
-                  | head -n 120
+                  | head -n 120 || echo "no failure log"
               else
                 grep -E "AssertionError|Expected:|Received:|Difference:|failed" "$log_path" | head -n 120 || echo "no failure log"
               fi
