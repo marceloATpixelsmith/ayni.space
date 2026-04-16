@@ -137,3 +137,123 @@ jobs:
           name: backend-api-tests-failure-log
           path: ci-output/backend-api-tests.log
           if-no-files-found: error
+
+  backend-ci-summary:
+    name: backend-ci-summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - backend-typecheck
+      - backend-build-api
+      - backend-api-tests
+    steps:
+      - name: Download backend-typecheck failure log
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-typecheck-failure-log
+          path: ci-output
+          if-no-files-found: ignore
+      - name: Download backend-build-api failure log
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build-api-failure-log
+          path: ci-output
+          if-no-files-found: ignore
+      - name: Download backend-api-tests failure log
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-api-tests-failure-log
+          path: ci-output
+          if-no-files-found: ignore
+      - name: Print backend CI failure summary
+        env:
+          TYPECHECK_RESULT: ${{ needs.backend-typecheck.result }}
+          BUILD_API_RESULT: ${{ needs.backend-build-api.result }}
+          API_TESTS_RESULT: ${{ needs.backend-api-tests.result }}
+        run: |
+          set -euo pipefail
+
+          summarize_job() {
+            local file="$1"
+            if [ ! -s "$file" ]; then
+              echo "no failure log"
+              return
+            fi
+
+            local excerpt
+            excerpt=$(grep -Eim 12 'error|failed|exception|cannot|TS[0-9]+' "$file" || true)
+            if [ -z "$excerpt" ]; then
+              excerpt=$(tail -n 12 "$file")
+            fi
+            printf '%s\n' "$excerpt"
+          }
+
+          summarize_api_tests() {
+            local file="$1"
+            if [ ! -s "$file" ]; then
+              echo "no failure log"
+              echo
+              echo "Full raw log: see backend-api-tests-failure-log artifact"
+              return
+            fi
+
+            if grep -q '✖ failing tests:' "$file"; then
+              awk 'found{print} /✖ failing tests:/{found=1; print}' "$file" \
+                | grep -Evi '^[[:space:]]*$|(^|[[:space:]])[0-9]+ passed|[[:space:]]+✓|Test Files|Tests[[:space:]]|Duration|Start at|Snapshots' \
+                | head -n 40
+            else
+              tail -n 20 "$file"
+            fi
+            echo
+            echo "Full raw log: see backend-api-tests-failure-log artifact"
+          }
+
+          failed_jobs=()
+          passed_jobs=()
+
+          if [ "$TYPECHECK_RESULT" = "failure" ]; then failed_jobs+=("backend-typecheck"); else passed_jobs+=("backend-typecheck"); fi
+          if [ "$BUILD_API_RESULT" = "failure" ]; then failed_jobs+=("backend-build-api"); else passed_jobs+=("backend-build-api"); fi
+          if [ "$API_TESTS_RESULT" = "failure" ]; then failed_jobs+=("backend-api-tests"); else passed_jobs+=("backend-api-tests"); fi
+
+          overall="PASS"
+          if [ "${#failed_jobs[@]}" -gt 0 ]; then
+            overall="FAIL"
+          fi
+
+          echo "=================================================="
+          echo "BACKEND CI FAILURE SUMMARY"
+          echo "=================================================="
+          echo
+          echo "OVERALL RESULT: $overall"
+          echo
+          echo "FAILED JOBS:"
+          if [ "${#failed_jobs[@]}" -eq 0 ]; then
+            echo "- none"
+          else
+            for job in "${failed_jobs[@]}"; do
+              echo "- $job"
+            done
+          fi
+          echo
+          echo "PASSED JOBS:"
+          if [ "${#passed_jobs[@]}" -eq 0 ]; then
+            echo "- none"
+          else
+            for job in "${passed_jobs[@]}"; do
+              echo "- $job"
+            done
+          fi
+          echo
+          echo "DETAILS:"
+          echo
+          echo "[backend-typecheck]"
+          summarize_job "ci-output/backend-typecheck.log"
+          echo
+          echo "[backend-build-api]"
+          summarize_job "ci-output/backend-build-api.log"
+          echo
+          echo "[backend-api-tests]"
+          summarize_api_tests "ci-output/backend-api-tests.log"
+          echo
+          echo "=================================================="
+
