@@ -148,7 +148,7 @@ jobs:
       - backend-api-tests
     steps:
       - name: Download backend-typecheck failure artifact
-        if: needs.backend-typecheck.result != 'success'
+        if: needs['backend-typecheck'].result != 'success'
         continue-on-error: true
         uses: actions/download-artifact@v5
         with:
@@ -156,7 +156,7 @@ jobs:
           path: ci-output/backend-typecheck
 
       - name: Download backend-build-api failure artifact
-        if: needs.backend-build-api.result != 'success'
+        if: needs['backend-build-api'].result != 'success'
         continue-on-error: true
         uses: actions/download-artifact@v5
         with:
@@ -164,7 +164,7 @@ jobs:
           path: ci-output/backend-build-api
 
       - name: Download backend-api-tests failure artifact
-        if: needs.backend-api-tests.result != 'success'
+        if: needs['backend-api-tests'].result != 'success'
         continue-on-error: true
         uses: actions/download-artifact@v5
         with:
@@ -173,9 +173,9 @@ jobs:
 
       - name: Print backend CI summary
         env:
-          TYPECHECK_RESULT: ${{ needs.backend-typecheck.result }}
-          BUILD_API_RESULT: ${{ needs.backend-build-api.result }}
-          API_TESTS_RESULT: ${{ needs.backend-api-tests.result }}
+          TYPECHECK_RESULT: ${{ needs['backend-typecheck'].result }}
+          BUILD_API_RESULT: ${{ needs['backend-build-api'].result }}
+          API_TESTS_RESULT: ${{ needs['backend-api-tests'].result }}
         run: |
           set -euo pipefail
 
