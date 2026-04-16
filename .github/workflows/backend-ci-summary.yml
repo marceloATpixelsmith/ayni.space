@@ -1,0 +1,26 @@
+name: Backend CI Summary
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-ci-summary:
+    name: backend-ci-summary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backend workflow summary note
+        run: |
+          echo "Backend CI checks are split into separate workflows."
+          echo "- Backend Regression Gates"
+          echo "- API Regression Suite"
+          echo "- Auth Security Regression Suite"
