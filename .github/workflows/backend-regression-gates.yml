@@ -241,20 +241,21 @@ jobs:
             if [ "$job" = "backend-api-tests" ]; then
               if grep -q "✖ failing tests:" "$log_path"; then
                 awk '
-                  /✖ failing tests:/{flag=1}
-                  flag {
+                  /✖ failing tests:/{capture=1}
+                  capture {
                     if (/^[[:space:]]*[0-9]+ pass/ || /^[[:space:]]*[0-9]+ fail/ || /^Done in / || /^Exit code:/) exit
                     print
                   }
-                ' "$log_path" | grep -E "✖ failing tests:|AssertionError|Expected:|Received:|Difference:|^- .*|^[[:space:]]+[-+].*" | head -n 120
+                ' "$log_path" \
+                  | grep -E "✖ failing tests:|^[[:space:]]*[✖×❯>-][[:space:]]|AssertionError|Expected:|Received:|Difference:|^[[:space:]]*[-+]" \
+                  | head -n 120
               else
-                tail -n 40 "$log_path"
+                grep -E "AssertionError|Expected:|Received:|Difference:|failed" "$log_path" | head -n 120 || echo "no failure log"
               fi
-              echo "Full raw log: see backend-api-tests-failure-log artifact"
               return
             fi
 
-            grep -E "Failing command:|Error:|ERROR|AssertionError|failed|Exit code:" "$log_path" | tail -n 20 || tail -n 20 "$log_path"
+            grep -E "Failing command:|Error:|ERROR|AssertionError|failed|Exit code:" "$log_path" | tail -n 20 || echo "no failure log"
           }
 
           {
