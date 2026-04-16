@@ -220,40 +220,45 @@ jobs:
             overall="FAIL"
           fi
 
-          echo "=================================================="
-          echo "BACKEND CI FAILURE SUMMARY"
-          echo "=================================================="
-          echo
-          echo "OVERALL RESULT: $overall"
-          echo
-          echo "FAILED JOBS:"
-          if [ "${#failed_jobs[@]}" -eq 0 ]; then
-            echo "- none"
-          else
-            for job in "${failed_jobs[@]}"; do
-              echo "- $job"
-            done
-          fi
-          echo
-          echo "PASSED JOBS:"
-          if [ "${#passed_jobs[@]}" -eq 0 ]; then
-            echo "- none"
-          else
-            for job in "${passed_jobs[@]}"; do
-              echo "- $job"
-            done
-          fi
-          echo
-          echo "DETAILS:"
-          echo
-          echo "[backend-typecheck]"
-          summarize_job "ci-output/backend-typecheck.log"
-          echo
-          echo "[backend-build-api]"
-          summarize_job "ci-output/backend-build-api.log"
-          echo
-          echo "[backend-api-tests]"
-          summarize_api_tests "ci-output/backend-api-tests.log"
-          echo
-          echo "=================================================="
+          summary_file="backend-ci-summary.txt"
+          {
+            echo "=================================================="
+            echo "BACKEND CI FAILURE SUMMARY"
+            echo "=================================================="
+            echo
+            echo "OVERALL RESULT: $overall"
+            echo
+            echo "FAILED JOBS:"
+            if [ "${#failed_jobs[@]}" -eq 0 ]; then
+              echo "- none"
+            else
+              for job in "${failed_jobs[@]}"; do
+                echo "- $job"
+              done
+            fi
+            echo
+            echo "PASSED JOBS:"
+            if [ "${#passed_jobs[@]}" -eq 0 ]; then
+              echo "- none"
+            else
+              for job in "${passed_jobs[@]}"; do
+                echo "- $job"
+              done
+            fi
+            echo
+            echo "DETAILS:"
+            echo
+            echo "[backend-typecheck]"
+            summarize_job "ci-output/backend-typecheck.log"
+            echo
+            echo "[backend-build-api]"
+            summarize_job "ci-output/backend-build-api.log"
+            echo
+            echo "[backend-api-tests]"
+            summarize_api_tests "ci-output/backend-api-tests.log"
+            echo
+            echo "=================================================="
+          } > "$summary_file"
 
+          cat "$summary_file"
+          cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
