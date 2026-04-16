@@ -11,6 +11,10 @@ This file is the authoritative operating manual for AI coding agents working in 
 5. Keep docs and code in sync when behavior changes.
 6. Do not edit workflow files unless explicitly asked.
 7. For CI interpretation, analyze each workflow file independently.
+8. Never describe intended YAML/code structure as if it already exists in the live file.
+9. If the live file does not match prior Codex claims, explicitly say so.
+10. Do not expand scope from one workflow file to multiple workflow files unless explicitly requested.
+11. Do not rename unrelated jobs or workflows unless explicitly requested.
 
 ## 2) Live-File-Truth Rules (Non-Negotiable)
 
@@ -77,6 +81,8 @@ Shared install step used by backend jobs:
 3. Missing workflow files must be reported as missing, not reconstructed from docs.
 4. Job names and commands must be copied exactly from live YAML.
 5. When in conflict, trust `.github/workflows/*.yml` over narrative docs.
+6. Summary jobs must show concise actionable excerpts only; full raw logs belong in artifacts.
+7. For test logs, prefer failing test sections over full output.
 
 ## 8) Final Response Contract (Required)
 
@@ -87,6 +93,14 @@ When delivering work, the final response must be compact and file-anchored:
 3. Confirm whether any workflow files were changed.
 4. Anchor claims to concrete file paths (and line references when available).
 5. Do not include speculative CI behavior.
+6. If a workflow file was changed, list the exact top-level jobs now present in that workflow.
+7. If job names changed, list the old names and new names explicitly.
+8. Do not claim a job/check is visible in GitHub unless that is directly confirmed from a live run.
+9. Distinguish clearly between:
+   - present in YAML
+   - expected in future runs
+   - confirmed visible in a live run
+10. If a workflow trigger was changed, include the exact final `on:` block.
 
 ## 9) Task Safety Checklist (Quick Pass)
 
@@ -97,3 +111,14 @@ Before finalizing, confirm all are true:
 - Backend workflow details came from live `.github/workflows/backend-regression-gates.yml`.
 - No cross-workflow result aggregation was introduced.
 - Any missing expected workflow file was explicitly called out.
+
+## 10) CI Change Verification Checklist
+
+Before finalizing CI-related updates, confirm all are true:
+
+- The exact workflow file requested was opened and read.
+- Every top-level job in the edited workflow was re-checked after changes.
+- No unrelated workflow file was modified.
+- No cross-workflow aggregation was introduced unless explicitly requested.
+- Any claim about visible checks is labeled either YAML-confirmed only or live-run confirmed.
+- If summary behavior changed, artifact behavior was preserved unless explicitly requested otherwise.
