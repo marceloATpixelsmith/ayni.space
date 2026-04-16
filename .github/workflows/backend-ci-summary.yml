@@ -1,14 +1,12 @@
 name: Backend CI Summary
 
 on:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
-  schedule:
-    - cron: "0 3 * * *"
+  workflow_run:
+    workflows:
+      - Backend Regression Gates
+      - API Regression Suite
+      - Auth Security Regression Suite
+    types: [completed]
 
 permissions:
   contents: read
@@ -29,24 +27,58 @@ jobs:
               'Auth Security Regression Suite',
             ];
 
-            const runs = await github.rest.actions.listWorkflowRunsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              per_page: 100,
-            });
+            const targetSha = github.event.workflow_run.head_sha;
+            const maxAttempts = 10;
+            const delayMs = 15000;
 
-            const relevantRuns = runs.data.workflow_runs.filter(
-              (run) => run.head_sha === context.sha
-            );
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-            const latestByName = new Map();
-            for (const workflowName of trackedWorkflowNames) {
-              const workflowRuns = relevantRuns.filter((run) => run.name === workflowName);
-              if (workflowRuns.length > 0) {
-                latestByName.set(workflowName, {
-                  name: workflowRuns[0].name,
-                  conclusion: workflowRuns[0].conclusion ?? 'cancelled',
-                });
+            const extractLatestByName = (workflowRuns) => {
+              const latestByName = new Map();
+
+              for (const run of workflowRuns) {
+                if (!trackedWorkflowNames.includes(run.name)) {
+                  continue;
+                }
+
+                if (!latestByName.has(run.name)) {
+                  latestByName.set(run.name, run);
+                }
+              }
+
+              return latestByName;
+            };
+
+            let latestByName = new Map();
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+              });
+
+              const relevantRuns = runs.data.workflow_runs.filter(
+                (run) => run.head_sha === targetSha
+              );
+
+              latestByName = extractLatestByName(relevantRuns);
+
+              const allCompleted = trackedWorkflowNames.every((workflowName) => {
+                const run = latestByName.get(workflowName);
+                return run && run.status === 'completed';
+              });
+
+              if (allCompleted) {
+                core.info(`Found all targeted completed workflow runs for ${targetSha} on attempt ${attempt}.`);
+                break;
+              }
+
+              if (attempt < maxAttempts) {
+                core.info(`Attempt ${attempt}/${maxAttempts}: waiting ${delayMs}ms for sibling workflow runs for ${targetSha}.`);
+                await sleep(delayMs);
+              } else {
+                core.warning(`Timed out waiting for all targeted workflow runs for ${targetSha}. Continuing with available results.`);
               }
             }
 
@@ -54,26 +86,35 @@ jobs:
             const passedChecks = [];
 
             for (const workflowName of trackedWorkflowNames) {
-              const record = latestByName.get(workflowName);
-              if (!record) {
+              const run = latestByName.get(workflowName);
+
+              if (!run) {
+                failedChecks.push(`${workflowName} (missing)`);
                 continue;
               }
 
-              if (record.conclusion === 'success') {
-                passedChecks.push(record.name);
+              if (run.conclusion === 'success') {
+                passedChecks.push(workflowName);
               } else {
-                failedChecks.push(record.name);
+                failedChecks.push(workflowName);
               }
             }
 
             const overallResult = failedChecks.length === 0 ? 'PASS' : 'FAIL';
-            const failedBlock = failedChecks.length > 0 ? failedChecks.map((name) => `- ${name}`).join('\n') : '- none';
-            const passedBlock = passedChecks.length > 0 ? passedChecks.map((name) => `- ${name}`).join('\n') : '- none';
+            const failedBlock = failedChecks.length > 0
+              ? failedChecks.map((name) => `- ${name}`).join('\n')
+              : '- none';
+            const passedBlock = passedChecks.length > 0
+              ? passedChecks.map((name) => `- ${name}`).join('\n')
+              : '- none';
 
             const summary = [
               '==================================================',
               'BACKEND CI FAILURE SUMMARY',
               '==================================================',
+              '',
+              'TARGET SHA:',
+              targetSha,
               '',
               `OVERALL RESULT: ${overallResult}`,
               '',
@@ -86,6 +127,7 @@ jobs:
               '==================================================',
             ].join('\n');
 
+            core.info(summary);
             core.setOutput('summary', summary);
 
       - name: Print summary to console and step summary
