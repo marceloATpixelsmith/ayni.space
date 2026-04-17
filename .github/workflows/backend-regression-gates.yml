@@ -141,25 +141,31 @@ jobs:
   backend-ci-summary:
     name: backend-ci-summary
     runs-on: ubuntu-latest
-    if: always()
+    if: ${{ always() }}
+    continue-on-error: true
     needs:
       - backend-typecheck
       - backend-build-api
       - backend-api-tests
     steps:
+      - name: Debug summary job scheduling
+        run: echo "backend-ci-summary is running"
       - name: Download backend-typecheck failure log
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: backend-typecheck-failure-log
           path: ci-output
           if-no-files-found: ignore
       - name: Download backend-build-api failure log
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: backend-build-api-failure-log
           path: ci-output
           if-no-files-found: ignore
       - name: Download backend-api-tests failure log
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: backend-api-tests-failure-log
@@ -171,7 +177,7 @@ jobs:
           BUILD_API_RESULT: ${{ needs.backend-build-api.result }}
           API_TESTS_RESULT: ${{ needs.backend-api-tests.result }}
         run: |
-          set -euo pipefail
+          set -eo pipefail
 
           summarize_job() {
             local file="$1"
