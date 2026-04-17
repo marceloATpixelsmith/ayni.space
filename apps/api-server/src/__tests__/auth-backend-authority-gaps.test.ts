@@ -71,9 +71,9 @@ test("oauth continuation is restored when backend flow allows access and onboard
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/dashboard",
     },
   });
@@ -93,9 +93,9 @@ test("password login continuation follows same backend destination precedence po
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/dashboard",
     },
   });
@@ -114,9 +114,9 @@ test("invitation continuation is ignored when authenticated app context differs"
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/dashboard",
     },
   });
@@ -135,9 +135,9 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: false,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/login?error=access_denied",
     },
   });
@@ -148,9 +148,9 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "organization",
+      normalizedAccessProfile: "organization",
       destination: "/onboarding/organization",
     },
   });
@@ -161,9 +161,9 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/dashboard",
     },
   });
@@ -174,9 +174,9 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     currentAppSlug: "ayni",
     flowDecision: {
       appSlug: "ayni",
-      appId: "app-ayni",
       canAccess: true,
       requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
       destination: "/dashboard",
     },
   });
@@ -212,7 +212,10 @@ test("requireAuth enforces MFA-pending behavior consistently across /api/auth/me
 
     const protectedResponse = await requestJson(app, "/api/protected/resource");
     assert.equal(protectedResponse.status, 401);
-    assert.equal(protectedResponse.body?.code, "MFA_REQUIRED");
+    assert.equal(
+      (protectedResponse.body as { code?: string } | null)?.code,
+      "MFA_REQUIRED",
+    );
   } finally {
     restore();
   }
