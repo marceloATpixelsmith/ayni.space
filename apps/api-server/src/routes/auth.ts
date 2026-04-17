@@ -765,6 +765,7 @@ async function handleMe(req: Request, res: Response) {
     res.json({
       authenticated: false,
       authState: "mfa_pending",
+      sessionState: "pending_second_factor",
       userId: authenticatedUser.id,
       id: authenticatedUser.id,
       email: authenticatedUser.email,
@@ -773,6 +774,7 @@ async function handleMe(req: Request, res: Response) {
       isSuperAdmin: authenticatedUser.isSuperAdmin,
       mfaRequired: true,
       mfaPending: true,
+      mfaPendingReason: pendingReason ?? null,
       mfaEnrolled: pendingMfaEnrolled,
       nextStep: pendingNextStep,
       needsEnrollment: pendingNextStep === "mfa_enroll",
@@ -944,6 +946,9 @@ async function handleMe(req: Request, res: Response) {
   });
 
   res.json({
+    authenticated: true,
+    authState: "authenticated",
+    sessionState: "authenticated",
     id: authenticatedUser.id,
     email: authenticatedUser.email,
     name: authenticatedUser.name,
@@ -2288,6 +2293,7 @@ async function resolveNextPathForEstablishedSession(
       flowDecision: flow,
       fallbackPath: DEFAULT_POST_AUTH_PATH,
       stage,
+      currentAppSlug: app.slug,
     });
     const shouldKeepContinuation =
       stage === "post_auth" && flow?.requiredOnboarding !== "none";

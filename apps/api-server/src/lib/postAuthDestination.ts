@@ -15,9 +15,22 @@ export function resolveAuthenticatedPostAuthDestination(options: {
   flowDecision: PostAuthFlowDecision | null;
   fallbackPath?: string;
   stage?: PostAuthResolutionStage;
+  currentAppSlug?: string | null;
 }): string {
   const stage = options.stage ?? "post_auth";
-  const continuationPath = normalizeContinuationPath(options.continuation);
+  const expectedAppSlug =
+    (options.currentAppSlug ?? options.flowDecision?.appSlug ?? "").trim()
+      .toLowerCase() || null;
+  const continuationAppSlug =
+    options.continuation?.appSlug.trim().toLowerCase() ?? null;
+  const continuationEligible =
+    options.continuation != null &&
+    continuationAppSlug != null &&
+    expectedAppSlug != null &&
+    continuationAppSlug === expectedAppSlug;
+  const continuationPath = continuationEligible
+    ? normalizeContinuationPath(options.continuation)
+    : null;
   const flowDestination = options.flowDecision?.destination;
   const canAccess = options.flowDecision?.canAccess ?? false;
   const requiresOnboarding =

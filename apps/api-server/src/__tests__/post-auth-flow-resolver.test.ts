@@ -37,6 +37,7 @@ test("post-auth resolver prioritizes onboarding over continuation path", () => {
       returnPath: "/invitations/token-1/accept",
     }),
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "organization",
@@ -53,6 +54,7 @@ test("post-auth resolver falls back to flow decision destination when continuati
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: null,
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "user",
@@ -72,6 +74,7 @@ test("post-auth resolver prioritizes continuation when onboarding is not require
       returnPath: "/invitations/token-1/accept",
     }),
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -93,6 +96,7 @@ test("login without onboarding and with continuation resolves continuation desti
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation,
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -116,6 +120,7 @@ test("verify-email without onboarding and with continuation resolves continuatio
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation,
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -135,6 +140,7 @@ test("login with onboarding and continuation resolves onboarding first, then con
     returnPath: "/invitations/token-3/accept",
   });
   const flowDecision = {
+    appSlug: "admin",
     canAccess: true,
     normalizedAccessProfile: "organization" as const,
     requiredOnboarding: "organization" as const,
@@ -162,6 +168,7 @@ test("post-auth resolver falls back to default destination when continuation is 
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: null,
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -196,6 +203,7 @@ test("post-onboarding resolver resumes continuation before default destination",
       continuationType: "client_registration",
     }),
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -212,6 +220,7 @@ test("post-onboarding resolver uses default destination when continuation is mis
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: null,
     flowDecision: {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization",
       requiredOnboarding: "none",
@@ -231,6 +240,7 @@ test("post-auth resolver ignores continuation when app access is denied", () => 
       returnPath: "/invitations/token-99/accept",
     }),
     flowDecision: {
+      appSlug: "workspace",
       canAccess: false,
       normalizedAccessProfile: "superadmin",
       requiredOnboarding: "none",
@@ -241,4 +251,24 @@ test("post-auth resolver ignores continuation when app access is denied", () => 
   });
 
   assert.equal(destination, "/login?error=access_denied");
+});
+
+test("post-auth resolver ignores continuation when continuation app does not match resolved app", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: resolvePostAuthContinuation({
+      appSlug: "admin",
+      returnPath: "/invitations/token-100/accept",
+    }),
+    flowDecision: {
+      appSlug: "workspace",
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/workspace/home",
+    },
+    fallbackPath: "/workspace/home",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/workspace/home");
 });

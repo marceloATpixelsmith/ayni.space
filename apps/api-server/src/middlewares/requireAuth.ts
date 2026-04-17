@@ -94,7 +94,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     || normalizedPath === "/api/auth/me"
     || normalizedMountedPath.endsWith("/auth/me")
     || normalizedOriginalPath.endsWith("/auth/me");
-  const effectiveUserId = userId ?? (hasPendingMfaSession && mfaPendingPathAllowed ? pendingUserId : null);
+  const mfaPendingForRequest = hasPendingMfaSession && mfaPendingPathAllowed;
+  const effectiveUserId = userId ?? (mfaPendingForRequest ? pendingUserId : null);
 
   if (!effectiveUserId) {
     logFirstAuthRequest({
@@ -192,9 +193,24 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     denyReason: null,
     sessionKeys,
   });
-  await db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, effectiveUserId));
+  if (!mfaPendingForRequest) {
+    await db
+      .update(usersTable)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(usersTable.id, effectiveUserId));
+  }
+  (req as Request & { authMfaPending?: boolean }).authMfaPending =
+    Boolean(hasPendingMfaSession);
   (req as Request & { user: typeof user }).user = user;
   next();
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      authMfaPending?: boolean;
+    }
+  }
 }
 
 export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {

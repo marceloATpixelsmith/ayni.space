@@ -9,6 +9,7 @@ type PostAuthAppContext = {
 };
 
 export type PostAuthFlowDecision = {
+  appSlug: string;
   canAccess: boolean;
   requiredOnboarding: "none" | "organization" | "user";
   normalizedAccessProfile: NormalizedAccessProfile;
@@ -35,6 +36,7 @@ export async function resolvePostAuthFlowDecision(params: {
   if (!context) return null;
 
   return {
+    appSlug,
     canAccess: context.canAccess,
     requiredOnboarding: context.requiredOnboarding,
     normalizedAccessProfile: context.normalizedAccessProfile,

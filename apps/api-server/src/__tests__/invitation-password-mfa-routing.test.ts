@@ -131,6 +131,7 @@ test("invitation password acceptance returns MFA enrollment step when user is no
     });
 
     const flowDecision = {
+      appSlug: "admin",
       canAccess: true,
       normalizedAccessProfile: "organization" as const,
       requiredOnboarding: "organization" as const,
