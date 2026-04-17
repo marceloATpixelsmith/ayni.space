@@ -97,6 +97,25 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const mfaPendingForRequest = hasPendingMfaSession && mfaPendingPathAllowed;
   const effectiveUserId = userId ?? (mfaPendingForRequest ? pendingUserId : null);
 
+  if (hasPendingMfaSession && !mfaPendingPathAllowed) {
+    logFirstAuthRequest({
+      req,
+      path: req.path,
+      method: req.method,
+      cookieHeaderPresent,
+      sessionExists: Boolean(req.session),
+      sessionId,
+      sessionGroup,
+      userId: userId ?? pendingUserId ?? null,
+      isSuperAdmin: false,
+      allow: false,
+      denyReason: "mfa_pending",
+      sessionKeys,
+    });
+    res.status(401).json({ error: "Two-step verification required.", code: "MFA_REQUIRED" });
+    return;
+  }
+
   if (!effectiveUserId) {
     logFirstAuthRequest({
       req,
@@ -113,25 +132,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       sessionKeys,
     });
     res.status(401).json({ error: "Unauthorized. Please sign in." });
-    return;
-  }
-
-  if (hasPendingMfaSession && !mfaPendingPathAllowed) {
-    logFirstAuthRequest({
-      req,
-      path: req.path,
-      method: req.method,
-      cookieHeaderPresent,
-      sessionExists: Boolean(req.session),
-      sessionId,
-      sessionGroup,
-      userId: userId ?? null,
-      isSuperAdmin: false,
-      allow: false,
-      denyReason: "mfa_pending",
-      sessionKeys,
-    });
-    res.status(401).json({ error: "Two-step verification required.", code: "MFA_REQUIRED" });
     return;
   }
 
