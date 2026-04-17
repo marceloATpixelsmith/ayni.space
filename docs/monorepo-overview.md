@@ -127,9 +127,11 @@
   - Enforces admin shell contract test (`pnpm --filter @workspace/admin run test:security-shell`) and frontend build (`pnpm --filter @workspace/admin run build`).
   - Workflow path filters target `apps/admin/**`, shared frontend libs, and lock/workspace metadata.
 - `.github/workflows/backend-regression-gates.yml`:
-  - Enforces backend install integrity via separate jobs (`typecheck`, `build-api`, `api-tests`, `api-regression`, `auth-security-regression`) for backend-affecting changes.
+  - Enforces backend install integrity via separate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) for backend-affecting changes.
   - Captures per-job failure logs under `ci-output/<job>.log` and uploads artifacts named `<job>-failure-log` only when a job fails.
-  - Includes an always-run `CI Failure Summary` job that renders one deterministic copy-pasteable summary block from `needs.<job>.result` and available failure artifacts without cross-workflow polling.
+- `.github/workflows/backend-ci-summary.yml`:
+  - Runs on PRs to `master` and publishes a PR-attached `backend-ci-summary` check for the PR head SHA.
+  - Uses GitHub API check/status polling for the same PR commit and summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
