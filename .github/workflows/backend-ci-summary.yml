@@ -66,6 +66,7 @@ jobs:
 
                 const existing = byName.get(run.name);
                 const candidate = {
+                  name: run.name,
                   state: run.status === "completed" ? (run.conclusion ?? "completed") : run.status,
                   status: run.status,
                   isCompleted: run.status === "completed",
@@ -90,12 +91,13 @@ jobs:
                 }
 
                 byName.set(status.context, {
+                  name: status.context,
                   state: status.state,
                   status: status.state === "pending" ? "in_progress" : "completed",
                   isCompleted: status.state !== "pending",
                   completedAt: status.state !== "pending" ? (status.updated_at ?? "") : "",
                   updatedAt: status.updated_at ?? "",
-                  url: commitChecksUrl,
+                  url: status.target_url || commitChecksUrl,
                 });
               }
 
@@ -202,24 +204,13 @@ jobs:
               return `- ${checkName} → ${result?.url || fallbackUrl}`;
             });
 
-            const nextDebugSteps = [];
+            let nextDebugStep = "All required checks completed successfully.";
             if (failed.length > 0) {
-              for (const item of failed) {
-                nextDebugSteps.push(`- Open ${item.name}: ${item.url}`);
-              }
-            }
-            if (missingOrTimedOut.length > 0) {
-              for (const item of missingOrTimedOut) {
-                nextDebugSteps.push(`- Check workflow trigger configuration for ${item.name}`);
-              }
-            }
-            if (incomplete.length > 0) {
-              for (const item of incomplete) {
-                nextDebugSteps.push(`- Wait or re-run ${item.name}`);
-              }
-            }
-            if (nextDebugSteps.length === 0) {
-              nextDebugSteps.push("- none");
+              nextDebugStep = "Investigate failed checks first using links above.";
+            } else if (missingOrTimedOut.length > 0) {
+              nextDebugStep = "These checks never reported for this SHA. Verify workflow triggers and job names.";
+            } else if (incomplete.length > 0) {
+              nextDebugStep = "These checks are still running or stuck. Wait or inspect their logs.";
             }
 
             const summary = [
@@ -246,7 +237,7 @@ jobs:
               ...checkLinks,
               "",
               "## NEXT DEBUG STEP",
-              ...nextDebugSteps,
+              `- ${nextDebugStep}`,
             ].join("\n");
 
             core.info(summary);
