@@ -154,7 +154,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       denyReason: "user_not_found",
       sessionKeys,
     });
-    await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
+    await destroySessionAndClearCookie(req, res, req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(401).json({ error: "User not found. Please sign in again." });
     return;
   }
@@ -174,7 +174,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       denyReason: "inactive_or_suspended",
       sessionKeys,
     });
-    await destroySessionAndClearCookie(req, res, req.session.sessionGroup ?? SESSION_GROUPS.DEFAULT);
+    await destroySessionAndClearCookie(req, res, req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT);
     res.status(403).json({ error: "Account suspended or deleted. Contact support." });
     return;
   }
