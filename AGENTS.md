@@ -20,15 +20,15 @@ This file is the authoritative operating manual for AI coding agents working in 
 
 1. Workflow structure must be derived from the **current live files** under `.github/workflows/`.
 2. Multiple workflow files must **not** be treated as one combined workflow.
-3. `backend-regression-gates.yml` only summarizes its own jobs.
-4. No cross-workflow aggregation is allowed unless explicitly requested.
+3. `backend-regression-gates.yml` contains only backend gate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) and does not host the standalone backend summary workflow.
+4. `.github/workflows/backend-ci-summary.yml` is the authoritative cross-workflow backend summary workflow and aggregates required backend-related checks for the PR head SHA.
 5. If docs reference workflow files that do not exist, report that mismatch and proceed from live files.
 
 ## 3) CI Workflow File Map (Live-File Anchored)
 
 - `.github/workflows/backend-regression-gates.yml`
   - **Status:** Present.
-  - **Purpose:** Backend regression gate workflow with per-job execution and an internal summary job.
+  - **Purpose:** Backend regression gate workflow with per-job execution for backend checks.
 - `.github/workflows/api-regression-suite.yml`
   - **Status:** Present.
   - **Purpose:** API regression suite workflow.
@@ -36,8 +36,8 @@ This file is the authoritative operating manual for AI coding agents working in 
   - **Status:** Present.
   - **Purpose:** Auth/security regression suite workflow.
 - `.github/workflows/backend-ci-summary.yml`
-  - **Status:** Not present.
-  - **Handling rule:** Do not use a separate backend summary workflow file; backend summary must remain the `backend-ci-summary` job inside `.github/workflows/backend-regression-gates.yml`.
+  - **Status:** Present.
+  - **Purpose:** Standalone PR summary workflow that runs on `pull_request` to `master`, publishes the `backend-ci-summary` PR check, summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite` for the PR head SHA, and emits grouped debugging output/check links.
 - `.github/workflows/lockfile-sync-check.yml`
   - **Status:** Present.
   - **Purpose:** Lockfile/workspace install integrity check.
@@ -58,12 +58,11 @@ No additional backend scope may be assumed from other workflows unless explicitl
 
 ## 5) Exact Backend Job Names
 
-From `.github/workflows/backend-regression-gates.yml`, backend jobs are exactly:
+From `.github/workflows/backend-regression-gates.yml`, backend gate jobs are exactly:
 
 1. `backend-typecheck`
 2. `backend-build-api`
 3. `backend-api-tests`
-4. `backend-ci-summary` (summary job for this workflow only)
 
 ## 6) Exact Backend CI Commands
 
@@ -79,8 +78,8 @@ Shared install step used by backend jobs:
 
 ## 7) Workflow Summary Rules
 
-1. A workflow summary job may summarize only jobs in its own `needs` graph.
-2. Do not merge outcomes from separate workflow files into one report unless explicitly asked.
+1. `backend-ci-summary.yml` is the designated cross-workflow backend summary workflow and may aggregate backend-related checks across workflow files for the same PR head SHA.
+2. For backend CI status interpretation, treat `backend-regression-gates.yml` as execution of gate jobs and `backend-ci-summary.yml` as the standalone aggregate reporter check.
 3. Missing workflow files must be reported as missing, not reconstructed from docs.
 4. Job names and commands must be copied exactly from live YAML.
 5. When in conflict, trust `.github/workflows/*.yml` over narrative docs.
@@ -111,9 +110,9 @@ Before finalizing, confirm all are true:
 
 - Only requested files were modified.
 - No workflow file changed unless explicitly requested.
-- Backend workflow details came from live `.github/workflows/backend-regression-gates.yml`.
-- No cross-workflow result aggregation was introduced.
-- Any missing expected workflow file was explicitly called out.
+- Backend gate details came from live `.github/workflows/backend-regression-gates.yml`.
+- Backend summary details came from live `.github/workflows/backend-ci-summary.yml`.
+- No missing expected workflow file was falsely reported.
 
 ## 10) CI Change Verification Checklist
 
@@ -122,6 +121,6 @@ Before finalizing CI-related updates, confirm all are true:
 - The exact workflow file requested was opened and read.
 - Every top-level job in the edited workflow was re-checked after changes.
 - No unrelated workflow file was modified.
-- No cross-workflow aggregation was introduced unless explicitly requested.
+- Any backend summary aggregation behavior was validated against live `.github/workflows/backend-ci-summary.yml`.
 - Any claim about visible checks is labeled either YAML-confirmed only or live-run confirmed.
 - If summary behavior changed, artifact behavior was preserved unless explicitly requested otherwise.
