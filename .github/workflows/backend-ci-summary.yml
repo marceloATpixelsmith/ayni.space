@@ -62,13 +62,19 @@ jobs:
                 if (!requiredSet.has(run.name)) {
                   continue;
                 }
+
                 const existing = byName.get(run.name);
                 const candidate = {
-                  state: run.status === "completed" ? run.conclusion : run.status,
+                  state: run.status === "completed" ? (run.conclusion ?? "completed") : run.status,
+                  status: run.status,
                   isCompleted: run.status === "completed",
                   completedAt: run.completed_at ?? "",
+                  updatedAt: run.updated_at ?? "",
                 };
-                if (!existing || candidate.completedAt > existing.completedAt) {
+
+                const candidateStamp = `${candidate.completedAt}|${candidate.updatedAt}`;
+                const existingStamp = existing ? `${existing.completedAt}|${existing.updatedAt}` : "";
+                if (!existing || candidateStamp > existingStamp) {
                   byName.set(run.name, candidate);
                 }
               }
@@ -80,10 +86,13 @@ jobs:
                 if (byName.has(status.context)) {
                   continue;
                 }
+
                 byName.set(status.context, {
                   state: status.state,
-                  isCompleted: !["pending"].includes(status.state),
-                  completedAt: status.updated_at ?? "",
+                  status: status.state === "pending" ? "in_progress" : "completed",
+                  isCompleted: status.state !== "pending",
+                  completedAt: status.state !== "pending" ? (status.updated_at ?? "") : "",
+                  updatedAt: status.updated_at ?? "",
                 });
               }
 
@@ -93,45 +102,98 @@ jobs:
             let finalResults = new Map();
             while (Date.now() - started < timeoutMs) {
               finalResults = await collectResults();
+
               const allPresent = requiredChecks.every((name) => finalResults.has(name));
               const allCompleted = requiredChecks.every((name) => finalResults.get(name)?.isCompleted);
               if (allPresent && allCompleted) {
                 break;
               }
+
               await sleep(intervalMs);
             }
 
-            const passStates = new Set(["success", "neutral", "skipped"]);
+            const passingStates = new Set(["success", "neutral"]);
+            const explicitFailStates = new Set([
+              "failure",
+              "cancelled",
+              "action_required",
+              "stale",
+              "startup_failure",
+              "timed_out",
+              "error",
+            ]);
+
             const failed = [];
+            const missingOrTimedOut = [];
+            const incomplete = [];
             const passed = [];
 
             for (const check of requiredChecks) {
               const result = finalResults.get(check);
+
               if (!result) {
-                failed.push(check);
+                missingOrTimedOut.push({ name: check, state: "missing" });
                 continue;
               }
 
-              if (passStates.has(result.state)) {
-                passed.push(check);
-              } else {
-                failed.push(check);
+              if (!result.isCompleted) {
+                incomplete.push({ name: check, state: result.state || result.status || "in_progress" });
+                continue;
               }
+
+              if (result.state === "skipped" && result.status === "completed") {
+                passed.push({ name: check, state: "skipped" });
+                continue;
+              }
+
+              if (passingStates.has(result.state)) {
+                passed.push({ name: check, state: result.state });
+                continue;
+              }
+
+              if (explicitFailStates.has(result.state)) {
+                failed.push({ name: check, state: result.state });
+                continue;
+              }
+
+              failed.push({ name: check, state: result.state || "unknown" });
             }
 
-            const overall = failed.length > 0 ? "FAIL" : "PASS";
+            const overall =
+              failed.length > 0 || missingOrTimedOut.length > 0 || incomplete.length > 0
+                ? "FAIL"
+                : "PASS";
+
+            const renderGroup = (items) =>
+              items.length > 0 ? items.map((item) => `- ${item.name} (${item.state})`) : ["- none"];
+
             const summary = [
               "==================================================",
               "BACKEND CI FAILURE SUMMARY",
               "==================================================",
               "",
+              "TARGET SHA:",
+              targetSha,
+              "",
               `OVERALL RESULT: ${overall}`,
               "",
               "FAILED CHECKS:",
-              ...(failed.length > 0 ? failed.map((name) => `- ${name}`) : ["- none"]),
+              ...renderGroup(failed),
+              "",
+              "MISSING OR TIMED OUT CHECKS:",
+              ...renderGroup(missingOrTimedOut),
+              "",
+              "INCOMPLETE CHECKS:",
+              ...renderGroup(incomplete),
               "",
               "PASSED CHECKS:",
-              ...(passed.length > 0 ? passed.map((name) => `- ${name}`) : ["- none"]),
+              ...renderGroup(passed),
+              "",
+              "NEXT DEBUG STEP:",
+              "- If backend-api-tests failed: open backend-api-tests in the PR checks list",
+              "- If api-regression-suite failed: open api-regression-suite in the PR checks list",
+              "- If auth-security-regression-suite failed: open auth-security-regression-suite in the PR checks list",
+              "- If a check is missing or incomplete: re-run or inspect GitHub Actions timing/trigger behavior",
               "",
               "==================================================",
             ].join("\n");
@@ -140,5 +202,7 @@ jobs:
             await core.summary.addCodeBlock(summary).write();
 
             if (overall === "FAIL") {
-              core.setFailed("One or more required backend checks failed, are missing, or timed out.");
+              core.setFailed(
+                "One or more required backend checks failed, were missing/timed out, or remained incomplete."
+              );
             }
