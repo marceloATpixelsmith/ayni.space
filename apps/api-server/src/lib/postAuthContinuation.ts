@@ -50,7 +50,7 @@ export function resolvePostAuthContinuation(params: {
       : undefined;
 
   const invitationMatch = returnPath.match(INVITATION_PATH_REGEX);
-  if (requestedType === "invitation_acceptance" || invitationMatch) {
+  if (invitationMatch) {
     return {
       type: "invitation_acceptance",
       appSlug: params.appSlug,
@@ -59,9 +59,12 @@ export function resolvePostAuthContinuation(params: {
       orgId,
     };
   }
+  if (requestedType === "invitation_acceptance") {
+    return null;
+  }
 
   const eventRegistrationMatch = returnPath.match(EVENT_REGISTRATION_PATH_REGEX);
-  if (requestedType === "event_registration" || eventRegistrationMatch) {
+  if (eventRegistrationMatch) {
     return {
       type: "event_registration",
       appSlug: params.appSlug,
@@ -70,11 +73,11 @@ export function resolvePostAuthContinuation(params: {
       orgId,
     };
   }
+  if (requestedType === "event_registration") {
+    return null;
+  }
 
-  if (
-    requestedType === "client_registration" ||
-    CLIENT_REGISTRATION_PATH_REGEX.test(returnPath)
-  ) {
+  if (CLIENT_REGISTRATION_PATH_REGEX.test(returnPath)) {
     return {
       type: "client_registration",
       appSlug: params.appSlug,
@@ -82,6 +85,9 @@ export function resolvePostAuthContinuation(params: {
       resourceId: explicitResourceId,
       orgId,
     };
+  }
+  if (requestedType === "client_registration") {
+    return null;
   }
 
   return {

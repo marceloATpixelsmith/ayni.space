@@ -40,3 +40,13 @@ test("continuation resolver falls back to default app entry", () => {
 
   assert.equal(continuation?.type, "default_app_entry");
 });
+
+test("continuation resolver rejects explicit invitation continuation type when path is not invitation acceptance", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/dashboard/apps",
+    continuationType: "invitation_acceptance",
+  });
+
+  assert.equal(continuation, null);
+});
