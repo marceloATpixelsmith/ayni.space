@@ -7,10 +7,12 @@
 ## Confirmed
 - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs **admin frontend PR tests only** for `apps/admin/**` changes and does not deploy.
 - `.github/workflows/backend-regression-gates.yml` runs **backend PR regression gates only** for API/package/workspace changes and does not deploy.
+- `.github/workflows/backend-ci-summary.yml` runs a dedicated PR-attached backend summary check on `pull_request` to `master`.
 - Backend regression gates execute these commands across separate jobs: `pnpm -w typecheck`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/api-server run test:ci`, `pnpm --filter @workspace/api-server run test:regression:ci`, and `pnpm run test:auth-security-regression`.
 - Each backend gate job captures failure output in `ci-output/<job>.log`, including the failing command and command output.
 - Each backend gate job uploads an artifact named `<job>-failure-log` **only** when that job fails.
-- `.github/workflows/backend-regression-gates.yml` includes a final `CI Failure Summary` job (`if: always()`) that reads `needs.<job>.result`, downloads available `*-failure-log` artifacts, and emits one consolidated copy-pasteable summary block with `OVERALL RESULT: PASS|FAIL`, plus `FAILED JOBS`, `DETAILS`, and `PASSED JOBS` sections.
+- `.github/workflows/backend-ci-summary.yml` uses the PR head SHA (`pull_request.head.sha`) and GitHub API check/status queries to summarize only `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
+- The backend summary output block is emitted to both workflow logs and `$GITHUB_STEP_SUMMARY` with `OVERALL RESULT`, `FAILED CHECKS`, and `PASSED CHECKS`.
 - Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.
 - `.github/workflows/linear-history-enforcement.yml` blocks PRs with merge commits (rebase-only history).

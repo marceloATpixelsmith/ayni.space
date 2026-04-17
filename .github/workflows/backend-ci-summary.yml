@@ -1,0 +1,144 @@
+name: backend-ci-summary
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  checks: read
+  contents: read
+  statuses: read
+  pull-requests: read
+
+jobs:
+  backend-ci-summary:
+    name: backend-ci-summary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarize backend checks for PR SHA
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const targetSha = context.payload.pull_request?.head?.sha;
+            if (!targetSha) {
+              core.setFailed("Missing pull_request.head.sha; cannot summarize PR checks.");
+              return;
+            }
+
+            const requiredChecks = [
+              "backend-typecheck",
+              "backend-build-api",
+              "backend-api-tests",
+              "api-regression-suite",
+              "auth-security-regression-suite",
+            ];
+
+            const requiredSet = new Set(requiredChecks);
+            const timeoutMs = 15 * 60 * 1000;
+            const intervalMs = 15 * 1000;
+            const started = Date.now();
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            async function collectResults() {
+              const checkRuns = await github.paginate(github.rest.checks.listForRef, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: targetSha,
+                per_page: 100,
+              });
+
+              const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: targetSha,
+                per_page: 100,
+              });
+
+              const byName = new Map();
+
+              for (const run of checkRuns) {
+                if (!requiredSet.has(run.name)) {
+                  continue;
+                }
+                const existing = byName.get(run.name);
+                const candidate = {
+                  state: run.status === "completed" ? run.conclusion : run.status,
+                  isCompleted: run.status === "completed",
+                  completedAt: run.completed_at ?? "",
+                };
+                if (!existing || candidate.completedAt > existing.completedAt) {
+                  byName.set(run.name, candidate);
+                }
+              }
+
+              for (const status of statuses) {
+                if (!requiredSet.has(status.context)) {
+                  continue;
+                }
+                if (byName.has(status.context)) {
+                  continue;
+                }
+                byName.set(status.context, {
+                  state: status.state,
+                  isCompleted: !["pending"].includes(status.state),
+                  completedAt: status.updated_at ?? "",
+                });
+              }
+
+              return byName;
+            }
+
+            let finalResults = new Map();
+            while (Date.now() - started < timeoutMs) {
+              finalResults = await collectResults();
+              const allPresent = requiredChecks.every((name) => finalResults.has(name));
+              const allCompleted = requiredChecks.every((name) => finalResults.get(name)?.isCompleted);
+              if (allPresent && allCompleted) {
+                break;
+              }
+              await sleep(intervalMs);
+            }
+
+            const passStates = new Set(["success", "neutral", "skipped"]);
+            const failed = [];
+            const passed = [];
+
+            for (const check of requiredChecks) {
+              const result = finalResults.get(check);
+              if (!result) {
+                failed.push(check);
+                continue;
+              }
+
+              if (passStates.has(result.state)) {
+                passed.push(check);
+              } else {
+                failed.push(check);
+              }
+            }
+
+            const overall = failed.length > 0 ? "FAIL" : "PASS";
+            const summary = [
+              "==================================================",
+              "BACKEND CI FAILURE SUMMARY",
+              "==================================================",
+              "",
+              `OVERALL RESULT: ${overall}`,
+              "",
+              "FAILED CHECKS:",
+              ...(failed.length > 0 ? failed.map((name) => `- ${name}`) : ["- none"]),
+              "",
+              "PASSED CHECKS:",
+              ...(passed.length > 0 ? passed.map((name) => `- ${name}`) : ["- none"]),
+              "",
+              "==================================================",
+            ].join("\n");
+
+            core.info(summary);
+            await core.summary.addCodeBlock(summary).write();
+
+            if (overall === "FAIL") {
+              core.setFailed("One or more required backend checks failed, are missing, or timed out.");
+            }

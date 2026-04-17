@@ -6,10 +6,10 @@
 ## Confirmed
 - PR validation workflows:
   - `.github/workflows/admin-security-shell-test-and-deploy.yml` runs `pnpm --filter @workspace/admin run test:security-shell` for admin frontend PR changes.
-  - `.github/workflows/backend-regression-gates.yml` runs backend gates on PRs affecting backend/shared package scope and executes: `pnpm -w typecheck`, `pnpm --filter @workspace/api-server run build`, `pnpm --filter @workspace/api-server run test:ci`, `pnpm --filter @workspace/api-server run test:regression:ci`, and `pnpm run test:auth-security-regression`.
-  - Backend gates are modeled as separate jobs (`typecheck`, `build-api`, `api-tests`, `api-regression`, `auth-security-regression`) with consistent checkout/install setup.
+  - `.github/workflows/backend-regression-gates.yml` runs backend gates on PRs affecting backend/shared package scope and executes: `pnpm -w typecheck`, `pnpm --filter @workspace/api-server run build`, and `pnpm --filter @workspace/api-server run test:ci`.
+  - Backend gates are modeled as separate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) with consistent checkout/install setup.
   - Each gate job captures failure details to `ci-output/<job>.log` and uploads `<job>-failure-log` artifacts only on failure.
-  - `CI Failure Summary` runs with `if: always()`, depends on all gate jobs, derives state from `needs.<job>.result`, and prints a single deterministic summary block (no `unknown`/`in_progress` states).
+  - `.github/workflows/backend-ci-summary.yml` runs on `pull_request` to `master`, queries checks for the PR head SHA via GitHub API, and publishes one `backend-ci-summary` PR-attached check that summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
   - Backend gate CI runs with `BACKEND_TRACE_VERBOSE=0` by default to suppress high-volume auth/CORS trace logs; set `BACKEND_TRACE_VERBOSE=1` to restore deep trace output for diagnostics.
   - `.github/workflows/lockfile-sync-check.yml` enforces `pnpm install --frozen-lockfile` for dependency/workflow-affecting PRs.
   - `.github/workflows/linear-history-enforcement.yml` enforces no-merge-commit (linear/rebase-only) PR history.

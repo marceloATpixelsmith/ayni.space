@@ -9,7 +9,8 @@
 | Workflow file | Primary purpose | Trigger highlights | Deploy behavior |
 |---|---|---|---|
 | `.github/workflows/admin-security-shell-test-and-deploy.yml` | Admin frontend security-shell regression check | PRs to `master` with `apps/admin/**` changes | No deploy step |
-| `.github/workflows/backend-regression-gates.yml` | Backend regression gates as separate jobs + final `CI Failure Summary` job | PRs to `master` affecting backend/shared package scope | No deploy step |
+| `.github/workflows/backend-regression-gates.yml` | Backend regression gates as separate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) | PRs to `master` and push/schedule | No deploy step |
+| `.github/workflows/backend-ci-summary.yml` | PR-attached backend summary check for the PR SHA | PRs to `master` | No deploy step |
 | `.github/workflows/lockfile-sync-check.yml` | Lockfile/workspace dependency integrity check | PRs touching lockfile/package/workflow metadata | No deploy step |
 | `.github/workflows/linear-history-enforcement.yml` | Enforce rebase-only linear PR history | PRs to `master` | No deploy step |
 | `.github/workflows/auto-rebase.yml` | Keep `codex/*` PR branches rebased on `master` | PR events and pushes to `master` | No deploy step |
