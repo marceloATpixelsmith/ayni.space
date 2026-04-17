@@ -30,11 +30,14 @@ This file is the authoritative operating manual for AI coding agents working in 
   - **Status:** Present.
   - **Purpose:** Backend regression gate workflow with per-job execution and an internal summary job.
 - `.github/workflows/api-regression-suite.yml`
-  - **Status:** Not present in current live workflow directory.
-  - **Handling rule:** Do not assume jobs/commands for this file unless it exists.
+  - **Status:** Present.
+  - **Purpose:** API regression suite workflow.
 - `.github/workflows/auth-security-regression-suite.yml`
-  - **Status:** Not present in current live workflow directory.
-  - **Handling rule:** Do not assume jobs/commands for this file unless it exists.
+  - **Status:** Present.
+  - **Purpose:** Auth/security regression suite workflow.
+- `.github/workflows/backend-ci-summary.yml`
+  - **Status:** Not present.
+  - **Handling rule:** Do not use a separate backend summary workflow file; backend summary must remain the `backend-ci-summary` job inside `.github/workflows/backend-regression-gates.yml`.
 - `.github/workflows/lockfile-sync-check.yml`
   - **Status:** Present.
   - **Purpose:** Lockfile/workspace install integrity check.
