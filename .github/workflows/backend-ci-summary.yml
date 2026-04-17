@@ -42,6 +42,7 @@ jobs:
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             async function collectResults() {
+              const commitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
               const checkRuns = await github.paginate(github.rest.checks.listForRef, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -70,6 +71,7 @@ jobs:
                   isCompleted: run.status === "completed",
                   completedAt: run.completed_at ?? "",
                   updatedAt: run.updated_at ?? "",
+                  url: run.html_url || commitChecksUrl,
                 };
 
                 const candidateStamp = `${candidate.completedAt}|${candidate.updatedAt}`;
@@ -93,6 +95,7 @@ jobs:
                   isCompleted: status.state !== "pending",
                   completedAt: status.state !== "pending" ? (status.updated_at ?? "") : "",
                   updatedAt: status.updated_at ?? "",
+                  url: commitChecksUrl,
                 });
               }
 
@@ -132,31 +135,55 @@ jobs:
               const result = finalResults.get(check);
 
               if (!result) {
-                missingOrTimedOut.push({ name: check, state: "missing" });
+                missingOrTimedOut.push({
+                  name: check,
+                  state: "missing",
+                  url: `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                });
                 continue;
               }
 
               if (!result.isCompleted) {
-                incomplete.push({ name: check, state: result.state || result.status || "in_progress" });
+                incomplete.push({
+                  name: check,
+                  state: result.state || result.status || "in_progress",
+                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                });
                 continue;
               }
 
               if (result.state === "skipped" && result.status === "completed") {
-                passed.push({ name: check, state: "skipped" });
+                passed.push({
+                  name: check,
+                  state: "skipped",
+                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                });
                 continue;
               }
 
               if (passingStates.has(result.state)) {
-                passed.push({ name: check, state: result.state });
+                passed.push({
+                  name: check,
+                  state: result.state,
+                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                });
                 continue;
               }
 
               if (explicitFailStates.has(result.state)) {
-                failed.push({ name: check, state: result.state });
+                failed.push({
+                  name: check,
+                  state: result.state,
+                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                });
                 continue;
               }
 
-              failed.push({ name: check, state: result.state || "unknown" });
+              failed.push({
+                name: check,
+                state: result.state || "unknown",
+                url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+              });
             }
 
             const overall =
@@ -165,41 +192,65 @@ jobs:
                 : "PASS";
 
             const renderGroup = (items) =>
-              items.length > 0 ? items.map((item) => `- ${item.name} (${item.state})`) : ["- none"];
+              items.length > 0
+                ? items.map((item) => `- ${item.name} (${item.state}) → ${item.url}`)
+                : ["- none"];
+
+            const checkLinks = requiredChecks.map((checkName) => {
+              const result = finalResults.get(checkName);
+              const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
+              return `- ${checkName} → ${result?.url || fallbackUrl}`;
+            });
+
+            const nextDebugSteps = [];
+            if (failed.length > 0) {
+              for (const item of failed) {
+                nextDebugSteps.push(`- Open ${item.name}: ${item.url}`);
+              }
+            }
+            if (missingOrTimedOut.length > 0) {
+              for (const item of missingOrTimedOut) {
+                nextDebugSteps.push(`- Check workflow trigger configuration for ${item.name}`);
+              }
+            }
+            if (incomplete.length > 0) {
+              for (const item of incomplete) {
+                nextDebugSteps.push(`- Wait or re-run ${item.name}`);
+              }
+            }
+            if (nextDebugSteps.length === 0) {
+              nextDebugSteps.push("- none");
+            }
 
             const summary = [
-              "==================================================",
-              "BACKEND CI FAILURE SUMMARY",
-              "==================================================",
+              "# BACKEND CI FAILURE SUMMARY",
               "",
-              "TARGET SHA:",
-              targetSha,
+              "## TARGET SHA",
+              `\`${targetSha}\``,
               "",
-              `OVERALL RESULT: ${overall}`,
+              `## OVERALL RESULT: ${overall}`,
               "",
-              "FAILED CHECKS:",
+              "## FAILED CHECKS",
               ...renderGroup(failed),
               "",
-              "MISSING OR TIMED OUT CHECKS:",
+              "## MISSING OR TIMED OUT CHECKS",
               ...renderGroup(missingOrTimedOut),
               "",
-              "INCOMPLETE CHECKS:",
+              "## INCOMPLETE CHECKS",
               ...renderGroup(incomplete),
               "",
-              "PASSED CHECKS:",
+              "## PASSED CHECKS",
               ...renderGroup(passed),
               "",
-              "NEXT DEBUG STEP:",
-              "- If backend-api-tests failed: open backend-api-tests in the PR checks list",
-              "- If api-regression-suite failed: open api-regression-suite in the PR checks list",
-              "- If auth-security-regression-suite failed: open auth-security-regression-suite in the PR checks list",
-              "- If a check is missing or incomplete: re-run or inspect GitHub Actions timing/trigger behavior",
+              "## CHECK LINKS",
+              ...checkLinks,
               "",
-              "==================================================",
+              "## NEXT DEBUG STEP",
+              ...nextDebugSteps,
             ].join("\n");
 
             core.info(summary);
-            await core.summary.addCodeBlock(summary).write();
+            await core.summary.addRaw(summary).write();
 
             if (overall === "FAIL") {
               core.setFailed(
