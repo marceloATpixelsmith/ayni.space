@@ -1,0 +1,373 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  createStatefulSessionApp,
+  ensureTestDatabaseEnv,
+  patchProperty,
+  performJsonRequest,
+} from "./helpers.js";
+
+ensureTestDatabaseEnv();
+process.env["SESSION_SECRET"] ??= "test-session-secret";
+process.env["ALLOWED_ORIGINS"] = "http://admin.local,http://workspace.local";
+process.env["ADMIN_FRONTEND_ORIGINS"] = "http://admin.local";
+process.env["GOOGLE_CLIENT_ID"] = "test-client";
+process.env["GOOGLE_CLIENT_SECRET"] = "test-secret";
+process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/callback";
+process.env["RATE_LIMIT_ENABLED"] = "false";
+process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+process.env["NODE_ENV"] = "test";
+
+const { db } = await import("@workspace/db");
+const { default: authRouter, authRouteDeps } = await import("../routes/auth.js");
+const { hashPassword } = await import("../lib/passwordAuth.js");
+
+type MockState = {
+  users: Map<string, any>;
+  usersByEmail: Map<string, any>;
+  usersByGoogleSubject: Map<string, any>;
+  credentialsByUserId: Map<string, any>;
+  authTokens: Array<any>;
+  appProfiles: Record<string, any>;
+  mfaRequiredUserIds: Set<string>;
+  mfaEnrolledUserIds: Set<string>;
+  orgAccessUserIds: Set<string>;
+};
+
+function buildState(): MockState {
+  const adminOrg = {
+    id: "app-admin",
+    slug: "admin",
+    isActive: true,
+    accessMode: "organization",
+    staffInvitesEnabled: true,
+    customerRegistrationEnabled: false,
+    metadata: {},
+  };
+  const solo = {
+    id: "app-solo",
+    slug: "solo-app",
+    isActive: true,
+    accessMode: "solo",
+    staffInvitesEnabled: false,
+    customerRegistrationEnabled: true,
+    metadata: {},
+  };
+
+  return {
+    users: new Map(),
+    usersByEmail: new Map(),
+    usersByGoogleSubject: new Map(),
+    credentialsByUserId: new Map(),
+    authTokens: [],
+    appProfiles: { admin: adminOrg, "solo-app": solo },
+    mfaRequiredUserIds: new Set(),
+    mfaEnrolledUserIds: new Set(),
+    orgAccessUserIds: new Set(),
+  };
+}
+
+function installDbMocks(state: MockState) {
+  const restores: Array<() => void> = [];
+
+  restores.push(
+    patchProperty(db.query.appsTable, "findFirst", async (query: any) => {
+      const where = String(query?.where ?? "");
+      if (where.includes("solo-app")) return state.appProfiles["solo-app"];
+      if (where.includes("app-solo")) return state.appProfiles["solo-app"];
+      if (where.includes("app-admin")) return state.appProfiles["admin"];
+      return state.appProfiles["admin"];
+    }),
+    patchProperty(db.query.usersTable, "findFirst", async (query: any) => {
+      const where = String(query?.where ?? "");
+      if (where.includes("googleSubject")) {
+        for (const user of state.users.values()) {
+          if (user.googleSubject) return user;
+        }
+      }
+      if (where.includes("lower")) {
+        for (const user of state.users.values()) return user;
+      }
+      if (where.includes("users.id")) {
+        for (const user of state.users.values()) return user;
+      }
+      return state.users.values().next().value ?? null;
+    }),
+    patchProperty(db.query.userCredentialsTable, "findFirst", async (query: any) => {
+      const where = String(query?.where ?? "");
+      if (where.includes("password")) {
+        for (const credential of state.credentialsByUserId.values()) return credential;
+      }
+      return null;
+    }),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => {
+      const firstUser = state.users.values().next().value;
+      if (!firstUser) return null;
+      return state.mfaRequiredUserIds.has(firstUser.id)
+        ? {
+            userId: firstUser.id,
+            mfaRequired: true,
+            forceMfaEnrollment: !state.mfaEnrolledUserIds.has(firstUser.id),
+            firstAuthAfterResetPending: false,
+            highRiskUntilMfaAt: null,
+          }
+        : null;
+    }),
+    patchProperty(db.query.mfaFactorsTable, "findFirst", async () => {
+      const firstUser = state.users.values().next().value;
+      if (!firstUser) return null;
+      if (!state.mfaEnrolledUserIds.has(firstUser.id)) return null;
+      return {
+        id: "factor-1",
+        userId: firstUser.id,
+        factorType: "totp",
+        status: "active",
+        secretCiphertext: "a",
+        secretIv: "b",
+        secretTag: "c",
+      };
+    }),
+    patchProperty(db.query.trustedDevicesTable, "findFirst", async () => null),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.orgMembershipsTable, "findMany", async () => {
+      const firstUser = state.users.values().next().value;
+      if (!firstUser || !state.orgAccessUserIds.has(firstUser.id)) return [];
+      return [{ userId: firstUser.id, orgId: "org-1", membershipStatus: "active", role: "org_admin" }];
+    }),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+    patchProperty(db.query.organizationsTable, "findFirst", async () => ({
+      id: "org-1",
+      name: "Org 1",
+      slug: "org-1",
+      isActive: true,
+      appId: "app-admin",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
+    patchProperty(db.query.orgAppAccessTable, "findFirst", async () => ({ orgId: "org-1", appId: "app-admin", enabled: true })),
+    patchProperty(db.query.orgAppAccessTable, "findMany", async () => ([{ orgId: "org-1", appId: "app-admin", enabled: true }])),
+    patchProperty(db.query.authTokensTable, "findFirst", async () => state.authTokens[0] ?? null),
+    patchProperty(db, "select", () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: async () => [],
+        }),
+      }),
+    }) as never),
+    patchProperty(db, "insert", () => ({
+      values: (value: any) => {
+        const values = Array.isArray(value) ? value : [value];
+        for (const row of values) {
+          if (row?.tokenType) state.authTokens.push({ ...row, consumedAt: null });
+          if (row?.email) {
+            const user = {
+              ...row,
+              active: true,
+              suspended: false,
+              deletedAt: null,
+              isSuperAdmin: false,
+              activeOrgId: null,
+              emailVerifiedAt: row.emailVerifiedAt ?? null,
+            };
+            state.users.set(user.id, user);
+            state.usersByEmail.set(user.email, user);
+          }
+          if (row?.credentialType === "password") {
+            state.credentialsByUserId.set(row.userId, row);
+          }
+        }
+        return {
+          returning: async () => values,
+          onConflictDoUpdate: async () => undefined,
+        };
+      },
+    }) as never),
+    patchProperty(db, "update", () => ({
+      set: (values: any) => ({
+        where: async () => {
+          const firstUser = state.users.values().next().value;
+          if (firstUser && "emailVerifiedAt" in values) firstUser.emailVerifiedAt = new Date();
+          if (firstUser && "lastLoginAt" in values) firstUser.lastLoginAt = new Date();
+          return [];
+        },
+        returning: async () => {
+          const token = state.authTokens.find((row) => !row.consumedAt) ?? null;
+          if (!token) return [];
+          token.consumedAt = new Date();
+          return [token];
+        },
+      }),
+    }) as never),
+    patchProperty(db, "delete", () => ({ where: async () => undefined }) as never),
+  );
+
+  return () => {
+    restores.reverse().forEach((restore) => restore());
+  };
+}
+
+test("org-admin signup -> verify-email -> mfa branch -> onboarding -> dashboard route chain", async () => {
+  const state = buildState();
+  const restore = installDbMocks(state);
+  const persistedSession: Record<string, unknown> = { sessionGroup: "admin" };
+  const app = createStatefulSessionApp([{ path: "/api/auth", router: authRouter }], persistedSession);
+
+  try {
+    const signup = await performJsonRequest(app, "POST", "/api/auth/signup", {
+      appSlug: "admin",
+      email: "owner@example.com",
+      password: "Password1!",
+      name: "Owner",
+    });
+    assert.equal(signup.status, 403);
+
+    const user = {
+      id: "user-org-admin",
+      email: "owner@example.com",
+      name: "Owner",
+      isSuperAdmin: false,
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      activeOrgId: null,
+      emailVerifiedAt: null,
+    };
+    state.users.set(user.id, user);
+    state.credentialsByUserId.set(user.id, {
+      id: "cred-1",
+      userId: user.id,
+      credentialType: "password",
+      passwordHash: await hashPassword("Password2!"),
+    });
+    state.mfaRequiredUserIds.add(user.id);
+
+    const forgot = await performJsonRequest(app, "POST", "/api/auth/forgot-password", {
+      appSlug: "admin",
+      email: "owner@example.com",
+    });
+    assert.equal(forgot.status, 200);
+
+    const resetToken = forgot.body?.resetToken;
+    assert.equal(typeof resetToken, "string");
+
+    const reset = await performJsonRequest(app, "POST", "/api/auth/reset-password", {
+      token: resetToken,
+      password: "Password2!",
+    });
+    assert.equal(reset.status, 200);
+
+    const login = await performJsonRequest(app, "POST", "/api/auth/login", {
+      appSlug: "admin",
+      email: "owner@example.com",
+      password: "Password2!",
+      returnToPath: "/invitations/org-token/accept",
+    });
+    assert.equal(login.status, 202);
+    assert.equal(login.body?.nextPath, "/mfa/enroll");
+
+    const me = await performJsonRequest(app, "GET", "/api/auth/me");
+    assert.equal(me.status, 200);
+    assert.equal(me.body?.authState, "mfa_pending");
+  } finally {
+    restore();
+  }
+});
+
+test("solo signup/login journey lands on solo destination without org-onboarding leakage", async () => {
+  const state = buildState();
+  const restore = installDbMocks(state);
+  const persistedSession: Record<string, unknown> = { sessionGroup: "default" };
+  const app = createStatefulSessionApp([{ path: "/api/auth", router: authRouter }], persistedSession);
+
+  try {
+    const user = {
+      id: "solo-user",
+      email: "solo@example.com",
+      name: "Solo User",
+      isSuperAdmin: false,
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      activeOrgId: null,
+      emailVerifiedAt: new Date(),
+    };
+    state.users.set(user.id, user);
+    state.credentialsByUserId.set(user.id, {
+      id: "cred-solo",
+      userId: user.id,
+      credentialType: "password",
+      passwordHash: await hashPassword("Password1!"),
+    });
+
+    const login = await performJsonRequest(app, "POST", "/api/auth/login", {
+      appSlug: "solo-app",
+      email: "solo@example.com",
+      password: "Password1!",
+      returnToPath: "/solo-app",
+    });
+
+    assert.equal(login.status, 200);
+    assert.notEqual(login.body?.nextPath, "/onboarding/organization");
+  } finally {
+    restore();
+  }
+});
+
+test("google login keeps invitation continuation and denied-access redirect branch fail-closed", async () => {
+  const state = buildState();
+  const restore = installDbMocks(state);
+  const persistedSession: Record<string, unknown> = {
+    sessionGroup: "admin",
+    oauthState: "admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJyZXR1cm5Ub1BhdGgiOiIvaW52aXRhdGlvbnMvdG9rZW4tMi9hY2NlcHQiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9",
+    oauthReturnTo: "http://admin.local",
+    oauthReturnToPath: "/invitations/token-2/accept",
+    oauthSessionGroup: "admin",
+  };
+  const app = createStatefulSessionApp([{ path: "/api/auth", router: authRouter }], persistedSession);
+
+  const user = {
+    id: "google-user",
+    email: "google@example.com",
+    name: "Google User",
+    isSuperAdmin: false,
+    active: true,
+    suspended: false,
+    deletedAt: null,
+    activeOrgId: null,
+    emailVerifiedAt: new Date(),
+    googleSubject: "google-sub",
+  };
+  state.users.set(user.id, user);
+  state.orgAccessUserIds.add(user.id);
+
+  const restoreExchange = patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
+    sub: "google-sub",
+    email: "google@example.com",
+    name: "Google User",
+  }));
+
+  try {
+    const googleUrl = await performJsonRequest(app, "POST", "/api/auth/google/url", {
+      appSlug: "admin",
+      returnToPath: "/invitations/token-2/accept",
+    }, { origin: "http://admin.local" });
+
+    assert.equal(googleUrl.status, 200);
+    assert.match(String(googleUrl.body?.url ?? ""), /returnToPath/);
+
+    const callback = await performJsonRequest(
+      app,
+      "GET",
+      "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJyZXR1cm5Ub1BhdGgiOiIvaW52aXRhdGlvbnMvdG9rZW4tMi9hY2NlcHQiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9",
+    );
+    assert.equal(callback.status, 302);
+    assert.match(
+      String(callback.headers.get("location") ?? ""),
+      /\/invitations\/token-2\/accept$/,
+    );
+  } finally {
+    restoreExchange();
+    restore();
+  }
+});
