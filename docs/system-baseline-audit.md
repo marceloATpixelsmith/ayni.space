@@ -33,7 +33,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 | `updatedAt` | timestamp tz, default now, on update | Persistence/audit only | None | **Ignored for behavior** | **Consistent** |
 
 #### Field-level drift notes
-- `customerRegistrationEnabled` is functionally active in backend access decisions but not reflected in frontend `deriveAppAuthRoutePolicy()` fallback semantics (frontend fallback denies customer registration and may deny onboarding for solo depending on fallback path), increasing split-source-of-truth risk.
+- `customerRegistrationEnabled` is functionally active in backend access decisions but not reflected in frontend `deriveAppAuthRoutePolicy()` fallback semantics for customer-registration route affordances, increasing split-source-of-truth risk.
 - `invitationEmailSubject`/`invitationEmailHtml` are schema-present but superseded by `platform.email_templates` resolution in `resolveEmailTemplate()` + lane1 send path.
 - `metadata` is used for `sessionGroup` only; no generic metadata contract exists between backend and frontend.
 
@@ -98,7 +98,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 - **Final destination**: `/onboarding/user` or continuation/default.
 - **EXPECTED**: direct access + optional user onboarding.
 - **ACTUAL**: `getAppContext()` sets `canAccess=true` for solo and user-onboarding when name missing.
-- **MISMATCH / DRIFT**: frontend fallback policy for solo in `deriveAppAuthRoutePolicy()` denies onboarding when backend metadata policy missing, creating potential fail-closed redirect mismatch.
+- **MISMATCH / DRIFT**: frontend fallback policy now allows solo onboarding, but customer-registration affordances remain fail-closed when backend metadata policy is missing, so profile parity still depends on metadata delivery.
 
 #### 2.5 Client / participant / registration user
 - **Entry routes/pages**: no dedicated frontend route implemented in `apps/admin` for customer registration.
@@ -257,7 +257,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 ### BROKEN
 - No direct runtime consumer for `platform.apps.invitationEmailSubject` and `platform.apps.invitationEmailHtml`; schema fields are inert while email behavior is template-table-driven.
 - Password-login app resolution fallback to `admin` can create incorrect app-context decisions when slug/origin/session context is absent or ambiguous.
-- Frontend fallback auth-route policy for `solo` (`allowOnboarding: false` in fallback) can disagree with backend profile policy (`allowOnboarding: true`), causing potential route gating drift when metadata policy payload is absent.
+- Frontend fallback auth-route policy still fail-closes customer-registration affordances when backend `authRoutePolicy` metadata is absent, so metadata delivery remains a source-of-truth dependency.
 
 ### MISSING
 - No unified, single app-context endpoint contract consumed by both frontend route policy and backend auth resolution.
