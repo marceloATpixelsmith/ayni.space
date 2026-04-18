@@ -131,7 +131,7 @@
   - Captures per-job failure logs under `ci-output/<job>.log` and uploads artifacts named `<job>-failure-log` only when a job fails.
 - `.github/workflows/backend-ci-summary.yml`:
   - Runs on PRs to `master` and publishes a PR-attached `backend-ci-summary` check for the PR head SHA.
-  - Uses GitHub API check/status polling for the same PR commit and summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, `auth-security-regression-suite`, and `admin-security-shell-test`.
+  - Uses GitHub API check/status polling for the same PR commit and summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.

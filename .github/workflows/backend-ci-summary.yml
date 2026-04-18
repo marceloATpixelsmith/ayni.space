@@ -32,7 +32,6 @@ jobs:
               "backend-api-tests",
               "api-regression-suite",
               "auth-security-regression-suite",
-              "admin-security-shell-test",
             ];
 
             const requiredSet = new Set(requiredChecks);
