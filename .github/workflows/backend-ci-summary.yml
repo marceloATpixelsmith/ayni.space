@@ -43,19 +43,27 @@ jobs:
 
             async function collectResults() {
               const commitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
-              const checkRuns = await github.paginate(github.rest.checks.listForRef, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: targetSha,
-                per_page: 100,
-              });
+              const checkRuns = await github.paginate(
+                github.rest.checks.listForRef,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: targetSha,
+                  per_page: 100,
+                },
+                (response) => response.data.check_runs
+              );
 
-              const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: targetSha,
-                per_page: 100,
-              });
+              const statuses = await github.paginate(
+                github.rest.repos.listCommitStatusesForRef,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: targetSha,
+                  per_page: 100,
+                },
+                (response) => response.data
+              );
 
               const byName = new Map();
 
