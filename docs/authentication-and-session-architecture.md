@@ -60,6 +60,7 @@
 - Post-auth continuation restoration is now explicitly app-bound: continuation paths are resumed only when continuation `appSlug` matches resolved authenticated app context, and mismatched explicit continuation-type hints are rejected when path shapes do not match canonical continuation route patterns (`apps/api-server/src/lib/postAuthDestination.ts`, `apps/api-server/src/lib/postAuthContinuation.ts`, `apps/api-server/src/lib/postAuthFlow.ts`, `apps/api-server/src/routes/auth.ts`).
 - `/api/auth/me` now emits explicit machine-readable auth/session state markers for both pending and fully authenticated sessions (`authState`, `sessionState`, plus `mfaPendingReason` for pending MFA), and `requireAuth` does not update `lastSeenAt` on pending-MFA `/me` bootstrap reads (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/middlewares/requireAuth.ts`).
 - Signup Turnstile audit context no longer hardcodes `admin` as fallback app slug when request/session app context is absent; metadata now records null app context instead of implicit admin assumptions (`apps/api-server/src/middlewares/turnstile.ts`).
+- Signup Turnstile audit context also no longer defaults unresolved session-group authority to `default`; when request/session group resolution is unavailable, metadata records `sessionGroup=null` to avoid hidden backend reassignment (`apps/api-server/src/middlewares/turnstile.ts`).
 
 ## Inferred
 

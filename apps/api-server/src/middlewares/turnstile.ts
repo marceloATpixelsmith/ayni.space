@@ -2,7 +2,6 @@ import type { Request, RequestHandler } from "express";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
-import { SESSION_GROUPS } from "../lib/sessionGroup.js";
 
 type AuditWriter = (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void>;
 const MFA_CHALLENGE_PATH_PATTERN = /^\/api\/auth\/mfa\/(challenge|recovery)\/?$/;
@@ -95,7 +94,7 @@ function getSignupAuditContext(req: Request): Record<string, unknown> {
   const domain = atIndex > 0 ? normalizedEmail.slice(atIndex + 1) : null;
   const maskedLocalPart = localPart.length <= 2 ? localPart : `${localPart.slice(0, 2)}***`;
   const normalizedEmailMasked = normalizedEmail ? (domain ? `${maskedLocalPart}@${domain}` : `${maskedLocalPart}***`) : null;
-  const sessionGroup = req.resolvedSessionGroup ?? req.session?.sessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const sessionGroup = req.resolvedSessionGroup ?? req.session?.sessionGroup ?? null;
   const appSlugFromBody = typeof req.body?.appSlug === "string" ? req.body.appSlug.trim() : "";
   const appSlugFromSession = typeof req.session?.appSlug === "string" ? req.session.appSlug : "";
   const appSlug = appSlugFromBody || appSlugFromSession || null;

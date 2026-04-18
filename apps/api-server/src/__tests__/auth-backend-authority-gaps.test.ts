@@ -19,6 +19,9 @@ const {
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { turnstileVerifyMiddleware } = await import("../middlewares/turnstile.js");
 const { requireAuth } = await import("../middlewares/requireAuth.js");
+const authLib = await import("../lib/auth.js");
+const passwordAuthLib = await import("../lib/passwordAuth.js");
+const mfaLib = await import("../lib/mfa.js");
 
 function createRequireAuthApp(sessionSeed: Record<string, unknown>) {
   const app = express();
@@ -334,7 +337,7 @@ test("unknown auth appSlug is rejected instead of silently falling back to defau
   }
 });
 
-test("turnstile signup audit metadata keeps default session-group fallback while app context stays null", async () => {
+test("turnstile signup audit metadata keeps unresolved session group as null (no hidden fallback)", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "true";
   let capturedMetadata: Record<string, unknown> | null = null;
@@ -368,10 +371,87 @@ test("turnstile signup audit metadata keeps default session-group fallback while
     });
 
     assert.ok(capturedMetadata);
-    assert.equal(capturedMetadata["sessionGroup"], "default");
+    assert.equal(capturedMetadata["sessionGroup"], null);
     assert.equal(capturedMetadata["appSlug"], null);
   } finally {
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+
+test("google auth url builder preserves caller-provided state and scopes", () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirectUri = process.env["GOOGLE_REDIRECT_URI"];
+  process.env["GOOGLE_CLIENT_ID"] = "test-client-id";
+  process.env["GOOGLE_CLIENT_SECRET"] = "test-client-secret";
+  process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
+
+  try {
+    const url = authLib.buildGoogleAuthUrl("default.test-state-token");
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get("state"), "default.test-state-token");
+    assert.equal(parsed.searchParams.get("scope"), "openid email profile");
+  } finally {
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirectUri === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirectUri;
+  }
+});
+
+test("google auth client creation fails closed when required env is missing", () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirectUri = process.env["GOOGLE_REDIRECT_URI"];
+  delete process.env["GOOGLE_CLIENT_ID"];
+  process.env["GOOGLE_CLIENT_SECRET"] = "test-client-secret";
+  process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
+
+  try {
+    assert.throws(() => authLib.getGoogleClient(), /GOOGLE_CLIENT_ID environment variable is required/);
+  } finally {
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirectUri === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirectUri;
+  }
+});
+
+test("password auth opaque identifier is null for blank email input", () => {
+  assert.equal(passwordAuthLib.getPasswordAuthOpaqueIdentifier("   "), null);
+});
+
+test("MFA requirement uses user auth-security override independent of activeOrgId", async () => {
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "mfa-user",
+      isSuperAdmin: false,
+    })),
+    patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => ({
+      id: "security-row",
+      userId: "mfa-user",
+      mfaRequired: false,
+      forceMfaEnrollment: true,
+      firstAuthAfterResetPending: false,
+      highRiskUntilMfaAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
+    patchProperty(db.query.orgMembershipsTable, "findFirst", async () => null),
+  ];
+
+  try {
+    const requiredWithOrg = await mfaLib.isMfaRequiredForUser("mfa-user", "org-123");
+    const requiredWithoutOrg = await mfaLib.isMfaRequiredForUser("mfa-user", null);
+    assert.equal(requiredWithOrg, true);
+    assert.equal(requiredWithoutOrg, true);
+  } finally {
+    for (const restore of restores.reverse()) restore();
   }
 });
