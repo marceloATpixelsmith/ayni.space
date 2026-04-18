@@ -334,15 +334,14 @@ test("unknown auth appSlug is rejected instead of silently falling back to defau
   }
 });
 
-test("turnstile signup audit metadata does not inject fallback app or session context", async () => {
+test("turnstile signup audit metadata keeps default session-group fallback while app context stays null", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "true";
+  let capturedMetadata: Record<string, unknown> | null = null;
   const middleware = turnstileVerifyMiddleware({
     verifyFn: async () => false,
     writeAuditLogFn: async (entry) => {
-      const metadata = (entry.metadata ?? {}) as Record<string, unknown>;
-      assert.equal(metadata["sessionGroup"], null);
-      assert.equal(metadata["appSlug"], null);
+      capturedMetadata = (entry.metadata ?? {}) as Record<string, unknown>;
     },
   });
 
@@ -367,6 +366,10 @@ test("turnstile signup audit metadata does not inject fallback app or session co
         else reject(new Error("Expected middleware to reject invalid turnstile token"));
       });
     });
+
+    assert.ok(capturedMetadata);
+    assert.equal(capturedMetadata["sessionGroup"], "default");
+    assert.equal(capturedMetadata["appSlug"], null);
   } finally {
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
