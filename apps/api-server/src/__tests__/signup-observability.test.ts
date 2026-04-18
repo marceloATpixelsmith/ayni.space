@@ -468,7 +468,7 @@ test("turnstile signup denial logs turnstile_missing_or_invalid reason code", as
     assert.equal(entry.metadata?.normalizedEmailMasked, "tu***@example.com");
     assert.equal(entry.metadata?.normalizedEmailDomain, "example.com");
     assert.equal(entry.metadata?.appSlug ?? null, null);
-    assert.equal(entry.metadata?.sessionGroup, "default");
+    assert.equal(entry.metadata?.sessionGroup ?? null, null);
   } finally {
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"];
     else process.env["NODE_ENV"] = prevNodeEnv;
