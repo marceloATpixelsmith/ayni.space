@@ -42,7 +42,12 @@ export function resolveAuthenticatedPostAuthDestination(options: {
   }
 
   if (requiresOnboarding && flowDestination) {
-    return flowDestination;
+    if (stage === "post_auth") {
+      return flowDestination;
+    }
+    if (options.flowDecision?.requiredOnboarding === "user") {
+      return flowDestination;
+    }
   }
 
   if (continuationPath) {
