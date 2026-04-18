@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  admin-security-shell-test:
+    name: admin-security-shell-test
     runs-on: ubuntu-latest
 
     steps:
