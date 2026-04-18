@@ -1,6 +1,11 @@
 import React from "react";
 import { useLocation, useParams } from "wouter";
-import { useAuth, useTurnstileToken } from "@workspace/frontend-security";
+import {
+  useAuth,
+  useTurnstileToken,
+  ensureTurnstileReadyForSubmit,
+  handleTurnstileProtectedAuthError,
+} from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { motion } from "framer-motion";
@@ -280,7 +285,12 @@ export default function InvitationAccept() {
         inFlightRef.current = false;
         if (typedError.code?.startsWith("TURNSTILE_")) {
           lastSubmittedRef.current = null;
-          turnstile.reset();
+          handleTurnstileProtectedAuthError({
+            error: typedError,
+            turnstile,
+            setError: () => undefined,
+            resetWhenTurnstileErrorOnly: true,
+          });
         }
       });
 
@@ -308,14 +318,12 @@ export default function InvitationAccept() {
     }
     setLoginError(null);
     auth.loginWithGoogle(turnstile.token, "sign_in", continuationPath).catch((error) => {
-      setLoginError(
-        error instanceof Error
-          ? error.message
-          : "Unable to start Google sign-in.",
-      );
-      if (turnstile.enabled) {
-        turnstile.reset();
-      }
+      handleTurnstileProtectedAuthError({
+        error,
+        turnstile,
+        setError: setLoginError,
+        fallbackMessage: "Unable to start Google sign-in.",
+      });
     });
   }, [
     auth,
@@ -328,6 +336,11 @@ export default function InvitationAccept() {
   const handleSetPassword = React.useCallback(() => {
     const token = params.token;
     if (!token || passwordSubmitting) return;
+    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
+    if (turnstileError) {
+      setLoginError(turnstileError);
+      return;
+    }
     const validationError = validatePasswordInput(password);
     if (validationError) {
       setPasswordTouched(true);
@@ -345,9 +358,13 @@ export default function InvitationAccept() {
       })
       .catch((error) => {
         setStatus("error");
-        setLoginError(
-          error instanceof Error ? error.message : "Failed to set password.",
-        );
+        handleTurnstileProtectedAuthError({
+          error,
+          turnstile,
+          setError: setLoginError,
+          fallbackMessage: "Failed to set password.",
+          resetWhenTurnstileErrorOnly: true,
+        });
       })
       .finally(() => setPasswordSubmitting(false));
   }, [

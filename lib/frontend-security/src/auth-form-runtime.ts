@@ -41,6 +41,40 @@ export function resetTurnstileOnFailure(
   }
 }
 
+export function getAuthActionErrorMessage(
+  error: unknown,
+  fallback = "Request failed.",
+): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+export function isTurnstileChallengeError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === "string" && maybeCode.startsWith("TURNSTILE_");
+}
+
+export function handleTurnstileProtectedAuthError(options: {
+  error: unknown;
+  turnstile: Pick<TurnstileState, "enabled" | "reset">;
+  setError: (message: string) => void;
+  fallbackMessage?: string;
+  resetWhenTurnstileErrorOnly?: boolean;
+}): void {
+  const message = getAuthActionErrorMessage(
+    options.error,
+    options.fallbackMessage ?? "Request failed.",
+  );
+  options.setError(message);
+
+  const shouldReset = options.resetWhenTurnstileErrorOnly
+    ? isTurnstileChallengeError(options.error)
+    : options.turnstile.enabled;
+  if (shouldReset) {
+    options.turnstile.reset();
+  }
+}
+
 export function useAuthSubmitOrchestration() {
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);

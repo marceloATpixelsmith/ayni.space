@@ -1,19 +1,13 @@
 import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  DEFAULT_POST_AUTH_PATH,
-  isFullyAuthenticatedStatus,
-  resolveAuthenticatedNextStep,
-  useLoginRouteComposition,
-  parseAuthErrorCode,
+  useLoginRoutePolicy,
   useEmailValidationInteraction,
   ensureTurnstileReadyForSubmit,
-  resetTurnstileOnFailure,
+  handleTurnstileProtectedAuthError,
   useAuthSubmitOrchestration,
   validateEmailInput,
   getLoginDisabledReasons,
-  getAuthErrorMessage,
-  buildAdminAccessDeniedLoginPath,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { ActivitySquare } from "lucide-react";
@@ -42,39 +36,11 @@ export default function Login() {
     value: emailInput,
     validate: validateEmailInput,
   });
-
-  const query = React.useMemo(() => new URLSearchParams(search), [search]);
-  const nextPath = query.get("next");
-  const accessErrorCode = parseAuthErrorCode(query.get("error"));
-  const accessError = getAuthErrorMessage(accessErrorCode);
-
-  const { auth, turnstile, hideSignupAffordances } = useLoginRouteComposition();
-  const deniedCleanupAttemptedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!accessError) {
-      deniedCleanupAttemptedRef.current = false;
-      return;
-    }
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
-    if (deniedCleanupAttemptedRef.current) return;
-
-    deniedCleanupAttemptedRef.current = true;
-    void auth.logout();
-  }, [accessError, auth.status, auth.logout]);
-
-  React.useEffect(() => {
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
-
-    const nextStep = resolveAuthenticatedNextStep({
-      authStatus: auth.status,
-      user: auth.user,
-      continuationPath: nextPath,
-      deniedLoginPath: buildAdminAccessDeniedLoginPath(),
-      defaultPath: DEFAULT_POST_AUTH_PATH,
+  const { auth, turnstile, hideSignupAffordances, nextPath, accessError } =
+    useLoginRoutePolicy({
+      search,
+      onRedirect: setLocation,
     });
-    setLocation(nextStep.destination);
-  }, [auth.status, auth.user, nextPath, setLocation]);
 
   const disabledReasons = React.useMemo(
     () =>
@@ -187,15 +153,20 @@ export default function Login() {
       return;
     }
     void submit.run(() => auth.loginWithGoogle(turnstileToken, intent, nextPath)).catch((error) => {
-      const message =
-        error instanceof Error
-          ? error instanceof TypeError ||
-            /Failed to fetch|NetworkError|Load failed/i.test(error.message)
-            ? "Unable to reach the sign-in service. Please verify network/CORS configuration and try again."
-            : error.message
-          : "Unable to start Google sign-in right now. Please try again.";
-      setLoginError(message);
-      resetTurnstileOnFailure(turnstile);
+      handleTurnstileProtectedAuthError({
+        error:
+          error instanceof TypeError ||
+          (error instanceof Error &&
+            /Failed to fetch|NetworkError|Load failed/i.test(error.message))
+            ? new Error(
+                "Unable to reach the sign-in service. Please verify network/CORS configuration and try again.",
+              )
+            : error,
+        turnstile,
+        setError: setLoginError,
+        fallbackMessage:
+          "Unable to start Google sign-in right now. Please try again.",
+      });
     });
   };
 

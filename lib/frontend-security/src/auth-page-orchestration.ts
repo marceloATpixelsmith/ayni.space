@@ -1,5 +1,11 @@
 import React from "react";
 import {
+  DEFAULT_POST_AUTH_PATH,
+  buildAdminAccessDeniedLoginPath,
+  getAuthErrorMessage,
+  isFullyAuthenticatedStatus,
+  parseAuthErrorCode,
+  resolveAuthenticatedNextStep,
   deriveAppAuthRoutePolicy,
   useAuth,
   useCurrentPlatformAppMetadata,
@@ -41,6 +47,56 @@ export function useLoginRouteComposition() {
     metadata,
     turnstile,
     hideSignupAffordances,
+  };
+}
+
+export function useLoginRoutePolicy(options: {
+  search: string;
+  onRedirect: (path: string) => void;
+}) {
+  const { search, onRedirect } = options;
+  const { auth, metadata, turnstile, hideSignupAffordances } =
+    useLoginRouteComposition();
+  const query = React.useMemo(
+    () => new URLSearchParams(search),
+    [search],
+  );
+  const nextPath = query.get("next");
+  const accessError = getAuthErrorMessage(parseAuthErrorCode(query.get("error")));
+  const deniedCleanupAttemptedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!accessError) {
+      deniedCleanupAttemptedRef.current = false;
+      return;
+    }
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    if (deniedCleanupAttemptedRef.current) return;
+
+    deniedCleanupAttemptedRef.current = true;
+    void auth.logout();
+  }, [accessError, auth.status, auth.logout]);
+
+  React.useEffect(() => {
+    if (!isFullyAuthenticatedStatus(auth.status)) return;
+
+    const nextStep = resolveAuthenticatedNextStep({
+      authStatus: auth.status,
+      user: auth.user,
+      continuationPath: nextPath,
+      deniedLoginPath: buildAdminAccessDeniedLoginPath(),
+      defaultPath: DEFAULT_POST_AUTH_PATH,
+    });
+    onRedirect(nextStep.destination);
+  }, [auth.status, auth.user, nextPath, onRedirect]);
+
+  return {
+    auth,
+    metadata,
+    turnstile,
+    hideSignupAffordances,
+    nextPath,
+    accessError,
   };
 }
 
