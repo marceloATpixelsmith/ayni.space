@@ -2,10 +2,8 @@ import React from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   useLoginRoutePolicy,
+  useLoginRouteActions,
   useEmailValidationInteraction,
-  ensureTurnstileReadyForSubmit,
-  handleTurnstileProtectedAuthError,
-  useAuthSubmitOrchestration,
   validateEmailInput,
   getLoginDisabledReasons,
 } from "@workspace/frontend-security";
@@ -21,17 +19,11 @@ import {
   FieldValidationMessage,
 } from "@workspace/auth-ui";
 
-const AUTH_DEBUG =
-  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-    ?.VITE_AUTH_DEBUG === "true";
-
 export default function Login() {
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const [loginError, setLoginError] = React.useState<string | null>(null);
   const [emailInput, setEmailInput] = React.useState("");
   const [passwordInput, setPasswordInput] = React.useState("");
-  const submit = useAuthSubmitOrchestration();
   const emailValidation = useEmailValidationInteraction({
     value: emailInput,
     validate: validateEmailInput,
@@ -65,43 +57,16 @@ export default function Login() {
   );
 
   const emailError = emailValidation.error;
-
-  React.useEffect(() => {
-    if (AUTH_DEBUG) {
-      console.info("[login] mount");
-      return () => console.info("[login] cleanup");
-    }
-    return undefined;
-  }, []);
-
-  React.useEffect(() => {
-    if (!AUTH_DEBUG) return;
-    const script = document.getElementById("cf-turnstile-script");
-    console.info("[login] render state", {
-      authStatus: auth.status,
-      csrfReady: auth.csrfReady,
-      csrfTokenPresent: Boolean(auth.csrfToken),
-      turnstileEnabled: turnstile.enabled,
-      turnstileReady: turnstile.ready,
-      turnstileTokenPresent: Boolean(turnstile.token),
-      turnstileStatus: turnstile.status,
-      loginInFlight: auth.loginInFlight,
-      windowTurnstileExists: Boolean(window.turnstile),
-      turnstileScriptExists: Boolean(script),
-      turnstileContainerExists: Boolean(document.querySelector(".min-h-16")),
-      canSubmit: turnstile.canSubmit,
+  const { loginError, handleGoogleLogin, handlePasswordLogin } =
+    useLoginRouteActions({
+      auth,
+      turnstile,
+      nextPath,
+      hideSignupAffordances,
+      email: emailInput,
+      password: passwordInput,
+      emailError,
     });
-  }, [
-    auth.status,
-    auth.csrfReady,
-    auth.csrfToken,
-    turnstile.enabled,
-    turnstile.ready,
-    turnstile.token,
-    turnstile.status,
-    auth.loginInFlight,
-    turnstile.canSubmit,
-  ]);
 
   if (auth.status === "loading") {
     return (
@@ -111,63 +76,9 @@ export default function Login() {
     );
   }
 
-  const handlePasswordLogin = () => {
+  const onPasswordLogin = () => {
     emailValidation.markSubmitted();
-    if (emailError) {
-      setLoginError(emailError);
-      return;
-    }
-    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
-    if (turnstileError) {
-      setLoginError(turnstileError);
-      return;
-    }
-
-    setLoginError(null);
-    const turnstileToken = turnstile.token;
-    void submit
-      .run(() => auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath))
-      .catch((error) => {
-        setLoginError(error instanceof Error ? error.message : "Unable to sign in.");
-      });
-  };
-
-  const handleGoogleLogin = (intent: "sign_in" | "create_account") => {
-    if (auth.loginInFlight) {
-      return;
-    }
-    if (hideSignupAffordances && intent === "create_account") {
-      return;
-    }
-    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
-    if (turnstileError) {
-      setLoginError(turnstileError);
-      return;
-    }
-
-    setLoginError(null);
-    const turnstileToken = turnstile.token;
-    const oauthUrlRequest = { token: turnstileToken };
-    if (!oauthUrlRequest.token) {
-      setLoginError("Please complete verification before continuing.");
-      return;
-    }
-    void submit.run(() => auth.loginWithGoogle(turnstileToken, intent, nextPath)).catch((error) => {
-      handleTurnstileProtectedAuthError({
-        error:
-          error instanceof TypeError ||
-          (error instanceof Error &&
-            /Failed to fetch|NetworkError|Load failed/i.test(error.message))
-            ? new Error(
-                "Unable to reach the sign-in service. Please verify network/CORS configuration and try again.",
-              )
-            : error,
-        turnstile,
-        setError: setLoginError,
-        fallbackMessage:
-          "Unable to start Google sign-in right now. Please try again.",
-      });
-    });
+    handlePasswordLogin();
   };
 
   return (
@@ -222,7 +133,7 @@ export default function Login() {
           />
           <Button
             className="w-full"
-            onClick={handlePasswordLogin}
+            onClick={onPasswordLogin}
             disabled={
               auth.loginInFlight ||
               !emailInput ||

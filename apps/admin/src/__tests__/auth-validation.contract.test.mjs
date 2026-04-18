@@ -118,12 +118,13 @@ test("invitation flow performs password creation on invitation screen", () => {
 
 test("login superadmin mode can hide signup affordances", () => {
   assert.match(loginSource, /hideSignupAffordances/);
-  assert.match(loginSource, /useLoginRouteComposition\(/);
+  assert.match(loginSource, /useLoginRoutePolicy\(/);
+  assert.match(loginSource, /useLoginRouteActions\(/);
 });
 
 
 test("auth pages avoid hardcoded app slug defaults", () => {
-  assert.match(loginSource, /useLoginRouteComposition\(/);
+  assert.match(loginSource, /useLoginRoutePolicy\(/);
   assert.match(signupSource, /useSignupRoutePolicy\(/);
   assert.doesNotMatch(loginSource, /VITE_APP_SLUG \?\? "admin"/);
   assert.doesNotMatch(signupSource, /VITE_APP_SLUG \?\? "admin"/);
@@ -142,7 +143,13 @@ test("auth pages consume shared auth-ui primitives from lib/auth-ui", () => {
 
 
 test("login consumes shared auth error contract helpers instead of app-local adapter", () => {
-  assert.match(loginSource, /getAuthErrorMessage/);
-  assert.match(loginSource, /buildAdminAccessDeniedLoginPath/);
+  assert.match(loginSource, /useLoginRoutePolicy/);
+  assert.match(loginSource, /accessError/);
   assert.doesNotMatch(loginSource, /from "\.\/accessDenied"/);
+});
+
+test("invitation page delegates runtime orchestration to shared frontend-security", () => {
+  assert.match(invitationSource, /useInvitationAcceptRouteRuntime/);
+  assert.doesNotMatch(invitationSource, /fetch\(resolveApiUrl/);
+  assert.doesNotMatch(invitationSource, /acceptInvitationWithPassword/);
 });
