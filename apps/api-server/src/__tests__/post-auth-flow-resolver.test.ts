@@ -313,3 +313,75 @@ test("post-onboarding resolver still blocks continuation when onboarding is stil
 
   assert.equal(destination, "/onboarding/user");
 });
+
+test("solo flow does not leak organization onboarding when user onboarding is required", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: resolvePostAuthContinuation({
+      appSlug: "solo-app",
+      returnPath: "/dashboard/apps",
+    }),
+    flowDecision: {
+      appSlug: "solo-app",
+      canAccess: true,
+      normalizedAccessProfile: "solo",
+      requiredOnboarding: "user",
+      destination: "/onboarding/user",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/onboarding/user");
+});
+
+test("continuation competition remains MFA->onboarding->continuation->default in post-auth resolver contracts", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/invitations/token-222/accept",
+  });
+  assert.equal(
+    resolveAuthenticatedPostAuthDestination({
+      continuation,
+      flowDecision: {
+        appSlug: "admin",
+        canAccess: true,
+        normalizedAccessProfile: "organization",
+        requiredOnboarding: "organization",
+        destination: "/onboarding/organization",
+      },
+      fallbackPath: "/dashboard",
+      stage: "post_auth",
+    }),
+    "/onboarding/organization",
+  );
+  assert.equal(
+    resolveAuthenticatedPostAuthDestination({
+      continuation,
+      flowDecision: {
+        appSlug: "admin",
+        canAccess: true,
+        normalizedAccessProfile: "organization",
+        requiredOnboarding: "none",
+        destination: "/dashboard",
+      },
+      fallbackPath: "/dashboard",
+      stage: "post_auth",
+    }),
+    "/invitations/token-222/accept",
+  );
+  assert.equal(
+    resolveAuthenticatedPostAuthDestination({
+      continuation: null,
+      flowDecision: {
+        appSlug: "admin",
+        canAccess: true,
+        normalizedAccessProfile: "organization",
+        requiredOnboarding: "none",
+        destination: "/dashboard",
+      },
+      fallbackPath: "/dashboard",
+      stage: "post_auth",
+    }),
+    "/dashboard",
+  );
+});

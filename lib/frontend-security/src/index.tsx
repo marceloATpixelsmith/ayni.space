@@ -217,7 +217,9 @@ export function resolveAuthenticatedNextStep(params: {
     };
   }
 
-  const continuationPath = normalizeReturnToPath(params.continuationPath);
+  const continuationPath = sanitizePostAuthNavigationPath(
+    params.continuationPath,
+  );
   if (continuationPath) {
     return { destination: continuationPath, reason: "continuation" };
   }
@@ -255,6 +257,49 @@ function normalizeReturnToPath(path: string | null | undefined): string | null {
   const trimmed = path.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
   return trimmed;
+}
+
+const INVITATION_CONTINUATION_REGEX = /^\/invitations\/[^/]+\/accept$/i;
+const EVENT_CONTINUATION_REGEX =
+  /^\/(events|event-registration)\/[^/]+\/register(?:\/)?$/i;
+const CLIENT_REGISTRATION_CONTINUATION_REGEX =
+  /^\/(register|registration)\/(client|public)(?:\/)?$/i;
+const AUTHORIZED_POST_AUTH_PATHS = new Set([
+  "/",
+  "/dashboard",
+  "/dashboard/apps",
+  "/apps",
+  "/onboarding/organization",
+  "/onboarding/user",
+  "/mfa/enroll",
+  "/mfa/challenge",
+]);
+
+function normalizePathForExactMatch(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
+
+export function isSafePostAuthNavigationPath(
+  path: string | null | undefined,
+): boolean {
+  const normalizedPath = normalizeReturnToPath(path);
+  if (!normalizedPath) return false;
+  const exactPath = normalizePathForExactMatch(normalizedPath);
+  if (AUTHORIZED_POST_AUTH_PATHS.has(exactPath)) return true;
+  return (
+    INVITATION_CONTINUATION_REGEX.test(normalizedPath) ||
+    EVENT_CONTINUATION_REGEX.test(normalizedPath) ||
+    CLIENT_REGISTRATION_CONTINUATION_REGEX.test(normalizedPath)
+  );
+}
+
+function sanitizePostAuthNavigationPath(
+  path: string | null | undefined,
+): string | null {
+  const normalizedPath = normalizeReturnToPath(path);
+  if (!normalizedPath) return null;
+  return isSafePostAuthNavigationPath(normalizedPath) ? normalizedPath : null;
 }
 
 function normalizeEmailForSubmission(value: string): string {
@@ -1037,7 +1082,7 @@ if (loginRequestRef.current) {
       console.info(
         "[INVITATION-FLOW] auth.acceptInvitation session refresh complete",
       );
-      return normalizeReturnToPath(payload?.nextPath) ?? null;
+      return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
     },
     [refreshCsrfState, refreshSession],
   );
@@ -1088,7 +1133,7 @@ if (loginRequestRef.current) {
         return target;
       }
       await refreshSession();
-      return normalizeReturnToPath(payload?.nextPath) ?? null;
+      return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
     },
     [refreshCsrfState, refreshSession],
   );
@@ -1174,17 +1219,15 @@ if (loginRequestRef.current) {
         window.location.assign(target);
         return;
       }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+      if (nextPath) {
         logAuthDebug("route_selected", {
-          route: payload.nextPath,
+          route: nextPath,
           reason: "login_response",
         });
         markAuthTransition();
         await refreshCsrfState();
-        window.location.assign(payload.nextPath);
+        window.location.assign(nextPath);
         return;
       }
       await refreshSession();
@@ -1338,18 +1381,16 @@ if (loginRequestRef.current) {
         window.location.assign(target);
         return payload;
       }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+      if (nextPath) {
         logAuthDebug("route_selected", {
-          route: payload.nextPath,
+          route: nextPath,
           reason: "verify_email_response",
         });
         markAuthTransition();
         await refreshSession({ retryAfterDelay: true });
         await refreshCsrfState();
-        window.location.assign(payload.nextPath);
+        window.location.assign(nextPath);
         return payload;
       }
       await refreshSession({ retryAfterDelay: true });
@@ -1448,11 +1489,9 @@ if (loginRequestRef.current) {
           "Two-step verification was activated, but recovery codes were not returned. Please contact support before continuing.",
         );
       }
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
       }
       return {
         recoveryCodes: payload.recoveryCodes,
@@ -1494,11 +1533,9 @@ if (loginRequestRef.current) {
           payload?.error ??
             "Unable to complete two-step verification challenge.",
         );
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
         return;
       }
       await refreshSession({ retryAfterDelay: true });
@@ -1542,11 +1579,9 @@ if (loginRequestRef.current) {
         throw new Error(
           payload?.error ?? "Unable to complete two-step recovery.",
         );
-      if (
-        typeof payload?.nextPath === "string" &&
-        payload.nextPath.startsWith("/")
-      ) {
-        await finalizePostAuthNavigation(payload.nextPath);
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
         return;
       }
       await refreshSession({ retryAfterDelay: true });
