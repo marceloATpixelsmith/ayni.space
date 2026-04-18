@@ -16,6 +16,8 @@
 - Basic auth rate limiting (normal use passes, rapid repeated attempts are limited, unaffected traffic still works).
 - CORS/origin behavior (allowed origin succeeds, disallowed origin blocked, preflight handled correctly).
 - Fail-closed behavior (missing session denied, invalid/ambiguous group resolution denied).
+- Route-level auth journey coverage now includes explicit backend route chains for signup/verify-email/MFA/onboarding/dashboard, invitation accept branches (password/sign-in/google continuations), and forgot/reset-password bootstrap cleanup (`apps/api-server/src/__tests__/auth-real-journey-routes.test.ts`).
+- Frontend auth route/page contract coverage now includes route-guard outcomes (unauthenticated, MFA-pending, onboarding, denied), login/signup branching, superadmin affordance hiding, and invitation continuation branch assertions (`apps/admin/src/__tests__/auth-page-route-journeys.contract.test.mjs`).
 
 ## Test location
 - `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts`
