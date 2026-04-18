@@ -36,14 +36,15 @@ export async function resolvePostAuthFlowDecision(params: {
 
   if (!context) return null;
 
-  const destination = context.canAccess
-    ? getPostAuthRedirectPath({
-        appSlug,
-        isSuperAdmin,
-        normalizedAccessProfile: context.normalizedAccessProfile,
-        requiredOnboarding: context.requiredOnboarding,
-      })
-    : buildAccessDeniedLoginPath();
+  const destination =
+    context.canAccess || context.requiredOnboarding !== "none"
+      ? getPostAuthRedirectPath({
+          appSlug,
+          isSuperAdmin,
+          normalizedAccessProfile: context.normalizedAccessProfile,
+          requiredOnboarding: context.requiredOnboarding,
+        })
+      : buildAccessDeniedLoginPath();
 
   return {
     appSlug,
