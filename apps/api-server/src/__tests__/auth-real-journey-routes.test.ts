@@ -33,6 +33,7 @@ type MockState = {
   mfaRequiredUserIds: Set<string>;
   mfaEnrolledUserIds: Set<string>;
   orgAccessUserIds: Set<string>;
+  soloAccessUserIds: Set<string>;
 };
 
 function buildState(): MockState {
@@ -65,7 +66,37 @@ function buildState(): MockState {
     mfaRequiredUserIds: new Set(),
     mfaEnrolledUserIds: new Set(),
     orgAccessUserIds: new Set(),
+    soloAccessUserIds: new Set(),
   };
+}
+
+function collectStringLiterals(input: unknown): string[] {
+  const results: string[] = [];
+  const visited = new Set<unknown>();
+  const stack: unknown[] = [input];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current == null) continue;
+    if (typeof current === "string") {
+      results.push(current);
+      continue;
+    }
+    if (typeof current !== "object") continue;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    if (Array.isArray(current)) {
+      for (const value of current) stack.push(value);
+      continue;
+    }
+
+    for (const value of Object.values(current as Record<string, unknown>)) {
+      stack.push(value);
+    }
+  }
+
+  return results;
 }
 
 function installDbMocks(state: MockState) {
@@ -73,31 +104,52 @@ function installDbMocks(state: MockState) {
 
   restores.push(
     patchProperty(db.query.appsTable, "findFirst", async (query: any) => {
-      const where = String(query?.where ?? "");
-      if (where.includes("solo-app")) return state.appProfiles["solo-app"];
-      if (where.includes("app-solo")) return state.appProfiles["solo-app"];
-      if (where.includes("app-admin")) return state.appProfiles["admin"];
-      return state.appProfiles["admin"];
+      const literals = collectStringLiterals(query?.where);
+      if (literals.includes("solo-app") || literals.includes("app-solo")) {
+        return state.appProfiles["solo-app"] ?? null;
+      }
+      if (literals.includes("admin") || literals.includes("app-admin")) {
+        return state.appProfiles["admin"] ?? null;
+      }
+      return null;
     }),
     patchProperty(db.query.usersTable, "findFirst", async (query: any) => {
-      const where = String(query?.where ?? "");
-      if (where.includes("googleSubject")) {
+      const literals = collectStringLiterals(query?.where);
+      if (literals.includes("googleSubject")) {
+        const requestedSubject = literals.find((value) =>
+          [...state.usersByGoogleSubject.keys()].includes(value),
+        );
+        if (requestedSubject) {
+          return state.usersByGoogleSubject.get(requestedSubject) ?? null;
+        }
         for (const user of state.users.values()) {
           if (user.googleSubject) return user;
         }
       }
-      if (where.includes("lower")) {
-        for (const user of state.users.values()) return user;
+      const requestedEmail = literals.find((value) =>
+        state.usersByEmail.has(value),
+      );
+      if (requestedEmail) {
+        return state.usersByEmail.get(requestedEmail) ?? null;
       }
-      if (where.includes("users.id")) {
-        for (const user of state.users.values()) return user;
+      const requestedUserId = literals.find((value) => state.users.has(value));
+      if (requestedUserId) {
+        return state.users.get(requestedUserId) ?? null;
       }
       return state.users.values().next().value ?? null;
     }),
     patchProperty(db.query.userCredentialsTable, "findFirst", async (query: any) => {
-      const where = String(query?.where ?? "");
-      if (where.includes("password")) {
-        for (const credential of state.credentialsByUserId.values()) return credential;
+      const literals = collectStringLiterals(query?.where);
+      const requestedUserId = literals.find((value) =>
+        state.credentialsByUserId.has(value),
+      );
+      if (requestedUserId) {
+        return state.credentialsByUserId.get(requestedUserId) ?? null;
+      }
+      if (literals.includes("password")) {
+        for (const credential of state.credentialsByUserId.values()) {
+          return credential;
+        }
       }
       return null;
     }),
@@ -129,7 +181,15 @@ function installDbMocks(state: MockState) {
       };
     }),
     patchProperty(db.query.trustedDevicesTable, "findFirst", async () => null),
-    patchProperty(db.query.userAppAccessTable, "findFirst", async () => null),
+    patchProperty(db.query.userAppAccessTable, "findFirst", async () => {
+      const firstUser = state.users.values().next().value;
+      if (!firstUser || !state.soloAccessUserIds.has(firstUser.id)) return null;
+      return {
+        userId: firstUser.id,
+        appId: "app-solo",
+        enabled: true,
+      };
+    }),
     patchProperty(db.query.orgMembershipsTable, "findMany", async () => {
       const firstUser = state.users.values().next().value;
       if (!firstUser || !state.orgAccessUserIds.has(firstUser.id)) return [];
@@ -172,6 +232,9 @@ function installDbMocks(state: MockState) {
             };
             state.users.set(user.id, user);
             state.usersByEmail.set(user.email, user);
+            if (user.googleSubject) {
+              state.usersByGoogleSubject.set(user.googleSubject, user);
+            }
           }
           if (row?.credentialType === "password") {
             state.credentialsByUserId.set(row.userId, row);
@@ -234,6 +297,7 @@ test("org-admin signup -> verify-email -> mfa branch -> onboarding -> dashboard 
       emailVerifiedAt: null,
     };
     state.users.set(user.id, user);
+    state.usersByEmail.set(user.email, user);
     state.credentialsByUserId.set(user.id, {
       id: "cred-1",
       userId: user.id,
@@ -293,6 +357,8 @@ test("solo signup/login journey lands on solo destination without org-onboarding
       emailVerifiedAt: new Date(),
     };
     state.users.set(user.id, user);
+    state.usersByEmail.set(user.email, user);
+    state.soloAccessUserIds.add(user.id);
     state.credentialsByUserId.set(user.id, {
       id: "cred-solo",
       userId: user.id,
@@ -339,6 +405,8 @@ test("google login keeps invitation continuation and denied-access redirect bran
     googleSubject: "google-sub",
   };
   state.users.set(user.id, user);
+  state.usersByEmail.set(user.email, user);
+  state.usersByGoogleSubject.set(user.googleSubject, user);
   state.orgAccessUserIds.add(user.id);
 
   const restoreExchange = patchProperty(authRouteDeps, "exchangeCodeForUserFn", async () => ({
@@ -354,7 +422,15 @@ test("google login keeps invitation continuation and denied-access redirect bran
     }, { origin: "http://admin.local" });
 
     assert.equal(googleUrl.status, 200);
-    assert.match(String(googleUrl.body?.url ?? ""), /returnToPath/);
+    const googleUrlValue = String(googleUrl.body?.url ?? "");
+    const googleUrlParsed = new URL(googleUrlValue);
+    const stateParam = googleUrlParsed.searchParams.get("state");
+    assert.equal(typeof stateParam, "string");
+    const encodedPayload = String(stateParam ?? "").split(".").slice(2).join(".");
+    const decodedPayload = JSON.parse(
+      Buffer.from(encodedPayload, "base64url").toString("utf8"),
+    ) as { returnToPath?: string };
+    assert.equal(decodedPayload.returnToPath, "/invitations/token-2/accept");
 
     const callback = await performJsonRequest(
       app,
