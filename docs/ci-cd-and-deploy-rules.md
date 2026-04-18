@@ -9,7 +9,7 @@
   - `.github/workflows/backend-regression-gates.yml` runs backend gates on PRs affecting backend/shared package scope and executes: `pnpm -w typecheck`, `pnpm --filter @workspace/api-server run build`, and `pnpm --filter @workspace/api-server run test:ci`.
   - Backend gates are modeled as separate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) with consistent checkout/install setup.
   - Each gate job captures failure details to `ci-output/<job>.log` and uploads `<job>-failure-log` artifacts only on failure.
-  - `.github/workflows/backend-ci-summary.yml` runs on `pull_request` to `master`, queries checks for the PR head SHA via GitHub API, and publishes one `backend-ci-summary` PR-attached check that summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
+  - `.github/workflows/backend-ci-summary.yml` runs on `pull_request` to `master`, queries checks for both `pull_request.head.sha` and `pull_request.merge_commit_sha` via GitHub API, then summarizes from the SHA with the most observed required checks (`backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`) into one PR-attached `backend-ci-summary` check.
   - Backend gate CI runs with `BACKEND_TRACE_VERBOSE=0` by default to suppress high-volume auth/CORS trace logs; set `BACKEND_TRACE_VERBOSE=1` to restore deep trace output for diagnostics.
   - `.github/workflows/lockfile-sync-check.yml` enforces `pnpm install --frozen-lockfile` for dependency/workflow-affecting PRs.
   - `.github/workflows/linear-history-enforcement.yml` enforces no-merge-commit (linear/rebase-only) PR history.

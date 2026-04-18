@@ -20,9 +20,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const targetSha = context.payload.pull_request?.head?.sha;
-            if (!targetSha) {
-              core.setFailed("Missing pull_request.head.sha; cannot summarize PR checks.");
+            const headSha = context.payload.pull_request?.head?.sha ?? "";
+            const mergeSha = context.payload.pull_request?.merge_commit_sha ?? "";
+            const candidateShas = Array.from(new Set([headSha, mergeSha].filter(Boolean)));
+
+            if (candidateShas.length === 0) {
+              core.setFailed(
+                "Missing pull_request.head.sha and pull_request.merge_commit_sha; cannot summarize PR checks."
+              );
               return;
             }
 
@@ -44,7 +49,7 @@ jobs:
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-            async function collectResults() {
+            async function collectResultsForSha(targetSha) {
               const commitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
               const checkRuns = await github.paginate(
                 github.rest.checks.listForRef,
@@ -118,12 +123,30 @@ jobs:
                 });
               }
 
-              return byName;
+              return { byName, commitChecksUrl, targetSha };
             }
 
             let finalResults = new Map();
+            let finalTargetSha = candidateShas[0];
+            let finalCommitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${finalTargetSha}/checks`;
             while (Date.now() - started < timeoutMs) {
-              finalResults = await collectResults();
+              const snapshots = await Promise.all(candidateShas.map((sha) => collectResultsForSha(sha)));
+              snapshots.sort((a, b) => {
+                const presentA = requiredChecks.filter((name) => a.byName.has(name)).length;
+                const presentB = requiredChecks.filter((name) => b.byName.has(name)).length;
+                if (presentA !== presentB) return presentB - presentA;
+
+                const completedA = requiredChecks.filter((name) => a.byName.get(name)?.isCompleted).length;
+                const completedB = requiredChecks.filter((name) => b.byName.get(name)?.isCompleted).length;
+                if (completedA !== completedB) return completedB - completedA;
+
+                return candidateShas.indexOf(a.targetSha) - candidateShas.indexOf(b.targetSha);
+              });
+
+              const bestSnapshot = snapshots[0];
+              finalResults = bestSnapshot.byName;
+              finalTargetSha = bestSnapshot.targetSha;
+              finalCommitChecksUrl = bestSnapshot.commitChecksUrl;
 
               const snapshotKey = requiredChecks
                 .map((name) => {
@@ -142,7 +165,8 @@ jobs:
                 break;
               }
 
-              if (Date.now() - lastProgressAt >= stalledTimeoutMs) {
+              const anyRequiredCheckPresent = requiredChecks.some((name) => finalResults.has(name));
+              if (anyRequiredCheckPresent && Date.now() - lastProgressAt >= stalledTimeoutMs) {
                 core.warning(
                   `No check-state progress detected for ${Math.floor(stalledTimeoutMs / 1000)}s; ending wait early to avoid hanging summary job.`
                 );
@@ -175,7 +199,7 @@ jobs:
                 missingOrTimedOut.push({
                   name: check,
                   state: "missing",
-                  url: `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                  url: finalCommitChecksUrl,
                 });
                 continue;
               }
@@ -184,7 +208,7 @@ jobs:
                 incomplete.push({
                   name: check,
                   state: result.state || result.status || "in_progress",
-                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                  url: result.url || finalCommitChecksUrl,
                 });
                 continue;
               }
@@ -193,7 +217,7 @@ jobs:
                 passed.push({
                   name: check,
                   state: "skipped",
-                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                  url: result.url || finalCommitChecksUrl,
                 });
                 continue;
               }
@@ -202,7 +226,7 @@ jobs:
                 passed.push({
                   name: check,
                   state: result.state,
-                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                  url: result.url || finalCommitChecksUrl,
                 });
                 continue;
               }
@@ -211,7 +235,7 @@ jobs:
                 failed.push({
                   name: check,
                   state: result.state,
-                  url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                  url: result.url || finalCommitChecksUrl,
                 });
                 continue;
               }
@@ -219,7 +243,7 @@ jobs:
               failed.push({
                 name: check,
                 state: result.state || "unknown",
-                url: result.url || `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`,
+                url: result.url || finalCommitChecksUrl,
               });
             }
 
@@ -235,7 +259,7 @@ jobs:
 
             const checkLinks = requiredChecks.map((checkName) => {
               const result = finalResults.get(checkName);
-              const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
+              const fallbackUrl = finalCommitChecksUrl;
               return `- ${checkName} → ${result?.url || fallbackUrl}`;
             });
 
@@ -252,7 +276,7 @@ jobs:
               "# BACKEND CI FAILURE SUMMARY",
               "",
               "## TARGET SHA",
-              `\`${targetSha}\``,
+              `\`${finalTargetSha}\``,
               "",
               `## OVERALL RESULT: ${overall}`,
               "",

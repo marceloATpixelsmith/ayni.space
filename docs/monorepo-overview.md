@@ -130,8 +130,8 @@
   - Enforces backend install integrity via separate jobs (`backend-typecheck`, `backend-build-api`, `backend-api-tests`) for backend-affecting changes.
   - Captures per-job failure logs under `ci-output/<job>.log` and uploads artifacts named `<job>-failure-log` only when a job fails.
 - `.github/workflows/backend-ci-summary.yml`:
-  - Runs on PRs to `master` and publishes a PR-attached `backend-ci-summary` check for the PR head SHA.
-  - Uses GitHub API check/status polling for the same PR commit and summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`.
+  - Runs on PRs to `master` and publishes a PR-attached `backend-ci-summary` check.
+  - Uses GitHub API check/status polling for both PR SHAs (`pull_request.head.sha` and `pull_request.merge_commit_sha`) and summarizes `backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite` from the SHA where required checks are observed.
 
 ### Runtime entry points and flow
 - **Backend entry point**: `apps/api-server/src/index.ts`.
