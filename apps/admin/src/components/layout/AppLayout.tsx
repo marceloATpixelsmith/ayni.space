@@ -71,6 +71,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { title: "Billing", url: "/dashboard/billing", icon: CreditCard },
     { title: "Settings", url: "/dashboard/settings", icon: Settings },
   ];
+  const emailText = typeof user.email === "string" ? user.email : "";
+  const avatarFallback =
+    user.name?.charAt(0) || emailText.charAt(0).toUpperCase() || "U";
 
   const handleLogout = React.useCallback(async () => {
     if (logoutInFlight) {
@@ -176,12 +179,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <Avatar className="w-8 h-8 mr-3">
                     <AvatarImage src={user.avatarUrl || undefined} />
                     <AvatarFallback className="bg-primary/10 text-primary">
-                      {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                      {avatarFallback}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col items-start truncate">
                     <span className="text-sm font-medium truncate w-full">{user.name || "User"}</span>
-                    <span className="text-xs text-muted-foreground truncate w-full">{user.email}</span>
+                    <span className="text-xs text-muted-foreground truncate w-full">
+                      {emailText || "No email"}
+                    </span>
                   </div>
                 </Button>
               </DropdownMenuTrigger>

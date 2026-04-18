@@ -1,5 +1,6 @@
 import React from "react";
-import { describe, it, expect, beforeEach, vi, waitFor } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import App from "../App";
 
@@ -11,11 +12,28 @@ function renderApp() {
   document.body.innerHTML = "";
   document.body.appendChild(container);
   root = createRoot(container);
-  root.render(<App />);
+  act(() => {
+    root.render(<App />);
+  });
 }
 
 function hasText(text: string) {
   return (document.body.textContent ?? "").includes(text);
+}
+
+async function waitFor(assertion: () => void, timeoutMs = 1000, intervalMs = 10) {
+  const start = Date.now();
+  let lastError: unknown;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("waitFor timed out");
 }
 
 const authState = {
