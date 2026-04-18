@@ -19,7 +19,7 @@ process.env["RATE_LIMIT_ENABLED"] = "false";
 process.env["MFA_TOTP_ENCRYPTION_KEY"] = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 process.env["NODE_ENV"] = "test";
 
-const { db } = await import("@workspace/db");
+const { db, pool } = await import("@workspace/db");
 const { default: authRouter, authRouteDeps } = await import("../routes/auth.js");
 const { hashPassword } = await import("../lib/passwordAuth.js");
 
@@ -40,19 +40,27 @@ function buildState(): MockState {
   const adminOrg = {
     id: "app-admin",
     slug: "admin",
+    name: "Admin",
     isActive: true,
     accessMode: "organization",
     staffInvitesEnabled: true,
     customerRegistrationEnabled: false,
+    transactionalFromEmail: "no-reply@admin.local",
+    transactionalFromName: "Admin",
+    transactionalReplyToEmail: "support@admin.local",
     metadata: {},
   };
   const solo = {
     id: "app-solo",
     slug: "solo-app",
+    name: "Solo",
     isActive: true,
     accessMode: "solo",
     staffInvitesEnabled: false,
     customerRegistrationEnabled: true,
+    transactionalFromEmail: "no-reply@solo.local",
+    transactionalFromName: "Solo",
+    transactionalReplyToEmail: "support@solo.local",
     metadata: {},
   };
 
@@ -208,6 +216,21 @@ function installDbMocks(state: MockState) {
     patchProperty(db.query.orgAppAccessTable, "findFirst", async () => ({ orgId: "org-1", appId: "app-admin", enabled: true })),
     patchProperty(db.query.orgAppAccessTable, "findMany", async () => ([{ orgId: "org-1", appId: "app-admin", enabled: true }])),
     patchProperty(db.query.authTokensTable, "findFirst", async () => state.authTokens[0] ?? null),
+    patchProperty(db.query.emailTemplatesTable, "findFirst", async (query: any) => {
+      const literals = collectStringLiterals(query?.where);
+      if (literals.includes("password_reset")) {
+        return {
+          id: "template-password-reset",
+          appId: "app-admin",
+          templateType: "password_reset",
+          isActive: true,
+          subjectTemplate: "Reset your password",
+          htmlTemplate: "<p>Reset: {{password_reset_url}}</p>",
+          textTemplate: "Reset: {{password_reset_url}}",
+        };
+      }
+      return null;
+    }),
     patchProperty(db, "select", () => ({
       from: () => ({
         innerJoin: () => ({
@@ -248,21 +271,31 @@ function installDbMocks(state: MockState) {
     }) as never),
     patchProperty(db, "update", () => ({
       set: (values: any) => ({
-        where: async () => {
+        where: () => {
           const firstUser = state.users.values().next().value;
           if (firstUser && "emailVerifiedAt" in values) firstUser.emailVerifiedAt = new Date();
           if (firstUser && "lastLoginAt" in values) firstUser.lastLoginAt = new Date();
-          return [];
+          if ("consumedAt" in values) {
+            const token = state.authTokens.find((row) => !row.consumedAt) ?? null;
+            if (token) {
+              token.consumedAt = values.consumedAt instanceof Date ? values.consumedAt : new Date();
+            }
+          }
+          return {
+            returning: async () => {
+              const token = state.authTokens.find((row) => row.consumedAt) ?? null;
+              return token ? [token] : [];
+            },
+          };
         },
         returning: async () => {
-          const token = state.authTokens.find((row) => !row.consumedAt) ?? null;
-          if (!token) return [];
-          token.consumedAt = new Date();
-          return [token];
+          const token = state.authTokens.find((row) => row.consumedAt) ?? null;
+          return token ? [token] : [];
         },
       }),
     }) as never),
     patchProperty(db, "delete", () => ({ where: async () => undefined }) as never),
+    patchProperty(pool, "query", async () => ({ rowCount: 0, rows: [] }) as never),
   );
 
   return () => {
@@ -320,6 +353,7 @@ test("org-admin signup -> verify-email -> mfa branch -> onboarding -> dashboard 
       password: "Password2!",
     });
     assert.equal(reset.status, 200);
+    user.emailVerifiedAt = new Date();
 
     const login = await performJsonRequest(app, "POST", "/api/auth/login", {
       appSlug: "admin",
@@ -435,7 +469,7 @@ test("google login keeps invitation continuation and denied-access redirect bran
     const callback = await performJsonRequest(
       app,
       "GET",
-      "/api/auth/google/callback?code=ok&state=admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJyZXR1cm5Ub1BhdGgiOiIvaW52aXRhdGlvbnMvdG9rZW4tMi9hY2NlcHQiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9",
+      `/api/auth/google/callback?code=ok&state=${encodeURIComponent(String(stateParam ?? ""))}`,
     );
     assert.equal(callback.status, 302);
     assert.match(
