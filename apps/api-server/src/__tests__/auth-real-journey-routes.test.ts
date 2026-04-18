@@ -285,7 +285,7 @@ function installDbMocks(state: MockState) {
   };
 }
 
-test("org signup -> verify-email route -> MFA challenge -> onboarding -> dashboard", async () => {
+test("org signup -> verify-email route -> MFA challenge -> dashboard when org app allows direct registration", async () => {
   const state = buildState();
   const restore = installDbMocks(state);
   const session: Record<string, unknown> = { sessionGroup: "admin" };
@@ -326,7 +326,7 @@ test("org signup -> verify-email route -> MFA challenge -> onboarding -> dashboa
       stayLoggedIn: true,
     });
     assert.equal(mfaChallenge.status, 200);
-    assert.equal(mfaChallenge.body?.nextPath, "/onboarding/organization");
+    assert.equal(mfaChallenge.body?.nextPath, "/dashboard");
 
     state.orgAccessUserIds.add(createdUser.id);
     const postOnboardingLogin = await performJsonRequest(app, "POST", "/api/auth/login", {
@@ -341,7 +341,7 @@ test("org signup -> verify-email route -> MFA challenge -> onboarding -> dashboa
   }
 });
 
-test("solo signup -> verify-email route -> authenticated destination without org onboarding", async () => {
+test("solo signup -> verify-email route -> user onboarding when profile is incomplete", async () => {
   const state = buildState();
   const restore = installDbMocks(state);
   const session: Record<string, unknown> = { sessionGroup: "default" };
@@ -365,7 +365,7 @@ test("solo signup -> verify-email route -> authenticated destination without org
     });
     assert.equal(verify.status, 200);
     assert.equal(verify.body?.mfaRequired, false);
-    assert.equal(verify.body?.nextPath, "/dashboard");
+    assert.equal(verify.body?.nextPath, "/onboarding/user");
     assert.notEqual(verify.body?.nextPath, "/onboarding/organization");
   } finally {
     restore();
@@ -437,7 +437,7 @@ test("invitation password + existing sign-in + google continuation branches pres
   try {
     const resolvePassword = await performJsonRequest(app, "GET", "/api/invitations/invite-password-token/resolve");
     assert.equal(resolvePassword.status, 200);
-    assert.equal(resolvePassword.body?.emailMode, "create_password");
+    assert.equal(resolvePassword.body?.auth?.emailMode, "create_password");
 
     const acceptPassword = await performJsonRequest(app, "POST", "/api/invitations/invite-password-token/accept-email", {
       password: "Password1!",
@@ -450,11 +450,11 @@ test("invitation password + existing sign-in + google continuation branches pres
       code: "RECOVERY-CODE",
     });
     assert.equal(mfaAfterPassword.status, 200);
-    assert.equal(mfaAfterPassword.body?.nextPath, "/onboarding/organization");
+    assert.equal(mfaAfterPassword.body?.nextPath, "/onboarding/user");
 
     const resolveSignin = await performJsonRequest(app, "GET", "/api/invitations/invite-signin-token/resolve");
     assert.equal(resolveSignin.status, 200);
-    assert.equal(resolveSignin.body?.emailMode, "sign_in");
+    assert.equal(resolveSignin.body?.auth?.emailMode, "sign_in");
 
     const signInContinuation = await performJsonRequest(app, "POST", "/api/auth/login", {
       appSlug: "org-open",
@@ -472,7 +472,7 @@ test("invitation password + existing sign-in + google continuation branches pres
       code: "RECOVERY-CODE",
     });
     assert.equal(mfaAfterSignin.status, 200);
-    assert.equal(mfaAfterSignin.body?.nextPath, "/onboarding/organization");
+    assert.equal(mfaAfterSignin.body?.nextPath, "/invitations/invite-signin-token/accept");
 
     const googleStart = await performJsonRequest(
       app,
@@ -553,7 +553,7 @@ test("forgot/reset password route journey invalidates stale auth and boots throu
       password: "Password1!",
     });
     assert.equal(relogin.status, 200);
-    assert.equal(relogin.body?.nextPath, "/dashboard");
+    assert.equal(relogin.body?.nextPath, "/onboarding/user");
   } finally {
     restore();
   }
