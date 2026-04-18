@@ -49,9 +49,31 @@ jobs:
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+            async function safePaginate(paginateFn, params, mapper, targetSha) {
+              try {
+                return await github.paginate(paginateFn, params, mapper);
+              } catch (error) {
+                const status = error?.status;
+                const message = String(error?.message ?? "");
+                const isShaUnavailable =
+                  status === 404 ||
+                  status === 422 ||
+                  message.includes("No commit found for SHA");
+
+                if (isShaUnavailable) {
+                  core.warning(
+                    `Skipping SHA ${targetSha} for this poll: commit checks are not available yet (${status ?? "unknown"}).`
+                  );
+                  return [];
+                }
+
+                throw error;
+              }
+            }
+
             async function collectResultsForSha(targetSha) {
               const commitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${targetSha}/checks`;
-              const checkRuns = await github.paginate(
+              const checkRuns = await safePaginate(
                 github.rest.checks.listForRef,
                 {
                   owner: context.repo.owner,
@@ -59,10 +81,11 @@ jobs:
                   ref: targetSha,
                   per_page: 100,
                 },
-                (response) => response.data.check_runs
+                (response) => response.data.check_runs,
+                targetSha
               );
 
-              const statuses = await github.paginate(
+              const statuses = await safePaginate(
                 github.rest.repos.listCommitStatusesForRef,
                 {
                   owner: context.repo.owner,
@@ -70,7 +93,8 @@ jobs:
                   ref: targetSha,
                   per_page: 100,
                 },
-                (response) => response.data
+                (response) => response.data,
+                targetSha
               );
 
               const byName = new Map();
@@ -129,6 +153,7 @@ jobs:
             let finalResults = new Map();
             let finalTargetSha = candidateShas[0];
             let finalCommitChecksUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${finalTargetSha}/checks`;
+            let bestCompletedCount = 0;
             while (Date.now() - started < timeoutMs) {
               const snapshots = await Promise.all(candidateShas.map((sha) => collectResultsForSha(sha)));
               snapshots.sort((a, b) => {
@@ -160,7 +185,12 @@ jobs:
               }
 
               const allPresent = requiredChecks.every((name) => finalResults.has(name));
-              const allCompleted = requiredChecks.every((name) => finalResults.get(name)?.isCompleted);
+              const completedCount = requiredChecks.filter((name) => finalResults.get(name)?.isCompleted).length;
+              if (completedCount > bestCompletedCount) {
+                bestCompletedCount = completedCount;
+                lastProgressAt = Date.now();
+              }
+              const allCompleted = completedCount === requiredChecks.length;
               if (allPresent && allCompleted) {
                 break;
               }
