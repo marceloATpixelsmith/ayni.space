@@ -14,6 +14,44 @@ export function createSessionApp(router: Router, session: SessionShape = {}) {
   return createMountedSessionApp([{ path: "/api", router }], session);
 }
 
+export function createStatefulSessionApp(
+  mounts: Array<{ path: string; router: Router }>,
+  persistedSession: SessionShape = {},
+) {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    const sessionRef: SessionShape = {
+      id: persistedSession.id ?? "test-session-id",
+      destroy: ((cb?: (err?: unknown) => void) => {
+        for (const key of Object.keys(persistedSession)) {
+          delete persistedSession[key];
+        }
+        cb?.();
+      }) as SessionShape["destroy"],
+      save: ((cb?: (err?: unknown) => void) => {
+        cb?.();
+      }) as SessionShape["save"],
+      regenerate: ((cb?: (err?: unknown) => void) => {
+        for (const key of Object.keys(persistedSession)) {
+          delete persistedSession[key];
+        }
+        persistedSession.id = "regenerated-session-id";
+        cb?.();
+      }) as SessionShape["regenerate"],
+      ...persistedSession,
+    };
+    (req as unknown as { session: SessionShape }).session = sessionRef;
+    next();
+  });
+
+  for (const mount of mounts) {
+    app.use(mount.path, mount.router);
+  }
+
+  return app;
+}
+
 export function createMountedSessionApp(mounts: Array<{ path: string; router: Router }>, session: SessionShape = {}) {
   const app = express();
   app.use(express.json());
@@ -46,6 +84,7 @@ export async function performJsonRequest(
   method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ) {
   const server = app.listen(0);
   const address = server.address();
@@ -56,7 +95,9 @@ export async function performJsonRequest(
   try {
     const response = await fetch(`http://127.0.0.1:${address.port}${path}`, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
+      headers: body
+        ? { "content-type": "application/json", ...(headers ?? {}) }
+        : headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const payload = (await response.json().catch(() => null)) as any;
