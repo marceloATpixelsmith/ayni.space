@@ -474,7 +474,7 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "solo") {
-    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
