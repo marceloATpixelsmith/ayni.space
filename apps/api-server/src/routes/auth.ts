@@ -777,6 +777,8 @@ async function handleMe(req: Request, res: Response) {
       mfaPendingReason: pendingReason ?? null,
       mfaEnrolled: pendingMfaEnrolled,
       nextStep: pendingNextStep,
+      nextPath:
+        pendingNextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge",
       needsEnrollment: pendingNextStep === "mfa_enroll",
       activeOrgId: null,
       activeOrg: null,
@@ -960,7 +962,9 @@ async function handleMe(req: Request, res: Response) {
     mfaRequired,
     mfaPending: false,
     mfaEnrolled,
+    needsEnrollment: false,
     nextStep: null,
+    nextPath: null,
     appAccess: appAccessContext
       ? {
           appSlug: sessionAppSlug,
@@ -1758,12 +1762,17 @@ async function handleGoogleCallback(req: Request, res: Response) {
       activeAppSlug,
       oauthStayLoggedIn,
     );
+    const oauthContinuation = resolvePostAuthContinuation({
+      appSlug: activeAppSlug,
+      returnPath: normalizeReturnToPath(oauthReturnToPath),
+    });
     if (oauthMfaGate.required) {
-      const mfaPath =
-        oauthMfaGate.nextStep === "mfa_enroll"
-          ? "/mfa/enroll"
-          : "/mfa/challenge";
-      res.redirect(`${frontendBase}${mfaPath}`);
+      req.session.pendingPostAuthContinuation = oauthContinuation ?? undefined;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: unknown) => (err ? reject(err) : resolve()));
+      });
+      const mfaResponse = buildMfaRequiredAuthResponse(oauthMfaGate);
+      res.redirect(`${frontendBase}${mfaResponse.nextPath}`);
       return;
     }
 
@@ -1918,10 +1927,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const oauthContinuation = resolvePostAuthContinuation({
-      appSlug: activeAppSlug,
-      returnPath: normalizeReturnToPath(oauthReturnToPath),
-    });
     const finalDestination =
       (await resolveNextPathForEstablishedSession(
         req,
@@ -1967,6 +1972,22 @@ function getRequestedEmailPasswordAppSlug(req: Request): string {
 
 function getGenericAuthResponseMessage() {
   return "If an account exists, we sent further instructions.";
+}
+
+function buildMfaRequiredAuthResponse(mfaGate: {
+  needsEnrollment: boolean;
+  nextStep: "mfa_enroll" | "mfa_challenge";
+  nextPath?: "/mfa/enroll" | "/mfa/challenge";
+}) {
+  return {
+    success: true,
+    mfaRequired: true,
+    needsEnrollment: mfaGate.needsEnrollment,
+    nextStep: mfaGate.nextStep,
+    nextPath:
+      mfaGate.nextPath ??
+      (mfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge"),
+  };
 }
 
 type SignupDecisionCategory =
@@ -2143,6 +2164,7 @@ type MfaStartResult =
       required: true;
       needsEnrollment: boolean;
       nextStep: "mfa_enroll" | "mfa_challenge";
+      nextPath: "/mfa/enroll" | "/mfa/challenge";
     };
 
 async function beginMfaPendingSession(
@@ -2234,6 +2256,7 @@ async function beginMfaPendingSession(
     required: true,
     needsEnrollment,
     nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge",
+    nextPath: needsEnrollment ? "/mfa/enroll" : "/mfa/challenge",
   };
 }
 
@@ -2655,10 +2678,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
         : "challenge_required",
     });
     res.status(202).json({
-      success: true,
-      mfaRequired: true,
-      needsEnrollment: mfaGate.needsEnrollment,
-      nextStep: mfaGate.nextStep,
+      ...buildMfaRequiredAuthResponse(mfaGate),
     });
     return;
   }
@@ -2677,7 +2697,13 @@ async function handlePasswordLogin(req: Request, res: Response) {
     mfaRequired: false,
     nextPath,
   });
-  res.json({ success: true, nextPath });
+  res.json({
+    success: true,
+    mfaRequired: false,
+    needsEnrollment: false,
+    nextStep: null,
+    nextPath,
+  });
 }
 
 async function handleForgotPassword(req: Request, res: Response) {
@@ -2882,10 +2908,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
       needsEnrollment: mfaGate.needsEnrollment,
     });
     res.status(202).json({
-      success: true,
-      mfaRequired: true,
-      needsEnrollment: mfaGate.needsEnrollment,
-      nextStep: mfaGate.nextStep,
+      ...buildMfaRequiredAuthResponse(mfaGate),
     });
     return;
   }
@@ -2915,7 +2938,13 @@ async function handleVerifyEmail(req: Request, res: Response) {
     userId: user.id,
     nextPath,
   });
-  res.json({ success: true, nextPath });
+  res.json({
+    success: true,
+    mfaRequired: false,
+    needsEnrollment: false,
+    nextStep: null,
+    nextPath,
+  });
 }
 
 async function handleMfaEnrollStart(req: Request, res: Response) {

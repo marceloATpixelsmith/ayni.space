@@ -216,6 +216,27 @@ test("post-onboarding resolver resumes continuation before default destination",
   assert.equal(destination, "/register/client");
 });
 
+test("post-auth resolver ignores invalid continuation paths and falls back safely", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: {
+      type: "default_app_entry",
+      appSlug: "admin",
+      returnPath: "/not-an-allowed-route",
+    },
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "none",
+      destination: "/dashboard",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_auth",
+  });
+
+  assert.equal(destination, "/dashboard");
+});
+
 test("post-onboarding resolver uses default destination when continuation is missing", () => {
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: null,
@@ -271,4 +292,24 @@ test("post-auth resolver ignores continuation when continuation app does not mat
   });
 
   assert.equal(destination, "/workspace/home");
+});
+
+test("post-onboarding resolver still blocks continuation when onboarding is still required", () => {
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation: resolvePostAuthContinuation({
+      appSlug: "admin",
+      returnPath: "/invitations/token-101/accept",
+    }),
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      normalizedAccessProfile: "organization",
+      requiredOnboarding: "user",
+      destination: "/onboarding/user",
+    },
+    fallbackPath: "/dashboard",
+    stage: "post_onboarding",
+  });
+
+  assert.equal(destination, "/onboarding/user");
 });

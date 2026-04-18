@@ -41,6 +41,24 @@ test("continuation resolver falls back to default app entry", () => {
   assert.equal(continuation?.type, "default_app_entry");
 });
 
+test("continuation resolver rejects arbitrary continuation paths", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/totally/custom/path-not-allowed",
+  });
+
+  assert.equal(continuation, null);
+});
+
+test("continuation resolver rejects missing appSlug", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: " ",
+    returnPath: "/dashboard",
+  });
+
+  assert.equal(continuation, null);
+});
+
 test("continuation resolver rejects explicit invitation continuation type when path is not invitation acceptance", () => {
   const continuation = resolvePostAuthContinuation({
     appSlug: "admin",

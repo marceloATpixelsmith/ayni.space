@@ -41,7 +41,7 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     return flowDestination ?? options.fallbackPath ?? DEFAULT_POST_AUTH_PATH;
   }
 
-  if (stage === "post_auth" && requiresOnboarding && flowDestination) {
+  if (requiresOnboarding && flowDestination) {
     return flowDestination;
   }
 

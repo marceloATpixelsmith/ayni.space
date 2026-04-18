@@ -1,5 +1,6 @@
 import { getAppContext } from "./appAccess.js";
 import { getPostAuthRedirectPath } from "./postAuthRedirect.js";
+import { buildAccessDeniedLoginPath } from "@workspace/auth";
 import type { NormalizedAccessProfile } from "./appAccessProfile.js";
 
 type PostAuthAppContext = {
@@ -35,16 +36,20 @@ export async function resolvePostAuthFlowDecision(params: {
 
   if (!context) return null;
 
+  const destination = context.canAccess
+    ? getPostAuthRedirectPath({
+        appSlug,
+        isSuperAdmin,
+        normalizedAccessProfile: context.normalizedAccessProfile,
+        requiredOnboarding: context.requiredOnboarding,
+      })
+    : buildAccessDeniedLoginPath();
+
   return {
     appSlug,
     canAccess: context.canAccess,
     requiredOnboarding: context.requiredOnboarding,
     normalizedAccessProfile: context.normalizedAccessProfile,
-    destination: getPostAuthRedirectPath({
-      appSlug,
-      isSuperAdmin,
-      normalizedAccessProfile: context.normalizedAccessProfile,
-      requiredOnboarding: context.requiredOnboarding,
-    }),
+    destination,
   };
 }
