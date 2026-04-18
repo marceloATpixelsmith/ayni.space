@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { and, eq } from "drizzle-orm";
 import { appsTable, db, orgAppAccessTable, organizationsTable, type App } from "@workspace/db";
-import { getKnownSessionGroups, SESSION_GROUPS } from "./sessionGroup.js";
+import { getKnownSessionGroups, resolveSessionGroupFromAppSlug } from "./sessionGroup.js";
 
 export type OrgSessionGroupContext = {
   orgId: string;
@@ -27,8 +27,7 @@ export function resolveSessionGroupForApp(app: Pick<App, "slug" | "metadata">): 
   if (metadataSessionGroup && getKnownSessionGroups().includes(metadataSessionGroup)) {
     return metadataSessionGroup;
   }
-  if (app.slug === "admin") return SESSION_GROUPS.ADMIN;
-  return SESSION_GROUPS.DEFAULT;
+  return resolveSessionGroupFromAppSlug(app.slug);
 }
 
 export async function resolveOrgSessionGroupContext(orgId: string): Promise<OrgSessionGroupContext | null> {
@@ -57,7 +56,7 @@ export async function resolveOrgSessionGroupContext(orgId: string): Promise<OrgS
   }
   if (orgAppAccessRows.length === 0) return null;
 
-  const apps: Array<NonNullable<Awaited<ReturnType<typeof db.query.appsTable.findFirst>>>> = (
+  const apps: App[] = (
     await Promise.all(
       orgAppAccessRows.map((accessRow) =>
         db.query.appsTable.findFirst({
@@ -65,7 +64,7 @@ export async function resolveOrgSessionGroupContext(orgId: string): Promise<OrgS
         }),
       ),
     )
-  ).filter((app): app is NonNullable<typeof app> => Boolean(app));
+  ).filter((app): app is App => Boolean(app));
   if (apps.length === 0) return null;
 
   return {

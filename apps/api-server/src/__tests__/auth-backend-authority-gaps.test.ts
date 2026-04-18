@@ -16,6 +16,8 @@ const {
   isSessionGroupCompatible,
   resolveSessionGroupForApp,
 } = await import("../lib/sessionGroupCompatibility.js");
+const sessionGroupLib = await import("../lib/sessionGroup.js");
+const { turnstileVerifyMiddleware } = await import("../middlewares/turnstile.js");
 const { requireAuth } = await import("../middlewares/requireAuth.js");
 
 function createRequireAuthApp(sessionSeed: Record<string, unknown>) {
@@ -274,10 +276,99 @@ test("session-group compatibility boundaries reject mismatched groups and missin
 });
 
 test("session-group compatibility honors app metadata and defaults safely", () => {
-  assert.equal(resolveSessionGroupForApp({ slug: "custom", metadata: { sessionGroup: "admin" } }), "admin");
-  assert.equal(resolveSessionGroupForApp({ slug: "custom", metadata: { sessionGroup: "unknown" } }), "default");
-  assert.equal(resolveSessionGroupForApp({ slug: "admin", metadata: null }), "admin");
+  const prevSessionGroupAppSlugs = process.env["SESSION_GROUP_APP_SLUGS"];
+  process.env["SESSION_GROUP_APP_SLUGS"] = "admin=admin";
+  try {
+    assert.equal(resolveSessionGroupForApp({ slug: "custom", metadata: { sessionGroup: "admin" } }), "admin");
+    assert.equal(resolveSessionGroupForApp({ slug: "custom", metadata: { sessionGroup: "unknown" } }), "default");
+    assert.equal(resolveSessionGroupForApp({ slug: "admin", metadata: null }), "admin");
+    assert.equal(resolveSessionGroupForApp({ slug: "shipibo", metadata: null }), "default");
 
-  assert.equal(isSessionGroupCompatible("admin", "admin"), true);
-  assert.equal(isSessionGroupCompatible("default", "admin"), false);
+    assert.equal(isSessionGroupCompatible("admin", "admin"), true);
+    assert.equal(isSessionGroupCompatible("default", "admin"), false);
+  } finally {
+    if (prevSessionGroupAppSlugs === undefined) delete process.env["SESSION_GROUP_APP_SLUGS"];
+    else process.env["SESSION_GROUP_APP_SLUGS"] = prevSessionGroupAppSlugs;
+  }
+});
+
+test("verify-email continuation enforces app-bound destination resolution", () => {
+  const continuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/verify-email/continue",
+  });
+
+  const destination = resolveAuthenticatedPostAuthDestination({
+    continuation,
+    currentAppSlug: "ayni",
+    flowDecision: {
+      appSlug: "ayni",
+      canAccess: true,
+      requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
+      destination: "/dashboard",
+    },
+  });
+
+  assert.equal(destination, "/dashboard");
+});
+
+test("unknown auth appSlug is rejected instead of silently falling back to default session group", () => {
+  const prevSessionGroupAppSlugs = process.env["SESSION_GROUP_APP_SLUGS"];
+  process.env["SESSION_GROUP_APP_SLUGS"] = "admin=admin,ayni=default";
+
+  try {
+    const req = {
+      path: "/api/auth/login",
+      method: "POST",
+      headers: {},
+      body: { appSlug: "unmapped-app" },
+      query: {},
+    } as unknown as express.Request;
+
+    const resolution = sessionGroupLib.resolveSessionGroupForRequest(req, { failOnAmbiguous: true });
+    assert.deepEqual(resolution, { ok: false, reason: "unknown-app-group" });
+  } finally {
+    if (prevSessionGroupAppSlugs === undefined) delete process.env["SESSION_GROUP_APP_SLUGS"];
+    else process.env["SESSION_GROUP_APP_SLUGS"] = prevSessionGroupAppSlugs;
+  }
+});
+
+test("turnstile signup audit metadata does not inject fallback app or session context", async () => {
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "true";
+  const middleware = turnstileVerifyMiddleware({
+    verifyFn: async () => false,
+    writeAuditLogFn: async (entry) => {
+      const metadata = (entry.metadata ?? {}) as Record<string, unknown>;
+      assert.equal(metadata["sessionGroup"], null);
+      assert.equal(metadata["appSlug"], null);
+    },
+  });
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const req = {
+        path: "/api/auth/signup",
+        method: "POST",
+        ip: "127.0.0.1",
+        headers: { "cf-turnstile-response": "dummy" },
+        body: { email: "test@example.com" },
+        session: {},
+      } as unknown as express.Request;
+      const res = {
+        status: (_status: number) => ({
+          json: () => resolve(),
+        }),
+      } as unknown as express.Response;
+
+      middleware(req, res, (err) => {
+        if (err) reject(err);
+        else reject(new Error("Expected middleware to reject invalid turnstile token"));
+      });
+    });
+  } finally {
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
 });
