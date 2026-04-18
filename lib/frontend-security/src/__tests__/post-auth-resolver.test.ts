@@ -55,3 +55,24 @@ test("shared post-auth resolver preserves superadmin deny path", () => {
   assert.equal(result.destination, "/login?error=access_denied");
   assert.equal(result.reason, "superadmin_policy");
 });
+
+test("shared post-auth resolver does not let continuation override access denial", () => {
+  const result = resolveAuthenticatedNextStep({
+    authStatus: "authenticated_fully",
+    user: {
+      id: "user-2",
+      email: "denied@example.com",
+      isSuperAdmin: false,
+      appAccess: {
+        normalizedAccessProfile: "organization",
+        canAccess: false,
+        requiredOnboarding: "none",
+      },
+    } as never,
+    continuationPath: "/invitations/token-77/accept",
+    deniedLoginPath: "/login?error=access_denied",
+  });
+
+  assert.equal(result.destination, "/login?error=access_denied");
+  assert.equal(result.reason, "access_denied");
+});

@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   useLoginRouteComposition,
   useSignupRouteActions,
@@ -136,6 +136,12 @@ export default function Signup() {
           status={turnstile.status}
         />
         <AuthStatusMessage message={submit.error} tone="error" />
+        <p className="text-sm text-muted-foreground text-center">
+          Already have an account?{" "}
+          <Link href="/login" className="underline">
+            Sign in
+          </Link>
+        </p>
       </AuthFormMotion>
     </AuthShell>
   );
