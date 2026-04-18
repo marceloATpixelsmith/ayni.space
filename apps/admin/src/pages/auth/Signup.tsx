@@ -46,16 +46,17 @@ export default function Signup() {
     emailError,
     onRedirect: setLocation,
   });
+  const emailSignupInvalid = !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password));
   const disabledReasons = React.useMemo(
     () =>
       getSignupDisabledReasons({
         signupInFlight: submit.pending,
         emailPresent: Boolean(email),
         passwordPresent: Boolean(password),
-        emailError: Boolean(validateEmailInput(email)),
-        passwordError: Boolean(validatePasswordInput(password)),
+        emailError: emailSignupInvalid && Boolean(validateEmailInput(email)),
+        passwordError: emailSignupInvalid && Boolean(validatePasswordInput(password)),
       }),
-    [submit.pending, email, password],
+    [submit.pending, email, password, emailSignupInvalid],
   );
 
   if (!metadataResolved || !signupAllowed) {
