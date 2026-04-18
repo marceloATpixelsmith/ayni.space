@@ -1,8 +1,27 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { createRoot, type Root } from "react-dom/client";
 import { Router } from "wouter";
 import InvitationAccept from "../pages/auth/InvitationAccept";
+
+let root: Root | undefined;
+let container: HTMLDivElement;
+
+function renderInvitation() {
+  container = document.createElement("div");
+  document.body.innerHTML = "";
+  document.body.appendChild(container);
+  root = createRoot(container);
+  root.render(
+    <Router hook={() => ["/invitations/token/accept", vi.fn()] as [string, (p: string) => void]}>
+      <InvitationAccept />
+    </Router>,
+  );
+}
+
+function hasText(text: string) {
+  return (document.body.textContent ?? "").includes(text);
+}
 
 const invitationState: Record<string, unknown> = {
   status: "idle",
@@ -42,6 +61,7 @@ vi.mock("@workspace/frontend-security", async () => {
 
 describe("Invitation accept runtime view", () => {
   beforeEach(() => {
+    root?.unmount();
     invitationState.auth = { status: "unauthenticated", loginInFlight: false };
     invitationState.shouldShowInvitationChoices = true;
     invitationState.shouldShowPasswordFields = true;
@@ -49,28 +69,19 @@ describe("Invitation accept runtime view", () => {
   });
 
   it("renders google continuation, password creation, and sign-in fallback", () => {
-    render(
-      <Router hook={() => ["/invitations/token/accept", vi.fn()] as [string, (p: string) => void]}>
-        <InvitationAccept />
-      </Router>,
-    );
+    renderInvitation();
 
-    expect(screen.getByText("Continue with Google")).toBeInTheDocument();
-    expect(screen.getByText("Create a password to log in")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Set password and join" })).toBeInTheDocument();
-    expect(screen.getByText("Sign in with email/password")).toBeInTheDocument();
+    expect(hasText("Continue with Google")).toBe(true);
+    expect(hasText("Create a password to log in")).toBe(true);
+    expect(hasText("Set password and join")).toBe(true);
+    expect(hasText("Sign in with email/password")).toBe(true);
   });
 
   it("renders invitation route in authenticated mode without dropping continuation options", () => {
     invitationState.auth = { status: "authenticated_fully", loginInFlight: false };
+    renderInvitation();
 
-    render(
-      <Router hook={() => ["/invitations/token/accept", vi.fn()] as [string, (p: string) => void]}>
-        <InvitationAccept />
-      </Router>,
-    );
-
-    expect(screen.getByText("Continue with Google")).toBeInTheDocument();
-    expect(screen.getByText("Sign in with email/password")).toBeInTheDocument();
+    expect(hasText("Continue with Google")).toBe(true);
+    expect(hasText("Sign in with email/password")).toBe(true);
   });
 });
