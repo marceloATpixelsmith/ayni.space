@@ -1,1 +1,1 @@
-import "@testing-library/jest-dom/vitest";
+// Intentionally empty: runtime tests rely on Vitest core matchers only.

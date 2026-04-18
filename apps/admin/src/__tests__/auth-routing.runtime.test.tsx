@@ -1,7 +1,22 @@
 import React from "react";
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi, waitFor } from "vitest";
+import { createRoot, type Root } from "react-dom/client";
 import App from "../App";
+
+let root: Root | undefined;
+let container: HTMLDivElement;
+
+function renderApp() {
+  container = document.createElement("div");
+  document.body.innerHTML = "";
+  document.body.appendChild(container);
+  root = createRoot(container);
+  root.render(<App />);
+}
+
+function hasText(text: string) {
+  return (document.body.textContent ?? "").includes(text);
+}
 
 const authState = {
   status: "unauthenticated",
@@ -47,6 +62,7 @@ function setPath(path: string) {
 
 describe("App auth routing runtime behavior", () => {
   beforeEach(() => {
+    root?.unmount();
     authState.status = "unauthenticated";
     authState.user = null;
     metadataState.loading = false;
@@ -63,17 +79,17 @@ describe("App auth routing runtime behavior", () => {
 
   it("redirects unauthenticated users from protected routes to /login", async () => {
     setPath("/dashboard");
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeInTheDocument();
+    expect(hasText("Welcome")).toBe(true);
   });
 
   it("allows signup when route policy allows customer registration", async () => {
     setPath("/signup");
-    render(<App />);
+    renderApp();
 
-    expect(await screen.findByText("Create account")).toBeInTheDocument();
+    await waitFor(() => expect(hasText("Create account")).toBe(true));
   });
 
   it("blocks signup in superadmin mode", async () => {
@@ -86,11 +102,11 @@ describe("App auth routing runtime behavior", () => {
     };
 
     setPath("/signup");
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeInTheDocument();
-    expect(screen.queryByText("Create account with Google")).not.toBeInTheDocument();
+    expect(hasText("Welcome")).toBe(true);
+    expect(hasText("Create account with Google")).toBe(false);
   });
 
   it("routes MFA pending users to challenge when enrolled", async () => {
@@ -98,10 +114,10 @@ describe("App auth routing runtime behavior", () => {
     authState.user = { mfaPending: true, mfaEnrolled: true };
 
     setPath("/dashboard");
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(window.location.pathname).toBe("/mfa/challenge"));
-    expect(screen.getByText("Continue")).toBeInTheDocument();
+    expect(hasText("Continue")).toBe(true);
   });
 
   it("routes MFA pending users to enrollment when unenrolled", async () => {
@@ -109,10 +125,10 @@ describe("App auth routing runtime behavior", () => {
     authState.user = { mfaPending: true, mfaEnrolled: false };
 
     setPath("/dashboard");
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(window.location.pathname).toBe("/mfa/enroll"));
-    expect(screen.getByText("Set up multi-factor authentication")).toBeInTheDocument();
+    expect(hasText("Set up multi-factor authentication")).toBe(true);
   });
 
   it("enforces onboarding and access denied rules for fully authenticated users", async () => {
@@ -129,7 +145,7 @@ describe("App auth routing runtime behavior", () => {
     };
 
     setPath("/dashboard");
-    render(<App />);
+    renderApp();
 
     await waitFor(() => expect(window.location.pathname).toBe("/onboarding/organization"));
   });
@@ -155,11 +171,11 @@ describe("App auth routing runtime behavior", () => {
     };
 
     setPath("/onboarding/organization");
-    render(<App />);
+    renderApp();
     await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
 
     setPath("/invitations/test-token/accept");
-    render(<App />);
+    renderApp();
     await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
   });
 });
