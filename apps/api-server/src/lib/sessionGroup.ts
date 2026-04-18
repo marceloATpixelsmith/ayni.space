@@ -5,6 +5,7 @@ const ADMIN_SESSION_GROUP = "admin";
 const DEFAULT_SESSION_COOKIE_NAME = "saas.workspace.sid";
 const ADMIN_SESSION_COOKIE_NAME = "saas.admin.sid";
 const SESSION_GROUP_APP_SLUGS = "SESSION_GROUP_APP_SLUGS";
+const SESSION_GROUP_ORIGINS = "SESSION_GROUP_ORIGINS";
 
 function parseCsv(value: string | undefined): string[] {
   return (value ?? "")
@@ -30,22 +31,35 @@ export function getAdminSessionGroupOrigins(): string[] {
   return parseCsv(process.env["ADMIN_FRONTEND_ORIGINS"]).map((origin) => normalizeOrigin(origin)).filter((origin): origin is string => Boolean(origin));
 }
 
+function parseSessionGroupOriginMap(raw: string | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of parseCsv(raw)) {
+    const [sessionGroup, origin] = entry.split("=").map((value) => value?.trim() ?? "");
+    if (!sessionGroup || !origin) continue;
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (!normalizedOrigin) continue;
+    map.set(normalizedOrigin, sessionGroup);
+  }
+  return map;
+}
+
+export function getSessionGroupOriginMap(): Map<string, string> {
+  const configured = parseSessionGroupOriginMap(process.env[SESSION_GROUP_ORIGINS]);
+  for (const adminOrigin of getAdminSessionGroupOrigins()) {
+    if (!configured.has(adminOrigin)) {
+      configured.set(adminOrigin, ADMIN_SESSION_GROUP);
+    }
+  }
+  return configured;
+}
+
 export function resolveSessionGroupFromOrigin(origin: string | null | undefined): string {
   const normalizedOrigin = normalizeOrigin(origin);
   if (!normalizedOrigin) return DEFAULT_SESSION_GROUP;
 
-  const adminOrigins = getAdminSessionGroupOrigins();
-  if (adminOrigins.includes(normalizedOrigin)) {
-    return ADMIN_SESSION_GROUP;
-  }
-
-  try {
-    const hostname = new URL(normalizedOrigin).hostname.toLowerCase();
-    if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
-      return ADMIN_SESSION_GROUP;
-    }
-  } catch {
-    // noop
+  const configuredGroup = getSessionGroupOriginMap().get(normalizedOrigin);
+  if (configuredGroup && getKnownSessionGroups().includes(configuredGroup)) {
+    return configuredGroup;
   }
 
   return DEFAULT_SESSION_GROUP;
@@ -69,6 +83,12 @@ function parseSessionGroupAppSlugMap(raw: string | undefined): Map<string, strin
     map.set(appSlug.toLowerCase(), sessionGroup);
   }
   return map;
+}
+
+function resolveMappedSessionGroupFromAppSlug(appSlug: string): string | null {
+  const mappedGroup = parseSessionGroupAppSlugMap(process.env[SESSION_GROUP_APP_SLUGS]).get(appSlug);
+  if (!mappedGroup) return null;
+  return getKnownSessionGroups().includes(mappedGroup) ? mappedGroup : null;
 }
 
 export function getSessionGroupCookieNameMap(): Map<string, string> {
@@ -99,12 +119,8 @@ export function resolveSessionGroupFromAppSlug(appSlug: string | null | undefine
   const normalizedAppSlug = typeof appSlug === "string" ? appSlug.trim().toLowerCase() : "";
   if (!normalizedAppSlug) return DEFAULT_SESSION_GROUP;
 
-  const mappedGroup = parseSessionGroupAppSlugMap(process.env[SESSION_GROUP_APP_SLUGS]).get(normalizedAppSlug);
-  if (mappedGroup && getKnownSessionGroups().includes(mappedGroup)) {
-    return mappedGroup;
-  }
-  if (normalizedAppSlug === "admin") return ADMIN_SESSION_GROUP;
-  return DEFAULT_SESSION_GROUP;
+  return resolveMappedSessionGroupFromAppSlug(normalizedAppSlug)
+    ?? (normalizedAppSlug === "admin" ? ADMIN_SESSION_GROUP : DEFAULT_SESSION_GROUP);
 }
 
 function getCookieNamesPresent(req: Request): Set<string> {
@@ -144,7 +160,7 @@ function resolveTrustedOriginFromRequest(req: Request): string | null {
 
 export type SessionGroupResolution =
   | { ok: true; sessionGroup: string; source: "origin" | "cookie" | "state" | "app" | "default" }
-  | { ok: false; reason: "ambiguous" | "untrusted" | "unknown-state-group" };
+  | { ok: false; reason: "ambiguous" | "untrusted" | "unknown-state-group" | "unknown-app-group" };
 
 function parseGroupFromAuthAppSlug(req: Request): string | null {
   if (!req.path.startsWith("/api/auth/")) return null;
@@ -156,7 +172,8 @@ function parseGroupFromAuthAppSlug(req: Request): string | null {
   if (!rawAppSlug) return null;
   const normalizedAppSlug = rawAppSlug.trim().toLowerCase();
   if (!normalizedAppSlug) return null;
-  return resolveSessionGroupFromAppSlug(normalizedAppSlug);
+  return resolveMappedSessionGroupFromAppSlug(normalizedAppSlug)
+    ?? (normalizedAppSlug === "admin" ? ADMIN_SESSION_GROUP : "__unknown__");
 }
 
 function parseGroupFromOAuthState(req: Request): string | null {
@@ -217,6 +234,9 @@ export function resolveSessionGroupForRequest(req: Request, options: { failOnAmb
 
   const appSlugGroup = parseGroupFromAuthAppSlug(req);
   if (appSlugGroup) {
+    if (appSlugGroup === "__unknown__") {
+      return { ok: false, reason: "unknown-app-group" };
+    }
     return { ok: true, sessionGroup: appSlugGroup, source: "app" };
   }
 

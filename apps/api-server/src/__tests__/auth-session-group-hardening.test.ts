@@ -164,23 +164,30 @@ function stubDbForCallbackSequence(options: {
 }
 
 test("session-group resolver maps admin and default origins", () => {
-  assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("http://admin.local"), sessionGroupLib.SESSION_GROUPS.ADMIN);
-  assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("http://workspace.local"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
-  assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.ADMIN), "saas.admin.sid");
-  assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.DEFAULT), "saas.workspace.sid");
-  assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.ADMIN).name, "saas.admin.sid");
-  assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.DEFAULT).name, "saas.workspace.sid");
+  const prevAdminOrigins = process.env["ADMIN_FRONTEND_ORIGINS"];
+  process.env["ADMIN_FRONTEND_ORIGINS"] = "http://admin.local";
+  try {
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("http://admin.local"), sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("http://workspace.local"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
+    assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.ADMIN), "saas.admin.sid");
+    assert.equal(sessionGroupLib.getSessionCookieNameForGroup(sessionGroupLib.SESSION_GROUPS.DEFAULT), "saas.workspace.sid");
+    assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.ADMIN).name, "saas.admin.sid");
+    assert.equal(sessionLib.buildSessionOptions("secret", sessionGroupLib.SESSION_GROUPS.DEFAULT).name, "saas.workspace.sid");
+  } finally {
+    if (prevAdminOrigins === undefined) delete process.env["ADMIN_FRONTEND_ORIGINS"];
+    else process.env["ADMIN_FRONTEND_ORIGINS"] = prevAdminOrigins;
+  }
 });
 
 
 
-test("session-group resolver infers admin group from admin.* host fallback", () => {
+test("session-group resolver does not infer admin group from hostname heuristics", () => {
   const prevAdminOrigins = process.env["ADMIN_FRONTEND_ORIGINS"];
   delete process.env["ADMIN_FRONTEND_ORIGINS"];
 
   try {
-    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.ayni.space"), sessionGroupLib.SESSION_GROUPS.ADMIN);
-    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.preview.ayni.space"), sessionGroupLib.SESSION_GROUPS.ADMIN);
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.ayni.space"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
+    assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://admin.preview.ayni.space"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
     assert.equal(sessionGroupLib.resolveSessionGroupFromOrigin("https://workspace.ayni.space"), sessionGroupLib.SESSION_GROUPS.DEFAULT);
   } finally {
     if (prevAdminOrigins === undefined) delete process.env["ADMIN_FRONTEND_ORIGINS"];
@@ -189,6 +196,8 @@ test("session-group resolver infers admin group from admin.* host fallback", () 
 });
 
 test("session-group resolver falls back to auth appSlug when origin and cookies are unavailable", () => {
+  const prevSessionGroupAppSlugs = process.env["SESSION_GROUP_APP_SLUGS"];
+  process.env["SESSION_GROUP_APP_SLUGS"] = "admin=admin,default=ayni";
   const adminLoginReq = {
     path: "/api/auth/login",
     method: "POST",
@@ -208,8 +217,13 @@ test("session-group resolver falls back to auth appSlug when origin and cookies 
   const adminResolution = sessionGroupLib.resolveSessionGroupForRequest(adminLoginReq, { failOnAmbiguous: true });
   const defaultResolution = sessionGroupLib.resolveSessionGroupForRequest(defaultLoginReq, { failOnAmbiguous: true });
 
-  assert.deepEqual(adminResolution, { ok: true, sessionGroup: "admin", source: "app" });
-  assert.deepEqual(defaultResolution, { ok: true, sessionGroup: "default", source: "app" });
+  try {
+    assert.deepEqual(adminResolution, { ok: true, sessionGroup: "admin", source: "app" });
+    assert.deepEqual(defaultResolution, { ok: true, sessionGroup: "default", source: "app" });
+  } finally {
+    if (prevSessionGroupAppSlugs === undefined) delete process.env["SESSION_GROUP_APP_SLUGS"];
+    else process.env["SESSION_GROUP_APP_SLUGS"] = prevSessionGroupAppSlugs;
+  }
 });
 
 test("production session cookie config defaults to SameSite=None with secure=true", () => {

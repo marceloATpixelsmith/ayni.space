@@ -196,7 +196,7 @@ export function createSessionMiddleware(overrideHandlers?: Map<string, RequestHa
     }
 
     const sessionGroup = resolution.sessionGroup;
-    const middleware = middlewareByGroup.get(sessionGroup) ?? middlewareByGroup.get(SESSION_GROUPS.DEFAULT);
+    const middleware = middlewareByGroup.get(sessionGroup);
 
     if (!middleware) {
       next(new Error("Session middleware is not configured for resolved session group"));
