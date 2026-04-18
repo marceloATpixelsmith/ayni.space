@@ -592,6 +592,12 @@ export function useInvitationAcceptRouteRuntime(options: {
       });
     });
   }, [auth, continuationPath, turnstile]);
+  const loginContinuationPath = React.useMemo(() => {
+    if (!continuationPath) return "/login";
+    return `/login?next=${encodeURIComponent(continuationPath)}`;
+  }, [continuationPath]);
+  const shouldShowEmailSignInOption =
+    shouldShowInvitationChoices && resolutionAuth?.emailMode === "sign_in";
 
   const submitInvitationPassword = React.useCallback(() => {
     if (!token || passwordSubmitting) return;
@@ -645,6 +651,8 @@ export function useInvitationAcceptRouteRuntime(options: {
     missingPasswordRequirements,
     passwordSubmitting,
     canSubmitPassword,
+    shouldShowEmailSignInOption,
+    loginContinuationPath,
     startGoogleContinuation,
     submitInvitationPassword,
   };

@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { useInvitationAcceptRouteRuntime } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -101,6 +101,13 @@ export default function InvitationAccept() {
                     : "Set password and join"}
                 </Button>
               </>
+            ) : null}
+            {invitation.shouldShowEmailSignInOption ? (
+              <Button asChild variant="secondary" className="w-full">
+                <Link href={invitation.loginContinuationPath}>
+                  Sign in with email/password
+                </Link>
+              </Button>
             ) : null}
             <AuthStatusMessage message={invitation.submitError} tone="error" className="mt-0" />
           </div>

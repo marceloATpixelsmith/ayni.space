@@ -466,8 +466,15 @@ function Router() {
           if (auth.status === "loading") return <AuthLoading />;
           if (auth.status === "unauthenticated")
             return <AuthRedirect to="/login" />;
-          if (auth.status === "authenticated_fully")
-            return <AuthRedirect to="/dashboard" />;
+          if (auth.status === "authenticated_fully") {
+            const nextStep = resolveAuthenticatedNextStep({
+              authStatus: auth.status,
+              user: auth.user,
+              deniedLoginPath: adminAccessDeniedLoginPath(),
+              defaultPath: "/dashboard",
+            });
+            return <AuthRedirect to={nextStep.destination} />;
+          }
           if (auth.status === "authenticated_mfa_pending_enrolled")
             return <AuthRedirect to="/mfa/challenge" />;
           return <MfaEnroll />;
@@ -478,8 +485,15 @@ function Router() {
           if (auth.status === "loading") return <AuthLoading />;
           if (auth.status === "unauthenticated")
             return <AuthRedirect to="/login" />;
-          if (auth.status === "authenticated_fully")
-            return <AuthRedirect to="/dashboard" />;
+          if (auth.status === "authenticated_fully") {
+            const nextStep = resolveAuthenticatedNextStep({
+              authStatus: auth.status,
+              user: auth.user,
+              deniedLoginPath: adminAccessDeniedLoginPath(),
+              defaultPath: "/dashboard",
+            });
+            return <AuthRedirect to={nextStep.destination} />;
+          }
           if (auth.status === "authenticated_mfa_pending_unenrolled")
             return <AuthRedirect to="/mfa/enroll" />;
           return <MfaChallenge />;

@@ -201,11 +201,6 @@ export function resolveAuthenticatedNextStep(params: {
     return { destination: "/onboarding/user", reason: "onboarding_user" };
   }
 
-  const continuationPath = normalizeReturnToPath(params.continuationPath);
-  if (continuationPath) {
-    return { destination: continuationPath, reason: "continuation" };
-  }
-
   if (appAccess?.normalizedAccessProfile === "superadmin") {
     return {
       destination: params.user?.isSuperAdmin
@@ -220,6 +215,11 @@ export function resolveAuthenticatedNextStep(params: {
       destination: params.deniedLoginPath ?? AUTH_LOGIN_PATH,
       reason: "access_denied",
     };
+  }
+
+  const continuationPath = normalizeReturnToPath(params.continuationPath);
+  if (continuationPath) {
+    return { destination: continuationPath, reason: "continuation" };
   }
 
   return {
