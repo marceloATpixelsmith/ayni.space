@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   useAuth,
@@ -10,8 +9,12 @@ import {
   validateEmailInput,
   getAuthActionErrorMessage,
 } from "@workspace/frontend-security";
-import { AuthShell } from "@workspace/auth-ui";
-import { FieldValidationMessage } from "@workspace/auth-ui";
+import {
+  AuthShell,
+  FieldValidationMessage,
+  AuthFormMotion,
+  AuthStatusMessage,
+} from "@workspace/auth-ui";
 
 export default function ForgotPassword() {
   const auth = useAuth();
@@ -52,7 +55,7 @@ export default function ForgotPassword() {
 
   return (
     <AuthShell title="Forgot password" subtitle="Enter your email and we'll send reset instructions.">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: "easeOut" }}>
+      <AuthFormMotion>
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
@@ -73,9 +76,9 @@ export default function ForgotPassword() {
           </Button>
         </div>
 
-        {message ? <p className="mt-4 text-sm">{message}</p> : null}
+        <AuthStatusMessage message={message} />
         <p className="mt-4 text-sm text-muted-foreground">Remembered your password? <Link href="/login" className="underline">Back to sign in</Link></p>
-      </motion.div>
+      </AuthFormMotion>
     </AuthShell>
   );
 }

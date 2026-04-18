@@ -17,6 +17,7 @@ import {
   AuthShell,
   AuthTurnstileSection,
   FieldValidationMessage,
+  AuthStatusMessage,
 } from "@workspace/auth-ui";
 
 export default function Login() {
@@ -161,16 +162,8 @@ export default function Login() {
           status={turnstile.status}
         />
 
-        {accessError ? (
-          <p className="mt-4 text-sm text-destructive text-center" role="alert">
-            {accessError}
-          </p>
-        ) : null}
-        {loginError ? (
-          <p className="mt-4 text-sm text-destructive text-center" role="alert">
-            {loginError}
-          </p>
-        ) : null}
+        <AuthStatusMessage message={accessError} tone="error" align="center" />
+        <AuthStatusMessage message={loginError} tone="error" align="center" />
       </AuthFormMotion>
     </AuthShell>
   );

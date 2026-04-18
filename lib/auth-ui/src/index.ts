@@ -4,3 +4,4 @@ export * from "./FieldValidationMessage";
 export * from "./AuthFormMotion";
 export * from "./AuthTurnstileSection";
 export * from "./GoogleAuthButton";
+export * from "./AuthStatusMessage";

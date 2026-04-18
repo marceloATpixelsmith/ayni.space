@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth, logAuthDebug } from "@workspace/frontend-security";
-import { AuthShell } from "@workspace/auth-ui";
+import { AuthShell, AuthStatusMessage } from "@workspace/auth-ui";
 
 export default function VerifyEmail() {
   const auth = useAuth();
@@ -70,7 +70,7 @@ export default function VerifyEmail() {
       title="Verify your email"
       subtitle="Confirm your email address to continue automatically."
     >
-      <p className="text-sm">{message}</p>
+      <AuthStatusMessage message={message} tone={phase === "error" ? "error" : "default"} />
     </AuthShell>
   );
 }

@@ -4,8 +4,12 @@ import { useAuth } from "@workspace/frontend-security";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { validatePasswordInput } from "@workspace/frontend-security";
-import { AuthShell } from "@workspace/auth-ui";
-import { FieldValidationMessage } from "@workspace/auth-ui";
+import {
+  AuthShell,
+  FieldValidationMessage,
+  AuthFormMotion,
+  AuthStatusMessage,
+} from "@workspace/auth-ui";
 
 export default function ResetPassword() {
   const auth = useAuth();
@@ -33,12 +37,14 @@ export default function ResetPassword() {
 
   return (
     <AuthShell title="Reset password" subtitle="Create a new strong password to secure your account.">
-      <div className="space-y-3">
-        <PasswordInput className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setPasswordTouched(true)} placeholder="New password" autoComplete="new-password" aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? "reset-password-error" : undefined} />
-        <FieldValidationMessage id="reset-password-error" message={passwordError} />
-        <Button className="w-full" onClick={submit}>Reset password</Button>
-      </div>
-      {message ? <p className="text-sm mt-4">{message}</p> : null}
+      <AuthFormMotion>
+        <div className="space-y-3">
+          <PasswordInput className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setPasswordTouched(true)} placeholder="New password" autoComplete="new-password" aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? "reset-password-error" : undefined} />
+          <FieldValidationMessage id="reset-password-error" message={passwordError} />
+          <Button className="w-full" onClick={submit}>Reset password</Button>
+        </div>
+        <AuthStatusMessage message={message} />
+      </AuthFormMotion>
     </AuthShell>
   );
 }

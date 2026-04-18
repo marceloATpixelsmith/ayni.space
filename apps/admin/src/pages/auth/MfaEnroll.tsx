@@ -6,8 +6,12 @@ import {
   secureApiFetch,
 } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
-import { AuthShell } from "@workspace/auth-ui";
-import { FieldValidationMessage } from "@workspace/auth-ui";
+import {
+  AuthShell,
+  FieldValidationMessage,
+  AuthFormMotion,
+  AuthStatusMessage,
+} from "@workspace/auth-ui";
 
 type MfaModeDecision = {
   mode: "enroll" | "challenge";
@@ -251,17 +255,22 @@ export default function MfaEnroll() {
       subtitle="Add an authenticator app for extra account security."
       maxWidthClassName="max-w-lg"
     >
-      <div className="space-y-3">
+      <AuthFormMotion>
+        <div className="space-y-3">
         {phase === "initializing" ? (
           <p className="text-sm text-muted-foreground">
             Preparing your authenticator setup…
           </p>
         ) : null}
-        {phase === "init-error" ? (
-          <p className="text-sm text-destructive">
-            {initError ?? "Unable to start two-step verification setup."}
-          </p>
-        ) : null}
+        <AuthStatusMessage
+          message={
+            phase === "init-error"
+              ? (initError ?? "Unable to start two-step verification setup.")
+              : null
+          }
+          tone="error"
+          className="mt-0"
+        />
         {phase === "init-error" ? (
           <Button className="w-full" onClick={() => window.location.reload()}>
             Retry setup
@@ -348,7 +357,8 @@ export default function MfaEnroll() {
             ) : null}
           </>
         )}
-      </div>
+        </div>
+      </AuthFormMotion>
     </AuthShell>
   );
 }
