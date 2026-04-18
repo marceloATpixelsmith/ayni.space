@@ -19,7 +19,7 @@ test("invitation token renderer replaces allowlisted tokens and preserves unknow
       app_name: "Ayni",
       organization_name: "Org One",
       invitation_url: "https://app.example/invitations/tok/accept",
-      expires_at: "2026-04-10T00:00:00.000Z",
+      expires_at: "2030-04-10T00:00:00.000Z",
     },
     { escapeValues: false },
   );
@@ -37,7 +37,7 @@ test("invitation token renderer deterministically escapes html values and empty 
       app_name: "Ayni",
       organization_name: "Org One",
       invitation_url: "https://app.example/?q=<script>",
-      expires_at: "2026-04-10T00:00:00.000Z",
+      expires_at: "2030-04-10T00:00:00.000Z",
     },
     { escapeValues: true },
   );
@@ -131,7 +131,7 @@ test("lane1 invitation sender uses app sender/template config and logs lane1 out
       orgId: "org-1",
       invitationId: "inv-1",
       invitationToken: "token-123",
-      invitationExpiresAt: new Date("2026-04-10T00:00:00.000Z"),
+      invitationExpiresAt: new Date("2030-04-10T00:00:00.000Z"),
       inviteeEmail: "invitee@example.com",
       inviteeFirstName: "Casey",
       inviteeLastName: "Johnson",
@@ -478,7 +478,7 @@ test("password reset sender resolves lane1 template and logs lane1 outcome", asy
       userEmail: "user@example.com",
       userFullName: "Reset User",
       resetToken: "reset-token-123",
-      expirationDateTime: "2026-04-10T00:00:00.000Z",
+      expirationDateTime: "2030-04-10T00:00:00.000Z",
     });
 
     assert.equal(outboundRequestedSubject, "Reset your password for Ayni");

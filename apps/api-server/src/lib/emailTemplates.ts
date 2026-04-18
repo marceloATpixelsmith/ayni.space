@@ -32,22 +32,22 @@ export const TEMPLATE_SAMPLE_CONTEXT: Record<EmailTemplateType, Record<string, s
     inviter_name: "Morgan Admin",
     organization_name: "Acme Org",
     invitation_url: "https://admin.example.com/invitations/sample-token/accept",
-    expiration_datetime: "2026-04-10T00:00:00.000Z",
-    expires_at: "2026-04-10T00:00:00.000Z",
+    expiration_datetime: "2030-04-10T00:00:00.000Z",
+    expires_at: "2030-04-10T00:00:00.000Z",
   },
   email_verification: {
     app_name: "Ayni",
     full_name: "Taylor Rivera",
     organization_name: "Acme Org",
     verification_url: "https://admin.example.com/verify-email?token=sample",
-    expiration_datetime: "2026-04-10T00:00:00.000Z",
+    expiration_datetime: "2030-04-10T00:00:00.000Z",
   },
   password_reset: {
     app_name: "Ayni",
     full_name: "Taylor Rivera",
     organization_name: "Acme Org",
     password_reset_url: "https://admin.example.com/reset-password?token=sample",
-    expiration_datetime: "2026-04-10T00:00:00.000Z",
+    expiration_datetime: "2030-04-10T00:00:00.000Z",
   },
 };
 
