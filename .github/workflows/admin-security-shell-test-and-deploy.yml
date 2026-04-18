@@ -27,6 +27,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter @workspace/admin run test:security-shell
+      - name: Run admin security shell contract test
+        run: pnpm --filter @workspace/admin run test:security-shell
 
-      - run: pnpm --filter @workspace/admin test
+      - name: Run admin runtime vitest suite
+        run: pnpm --filter @workspace/admin test
