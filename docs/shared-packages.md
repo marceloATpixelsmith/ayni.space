@@ -15,6 +15,7 @@
 - `lib/frontend-observability` (`@workspace/frontend-observability`) is the active frontend monitoring layer used by `apps/admin` and wired in `apps/mockup-sandbox`.
 - `lib/auth-ui` (`@workspace/auth-ui`) is the active frontend auth UI shell/primitives runtime layer used by `apps/admin` auth routes.
   - `lib/auth-ui/src/AuthShell.tsx` is the only allowed `AuthShell` implementation in the repository.
+  - `lib/auth-ui/src/*` owns reusable auth presentation primitives (`AuthShell`, `AuthFormMotion`, `AuthMethodDivider`, `AuthTurnstileSection`, `GoogleAuthButton`, `FieldValidationMessage`, `AuthStatusMessage`) and app auth pages should compose these directly instead of rebuilding shell/motion/divider/status-message glue per route.
   - `apps/admin` must consume auth shell primitives via `@workspace/auth-ui` imports only; app-local auth shell component ownership is not allowed.
 - `lib/api-spec` (`@workspace/api-spec`) is build-time contract/codegen source (OpenAPI + Orval), not a runtime app import target.
 

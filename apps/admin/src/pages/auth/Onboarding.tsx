@@ -1,6 +1,5 @@
 import React from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,6 +31,7 @@ import {
   captureApiFailure,
   getUserSafeErrorMessage,
 } from "@workspace/frontend-observability";
+import { AuthShell, AuthFormMotion } from "@workspace/auth-ui";
 
 const formSchema = z.object({
   name: z.string().min(2, "Organization name must be at least 2 characters"),
@@ -244,13 +244,8 @@ export default function Onboarding() {
 
   if (isUserOnboarding) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-lg"
-        >
+      <AuthShell maxWidthClassName="max-w-lg">
+        <AuthFormMotion>
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-foreground">
               Complete your profile
@@ -276,19 +271,14 @@ export default function Onboarding() {
               {savingUserProfile ? "Saving..." : "Continue to Dashboard"}
             </Button>
           </Card>
-        </motion.div>
-      </div>
+        </AuthFormMotion>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-lg"
-      >
+    <AuthShell maxWidthClassName="max-w-lg">
+      <AuthFormMotion>
         <div className="text-center mb-10">
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
             <Building2 className="w-8 h-8 text-primary" />
@@ -383,7 +373,7 @@ export default function Onboarding() {
             </form>
           </Form>
         </Card>
-      </motion.div>
-    </div>
+      </AuthFormMotion>
+    </AuthShell>
   );
 }

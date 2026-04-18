@@ -17,6 +17,7 @@ import {
   AuthShell,
   AuthTurnstileSection,
   FieldValidationMessage,
+  AuthStatusMessage,
 } from "@workspace/auth-ui";
 
 export default function Signup() {
@@ -134,9 +135,7 @@ export default function Signup() {
           guidanceMessage={turnstile.guidanceMessage ?? undefined}
           status={turnstile.status}
         />
-        {submit.error ? (
-          <p className="mt-4 text-sm text-destructive">{submit.error}</p>
-        ) : null}
+        <AuthStatusMessage message={submit.error} tone="error" />
       </AuthFormMotion>
     </AuthShell>
   );

@@ -3,13 +3,14 @@ import { useLocation, useParams } from "wouter";
 import { useInvitationAcceptRouteRuntime } from "@workspace/frontend-security";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
-import { motion } from "framer-motion";
 import {
   AuthShell,
   AuthMethodDivider,
   FieldValidationMessage,
   GoogleAuthButton,
   AuthTurnstileSection,
+  AuthFormMotion,
+  AuthStatusMessage,
 } from "@workspace/auth-ui";
 
 type Params = { token?: string };
@@ -27,18 +28,15 @@ export default function InvitationAccept() {
       title="Invitation"
       subtitle={invitation.shouldShowInvitationChoices ? undefined : invitation.message}
     >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
+      <AuthFormMotion>
         {invitation.status === "error" ? (
           <div className="space-y-2">
-            {invitation.resolutionError ? (
-              <p className="text-destructive text-sm text-center">
-                {invitation.resolutionError}
-              </p>
-            ) : null}
+            <AuthStatusMessage
+              message={invitation.resolutionError}
+              tone="error"
+              align="center"
+              className="mt-0"
+            />
             <Button
               onClick={() =>
                 setLocation(
@@ -104,9 +102,7 @@ export default function InvitationAccept() {
                 </Button>
               </>
             ) : null}
-            {invitation.submitError ? (
-              <p className="text-destructive text-sm">{invitation.submitError}</p>
-            ) : null}
+            <AuthStatusMessage message={invitation.submitError} tone="error" className="mt-0" />
           </div>
         ) : null}
 
@@ -116,7 +112,7 @@ export default function InvitationAccept() {
           guidanceMessage={invitation.turnstile.guidanceMessage ?? undefined}
           status={invitation.turnstile.status}
         />
-      </motion.div>
+      </AuthFormMotion>
     </AuthShell>
   );
 }
