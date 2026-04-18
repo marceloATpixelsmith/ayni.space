@@ -1,12 +1,11 @@
 import React from "react";
 import { useLocation } from "wouter";
 import {
-  useAuth,
   useSignupRoutePolicy,
-  useTurnstileToken,
+  useLoginRouteComposition,
   useEmailValidationInteraction,
   ensureTurnstileReadyForSubmit,
-  resetTurnstileOnFailure,
+  handleTurnstileProtectedAuthError,
   useAuthSubmitOrchestration,
   getMissingPasswordRequirements,
   normalizeEmailInput,
@@ -23,11 +22,10 @@ import {
 } from "@workspace/auth-ui";
 
 export default function Signup() {
-  const auth = useAuth();
+  const { auth, turnstile } = useLoginRouteComposition();
   const [location, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const turnstile = useTurnstileToken();
   const submit = useAuthSubmitOrchestration();
   const emailValidation = useEmailValidationInteraction({
     value: email,
@@ -82,8 +80,12 @@ export default function Signup() {
         setLocation(`/verify-email?${query.toString()}`);
       })
       .catch((err) => {
-        submit.setError(err instanceof Error ? err.message : "Unable to sign up.");
-        resetTurnstileOnFailure(turnstile);
+        handleTurnstileProtectedAuthError({
+          error: err,
+          turnstile,
+          setError: submit.setError,
+          fallbackMessage: "Unable to sign up.",
+        });
       });
   };
 
