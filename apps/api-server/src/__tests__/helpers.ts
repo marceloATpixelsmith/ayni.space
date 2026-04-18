@@ -21,27 +21,26 @@ export function createStatefulSessionApp(
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    const sessionRef: SessionShape = {
-      id: persistedSession.id ?? "test-session-id",
-      destroy: ((cb?: (err?: unknown) => void) => {
-        for (const key of Object.keys(persistedSession)) {
-          delete persistedSession[key];
-        }
-        cb?.();
-      }) as SessionShape["destroy"],
-      save: ((cb?: (err?: unknown) => void) => {
-        cb?.();
-      }) as SessionShape["save"],
-      regenerate: ((cb?: (err?: unknown) => void) => {
-        for (const key of Object.keys(persistedSession)) {
-          delete persistedSession[key];
-        }
-        persistedSession.id = "regenerated-session-id";
-        cb?.();
-      }) as SessionShape["regenerate"],
-      ...persistedSession,
-    };
-    (req as unknown as { session: SessionShape }).session = sessionRef;
+    persistedSession.id ??= "test-session-id";
+    persistedSession.destroy = ((cb?: (err?: unknown) => void) => {
+      for (const key of Object.keys(persistedSession)) {
+        if (key === "destroy" || key === "save" || key === "regenerate") continue;
+        delete persistedSession[key];
+      }
+      cb?.();
+    }) as SessionShape["destroy"];
+    persistedSession.save = ((cb?: (err?: unknown) => void) => {
+      cb?.();
+    }) as SessionShape["save"];
+    persistedSession.regenerate = ((cb?: (err?: unknown) => void) => {
+      for (const key of Object.keys(persistedSession)) {
+        if (key === "destroy" || key === "save" || key === "regenerate") continue;
+        delete persistedSession[key];
+      }
+      persistedSession.id = "regenerated-session-id";
+      cb?.();
+    }) as SessionShape["regenerate"];
+    (req as unknown as { session: SessionShape }).session = persistedSession;
     next();
   });
 
@@ -95,6 +94,7 @@ export async function performJsonRequest(
   try {
     const response = await fetch(`http://127.0.0.1:${address.port}${path}`, {
       method,
+      redirect: "manual",
       headers: body
         ? { "content-type": "application/json", ...(headers ?? {}) }
         : headers,
