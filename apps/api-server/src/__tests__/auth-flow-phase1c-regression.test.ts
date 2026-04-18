@@ -203,7 +203,7 @@ test("phase 1c continuation validation remains fail-closed", () => {
   assert.equal(deniedDestination, "/login?error=access_denied");
 });
 
-test("phase 1c /api/auth/me state matrix returns expected auth/session markers", async () => {
+test("phase 1c /api/me state matrix returns expected auth/session markers", async () => {
   const commonRestores = [
     patchProperty(db.query.orgMembershipsTable, "findMany", async () => []),
     patchProperty(db.query.organizationsTable, "findFirst", async () => null),
@@ -232,7 +232,7 @@ test("phase 1c /api/auth/me state matrix returns expected auth/session markers",
       ];
       try {
         const app = createSessionApp(authRouter, {});
-        const response = await performJsonRequest(app, "GET", "/api/auth/me");
+        const response = await performJsonRequest(app, "GET", "/api/me");
         assert.equal(response.status, 401);
         assert.equal(response.body?.error, "Unauthorized. Please sign in.");
       } finally {
@@ -275,7 +275,7 @@ test("phase 1c /api/auth/me state matrix returns expected auth/session markers",
           appSlug: "admin",
           sessionGroup: "admin",
         });
-        const response = await performJsonRequest(app, "GET", "/api/auth/me");
+        const response = await performJsonRequest(app, "GET", "/api/me");
         assert.equal(response.status, 200);
         assert.equal(response.body?.authState, "authenticated");
         assert.equal(response.body?.sessionState, "authenticated");
@@ -315,7 +315,7 @@ test("phase 1c /api/auth/me state matrix returns expected auth/session markers",
           pendingMfaReason: "challenge_required",
           sessionGroup: "admin",
         });
-        const response = await performJsonRequest(app, "GET", "/api/auth/me");
+        const response = await performJsonRequest(app, "GET", "/api/me");
         assert.equal(response.status, 200);
         assert.equal(response.body?.authState, "mfa_pending");
         assert.equal(response.body?.sessionState, "pending_second_factor");
@@ -349,7 +349,7 @@ test("phase 1c /api/auth/me state matrix returns expected auth/session markers",
           pendingMfaReason: "enrollment_required",
           sessionGroup: "admin",
         });
-        const response = await performJsonRequest(app, "GET", "/api/auth/me");
+        const response = await performJsonRequest(app, "GET", "/api/me");
         assert.equal(response.status, 200);
         assert.equal(response.body?.authState, "mfa_pending");
         assert.equal(response.body?.sessionState, "pending_second_factor");
