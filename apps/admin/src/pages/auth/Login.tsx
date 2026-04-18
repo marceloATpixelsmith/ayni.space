@@ -162,7 +162,12 @@ export default function Login() {
           status={turnstile.status}
         />
 
-        <AuthStatusMessage message={accessError} tone="error" align="center" />
+        <AuthStatusMessage
+          message={accessError}
+          tone="error"
+          align="center"
+          role="alert"
+        />
         <AuthStatusMessage message={loginError} tone="error" align="center" />
       </AuthFormMotion>
     </AuthShell>
