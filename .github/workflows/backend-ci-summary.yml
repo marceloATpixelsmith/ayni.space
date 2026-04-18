@@ -1,16 +1,12 @@
 name: backend-ci-summary
 
 on:
-  workflow_run:
-    workflows:
-      - Backend Regression Gates
-      - API Regression Suite
-      - Auth Security Regression Suite
-    types:
-      - completed
+  pull_request:
+    branches:
+      - master
 
 concurrency:
-  group: backend-ci-summary-${{ github.event.workflow_run.head_sha }}
+  group: backend-ci-summary-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -26,164 +22,124 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const targetSha = context.payload.workflow_run?.head_sha ?? "";
+            const targetSha = context.payload.pull_request?.head?.sha ?? "";
             if (!targetSha) {
-              core.setFailed("Missing github.event.workflow_run.head_sha.");
+              core.setFailed("Missing github.event.pull_request.head.sha.");
               return;
             }
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const maxAttempts = 3;
+            const maxAttempts = 4;
             const retryDelayMs = 5000;
 
-            const workflowNames = {
-              backend: "Backend Regression Gates",
-              api: "API Regression Suite",
-              auth: "Auth Security Regression Suite",
-            };
-
-            const requiredBackendJobs = [
+            const requiredChecks = [
               "backend-typecheck",
               "backend-build-api",
               "backend-api-tests",
+              "api-regression-suite",
+              "auth-security-regression-suite",
             ];
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-            async function retryApi(fn) {
-              let lastError;
-              for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-                try {
-                  return await fn();
-                } catch (error) {
-                  lastError = error;
-                  if (attempt < maxAttempts) {
-                    await sleep(retryDelayMs);
-                  }
-                }
-              }
-              throw lastError;
-            }
+            const failedConclusions = new Set([
+              "failure",
+              "timed_out",
+              "cancelled",
+              "action_required",
+              "startup_failure",
+              "stale",
+            ]);
+            const failedStatuses = new Set(["error", "failure"]);
 
-            async function fetchWorkflowRuns() {
-              const runs = await retryApi(async () => {
-                const response = await github.rest.actions.listWorkflowRunsForRepo({
+            async function fetchCheckData() {
+              const [checksResponse, statusesResponse] = await Promise.all([
+                github.rest.checks.listForRef({
                   owner,
                   repo,
-                  head_sha: targetSha,
+                  ref: targetSha,
                   per_page: 100,
-                });
-                return response.data.workflow_runs ?? [];
-              });
+                }),
+                github.rest.repos.listCommitStatusesForRef({
+                  owner,
+                  repo,
+                  ref: targetSha,
+                  per_page: 100,
+                }),
+              ]);
 
-              const byWorkflowName = new Map();
-              for (const run of runs) {
-                if (!run?.name || !Object.values(workflowNames).includes(run.name)) {
-                  continue;
-                }
-                const existing = byWorkflowName.get(run.name);
-                if (!existing || (run.run_number ?? 0) > (existing.run_number ?? 0)) {
-                  byWorkflowName.set(run.name, run);
-                }
+              return {
+                checkRuns: checksResponse.data.check_runs ?? [],
+                statuses: statusesResponse.data ?? [],
+              };
+            }
+
+            let latest = { checkRuns: [], statuses: [] };
+            for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+              latest = await fetchCheckData();
+              const visible = requiredChecks.filter((checkName) => {
+                const hasCheckRun = latest.checkRuns.some((run) => run.name === checkName);
+                const hasStatus = latest.statuses.some((status) => status.context === checkName);
+                return hasCheckRun || hasStatus;
+              }).length;
+
+              if (visible > 0 || attempt === maxAttempts) {
+                break;
               }
-              return byWorkflowName;
+
+              await sleep(retryDelayMs);
             }
 
-            const runsByName = await fetchWorkflowRuns();
+            const checkResults = requiredChecks.map((checkName) => {
+              const checkRun = latest.checkRuns.find((run) => run.name === checkName);
+              const statusCheck = latest.statuses.find((status) => status.context === checkName);
 
-            const backendRun = runsByName.get(workflowNames.backend);
-            const apiRun = runsByName.get(workflowNames.api);
-            const authRun = runsByName.get(workflowNames.auth);
+              if (checkRun) {
+                const state = checkRun.conclusion || checkRun.status || "unknown";
+                const passed = checkRun.conclusion === "success";
+                const failed =
+                  checkRun.status === "completed" &&
+                  !!checkRun.conclusion &&
+                  failedConclusions.has(checkRun.conclusion);
 
-            const missingOrIncomplete = [];
-            for (const [label, run] of [
-              [workflowNames.backend, backendRun],
-              [workflowNames.api, apiRun],
-              [workflowNames.auth, authRun],
-            ]) {
-              if (!run) {
-                missingOrIncomplete.push(`${label} (missing)`);
-              } else if (run.status !== "completed") {
-                missingOrIncomplete.push(`${label} (${run.status || "unknown"})`);
+                return {
+                  name: checkName,
+                  passed,
+                  failed,
+                  state,
+                  url: checkRun.html_url || "n/a",
+                };
               }
-            }
 
-            const renderLink = (label, url) => `- ${label}: ${url || "n/a"}`;
+              if (statusCheck) {
+                const state = statusCheck.state || "unknown";
+                const passed = state === "success";
+                const failed = failedStatuses.has(state);
 
-            if (missingOrIncomplete.length > 0) {
-              const waitingSummary = [
-                "# BACKEND CI SUMMARY",
-                "",
-                "## TARGET SHA",
-                `\`${targetSha}\``,
-                "",
-                "## OVERALL RESULT: WAITING",
-                "",
-                "## WAITING ON",
-                ...missingOrIncomplete.map((item) => `- ${item}`),
-                "",
-                "## CHECK LINKS",
-                renderLink(workflowNames.backend, backendRun?.html_url),
-                renderLink(workflowNames.api, apiRun?.html_url),
-                renderLink(workflowNames.auth, authRun?.html_url),
-                "",
-                "## NEXT DEBUG STEP",
-                "- Wait for remaining source workflows for this SHA to complete.",
-              ].join("\n");
-
-              core.info(waitingSummary);
-              await core.summary.addRaw(waitingSummary).write();
-              return;
-            }
-
-            const backendJobsResponse = await retryApi(async () => {
-              return github.rest.actions.listJobsForWorkflowRun({
-                owner,
-                repo,
-                run_id: backendRun.id,
-                per_page: 100,
-              });
-            });
-            const backendJobs = backendJobsResponse.data.jobs ?? [];
-
-            const backendJobByName = new Map();
-            for (const job of backendJobs) {
-              if (requiredBackendJobs.includes(job.name)) {
-                backendJobByName.set(job.name, job);
+                return {
+                  name: checkName,
+                  passed,
+                  failed,
+                  state,
+                  url: statusCheck.target_url || "n/a",
+                };
               }
-            }
 
-            const checkResults = [];
-
-            for (const jobName of requiredBackendJobs) {
-              const job = backendJobByName.get(jobName);
-              const passed = job?.conclusion === "success";
-              checkResults.push({
-                name: jobName,
-                passed,
-                state: job?.conclusion || "missing",
-                url: job?.html_url || backendRun.html_url,
-              });
-            }
-
-            checkResults.push({
-              name: "api-regression-suite",
-              passed: apiRun.conclusion === "success",
-              state: apiRun.conclusion || "missing",
-              url: apiRun.html_url,
+              return {
+                name: checkName,
+                passed: false,
+                failed: false,
+                state: "not_visible_yet",
+                url: "n/a",
+              };
             });
 
-            checkResults.push({
-              name: "auth-security-regression-suite",
-              passed: authRun.conclusion === "success",
-              state: authRun.conclusion || "missing",
-              url: authRun.html_url,
-            });
-
-            const failedChecks = checkResults.filter((item) => !item.passed);
+            const failedChecks = checkResults.filter((item) => item.failed);
             const passedChecks = checkResults.filter((item) => item.passed);
+            const pendingChecks = checkResults.filter((item) => !item.passed && !item.failed);
             const overall = failedChecks.length > 0 ? "FAIL" : "PASS";
+            const renderLink = (label, url) => `- ${label}: ${url || "n/a"}`;
 
             const summary = [
               "# BACKEND CI SUMMARY",
@@ -209,7 +165,9 @@ jobs:
               "## NEXT DEBUG STEP",
               failedChecks.length > 0
                 ? "- Open the failed check links and inspect failing logs first."
-                : "- No action needed.",
+                : pendingChecks.length > 0
+                  ? `- Some checks are not visible or still running (${pendingChecks.map((item) => item.name).join(", ")}); refresh this summary after they complete.`
+                  : "- No action needed.",
             ].join("\n");
 
             core.info(summary);

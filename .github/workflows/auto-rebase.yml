@@ -12,6 +12,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: auto-rebase-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rebase-pr:
     if: github.event_name == 'pull_request' && github.base_ref == 'master' && startsWith(github.head_ref, 'codex/')
@@ -29,10 +33,29 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Rebase current codex PR onto latest master
+        env:
+          PR_STATE: ${{ github.event.pull_request.state }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [[ "$PR_STATE" != "open" || "$PR_MERGED" == "true" ]]; then
+            echo "PR is closed or merged; skipping rebase push."
+            exit 0
+          fi
+
           git fetch origin master
           git rebase origin/master
-          git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
+          git fetch origin "$PR_BRANCH"
+          current_remote_sha=$(git rev-parse FETCH_HEAD)
+
+          if [[ "$current_remote_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+            echo "Branch moved during rebase (expected $EXPECTED_HEAD_SHA, now $current_remote_sha)."
+            echo "Skipping push to avoid overwriting newer branch state."
+            exit 0
+          fi
+
+          git push --force-with-lease=refs/heads/"$PR_BRANCH":"$EXPECTED_HEAD_SHA" origin HEAD:"$PR_BRANCH"
 
   rebase-open-codex-prs-after-master-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -48,11 +71,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,baseRefName \
+          gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,baseRefName,headRefOid \
           | jq -c '.[]' \
           | while read -r pr; do
               branch=$(echo "$pr" | jq -r '.headRefName')
               base=$(echo "$pr" | jq -r '.baseRefName')
+              expected_sha=$(echo "$pr" | jq -r '.headRefOid')
 
               if [[ "$branch" == codex/* && "$base" == "master" ]]; then
                 rm -rf repo
@@ -63,7 +87,14 @@ jobs:
                 git fetch origin master
                 git checkout "$branch"
                 git rebase origin/master
-                git push --force-with-lease origin HEAD:"$branch"
+                git fetch origin "$branch"
+                current_remote_sha=$(git rev-parse FETCH_HEAD)
+                if [[ "$current_remote_sha" != "$expected_sha" ]]; then
+                  echo "Branch $branch moved during rebase (expected $expected_sha, now $current_remote_sha). Skipping push."
+                  cd ..
+                  continue
+                fi
+                git push --force-with-lease=refs/heads/"$branch":"$expected_sha" origin HEAD:"$branch"
                 cd ..
               fi
             done
