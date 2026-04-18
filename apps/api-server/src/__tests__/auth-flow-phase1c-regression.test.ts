@@ -204,7 +204,7 @@ test("phase 1c continuation validation remains fail-closed", () => {
 });
 
 test("phase 1c /api/me state matrix returns expected auth/session markers", async () => {
-  const commonRestores = [
+  const applyCommonPatches = () => [
     patchProperty(db.query.orgMembershipsTable, "findMany", async () => []),
     patchProperty(db.query.organizationsTable, "findFirst", async () => null),
     patchProperty(db.query.orgAppAccessTable, "findMany", async () => []),
@@ -223,143 +223,139 @@ test("phase 1c /api/me state matrix returns expected auth/session markers", asyn
     } as never)),
   ];
 
-  try {
-    // unauthenticated
-    {
-      const restores = [
-        ...commonRestores,
-        patchProperty(db.query.usersTable, "findFirst", async () => null),
-      ];
-      try {
-        const app = createSessionApp(authRouter, {});
-        const response = await performJsonRequest(app, "GET", "/api/me");
-        assert.equal(response.status, 401);
-        assert.equal(response.body?.error, "Unauthorized. Please sign in.");
-      } finally {
-        restores.reverse().forEach((restore) => restore());
-      }
+  // unauthenticated
+  {
+    const restores = [
+      ...applyCommonPatches(),
+      patchProperty(db.query.usersTable, "findFirst", async () => null),
+    ];
+    try {
+      const app = createSessionApp(authRouter, {});
+      const response = await performJsonRequest(app, "GET", "/api/me");
+      assert.equal(response.status, 401);
+      assert.equal(response.body?.error, "Unauthorized. Please sign in.");
+    } finally {
+      restores.reverse().forEach((restore) => restore());
     }
+  }
 
-    // authenticated_fully
-    {
-      const restores = [
-        ...commonRestores,
-        patchProperty(db.query.usersTable, "findFirst", async () => ({
-          id: "user-1",
-          email: "user@example.com",
-          name: "User",
-          avatarUrl: null,
-          isSuperAdmin: false,
-          activeOrgId: null,
-          suspended: false,
-          deletedAt: null,
-          active: true,
-        })),
-        patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => ({
-          mfaRequired: false,
-          forceMfaEnrollment: false,
-          firstAuthAfterResetPending: false,
-          highRiskUntilMfaAt: null,
-        })),
-        patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
-          id: "factor-1",
-          userId: "user-1",
-          status: "active",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })),
-      ];
-      try {
-        const app = createSessionApp(authRouter, {
-          userId: "user-1",
-          appSlug: "admin",
-          sessionGroup: "admin",
-        });
-        const response = await performJsonRequest(app, "GET", "/api/me");
-        assert.equal(response.status, 200);
-        assert.equal(response.body?.authState, "authenticated");
-        assert.equal(response.body?.sessionState, "authenticated");
-        assert.equal(response.body?.nextStep, null);
-        assert.equal(response.body?.needsEnrollment, false);
-      } finally {
-        restores.reverse().forEach((restore) => restore());
-      }
+  // authenticated_fully
+  {
+    const restores = [
+      ...applyCommonPatches(),
+      patchProperty(db.query.usersTable, "findFirst", async () => ({
+        id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        avatarUrl: null,
+        isSuperAdmin: false,
+        activeOrgId: null,
+        suspended: false,
+        deletedAt: null,
+        active: true,
+      })),
+      patchProperty(db.query.userAuthSecurityTable, "findFirst", async () => ({
+        mfaRequired: false,
+        forceMfaEnrollment: false,
+        firstAuthAfterResetPending: false,
+        highRiskUntilMfaAt: null,
+      })),
+      patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+        id: "factor-1",
+        userId: "user-1",
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    ];
+    try {
+      const app = createSessionApp(authRouter, {
+        userId: "user-1",
+        appSlug: "admin",
+        sessionGroup: "admin",
+      });
+      const response = await performJsonRequest(app, "GET", "/api/me");
+      assert.equal(response.status, 200);
+      assert.equal(response.body?.authState, "authenticated");
+      assert.equal(response.body?.sessionState, "authenticated");
+      assert.equal(response.body?.nextStep, null);
+      assert.equal(response.body?.needsEnrollment, false);
+    } finally {
+      restores.reverse().forEach((restore) => restore());
     }
+  }
 
-    // mfa_pending_enrolled
-    {
-      const restores = [
-        ...commonRestores,
-        patchProperty(db.query.usersTable, "findFirst", async () => ({
-          id: "user-2",
-          email: "pending@example.com",
-          name: "Pending User",
-          avatarUrl: null,
-          isSuperAdmin: false,
-          activeOrgId: null,
-          suspended: false,
-          deletedAt: null,
-          active: true,
-        })),
-        patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
-          id: "factor-2",
-          userId: "user-2",
-          status: "active",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })),
-      ];
-      try {
-        const app = createSessionApp(authRouter, {
-          pendingUserId: "user-2",
-          pendingMfaReason: "challenge_required",
-          sessionGroup: "admin",
-        });
-        const response = await performJsonRequest(app, "GET", "/api/me");
-        assert.equal(response.status, 200);
-        assert.equal(response.body?.authState, "mfa_pending");
-        assert.equal(response.body?.sessionState, "pending_second_factor");
-        assert.equal(response.body?.nextStep, "mfa_challenge");
-        assert.equal(response.body?.needsEnrollment, false);
-      } finally {
-        restores.reverse().forEach((restore) => restore());
-      }
+  // mfa_pending_enrolled
+  {
+    const restores = [
+      ...applyCommonPatches(),
+      patchProperty(db.query.usersTable, "findFirst", async () => ({
+        id: "user-2",
+        email: "pending@example.com",
+        name: "Pending User",
+        avatarUrl: null,
+        isSuperAdmin: false,
+        activeOrgId: null,
+        suspended: false,
+        deletedAt: null,
+        active: true,
+      })),
+      patchProperty(db.query.mfaFactorsTable, "findFirst", async () => ({
+        id: "factor-2",
+        userId: "user-2",
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    ];
+    try {
+      const app = createSessionApp(authRouter, {
+        pendingUserId: "user-2",
+        pendingMfaReason: "challenge_required",
+        sessionGroup: "admin",
+      });
+      const response = await performJsonRequest(app, "GET", "/api/me");
+      assert.equal(response.status, 200);
+      assert.equal(response.body?.authState, "mfa_pending");
+      assert.equal(response.body?.sessionState, "pending_second_factor");
+      assert.equal(response.body?.nextStep, "mfa_challenge");
+      assert.equal(response.body?.needsEnrollment, false);
+    } finally {
+      restores.reverse().forEach((restore) => restore());
     }
+  }
 
-    // mfa_pending_unenrolled
-    {
-      const restores = [
-        ...commonRestores,
-        patchProperty(db.query.usersTable, "findFirst", async () => ({
-          id: "user-3",
-          email: "pending2@example.com",
-          name: "Pending User 2",
-          avatarUrl: null,
-          isSuperAdmin: false,
-          activeOrgId: null,
-          suspended: false,
-          deletedAt: null,
-          active: true,
-        })),
-        patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
-      ];
-      try {
-        const app = createSessionApp(authRouter, {
-          pendingUserId: "user-3",
-          pendingMfaReason: "enrollment_required",
-          sessionGroup: "admin",
-        });
-        const response = await performJsonRequest(app, "GET", "/api/me");
-        assert.equal(response.status, 200);
-        assert.equal(response.body?.authState, "mfa_pending");
-        assert.equal(response.body?.sessionState, "pending_second_factor");
-        assert.equal(response.body?.nextStep, "mfa_enroll");
-        assert.equal(response.body?.needsEnrollment, true);
-      } finally {
-        restores.reverse().forEach((restore) => restore());
-      }
+  // mfa_pending_unenrolled
+  {
+    const restores = [
+      ...applyCommonPatches(),
+      patchProperty(db.query.usersTable, "findFirst", async () => ({
+        id: "user-3",
+        email: "pending2@example.com",
+        name: "Pending User 2",
+        avatarUrl: null,
+        isSuperAdmin: false,
+        activeOrgId: null,
+        suspended: false,
+        deletedAt: null,
+        active: true,
+      })),
+      patchProperty(db.query.mfaFactorsTable, "findFirst", async () => null),
+    ];
+    try {
+      const app = createSessionApp(authRouter, {
+        pendingUserId: "user-3",
+        pendingMfaReason: "enrollment_required",
+        sessionGroup: "admin",
+      });
+      const response = await performJsonRequest(app, "GET", "/api/me");
+      assert.equal(response.status, 200);
+      assert.equal(response.body?.authState, "mfa_pending");
+      assert.equal(response.body?.sessionState, "pending_second_factor");
+      assert.equal(response.body?.nextStep, "mfa_enroll");
+      assert.equal(response.body?.needsEnrollment, true);
+    } finally {
+      restores.reverse().forEach((restore) => restore());
     }
-  } finally {
-    commonRestores.reverse().forEach((restore) => restore());
   }
 });
