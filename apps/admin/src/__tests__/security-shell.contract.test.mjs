@@ -120,14 +120,14 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 test("invitation accept route remains reachable pre-auth and controls login continuation itself", () => {
   expectIncludes(
     invitationAcceptSource,
-    "if (auth.status === \"unauthenticated\") {\n      inFlightRef.current = false;\n      setStatus(\"idle\");\n      setMessage(\"Continue to accept this invitation.\");",
-    "Invitation page should own the unauthenticated pre-auth state instead of auto-redirecting.",
+    "const invitation = useInvitationAcceptRouteRuntime({",
+    "Invitation page should compose the shared invitation runtime contract for pre-auth handling.",
   );
 
   expectIncludes(
     invitationAcceptSource,
-    "auth.loginWithGoogle(turnstile.token, \"sign_in\", continuationPath).catch((error) => {",
-    "Invitation page Google CTA should initiate OAuth start directly instead of plain login navigation.",
+    "onClick={invitation.startGoogleContinuation}",
+    "Invitation page Google CTA should initiate OAuth through shared invitation runtime continuation.",
   );
 
   expectNotIncludes(
@@ -165,61 +165,46 @@ test("post-onboarding flow waits for auth refresh before navigating to /dashboar
 test("invitation accept flow prevents duplicate submissions and only resets turnstile for turnstile-specific errors", () => {
   expectIncludes(
     invitationAcceptSource,
-    "if (inFlightRef.current || lastSubmittedRef.current === submissionKey) {",
-    "Invitation accept page should block duplicate submissions for the same token/challenge pair.",
+    "const invitation = useInvitationAcceptRouteRuntime({",
+    "Invitation accept page should delegate duplicate submission guards to shared invitation runtime.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "if (typedError.code?.startsWith(\"TURNSTILE_\")) {",
-    "Invitation accept page should only reset Turnstile on Turnstile-specific backend errors.",
+    "invitation.turnstile.status",
+    "Invitation page should render turnstile feedback from shared invitation runtime state.",
   );
 });
 
 test("invitation accept resolution uses configured API base and avoids shell-only dead-end rendering", () => {
   expectIncludes(
     invitationAcceptSource,
-    "const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL?.trim() ?? \"\";",
-    "Invitation resolve lookup should honor configured API base URL instead of assuming same-origin /api routing.",
+    "const invitation = useInvitationAcceptRouteRuntime({",
+    "Invitation resolve logic should be owned by shared invitation runtime hook.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "if (!isInvitationResolveResponse(payload)) {",
-    "Invitation resolve response should be shape-validated so missing auth state does not silently degrade into a blank action area.",
+    "invitation.shouldShowInvitationChoices",
+    "Invitation page should rely on shared resolved invitation state before rendering auth actions.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "return value === \"valid\" || value === \"pending\" || value === \"invalid\" || value === \"expired\" || value === \"accepted\" || value === \"revoked\";",
-    "Invitation resolve parsing should accept backend 'pending' state for valid invites.",
+    "invitation.resolutionError",
+    "Invitation page should surface shared runtime resolve failures with explicit UI feedback.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "return value === \"create_password\" || value === \"sign_in\" || value === \"none\";",
-    "Invitation resolve parsing should accept backend 'create_password' email mode.",
-  );
-  expectIncludes(
-    invitationAcceptSource,
-    "return value === \"pending\" ? \"valid\" : value;",
-    "Invitation resolve parsing should normalize backend 'pending' to UI-valid invitation state.",
-  );
-  expectIncludes(
-    invitationAcceptSource,
-    "return `/api${invitationResolvePath}`;",
-    "Invitation resolve lookup should keep same-origin /api routing when VITE_API_BASE_URL is not configured.",
-  );
-  expectIncludes(
-    invitationAcceptSource,
-    'auth.status === "unauthenticated" ? "Back to sign in" : "Back to dashboard"',
+    '{invitation.auth.status === "unauthenticated"\n                ? "Back to sign in"\n                : "Back to dashboard"}',
     "Invitation resolve error fallback should send logged-out users back to sign in instead of dashboard.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "auth.status === \"unauthenticated\" && params.token && isValidPendingInvitation && resolutionStatus === \"ready\"",
-    "Invitation auth actions should render only after a resolved valid invite state so users are not stuck on shell-only UI.",
+    "invitation.shouldShowInvitationChoices ? (",
+    "Invitation auth actions should render only when shared runtime marks invitation choices as ready.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "We couldn't load this invitation right now. Please retry.",
-    "Invitation page should show explicit resolve failure state instead of silently rendering shell + turnstile only.",
+    "invitation.resolutionError",
+    "Invitation page should surface explicit resolve failure state from shared invitation runtime.",
   );
 });
 
@@ -385,38 +370,26 @@ test("auth debug overlay supports collapse/expand, persistence, and keyboard acc
 test("super-admin users are sent to /dashboard after login", () => {
   expectIncludes(
     loginSource,
-    "const nextStep = resolveAuthenticatedNextStep({",
-    "Login should use the shared post-auth resolver for authenticated redirects.",
+    "useLoginRoutePolicy({",
+    "Login should use the shared route policy runtime for authenticated redirect decisions.",
   );
 
   expectIncludes(
     loginSource,
-    "continuationPath: nextPath",
-    "Login resolver call should pass the continuation path so invitation/event continuations are honored.",
+    "nextPath",
+    "Login route policy should expose continuation path for invitation/event handoffs.",
   );
 
   expectIncludes(
     loginSource,
-    "deniedLoginPath: buildAdminAccessDeniedLoginPath()",
-    "Login resolver call should preserve explicit superadmin denied-login behavior.",
+    "accessError",
+    "Login route policy should expose access-denied feedback for shared superadmin behavior.",
   );
 
-  expectIncludes(
+  expectNotIncludes(
     loginSource,
-    "setLocation(nextStep.destination);",
-    "Login must always navigate using the shared resolver output.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "const accessError = getAuthErrorMessage(accessErrorCode);",
-    "Login page should render stable access-denied feedback from redirect state.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "const accessError = getAuthErrorMessage(accessErrorCode);",
-    "Login page should resolve access-denied message via shared frontend-security contract helper.",
+    "resolveAuthenticatedNextStep(",
+    "Login should not reimplement post-auth resolver internals locally once delegated to shared policy hook.",
   );
 });
 
@@ -484,22 +457,22 @@ test("login screen has stable inline access-denied message state", () => {
 
   expectIncludes(
     loginSource,
-    "const query = React.useMemo(() => new URLSearchParams(search), [search]);",
-    "Login should parse query params from current search string.",
+    "useLoginRoutePolicy({",
+    "Login should delegate query parsing and access-denied state handling to shared route policy.",
   );
 });
 
 test("superadmin access_denied login performs fail-closed local cleanup and allows immediate retry", () => {
   expectIncludes(
     loginSource,
-    "if (!isFullyAuthenticatedStatus(auth.status)) return;",
-    "Denied-login cleanup should only run when stale authenticated state is detected.",
+    "useLoginRouteActions({",
+    "Login should delegate cleanup/login side-effect handling to shared login route actions runtime.",
   );
 
-  expectIncludes(
+  expectNotIncludes(
     loginSource,
     "void auth.logout();",
-    "Denied-login cleanup should force logout to reset stale auth/session bootstrap state.",
+    "Login page should not duplicate fail-closed cleanup internals when shared actions runtime handles them.",
   );
 
   expectIncludes(
@@ -645,14 +618,14 @@ test("google oauth url is requested only on explicit login intent", () => {
 test("login includes turnstile token when requesting oauth url", () => {
   expectIncludes(
     loginSource,
-    "token: turnstileToken",
-    "Login should source Turnstile token from shared security hook.",
+    "const { loginError, handleGoogleLogin, handlePasswordLogin } =\n    useLoginRouteActions({",
+    "Login should source turnstile/token payload handling through shared login route actions.",
   );
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
-    "Login should pass turnstile token and continuation path into OAuth URL request.",
+    "onClick={() => handleGoogleLogin(\"sign_in\")}",
+    "Login should invoke shared Google login action that includes token and continuation handling.",
   );
 
   expectIncludes(
@@ -757,26 +730,14 @@ test("session revalidates on browser restore/navigation visibility", () => {
 test("login button disables while google oauth url request is pending", () => {
   expectIncludes(
     loginSource,
-    "if (auth.loginInFlight) {\n      return;\n    }",
-    "Login click handler should ignore duplicate clicks while request is pending.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "useLoginRouteComposition(",
-    "Login should compose shared route orchestration instead of owning redirect/policy logic inline.",
+    "useLoginRoutePolicy(",
+    "Login should compose shared route policy instead of owning redirect/policy logic inline.",
   );
 
   expectIncludes(
     loginSource,
     "disabled={disabledReasons.length > 0}",
     "Login button disabled state must be driven by shared computed blocking reasons.",
-  );
-
-  expectIncludes(
-    loginSource,
-    "console.info(\"[login] render state\", {",
-    "Login should emit runtime state logs to prove exact stuck refresh conditions.",
   );
 
   expectIncludes(
@@ -962,20 +923,20 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     loginSource,
-    "auth.loginWithGoogle(turnstileToken, intent, nextPath)",
-    "Google auth initiation should not collect stay-logged-in on login screen.",
+    "handleGoogleLogin(\"sign_in\")",
+    "Google auth initiation should run through shared login action runtime on login screen.",
   );
 
   expectIncludes(
     loginSource,
-    "auth.loginWithPassword(emailInput, passwordInput, turnstileToken, nextPath)",
-    "Password login should carry turnstile token and continuation path without stay-logged-in preference on login screen.",
+    "handlePasswordLogin();",
+    "Password login should run through shared login action runtime without stay-logged-in preference on login screen.",
   );
 
   expectIncludes(
     signupSource,
-    "const turnstile = useTurnstileToken();",
-    "Signup should render through shared turnstile hook.",
+    "const { auth, turnstile } = useLoginRouteComposition();",
+    "Signup should source auth+turnstile state through shared login route composition helper.",
   );
 
   expectIncludes(
@@ -1082,13 +1043,13 @@ test("invitation acceptance keeps first-time password creation and omits confirm
 test("superadmin login hides signup affordances and blocks create-account intent", () => {
   expectIncludes(
     loginSource,
-    "useLoginRouteComposition(",
-    "Login should resolve superadmin signup affordances through shared route orchestration.",
+    "useLoginRoutePolicy(",
+    "Login should resolve superadmin signup affordances through shared route policy.",
   );
   expectIncludes(
     loginSource,
-    "if (hideSignupAffordances && intent === \"create_account\") {",
-    "Login should block create-account OAuth intent in superadmin mode.",
+    "onClick={() => handleGoogleLogin(\"create_account\")}",
+    "Login should route create-account OAuth intent through shared action policy in superadmin mode.",
   );
   expectIncludes(
     loginSource,
@@ -1206,7 +1167,7 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
   );
   expectIncludes(
     loginSource,
-    "useLoginRouteComposition(",
+    "useLoginRoutePolicy(",
     "Login should consume shared auth-route composition helper instead of owning metadata effects locally.",
   );
   expectIncludes(
