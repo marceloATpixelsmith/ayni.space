@@ -66,7 +66,6 @@ const {
   authState,
   metadataState,
   secureApiFetchMock,
-  invitationRuntimeState,
 } = vi.hoisted(() => ({
   authState: {
     status: "unauthenticated",
@@ -105,135 +104,21 @@ const {
       nextStep: "mfa_enroll",
     }),
   })),
-  invitationRuntimeState: {
-    status: "pending" as "pending" | "error" | "done",
-    message: "Invitation pending",
-    shouldShowInvitationChoices: false,
-    resolutionError: null as string | null,
-    auth: {
-      status: "unauthenticated",
-      loginInFlight: false,
-    },
-    shouldShowPasswordFields: false,
-    password: "",
-    setPassword: vi.fn(),
-    markPasswordTouched: vi.fn(),
-    passwordError: null as string | null,
-    shouldShowPasswordFeedback: false,
-    missingPasswordRequirements: [] as string[],
-    submitInvitationPassword: vi.fn(),
-    passwordSubmitting: false,
-    canSubmitPassword: false,
-    shouldShowEmailSignInOption: false,
-    loginContinuationPath: "/login",
-    submitError: null as string | null,
-    turnstile: {
-      enabled: false,
-      status: "idle",
-      guidanceMessage: null as string | null,
-      TurnstileWidget: (() => null) as React.ComponentType,
-    },
-    startGoogleContinuation: vi.fn(),
-  },
 }));
 
 vi.mock("@workspace/frontend-observability", () => ({
   MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@workspace/frontend-security", () => {
+vi.mock("@workspace/frontend-security", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>(
+    "@workspace/frontend-security",
+  );
   return {
+    ...actual,
     AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useAuth: () => authState,
     useCurrentPlatformAppMetadata: () => metadataState,
-    getLastAuthDebugEventSummary: () => null,
-    isAuthDebugEnabled: () => false,
-    logAuthDebug: () => undefined,
-    getDisallowedAuthRouteRedirect: () => "/login",
-    getMfaPendingRoute: (status: string) =>
-      status === "authenticated_mfa_pending_enrolled" ? "/mfa/challenge" : "/mfa/enroll",
-    isMfaPendingStatus: (status: string) =>
-      status === "authenticated_mfa_pending_enrolled" ||
-      status === "authenticated_mfa_pending_unenrolled",
-    isAuthRouteAllowed: (
-      metadata: {
-        authRoutePolicy?: {
-          allowInvitations?: boolean;
-          allowCustomerRegistration?: boolean;
-        };
-      } | null | undefined,
-      routeKind: string,
-    ) => {
-      if (routeKind === "signup") {
-        return Boolean(metadata?.authRoutePolicy?.allowCustomerRegistration);
-      }
-      if (routeKind === "invitation") {
-        return Boolean(metadata?.authRoutePolicy?.allowInvitations);
-      }
-      return true;
-    },
-    resolveAuthenticatedNextStep: () => ({
-      destination: "/dashboard",
-      reason: "default",
-    }),
-    useLoginRoutePolicy: () => ({
-      auth: authState,
-      turnstile: {
-        enabled: false,
-        ready: true,
-        token: null,
-        canSubmit: true,
-        status: "idle",
-        guidanceMessage: null,
-        TurnstileWidget: (() => null) as React.ComponentType,
-      },
-      hideSignupAffordances:
-        metadataState.metadata.normalizedAccessProfile === "superadmin",
-      nextPath: null,
-      accessError: null,
-    }),
-    useLoginRouteActions: () => ({
-      loginError: null,
-      handleGoogleLogin: vi.fn(),
-      handlePasswordLogin: vi.fn(),
-    }),
-    useEmailValidationInteraction: () => ({
-      error: null,
-      markTouched: vi.fn(),
-      markSubmitted: vi.fn(),
-    }),
-    validateEmailInput: (value: string) =>
-      value.includes("@") ? null : "Enter a valid email address.",
-    getLoginDisabledReasons: () => [],
-    useLoginRouteComposition: () => ({
-      auth: authState,
-      turnstile: {
-        enabled: false,
-        ready: true,
-        token: null,
-        canSubmit: true,
-        status: "idle",
-        guidanceMessage: null,
-        TurnstileWidget: (() => null) as React.ComponentType,
-      },
-    }),
-    useSignupRouteActions: () => ({
-      submit: {
-        pending: false,
-        error: null,
-      },
-      handleSignup: vi.fn(),
-    }),
-    useSignupRoutePolicy: () => ({
-      metadataResolved: true,
-      signupAllowed:
-        metadataState.metadata.normalizedAccessProfile !== "superadmin" &&
-        metadataState.metadata.authRoutePolicy.allowCustomerRegistration,
-    }),
-    getSignupDisabledReasons: () => [],
-    getMissingPasswordRequirements: () => [],
-    validatePasswordInput: (value: string) =>
-      value.length >= 8 ? null : "Password must be at least 8 characters.",
     secureApiFetch: secureApiFetchMock,
     useTurnstileToken: () => ({
       enabled: false,
@@ -242,7 +127,6 @@ vi.mock("@workspace/frontend-security", () => {
       guidanceMessage: null,
       TurnstileWidget: (() => null) as React.ComponentType,
     }),
-    useInvitationAcceptRouteRuntime: () => invitationRuntimeState,
   };
 });
 
@@ -276,11 +160,6 @@ describe("App auth routing runtime behavior", () => {
         allowCustomerRegistration: true,
       },
     };
-    invitationRuntimeState.status = "pending";
-    invitationRuntimeState.shouldShowInvitationChoices = false;
-    invitationRuntimeState.message = "Invitation pending";
-    invitationRuntimeState.auth.status = "unauthenticated";
-    invitationRuntimeState.auth.loginInFlight = false;
     setPath("/");
   });
 
