@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import App from "../App";
@@ -80,7 +80,6 @@ function setPath(path: string) {
 
 describe("App auth routing runtime behavior", () => {
   beforeEach(() => {
-    root?.unmount();
     authState.status = "unauthenticated";
     authState.user = null;
     metadataState.loading = false;
@@ -93,6 +92,16 @@ describe("App auth routing runtime behavior", () => {
       },
     };
     setPath("/");
+  });
+
+  afterEach(() => {
+    if (root) {
+      act(() => {
+        root?.unmount();
+      });
+    }
+    root = undefined;
+    document.body.innerHTML = "";
   });
 
   it("redirects unauthenticated users from protected routes to /login", async () => {
