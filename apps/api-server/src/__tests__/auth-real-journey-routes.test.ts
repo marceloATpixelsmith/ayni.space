@@ -122,7 +122,7 @@ function installDbMocks(state: MockState) {
     if (requestedEmail) return state.usersByEmail.get(requestedEmail) ?? null;
     const requestedUserId = literals.find((value) => state.users.has(value));
     if (requestedUserId) return state.users.get(requestedUserId) ?? null;
-    return state.users.values().next().value ?? null;
+    return null;
   };
 
   restores.push(
