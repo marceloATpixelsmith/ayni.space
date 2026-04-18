@@ -24,6 +24,28 @@ const EVENT_REGISTRATION_PATH_REGEX =
   /^\/(events|event-registration)\/([^/]+)\/register(?:\/)?$/i;
 const CLIENT_REGISTRATION_PATH_REGEX =
   /^\/(register|registration)\/(client|public)(?:\/)?$/i;
+const DEFAULT_APP_ENTRY_ALLOWED_PATHS = new Set([
+  "/",
+  "/dashboard",
+  "/dashboard/apps",
+  "/apps",
+]);
+
+function isDefaultAppEntryPath(path: string): boolean {
+  const normalizedPath = path.endsWith("/") && path.length > 1
+    ? path.slice(0, -1)
+    : path;
+  return DEFAULT_APP_ENTRY_ALLOWED_PATHS.has(normalizedPath);
+}
+
+export function isRouteValidPostAuthContinuationPath(path: string): boolean {
+  return (
+    INVITATION_PATH_REGEX.test(path) ||
+    EVENT_REGISTRATION_PATH_REGEX.test(path) ||
+    CLIENT_REGISTRATION_PATH_REGEX.test(path) ||
+    isDefaultAppEntryPath(path)
+  );
+}
 
 export function resolvePostAuthContinuation(params: {
   appSlug: string;
@@ -32,6 +54,8 @@ export function resolvePostAuthContinuation(params: {
   orgId?: string | null;
   resourceId?: string | null;
 }): PostAuthContinuation | null {
+  const appSlug = params.appSlug.trim();
+  if (!appSlug) return null;
   const returnPath = normalizeReturnPath(params.returnPath);
   if (!returnPath) return null;
 
@@ -53,7 +77,7 @@ export function resolvePostAuthContinuation(params: {
   if (invitationMatch) {
     return {
       type: "invitation_acceptance",
-      appSlug: params.appSlug,
+      appSlug,
       returnPath,
       resourceId: explicitResourceId ?? invitationMatch?.[1],
       orgId,
@@ -67,7 +91,7 @@ export function resolvePostAuthContinuation(params: {
   if (eventRegistrationMatch) {
     return {
       type: "event_registration",
-      appSlug: params.appSlug,
+      appSlug,
       returnPath,
       resourceId: explicitResourceId ?? eventRegistrationMatch?.[2],
       orgId,
@@ -80,7 +104,7 @@ export function resolvePostAuthContinuation(params: {
   if (CLIENT_REGISTRATION_PATH_REGEX.test(returnPath)) {
     return {
       type: "client_registration",
-      appSlug: params.appSlug,
+      appSlug,
       returnPath,
       resourceId: explicitResourceId,
       orgId,
@@ -90,9 +114,13 @@ export function resolvePostAuthContinuation(params: {
     return null;
   }
 
+  if (!isDefaultAppEntryPath(returnPath)) {
+    return null;
+  }
+
   return {
     type: "default_app_entry",
-    appSlug: params.appSlug,
+    appSlug,
     returnPath,
     resourceId: explicitResourceId,
     orgId,
@@ -103,5 +131,9 @@ export function normalizeContinuationPath(
   continuation: PostAuthContinuation | null | undefined,
 ): string | null {
   if (!continuation) return null;
-  return normalizeReturnPath(continuation.returnPath);
+  const normalizedPath = normalizeReturnPath(continuation.returnPath);
+  if (!normalizedPath || !isRouteValidPostAuthContinuationPath(normalizedPath)) {
+    return null;
+  }
+  return normalizedPath;
 }
