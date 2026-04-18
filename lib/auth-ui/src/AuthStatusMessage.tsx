@@ -5,11 +5,15 @@ export function AuthStatusMessage({
   tone = "default",
   align = "left",
   className,
+  role,
+  ariaLive,
 }: {
   message?: string | null;
   tone?: "default" | "error";
   align?: "left" | "center";
   className?: string;
+  role?: "alert" | "status";
+  ariaLive?: "polite" | "assertive" | "off";
 }) {
   if (!message) {
     return null;
@@ -22,8 +26,8 @@ export function AuthStatusMessage({
   return (
     <p
       className={`mt-4 text-sm ${toneClassName} ${alignClassName} ${className ?? ""}`}
-      role={tone === "error" ? "alert" : "status"}
-      aria-live="polite"
+      role={role ?? (tone === "error" ? "alert" : "status")}
+      aria-live={ariaLive ?? "polite"}
     >
       {message}
     </p>
