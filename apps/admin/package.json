@@ -8,7 +8,8 @@
     "build": "vite build",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:security-shell": "node --test src/__tests__/security-shell.contract.test.mjs"
+    "test:security-shell": "node --test src/__tests__/security-shell.contract.test.mjs",
+    "test": "pnpm --package=vitest@2.1.8 --package=jsdom@25.0.1 --package=@testing-library/react@16.1.0 --package=@testing-library/jest-dom@6.6.3 dlx vitest run --config vitest.config.ts"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
