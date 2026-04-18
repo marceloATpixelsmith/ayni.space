@@ -327,7 +327,7 @@ test("org-admin signup -> verify-email -> mfa branch -> onboarding -> dashboard 
       suspended: false,
       deletedAt: null,
       activeOrgId: null,
-      emailVerifiedAt: null,
+      emailVerifiedAt: null as Date | null,
     };
     state.users.set(user.id, user);
     state.usersByEmail.set(user.email, user);
