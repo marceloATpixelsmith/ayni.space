@@ -68,6 +68,9 @@ jobs:
               const byName = new Map();
 
               for (const run of checkRuns) {
+                if (!run || typeof run.name !== "string") {
+                  continue;
+                }
                 if (!requiredSet.has(run.name)) {
                   continue;
                 }
@@ -91,6 +94,9 @@ jobs:
               }
 
               for (const status of statuses) {
+                if (!status || typeof status.context !== "string") {
+                  continue;
+                }
                 if (!requiredSet.has(status.context)) {
                   continue;
                 }
