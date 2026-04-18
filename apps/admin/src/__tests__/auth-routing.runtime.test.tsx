@@ -62,76 +62,80 @@ type AuthStateMock = {
   ) => Promise<void>;
 };
 
-const authState: AuthStateMock = {
-  status: "unauthenticated",
-  user: null,
-  authBootstrapping: false,
-  csrfToken: "csrf",
-  csrfReady: true,
-  loginInFlight: false,
-  refreshSession: async () => undefined,
-  startMfaEnrollment: async () => ({
-    factorId: "factor-1",
-    secret: "SECRET",
-    issuer: "Ayni",
-    otpauthUrl: "otpauth://totp/Ayni:test?secret=SECRET&issuer=Ayni",
-  }),
-  completeMfaChallenge: async () => undefined,
-  completeMfaRecovery: async () => undefined,
-};
-
-const metadataState = {
-  loading: false,
-  currentAppSlug: "admin",
-  metadata: {
-    normalizedAccessProfile: "organization",
-    authRoutePolicy: {
-      allowInvitations: true,
-      allowCustomerRegistration: true,
+const {
+  authState,
+  metadataState,
+  secureApiFetchMock,
+  invitationRuntimeState,
+} = vi.hoisted(() => ({
+  authState: {
+    status: "unauthenticated",
+    user: null,
+    authBootstrapping: false,
+    csrfToken: "csrf",
+    csrfReady: true,
+    loginInFlight: false,
+    refreshSession: async () => undefined,
+    startMfaEnrollment: async () => ({
+      factorId: "factor-1",
+      secret: "SECRET",
+      issuer: "Ayni",
+      otpauthUrl: "otpauth://totp/Ayni:test?secret=SECRET&issuer=Ayni",
+    }),
+    completeMfaChallenge: async () => undefined,
+    completeMfaRecovery: async () => undefined,
+  } satisfies AuthStateMock,
+  metadataState: {
+    loading: false,
+    currentAppSlug: "admin",
+    metadata: {
+      normalizedAccessProfile: "organization",
+      authRoutePolicy: {
+        allowInvitations: true,
+        allowCustomerRegistration: true,
+      },
     },
   },
-};
-
-const secureApiFetchMock = vi.fn(async () => ({
-  ok: true,
-  status: 200,
-  json: async () => ({
-    mfaPending: true,
-    mfaEnrolled: false,
-    nextStep: "mfa_enroll",
-  }),
+  secureApiFetchMock: vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      mfaPending: true,
+      mfaEnrolled: false,
+      nextStep: "mfa_enroll",
+    }),
+  })),
+  invitationRuntimeState: {
+    status: "pending" as "pending" | "error" | "done",
+    message: "Invitation pending",
+    shouldShowInvitationChoices: false,
+    resolutionError: null as string | null,
+    auth: {
+      status: "unauthenticated",
+      loginInFlight: false,
+    },
+    shouldShowPasswordFields: false,
+    password: "",
+    setPassword: vi.fn(),
+    markPasswordTouched: vi.fn(),
+    passwordError: null as string | null,
+    shouldShowPasswordFeedback: false,
+    missingPasswordRequirements: [] as string[],
+    submitInvitationPassword: vi.fn(),
+    passwordSubmitting: false,
+    canSubmitPassword: false,
+    shouldShowEmailSignInOption: false,
+    loginContinuationPath: "/login",
+    submitError: null as string | null,
+    turnstile: {
+      enabled: false,
+      status: "idle",
+      guidanceMessage: null as string | null,
+      TurnstileWidget: (() => null) as React.ComponentType,
+    },
+    startGoogleContinuation: vi.fn(),
+  },
 }));
-
-const invitationRuntimeState = {
-  status: "pending" as "pending" | "error" | "done",
-  message: "Invitation pending",
-  shouldShowInvitationChoices: false,
-  resolutionError: null as string | null,
-  auth: {
-    status: "unauthenticated",
-    loginInFlight: false,
-  },
-  shouldShowPasswordFields: false,
-  password: "",
-  setPassword: vi.fn(),
-  markPasswordTouched: vi.fn(),
-  passwordError: null as string | null,
-  shouldShowPasswordFeedback: false,
-  missingPasswordRequirements: [] as string[],
-  submitInvitationPassword: vi.fn(),
-  passwordSubmitting: false,
-  canSubmitPassword: false,
-  shouldShowEmailSignInOption: false,
-  loginContinuationPath: "/login",
-  submitError: null as string | null,
-  turnstile: {
-    enabled: false,
-    status: "idle",
-    guidanceMessage: null as string | null,
-    TurnstileWidget: (() => null) as React.ComponentType,
-  },
-  startGoogleContinuation: vi.fn(),
-};
 
 vi.mock("@workspace/frontend-observability", () => ({
   MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -288,7 +292,6 @@ describe("App auth routing runtime behavior", () => {
     }
     root = undefined;
     document.body.innerHTML = "";
-    vi.restoreAllMocks();
   });
 
   it("redirects unauthenticated users from protected routes to /login", async () => {
