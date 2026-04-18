@@ -334,8 +334,15 @@ test("org signup -> verify-email route -> MFA challenge -> dashboard when org ap
       email: "owner@example.com",
       password: "Password1!",
     });
-    assert.equal(postOnboardingLogin.status, 200);
-    assert.equal(postOnboardingLogin.body?.nextPath, "/dashboard");
+    assert.equal(postOnboardingLogin.status, 202);
+    assert.equal(postOnboardingLogin.body?.mfaRequired, true);
+    assert.equal(postOnboardingLogin.body?.nextPath, "/mfa/challenge");
+
+    const postOnboardingMfaChallenge = await performJsonRequest(app, "POST", "/api/auth/mfa/challenge", {
+      code: "RECOVERY-CODE",
+    });
+    assert.equal(postOnboardingMfaChallenge.status, 200);
+    assert.equal(postOnboardingMfaChallenge.body?.nextPath, "/dashboard");
   } finally {
     restore();
   }
