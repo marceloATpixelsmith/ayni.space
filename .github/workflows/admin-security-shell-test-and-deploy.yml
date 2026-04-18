@@ -13,6 +13,7 @@ jobs:
   admin-security-shell-test:
     name: admin-security-shell-test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v6
