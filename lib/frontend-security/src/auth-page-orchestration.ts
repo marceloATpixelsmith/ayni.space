@@ -17,7 +17,11 @@ import {
   handleTurnstileProtectedAuthError,
   useAuthSubmitOrchestration,
 } from "./auth-form-runtime";
-import { getMissingPasswordRequirements, validatePasswordInput } from "./authValidation";
+import {
+  getMissingPasswordRequirements,
+  normalizeEmailInput,
+  validatePasswordInput,
+} from "./authValidation";
 
 export function getLoginDisabledReasons(input: {
   authStatus: ReturnType<typeof useAuth>["status"];
@@ -126,6 +130,101 @@ export function useSignupRoutePolicy(options: {
   return {
     metadataResolved,
     signupAllowed,
+  };
+}
+
+function buildVerifyEmailPath(input: {
+  email: string;
+  appSlug?: string;
+  verifyToken?: string;
+}): string {
+  const query = new URLSearchParams();
+  query.set("email", input.email);
+  if (input.appSlug) query.set("appSlug", input.appSlug);
+  if (input.verifyToken) query.set("token", input.verifyToken);
+  return `/verify-email?${query.toString()}`;
+}
+
+export function getSignupDisabledReasons(input: {
+  signupInFlight: boolean;
+  emailPresent: boolean;
+  passwordPresent: boolean;
+  emailError: boolean;
+  passwordError: boolean;
+}) {
+  const reasons: string[] = [];
+  if (input.signupInFlight) reasons.push("auth.signupInFlight");
+  if (!input.emailPresent) reasons.push("!email");
+  if (!input.passwordPresent) reasons.push("!password");
+  if (input.emailError) reasons.push("email.invalid");
+  if (input.passwordError) reasons.push("password.invalid");
+  return reasons;
+}
+
+export function useSignupRouteActions(options: {
+  auth: ReturnType<typeof useAuth>;
+  turnstile: ReturnType<typeof useTurnstileToken>;
+  email: string;
+  password: string;
+  emailError: string | null;
+  onRedirect: (path: string) => void;
+}) {
+  const submit = useAuthSubmitOrchestration();
+  const { auth, turnstile, email, password, emailError, onRedirect } = options;
+
+  const handleSignup = React.useCallback(() => {
+    if (!auth.csrfReady || !auth.csrfToken) {
+      submit.setError(
+        "Security token is not ready. Please wait a moment and try again.",
+      );
+      return;
+    }
+    if (emailError) {
+      submit.setError(emailError);
+      return;
+    }
+    const passwordError = validatePasswordInput(password);
+    if (passwordError) {
+      submit.setError(passwordError);
+      return;
+    }
+    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
+    if (turnstileError) {
+      submit.setError(turnstileError);
+      return;
+    }
+
+    const normalizedEmail = normalizeEmailInput(email);
+    void submit
+      .run(() =>
+        auth.signupWithPassword(
+          normalizedEmail,
+          password,
+          turnstile.token,
+        ),
+      )
+      .then((result) => {
+        onRedirect(
+          buildVerifyEmailPath({
+            email: normalizedEmail,
+            appSlug: result.appSlug,
+            verifyToken: result.verifyToken,
+          }),
+        );
+      })
+      .catch((error) => {
+        handleTurnstileProtectedAuthError({
+          error,
+          turnstile,
+          setError: submit.setError,
+          fallbackMessage: "Unable to sign up.",
+        });
+      });
+  }, [auth, email, emailError, onRedirect, password, submit, turnstile]);
+
+  return {
+    submit,
+    handleSignup,
   };
 }
 

@@ -101,10 +101,11 @@ test("signup and invitation flows avoid confirm-password fields", () => {
   assert.doesNotMatch(invitationSource, /Confirm password/i);
 });
 
-test("signup submit gating depends only on email and password validity", () => {
+test("signup submit gating is delegated to shared disabled-reason policy", () => {
+  assert.match(signupSource, /getSignupDisabledReasons\(/);
   assert.match(
     signupSource,
-    /disabled=\{!email \|\| !password \|\| Boolean\(validateEmailInput\(email\)\) \|\| Boolean\(validatePasswordInput\(password\)\)\}/,
+    /disabled=\{disabledReasons\.length > 0\}/,
   );
   assert.doesNotMatch(signupSource, /Full Name/i);
   assert.doesNotMatch(signupSource, /confirmPassword/);
@@ -120,6 +121,15 @@ test("login superadmin mode can hide signup affordances", () => {
   assert.match(loginSource, /hideSignupAffordances/);
   assert.match(loginSource, /useLoginRoutePolicy\(/);
   assert.match(loginSource, /useLoginRouteActions\(/);
+});
+
+test("signup delegates submit orchestration to shared route actions", () => {
+  assert.match(signupSource, /useSignupRouteActions\(/);
+  assert.match(signupSource, /getSignupDisabledReasons\(/);
+  assert.match(signupSource, /disabled=\{disabledReasons\.length > 0\}/);
+  assert.doesNotMatch(signupSource, /auth\.signupWithPassword/);
+  assert.doesNotMatch(signupSource, /ensureTurnstileReadyForSubmit/);
+  assert.doesNotMatch(signupSource, /new URLSearchParams\(/);
 });
 
 

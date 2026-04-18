@@ -1,14 +1,12 @@
 import React from "react";
 import { useLocation } from "wouter";
 import {
-  useSignupRoutePolicy,
   useLoginRouteComposition,
+  useSignupRouteActions,
+  useSignupRoutePolicy,
+  getSignupDisabledReasons,
   useEmailValidationInteraction,
-  ensureTurnstileReadyForSubmit,
-  handleTurnstileProtectedAuthError,
-  useAuthSubmitOrchestration,
   getMissingPasswordRequirements,
-  normalizeEmailInput,
   validateEmailInput,
   validatePasswordInput,
 } from "@workspace/frontend-security";
@@ -26,7 +24,6 @@ export default function Signup() {
   const [location, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const submit = useAuthSubmitOrchestration();
   const emailValidation = useEmailValidationInteraction({
     value: email,
     validate: validateEmailInput,
@@ -41,6 +38,25 @@ export default function Signup() {
   const emailError = emailValidation.error;
   const shouldShowPasswordFeedback = password.length > 0;
   const missingPasswordRequirements = getMissingPasswordRequirements(password);
+  const { submit, handleSignup } = useSignupRouteActions({
+    auth,
+    turnstile,
+    email,
+    password,
+    emailError,
+    onRedirect: setLocation,
+  });
+  const disabledReasons = React.useMemo(
+    () =>
+      getSignupDisabledReasons({
+        signupInFlight: submit.pending,
+        emailPresent: Boolean(email),
+        passwordPresent: Boolean(password),
+        emailError: Boolean(validateEmailInput(email)),
+        passwordError: Boolean(validatePasswordInput(password)),
+      }),
+    [submit.pending, email, password],
+  );
 
   if (!metadataResolved || !signupAllowed) {
     return null;
@@ -48,45 +64,7 @@ export default function Signup() {
 
   const onSubmit = () => {
     emailValidation.markSubmitted();
-    if (!auth.csrfReady || !auth.csrfToken) {
-      submit.setError(
-        "Security token is not ready. Please wait a moment and try again.",
-      );
-      return;
-    }
-    if (emailError) {
-      submit.setError(emailError);
-      return;
-    }
-    const passwordError = validatePasswordInput(password);
-    if (passwordError) {
-      submit.setError(passwordError);
-      return;
-    }
-    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
-    if (turnstileError) {
-      submit.setError(turnstileError);
-      return;
-    }
-
-    const normalizedEmail = normalizeEmailInput(email);
-    void submit
-      .run(() => auth.signupWithPassword(normalizedEmail, password, turnstile.token))
-      .then((result) => {
-        const query = new URLSearchParams();
-        query.set("email", normalizedEmail);
-        if (result.appSlug) query.set("appSlug", result.appSlug);
-        if (result.verifyToken) query.set("token", result.verifyToken);
-        setLocation(`/verify-email?${query.toString()}`);
-      })
-      .catch((err) => {
-        handleTurnstileProtectedAuthError({
-          error: err,
-          turnstile,
-          setError: submit.setError,
-          fallbackMessage: "Unable to sign up.",
-        });
-      });
+    handleSignup();
   };
 
   return (
@@ -143,7 +121,7 @@ export default function Signup() {
           <Button
             className="w-full"
             onClick={onSubmit}
-            disabled={!email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password))}
+            disabled={disabledReasons.length > 0}
           >
             Sign up with email
           </Button>
