@@ -8,7 +8,9 @@
     "node_modules",
     "build",
     "dist",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.runtime.test.tsx"
   ],
   "compilerOptions": {
     "noEmit": true,
