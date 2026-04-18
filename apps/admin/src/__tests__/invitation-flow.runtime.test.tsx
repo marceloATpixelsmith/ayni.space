@@ -26,64 +26,119 @@ function hasText(text: string) {
   return (document.body.textContent ?? "").includes(text);
 }
 
-const invitationState: Record<string, unknown> = {
-  status: "idle",
-  message: "",
-  resolutionError: null,
-  auth: { status: "unauthenticated", loginInFlight: false },
-  shouldShowInvitationChoices: true,
-  shouldShowPasswordFields: true,
-  shouldShowEmailSignInOption: true,
-  loginContinuationPath: "/login?next=%2Finvitations%2Ftoken%2Faccept",
-  startGoogleContinuation: vi.fn(),
-  password: "",
-  setPassword: vi.fn(),
-  markPasswordTouched: vi.fn(),
-  passwordError: null,
-  shouldShowPasswordFeedback: false,
-  missingPasswordRequirements: [],
-  passwordSubmitting: false,
-  canSubmitPassword: true,
-  submitInvitationPassword: vi.fn(),
-  submitError: null,
-  turnstile: {
-    enabled: false,
-    TurnstileWidget: () => null,
-    guidanceMessage: null,
-    status: "idle",
+async function waitFor(assertion: () => void, timeoutMs = 1000, intervalMs = 10) {
+  const start = Date.now();
+  let lastError: unknown;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("waitFor timed out");
+}
+
+const { authState, securityState, securityListeners } = vi.hoisted(() => ({
+  authState: {
+    status: "unauthenticated",
+    loginInFlight: false,
+    acceptInvitation: vi.fn(async () => "/dashboard"),
+    acceptInvitationWithPassword: vi.fn(async () => "/dashboard"),
+    loginWithGoogle: vi.fn(async () => undefined),
   },
-};
+  securityState: {
+    shouldShowPasswordFields: true,
+    shouldShowEmailSignInOption: true,
+  },
+  securityListeners: new Set<() => void>(),
+}));
+
+function notifySecurityState() {
+  securityListeners.forEach((listener) => listener());
+}
 
 vi.mock("@workspace/frontend-security", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("@workspace/frontend-security");
   return {
     ...actual,
-    useInvitationAcceptRouteRuntime: () => invitationState,
+    useAuth: () => authState,
+    useTurnstileToken: () => ({
+      enabled: false,
+      token: null,
+      canSubmit: true,
+      status: "idle",
+      guidanceMessage: null,
+      TurnstileWidget: () => null,
+    }),
+    useInvitationAcceptRouteRuntime: () => {
+      React.useSyncExternalStore(
+        (listener) => {
+          securityListeners.add(listener);
+          return () => securityListeners.delete(listener);
+        },
+        () => securityState,
+      );
+      return {
+        auth: authState,
+        turnstile: {
+          enabled: false,
+          token: null,
+          canSubmit: true,
+          status: "idle",
+          guidanceMessage: null,
+          TurnstileWidget: () => null,
+        },
+        status: "idle",
+        message: "",
+        submitError: null,
+        resolutionError: null,
+        shouldShowInvitationChoices: true,
+        shouldShowPasswordFields: securityState.shouldShowPasswordFields,
+        password: "",
+        setPassword: vi.fn(),
+        passwordError: null,
+        markPasswordTouched: vi.fn(),
+        shouldShowPasswordFeedback: false,
+        missingPasswordRequirements: [],
+        passwordSubmitting: false,
+        canSubmitPassword: true,
+        shouldShowEmailSignInOption: securityState.shouldShowEmailSignInOption,
+        loginContinuationPath: "/login?next=%2Finvitations%2Ftoken%2Faccept",
+        startGoogleContinuation: vi.fn(),
+        submitInvitationPassword: vi.fn(),
+      };
+    },
   };
 });
 
 describe("Invitation accept runtime view", () => {
   beforeEach(() => {
     root?.unmount();
-    invitationState.auth = { status: "unauthenticated", loginInFlight: false };
-    invitationState.shouldShowInvitationChoices = true;
-    invitationState.shouldShowPasswordFields = true;
-    invitationState.shouldShowEmailSignInOption = true;
+    authState.status = "unauthenticated";
+    authState.loginInFlight = false;
+    securityState.shouldShowPasswordFields = true;
+    securityState.shouldShowEmailSignInOption = true;
+    notifySecurityState();
   });
 
-  it("renders google continuation, password creation, and sign-in fallback", () => {
+  it("renders google continuation, password creation, and sign-in fallback", async () => {
     renderInvitation();
+    await waitFor(() => expect(hasText("Continue with Google")).toBe(true));
 
-    expect(hasText("Continue with Google")).toBe(true);
     expect(hasText("Create a password to log in")).toBe(true);
     expect(hasText("Set password and join")).toBe(true);
     expect(hasText("Sign in with email/password")).toBe(true);
   });
 
-  it("renders invitation route in authenticated mode without dropping continuation options", () => {
-    invitationState.auth = { status: "authenticated_fully", loginInFlight: false };
+  it("renders invitation route in authenticated mode without dropping continuation options", async () => {
+    authState.status = "authenticated_fully";
+    notifySecurityState();
     renderInvitation();
 
+    await waitFor(() => expect(hasText("Continue with Google")).toBe(true));
     expect(hasText("Continue with Google")).toBe(true);
     expect(hasText("Sign in with email/password")).toBe(true);
   });
