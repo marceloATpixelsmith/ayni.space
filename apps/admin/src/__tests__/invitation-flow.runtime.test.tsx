@@ -1,5 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Router } from "wouter";
 import InvitationAccept from "../pages/auth/InvitationAccept";
@@ -12,11 +13,13 @@ function renderInvitation() {
   document.body.innerHTML = "";
   document.body.appendChild(container);
   root = createRoot(container);
-  root.render(
-    <Router hook={() => ["/invitations/token/accept", vi.fn()] as [string, (p: string) => void]}>
-      <InvitationAccept />
-    </Router>,
-  );
+  act(() => {
+    root.render(
+      <Router hook={() => ["/invitations/token/accept", vi.fn()] as [string, (p: string) => void]}>
+        <InvitationAccept />
+      </Router>,
+    );
+  });
 }
 
 function hasText(text: string) {
