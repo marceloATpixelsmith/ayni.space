@@ -35,9 +35,12 @@ jobs:
             ];
 
             const requiredSet = new Set(requiredChecks);
-            const timeoutMs = 15 * 60 * 1000;
+            const timeoutMs = 8 * 60 * 1000;
             const intervalMs = 15 * 1000;
+            const stalledTimeoutMs = 2 * 60 * 1000;
             const started = Date.now();
+            let lastProgressAt = started;
+            let lastSnapshotKey = "";
 
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -122,9 +125,27 @@ jobs:
             while (Date.now() - started < timeoutMs) {
               finalResults = await collectResults();
 
+              const snapshotKey = requiredChecks
+                .map((name) => {
+                  const result = finalResults.get(name);
+                  return `${name}:${result?.state ?? "missing"}:${result?.status ?? "none"}:${result?.completedAt ?? ""}:${result?.updatedAt ?? ""}`;
+                })
+                .join("|");
+              if (snapshotKey !== lastSnapshotKey) {
+                lastSnapshotKey = snapshotKey;
+                lastProgressAt = Date.now();
+              }
+
               const allPresent = requiredChecks.every((name) => finalResults.has(name));
               const allCompleted = requiredChecks.every((name) => finalResults.get(name)?.isCompleted);
               if (allPresent && allCompleted) {
+                break;
+              }
+
+              if (Date.now() - lastProgressAt >= stalledTimeoutMs) {
+                core.warning(
+                  `No check-state progress detected for ${Math.floor(stalledTimeoutMs / 1000)}s; ending wait early to avoid hanging summary job.`
+                );
                 break;
               }
 
