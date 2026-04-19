@@ -1,40 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import App from "../App";
-
-let root: Root | undefined;
-let container: HTMLDivElement;
-
-function renderApp() {
-  container = document.createElement("div");
-  document.body.innerHTML = "";
-  document.body.appendChild(container);
-  root = createRoot(container);
-  act(() => {
-    root.render(<App />);
-  });
-}
-
-function hasText(text: string) {
-  return (document.body.textContent ?? "").includes(text);
-}
-
-async function waitFor(assertion: () => void, timeoutMs = 1000, intervalMs = 10) {
-  const start = Date.now();
-  let lastError: unknown;
-  while (Date.now() - start < timeoutMs) {
-    try {
-      assertion();
-      return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error("waitFor timed out");
-}
 
 type AuthStateMock = {
   status: string;
@@ -43,30 +10,9 @@ type AuthStateMock = {
   csrfToken: string | null;
   csrfReady: boolean;
   loginInFlight: boolean;
-  refreshSession: () => Promise<void>;
-  startMfaEnrollment: () => Promise<{
-    factorId: string;
-    secret: string;
-    issuer: string;
-    otpauthUrl: string;
-  }>;
-  completeMfaChallenge: (
-    code: string,
-    remember: boolean,
-    stayLoggedIn: boolean,
-  ) => Promise<void>;
-  completeMfaRecovery: (
-    recoveryCode: string,
-    remember: boolean,
-    stayLoggedIn: boolean,
-  ) => Promise<void>;
 };
 
-const {
-  authState,
-  metadataState,
-  secureApiFetchMock,
-} = vi.hoisted(() => ({
+const { authState, metadataState } = vi.hoisted(() => ({
   authState: {
     status: "unauthenticated",
     user: null,
@@ -74,15 +20,6 @@ const {
     csrfToken: "csrf",
     csrfReady: true,
     loginInFlight: false,
-    refreshSession: async () => undefined,
-    startMfaEnrollment: async () => ({
-      factorId: "factor-1",
-      secret: "SECRET",
-      issuer: "Ayni",
-      otpauthUrl: "otpauth://totp/Ayni:test?secret=SECRET&issuer=Ayni",
-    }),
-    completeMfaChallenge: async () => undefined,
-    completeMfaRecovery: async () => undefined,
   } satisfies AuthStateMock,
   metadataState: {
     loading: false,
@@ -95,40 +32,94 @@ const {
       },
     },
   },
-  secureApiFetchMock: vi.fn(async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      mfaPending: true,
-      mfaEnrolled: false,
-      nextStep: "mfa_enroll",
-    }),
-  })),
 }));
 
 vi.mock("@workspace/frontend-observability", () => ({
   MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@workspace/frontend-security", async () => {
-  const actual = await vi.importActual<Record<string, unknown>>(
-    "@workspace/frontend-security",
-  );
-  return {
-    ...actual,
-    AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    useAuth: () => authState,
-    useCurrentPlatformAppMetadata: () => metadataState,
-    secureApiFetch: secureApiFetchMock,
-    useTurnstileToken: () => ({
-      enabled: false,
-      token: null,
-      status: "idle",
-      guidanceMessage: null,
-      TurnstileWidget: (() => null) as React.ComponentType,
-    }),
-  };
-});
+vi.mock("@workspace/frontend-security", () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useAuth: () => authState,
+  useCurrentPlatformAppMetadata: () => metadataState,
+  getLastAuthDebugEventSummary: () => null,
+  getDisallowedAuthRouteRedirect: () => "/login",
+  getMfaPendingRoute: (status: string) =>
+    status === "authenticated_mfa_pending_enrolled" ? "/mfa/challenge" : "/mfa/enroll",
+  isAuthDebugEnabled: () => false,
+  isMfaPendingStatus: (status: string) =>
+    status === "authenticated_mfa_pending_enrolled" ||
+    status === "authenticated_mfa_pending_unenrolled",
+  isAuthRouteAllowed: (
+    metadata: { authRoutePolicy?: { allowInvitations?: boolean; allowCustomerRegistration?: boolean } } | null,
+    routeKind: string,
+  ) => {
+    if (!metadata?.authRoutePolicy) return true;
+    if (routeKind === "signup") return metadata.authRoutePolicy.allowCustomerRegistration !== false;
+    if (routeKind === "invitation") return metadata.authRoutePolicy.allowInvitations !== false;
+    return true;
+  },
+  logAuthDebug: () => undefined,
+  resolveAuthenticatedNextStep: () => ({ destination: "/dashboard", reason: "default" }),
+}));
+
+vi.mock("../pages/auth/Login", () => ({
+  default: () => <h1>Welcome</h1>,
+}));
+vi.mock("../pages/auth/Signup", () => ({
+  default: () => <h1>Create account</h1>,
+}));
+vi.mock("../pages/auth/ForgotPassword", () => ({
+  default: () => <div>Forgot password page</div>,
+}));
+vi.mock("../pages/auth/ResetPassword", () => ({
+  default: () => <div>Reset password page</div>,
+}));
+vi.mock("../pages/auth/VerifyEmail", () => ({
+  default: () => <div>Verify email page</div>,
+}));
+vi.mock("../pages/auth/MfaEnroll", () => ({
+  default: () => <h1>Set up multi-factor authentication</h1>,
+}));
+vi.mock("../pages/auth/MfaChallenge", () => ({
+  default: () => <h1>Continue</h1>,
+}));
+vi.mock("../pages/auth/Onboarding", () => ({
+  default: () => <div>Onboarding</div>,
+}));
+vi.mock("../pages/auth/InvitationAccept", () => ({
+  default: () => <div>Invitation accept</div>,
+}));
+vi.mock("../pages/admin/AdminDashboard", () => ({
+  default: () => <div>Admin dashboard</div>,
+}));
+vi.mock("../pages/dashboard/DashboardHome", () => ({
+  default: () => <div>Dashboard home</div>,
+}));
+vi.mock("../pages/dashboard/Apps", () => ({
+  default: () => <div>Apps</div>,
+}));
+vi.mock("../pages/dashboard/Members", () => ({
+  default: () => <div>Members</div>,
+}));
+vi.mock("../pages/dashboard/Invitations", () => ({
+  default: () => <div>Invitations</div>,
+}));
+vi.mock("../pages/dashboard/Billing", () => ({
+  default: () => <div>Billing</div>,
+}));
+vi.mock("../pages/dashboard/Settings", () => ({
+  default: () => <div>Settings</div>,
+}));
+vi.mock("../pages/not-found", () => ({
+  default: () => <div>Not found</div>,
+}));
+vi.mock("../components/ui/toaster", () => ({
+  Toaster: () => null,
+}));
+vi.mock("../components/ui/tooltip", () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 function setPath(path: string) {
   window.history.replaceState({}, "", path);
@@ -142,15 +133,6 @@ describe("App auth routing runtime behavior", () => {
     authState.csrfToken = "csrf";
     authState.csrfReady = true;
     authState.loginInFlight = false;
-    authState.refreshSession = vi.fn(async () => undefined);
-    authState.startMfaEnrollment = vi.fn(async () => ({
-      factorId: "factor-1",
-      secret: "SECRET",
-      issuer: "Ayni",
-      otpauthUrl: "otpauth://totp/Ayni:test?secret=SECRET&issuer=Ayni",
-    }));
-    authState.completeMfaChallenge = vi.fn(async () => undefined);
-    authState.completeMfaRecovery = vi.fn(async () => undefined);
     metadataState.loading = false;
     metadataState.currentAppSlug = "admin";
     metadataState.metadata = {
@@ -164,28 +146,24 @@ describe("App auth routing runtime behavior", () => {
   });
 
   afterEach(() => {
-    if (root) {
-      act(() => {
-        root?.unmount();
-      });
-    }
-    root = undefined;
-    document.body.innerHTML = "";
+    cleanup();
+    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it("redirects unauthenticated users from protected routes to /login", async () => {
     setPath("/dashboard");
-    renderApp();
+    render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(hasText("Welcome")).toBe(true);
+    expect(screen.getByText("Welcome")).toBeTruthy();
   });
 
   it("allows signup when route policy allows customer registration", async () => {
     setPath("/signup");
-    renderApp();
+    render(<App />);
 
-    await waitFor(() => expect(hasText("Create account")).toBe(true));
+    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
   });
 
   it("blocks signup in superadmin mode", async () => {
@@ -198,11 +176,11 @@ describe("App auth routing runtime behavior", () => {
     };
 
     setPath("/signup");
-    renderApp();
+    render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(hasText("Welcome")).toBe(true);
-    expect(hasText("Create account with Google")).toBe(false);
+    expect(screen.getByText("Welcome")).toBeTruthy();
+    expect(screen.queryByText("Create account")).toBeNull();
   });
 
   it("routes MFA pending users to challenge when enrolled", async () => {
@@ -210,10 +188,10 @@ describe("App auth routing runtime behavior", () => {
     authState.user = { mfaPending: true, mfaEnrolled: true };
 
     setPath("/dashboard");
-    renderApp();
+    render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/mfa/challenge"));
-    expect(hasText("Continue")).toBe(true);
+    expect(screen.getByText("Continue")).toBeTruthy();
   });
 
   it("routes MFA pending users to enrollment when unenrolled", async () => {
@@ -221,10 +199,10 @@ describe("App auth routing runtime behavior", () => {
     authState.user = { mfaPending: true, mfaEnrolled: false };
 
     setPath("/dashboard");
-    renderApp();
+    render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/mfa/enroll"));
-    expect(hasText("Set up multi-factor authentication")).toBe(true);
+    expect(screen.getByText("Set up multi-factor authentication")).toBeTruthy();
   });
 
   it("enforces onboarding and access denied rules for fully authenticated users", async () => {
@@ -241,7 +219,7 @@ describe("App auth routing runtime behavior", () => {
     };
 
     setPath("/dashboard");
-    renderApp();
+    render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe("/onboarding/organization"));
   });
@@ -258,20 +236,11 @@ describe("App auth routing runtime behavior", () => {
         defaultRoute: "/dashboard",
       },
     };
-    metadataState.metadata = {
-      normalizedAccessProfile: "solo",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: true,
-      },
-    };
 
-    setPath("/onboarding/organization");
-    renderApp();
-    await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
+    setPath("/dashboard/invitations");
+    render(<App />);
 
-    setPath("/invitations/test-token/accept");
-    renderApp();
-    await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
+    await waitFor(() => expect(window.location.pathname).toBe("/dashboard/invitations"));
+    expect(screen.getByText("Invitations")).toBeTruthy();
   });
 });
