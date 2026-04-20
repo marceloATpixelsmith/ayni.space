@@ -934,6 +934,182 @@ export const AdminUpsertAppSettingResponse = zod.object({
 });
 
 /**
+ * @summary Platform - list global and app runtime settings with app inventory
+ */
+export const PlatformGetSettingsResponse = zod.object({
+  globalSettings: zod.array(
+    zod.object({
+      id: zod.string(),
+      appId: zod.string().nullish(),
+      appSlug: zod.string().nullish(),
+      key: zod.string(),
+      value: zod.string(),
+      valueType: zod.enum(["string", "number", "boolean", "json"]),
+      description: zod.string().nullish(),
+      updatedBy: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      parsedValue: zod
+        .union([
+          zod.string(),
+          zod.number(),
+          zod.boolean(),
+          zod.record(zod.string(), zod.unknown()),
+          zod.array(zod.unknown()),
+        ])
+        .optional(),
+    }),
+  ),
+  appSettings: zod.array(
+    zod.object({
+      id: zod.string(),
+      appId: zod.string().nullish(),
+      appSlug: zod.string().nullish(),
+      key: zod.string(),
+      value: zod.string(),
+      valueType: zod.enum(["string", "number", "boolean", "json"]),
+      description: zod.string().nullish(),
+      updatedBy: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      parsedValue: zod
+        .union([
+          zod.string(),
+          zod.number(),
+          zod.boolean(),
+          zod.record(zod.string(), zod.unknown()),
+          zod.array(zod.unknown()),
+        ])
+        .optional(),
+    }),
+  ),
+  apps: zod.array(
+    zod.object({
+      id: zod.string(),
+      slug: zod.string(),
+      name: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Platform - update one global runtime setting
+ */
+export const PlatformUpdateSettingBody = zod.object({
+  key: zod.string(),
+  valueType: zod.enum(["string", "number", "boolean", "json"]),
+  value: zod.union([
+    zod.string(),
+    zod.number(),
+    zod.boolean(),
+    zod.record(zod.string(), zod.unknown()),
+    zod.array(zod.unknown()),
+  ]),
+  description: zod.string().nullish(),
+});
+
+export const PlatformUpdateSettingResponse = zod.object({
+  setting: zod.object({
+    id: zod.string(),
+    appId: zod.string().nullish(),
+    appSlug: zod.string().nullish(),
+    key: zod.string(),
+    value: zod.string(),
+    valueType: zod.enum(["string", "number", "boolean", "json"]),
+    description: zod.string().nullish(),
+    updatedBy: zod.string().nullish(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+    parsedValue: zod
+      .union([
+        zod.string(),
+        zod.number(),
+        zod.boolean(),
+        zod.record(zod.string(), zod.unknown()),
+        zod.array(zod.unknown()),
+      ])
+      .optional(),
+  }),
+});
+
+/**
+ * @summary Platform - list app runtime settings by app id
+ */
+export const PlatformGetAppSettingsParams = zod.object({
+  appId: zod.coerce.string(),
+});
+
+export const PlatformGetAppSettingsResponse = zod.object({
+  appSettings: zod.array(
+    zod.object({
+      id: zod.string(),
+      appId: zod.string().nullish(),
+      appSlug: zod.string().nullish(),
+      key: zod.string(),
+      value: zod.string(),
+      valueType: zod.enum(["string", "number", "boolean", "json"]),
+      description: zod.string().nullish(),
+      updatedBy: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      parsedValue: zod
+        .union([
+          zod.string(),
+          zod.number(),
+          zod.boolean(),
+          zod.record(zod.string(), zod.unknown()),
+          zod.array(zod.unknown()),
+        ])
+        .optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Platform - update one app runtime setting
+ */
+export const PlatformUpdateAppSettingParams = zod.object({
+  appId: zod.coerce.string(),
+});
+
+export const PlatformUpdateAppSettingBody = zod.object({
+  key: zod.string(),
+  valueType: zod.enum(["string", "number", "boolean", "json"]),
+  value: zod.union([
+    zod.string(),
+    zod.number(),
+    zod.boolean(),
+    zod.record(zod.string(), zod.unknown()),
+    zod.array(zod.unknown()),
+  ]),
+  description: zod.string().nullish(),
+});
+
+export const PlatformUpdateAppSettingResponse = zod.object({
+  setting: zod.object({
+    id: zod.string(),
+    appId: zod.string().nullish(),
+    appSlug: zod.string().nullish(),
+    key: zod.string(),
+    value: zod.string(),
+    valueType: zod.enum(["string", "number", "boolean", "json"]),
+    description: zod.string().nullish(),
+    updatedBy: zod.string().nullish(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+    parsedValue: zod
+      .union([
+        zod.string(),
+        zod.number(),
+        zod.boolean(),
+        zod.record(zod.string(), zod.unknown()),
+        zod.array(zod.unknown()),
+      ])
+      .optional(),
+  }),
+});
+
+/**
  * @summary Admin - enable or disable app access for organization
  */
 export const AdminSetOrgAppAccessParams = zod.object({

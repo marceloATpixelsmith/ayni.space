@@ -58,6 +58,9 @@ import type {
   OrgMember,
   OrgPage,
   Organization,
+  PlatformGetAppSettings200,
+  PlatformSettingPatchRequest,
+  PlatformSettingsResponse,
   PlatformStats,
   PortalRequest,
   PortalResponse,
@@ -3684,6 +3687,351 @@ export const useAdminUpsertAppSetting = <
   TContext
 > => {
   return useMutation(getAdminUpsertAppSettingMutationOptions(options));
+};
+
+/**
+ * @summary Platform - list global and app runtime settings with app inventory
+ */
+export const getPlatformGetSettingsUrl = () => {
+  return `/api/platform/settings`;
+};
+
+export const platformGetSettings = async (
+  options?: RequestInit,
+): Promise<PlatformSettingsResponse> => {
+  return customFetch<PlatformSettingsResponse>(getPlatformGetSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getPlatformGetSettingsQueryKey = () => {
+  return [`/api/platform/settings`] as const;
+};
+
+export const getPlatformGetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof platformGetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof platformGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getPlatformGetSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof platformGetSettings>>
+  > = ({ signal }) => platformGetSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof platformGetSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type PlatformGetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof platformGetSettings>>
+>;
+export type PlatformGetSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Platform - list global and app runtime settings with app inventory
+ */
+
+export function usePlatformGetSettings<
+  TData = Awaited<ReturnType<typeof platformGetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof platformGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getPlatformGetSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Platform - update one global runtime setting
+ */
+export const getPlatformUpdateSettingUrl = () => {
+  return `/api/platform/settings`;
+};
+
+export const platformUpdateSetting = async (
+  platformSettingPatchRequest: PlatformSettingPatchRequest,
+  options?: RequestInit,
+): Promise<UpsertSettingResponse> => {
+  return customFetch<UpsertSettingResponse>(getPlatformUpdateSettingUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(platformSettingPatchRequest),
+  });
+};
+
+export const getPlatformUpdateSettingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformUpdateSetting>>,
+    TError,
+    { data: BodyType<PlatformSettingPatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof platformUpdateSetting>>,
+  TError,
+  { data: BodyType<PlatformSettingPatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["platformUpdateSetting"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof platformUpdateSetting>>,
+    { data: BodyType<PlatformSettingPatchRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return platformUpdateSetting(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlatformUpdateSettingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof platformUpdateSetting>>
+>;
+export type PlatformUpdateSettingMutationBody =
+  BodyType<PlatformSettingPatchRequest>;
+export type PlatformUpdateSettingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Platform - update one global runtime setting
+ */
+export const usePlatformUpdateSetting = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformUpdateSetting>>,
+    TError,
+    { data: BodyType<PlatformSettingPatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof platformUpdateSetting>>,
+  TError,
+  { data: BodyType<PlatformSettingPatchRequest> },
+  TContext
+> => {
+  return useMutation(getPlatformUpdateSettingMutationOptions(options));
+};
+
+/**
+ * @summary Platform - list app runtime settings by app id
+ */
+export const getPlatformGetAppSettingsUrl = (appId: string) => {
+  return `/api/platform/apps/${appId}/settings`;
+};
+
+export const platformGetAppSettings = async (
+  appId: string,
+  options?: RequestInit,
+): Promise<PlatformGetAppSettings200> => {
+  return customFetch<PlatformGetAppSettings200>(
+    getPlatformGetAppSettingsUrl(appId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getPlatformGetAppSettingsQueryKey = (appId: string) => {
+  return [`/api/platform/apps/${appId}/settings`] as const;
+};
+
+export const getPlatformGetAppSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof platformGetAppSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  appId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof platformGetAppSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getPlatformGetAppSettingsQueryKey(appId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof platformGetAppSettings>>
+  > = ({ signal }) =>
+    platformGetAppSettings(appId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!appId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof platformGetAppSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type PlatformGetAppSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof platformGetAppSettings>>
+>;
+export type PlatformGetAppSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Platform - list app runtime settings by app id
+ */
+
+export function usePlatformGetAppSettings<
+  TData = Awaited<ReturnType<typeof platformGetAppSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  appId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof platformGetAppSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getPlatformGetAppSettingsQueryOptions(appId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Platform - update one app runtime setting
+ */
+export const getPlatformUpdateAppSettingUrl = (appId: string) => {
+  return `/api/platform/apps/${appId}/settings`;
+};
+
+export const platformUpdateAppSetting = async (
+  appId: string,
+  platformSettingPatchRequest: PlatformSettingPatchRequest,
+  options?: RequestInit,
+): Promise<UpsertSettingResponse> => {
+  return customFetch<UpsertSettingResponse>(
+    getPlatformUpdateAppSettingUrl(appId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(platformSettingPatchRequest),
+    },
+  );
+};
+
+export const getPlatformUpdateAppSettingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformUpdateAppSetting>>,
+    TError,
+    { appId: string; data: BodyType<PlatformSettingPatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof platformUpdateAppSetting>>,
+  TError,
+  { appId: string; data: BodyType<PlatformSettingPatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["platformUpdateAppSetting"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof platformUpdateAppSetting>>,
+    { appId: string; data: BodyType<PlatformSettingPatchRequest> }
+  > = (props) => {
+    const { appId, data } = props ?? {};
+
+    return platformUpdateAppSetting(appId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PlatformUpdateAppSettingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof platformUpdateAppSetting>>
+>;
+export type PlatformUpdateAppSettingMutationBody =
+  BodyType<PlatformSettingPatchRequest>;
+export type PlatformUpdateAppSettingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Platform - update one app runtime setting
+ */
+export const usePlatformUpdateAppSetting = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof platformUpdateAppSetting>>,
+    TError,
+    { appId: string; data: BodyType<PlatformSettingPatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof platformUpdateAppSetting>>,
+  TError,
+  { appId: string; data: BodyType<PlatformSettingPatchRequest> },
+  TContext
+> => {
+  return useMutation(getPlatformUpdateAppSettingMutationOptions(options));
 };
 
 /**

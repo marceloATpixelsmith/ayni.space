@@ -429,6 +429,33 @@ export interface AdminSettingsResponse {
   appSettings: RuntimeSetting[];
 }
 
+export interface PlatformAppSummary {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface PlatformSettingsResponse {
+  globalSettings: RuntimeSetting[];
+  appSettings: RuntimeSetting[];
+  apps: PlatformAppSummary[];
+}
+
+export type PlatformSettingPatchRequestValue =
+  | string
+  | number
+  | boolean
+  | { [key: string]: unknown }
+  | unknown[];
+
+export interface PlatformSettingPatchRequest {
+  key: string;
+  valueType: SettingValueType;
+  value: PlatformSettingPatchRequestValue;
+  /** @nullable */
+  description?: string | null;
+}
+
 export type UpsertSettingRequestValue =
   | string
   | number
@@ -668,6 +695,10 @@ export type AdminGetOrganizationsParams = {
 export type AdminGetUsersParams = {
   limit?: number;
   offset?: number;
+};
+
+export type PlatformGetAppSettings200 = {
+  appSettings: RuntimeSetting[];
 };
 
 export type AdminGetAuditLogsParams = {

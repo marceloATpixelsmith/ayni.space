@@ -11,6 +11,7 @@ import {
   getGlobalSettingValues,
   getMfaIssuerForAppSlug,
   getSetting,
+  parseSettingValue,
   refreshSettingsCache,
   type ParsedSettingValue,
 } from "./settings.js";
@@ -59,7 +60,7 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
   };
 
   const readBoolean = async (key: string, fallback: boolean): Promise<boolean> => {
-    const value = await getAppSetting(app.id, key, fallback);
+    const value = await getAppSetting<boolean | string>(app.id, key, fallback);
     if (typeof value === "boolean") return value;
     if (typeof value === "string") return value.trim().toLowerCase() === "true";
     return fallback;
@@ -84,7 +85,7 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
 
 export async function listGlobalSettings() {
   const rows = await db.query.settingsTable.findMany();
-  return rows.map((row: any) => ({ ...row, parsedValue: row.value }));
+  return rows.map((row: any) => ({ ...row, parsedValue: parseSettingValue(row.value, row.valueType) }));
 }
 
 export async function listAppSettings() {

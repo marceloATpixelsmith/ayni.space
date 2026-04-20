@@ -8,12 +8,9 @@ import {
   useAdminGetAuditLogs,
   useAdminGetFeatureFlags,
   useAdminSetFeatureFlag,
-  useAdminGetSettings,
-  useAdminUpsertAppSetting,
-  useAdminUpsertGlobalSetting,
   useGetApps,
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -132,6 +129,11 @@ type RuntimeSetting = {
   valueType: SettingValueType;
   description?: string | null;
 };
+type PlatformSettingsResponse = {
+  globalSettings: RuntimeSetting[];
+  appSettings: RuntimeSetting[];
+  apps: Array<{ id: string; slug: string; name: string }>;
+};
 
 function parseSettingValue(valueType: SettingValueType, value: string): unknown {
   if (valueType === "boolean") return value.trim().toLowerCase() === "true";
@@ -147,41 +149,72 @@ function parseSettingValue(valueType: SettingValueType, value: string): unknown 
 }
 
 function AdminRuntimeSettings() {
-  const { data, isLoading, refetch } = useAdminGetSettings();
-  const { data: apps } = useGetApps();
-  const upsertGlobal = useAdminUpsertGlobalSetting();
-  const upsertApp = useAdminUpsertAppSetting();
+  const { data: registryApps } = useGetApps();
+  const [data, setData] = React.useState<PlatformSettingsResponse | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
 
   const [globalDrafts, setGlobalDrafts] = React.useState<Record<string, string>>({});
   const [appDrafts, setAppDrafts] = React.useState<Record<string, string>>({});
 
-  const saveGlobal = async (setting: RuntimeSetting) => {
-    const value = globalDrafts[setting.key] ?? setting.value;
-    await upsertGlobal.mutateAsync({
-      key: setting.key,
-      data: {
-        valueType: setting.valueType,
-        value: parseSettingValue(setting.valueType, value),
-        description: setting.description ?? null,
-      },
+  const loadSettings = React.useCallback(async () => {
+    setIsLoading(true);
+    const response = await fetch("/api/platform/settings", { credentials: "include" });
+    if (!response.ok) throw new Error("Failed to load platform settings.");
+    const payload = (await response.json()) as PlatformSettingsResponse;
+    setData(payload);
+    setIsLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    void loadSettings().catch((error: unknown) => {
+      setSaveError(error instanceof Error ? error.message : "Failed to load platform settings.");
+      setIsLoading(false);
     });
-    await refetch();
+  }, [loadSettings]);
+
+  const saveGlobal = async (setting: RuntimeSetting) => {
+    setSaveError(null);
+    const value = parseSettingValue(setting.valueType, globalDrafts[setting.key] ?? setting.value);
+    const response = await fetch("/api/platform/settings", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key: setting.key,
+        valueType: setting.valueType,
+        value,
+        description: setting.description ?? null,
+      }),
+    });
+    if (!response.ok) {
+      setSaveError("Failed to save global runtime setting.");
+      return;
+    }
+    await loadSettings();
   };
 
   const saveApp = async (setting: RuntimeSetting) => {
+    setSaveError(null);
     if (!setting.appId) return;
     const draftKey = `${setting.appId}:${setting.key}`;
-    const value = appDrafts[draftKey] ?? setting.value;
-    await upsertApp.mutateAsync({
-      appId: setting.appId,
-      key: setting.key,
-      data: {
+    const value = parseSettingValue(setting.valueType, appDrafts[draftKey] ?? setting.value);
+    const response = await fetch(`/api/platform/apps/${setting.appId}/settings`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        key: setting.key,
         valueType: setting.valueType,
-        value: parseSettingValue(setting.valueType, value),
+        value,
         description: setting.description ?? null,
-      },
+      }),
     });
-    await refetch();
+    if (!response.ok) {
+      setSaveError("Failed to save app runtime setting.");
+      return;
+    }
+    await loadSettings();
   };
 
   const appSettingsBySlug = React.useMemo(() => {
@@ -209,6 +242,7 @@ function AdminRuntimeSettings() {
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading && <div className="text-muted-foreground">Loading settings…</div>}
+          {saveError && <div className="text-sm text-destructive">{saveError}</div>}
           {((data?.globalSettings ?? []) as RuntimeSetting[]).map((setting) => (
             <div key={setting.id} className="grid grid-cols-12 gap-2 items-center border rounded-md p-3">
               <div className="col-span-3">
@@ -235,7 +269,7 @@ function AdminRuntimeSettings() {
           <CardDescription>Per-app frontend runtime values (non-secret only).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(apps ?? []).map((app) => (
+          {(data?.apps ?? registryApps ?? []).map((app) => (
             <div key={app.id} className="border rounded-md p-3 space-y-2">
               <div className="font-semibold">{app.name} <span className="text-xs text-muted-foreground">({app.slug})</span></div>
               {(appSettingsBySlug.get(app.slug) ?? []).map((setting) => {
