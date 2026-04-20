@@ -60,4 +60,7 @@ export function validateEnv() {
 
   validatePositiveIntEnv("IPQS_TIMEOUT_MS");
   validatePositiveIntEnv("IPQS_STEP_UP_THRESHOLD");
+  validatePositiveIntEnv("IPQS_BLOCK_THRESHOLD");
+  validatePositiveIntEnv("OPENAI_MAX_RETRIES");
+  validatePositiveIntEnv("OPENAI_TIMEOUT_MS");
 }

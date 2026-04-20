@@ -11,6 +11,9 @@ test("getSetting reads parsed value from cache-backed DB rows", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([
     { key: "TURNSTILE_ENABLED", value: "true", valueType: "boolean" },
   ]));
+  const restoreSelect = patchProperty(db, "select", (() => ({
+    from: () => ({ innerJoin: () => ([]) }),
+  })) as unknown as typeof db.select);
 
   try {
     await settings.refreshSettingsCache({ force: true });
@@ -18,6 +21,7 @@ test("getSetting reads parsed value from cache-backed DB rows", async () => {
     assert.equal(value, true);
   } finally {
     restore();
+    restoreSelect();
   }
 });
 
@@ -90,6 +94,32 @@ test("allowed origins uses env fallback when DB returns empty", async () => {
   } finally {
     if (previous === undefined) delete process.env["ALLOWED_ORIGINS"];
     else process.env["ALLOWED_ORIGINS"] = previous;
+    restore();
+    restoreSelect();
+  }
+});
+
+test("parseSettingValue handles number, boolean and json types", () => {
+  assert.equal(settings.parseSettingValue("42", "number"), 42);
+  assert.equal(settings.parseSettingValue("true", "boolean"), true);
+  assert.deepEqual(settings.parseSettingValue('{\"mode\":\"strict\"}', "json"), { mode: "strict" });
+});
+
+test("global setting snapshot uses DB cache before env fallback", async () => {
+  const prev = process.env["SENTRY_ENVIRONMENT"];
+  process.env["SENTRY_ENVIRONMENT"] = "env-fallback";
+  const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([
+    { key: "SENTRY_ENVIRONMENT", value: "db-production", valueType: "string" },
+  ]));
+  const restoreSelect = patchProperty(db, "select", (() => ({
+    from: () => ({ innerJoin: () => ([]) }),
+  })) as unknown as typeof db.select);
+  try {
+    await settings.refreshSettingsCache({ force: true });
+    assert.equal(settings.getGlobalSettingSnapshot("SENTRY_ENVIRONMENT", "local"), "db-production");
+  } finally {
+    if (prev === undefined) delete process.env["SENTRY_ENVIRONMENT"];
+    else process.env["SENTRY_ENVIRONMENT"] = prev;
     restore();
     restoreSelect();
   }

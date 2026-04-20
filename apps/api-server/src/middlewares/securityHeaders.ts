@@ -1,7 +1,8 @@
 import type { RequestHandler } from "express";
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS } from "../lib/runtimeSettings.js";
 
 function getSentryIngestOrigin() {
-  const dsn = process.env["SENTRY_DSN"];
+  const dsn = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "")).trim();
   if (!dsn) {
     return null;
   }

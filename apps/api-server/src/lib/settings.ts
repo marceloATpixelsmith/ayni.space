@@ -15,6 +15,7 @@ export const GLOBAL_SETTING_KEYS = {
   OPENAI_TEMPERATURE: "OPENAI_TEMPERATURE",
   OPENAI_TIMEOUT_MS: "OPENAI_TIMEOUT_MS",
 } as const;
+export const GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(GLOBAL_SETTING_KEYS);
 
 export const APP_SETTING_KEYS = {
   ALLOWED_ORIGIN: "ALLOWED_ORIGIN",
@@ -28,6 +29,7 @@ export const APP_SETTING_KEYS = {
   VITE_APP_SLUG: "VITE_APP_SLUG",
   VITE_TURNSTILE_SITE_KEY: "VITE_TURNSTILE_SITE_KEY",
 } as const;
+export const APP_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(APP_SETTING_KEYS);
 
 export type ParsedSettingValue = string | number | boolean | Record<string, unknown> | unknown[];
 type RuntimeCache = {
@@ -45,7 +47,7 @@ function parseCsv(value: string | undefined): string[] {
   return (value ?? "").split(",").map((entry) => entry.trim()).filter(Boolean);
 }
 
-function parseSettingValue(value: string, valueType: SettingValueType): ParsedSettingValue {
+export function parseSettingValue(value: string, valueType: SettingValueType): ParsedSettingValue {
   if (valueType === "number") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -61,7 +63,7 @@ function parseSettingValue(value: string, valueType: SettingValueType): ParsedSe
   return value;
 }
 
-function serializeSettingValue(value: unknown, valueType: SettingValueType): string {
+export function serializeSettingValue(value: unknown, valueType: SettingValueType): string {
   if (valueType === "json") return JSON.stringify(value ?? {});
   if (valueType === "boolean") return value === true ? "true" : "false";
   if (valueType === "number") {
