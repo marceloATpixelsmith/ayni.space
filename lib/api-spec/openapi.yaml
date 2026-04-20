@@ -649,6 +649,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/App"
 
+  /apps/slug/{appSlug}/runtime-settings:
+    get:
+      operationId: getAppRuntimeSettings
+      tags: [apps]
+      summary: Get frontend non-secret runtime settings for an app slug
+      parameters:
+        - in: path
+          name: appSlug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Frontend runtime settings for the app
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrontendRuntimeSettings"
+
   /organizations/{orgId}/apps:
     get:
       operationId: getOrgApps
@@ -830,6 +849,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlatformStats"
+
+  /admin/settings:
+    get:
+      operationId: adminGetSettings
+      tags: [admin]
+      summary: Admin - list global and app runtime settings
+      responses:
+        "200":
+          description: Settings snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSettingsResponse"
+
+  /admin/settings/global/{key}:
+    put:
+      operationId: adminUpsertGlobalSetting
+      tags: [admin]
+      summary: Admin - upsert one global runtime setting
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertSettingRequest"
+      responses:
+        "200":
+          description: Updated global setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpsertSettingResponse"
+
+  /admin/settings/apps/{appId}/{key}:
+    put:
+      operationId: adminUpsertAppSetting
+      tags: [admin]
+      summary: Admin - upsert one app runtime setting
+      parameters:
+        - in: path
+          name: appId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertSettingRequest"
+      responses:
+        "200":
+          description: Updated app setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpsertSettingResponse"
 
   /admin/organizations/{orgId}/apps/{appId}:
     put:
@@ -1251,108 +1338,6 @@ components:
         role:
           type: string
       required: [orgId, orgName, orgSlug, role]
-
-  
-  /auth/signup:
-    post:
-      operationId: signupWithPassword
-      tags: [auth]
-      summary: Signup with email/password
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SignupRequest"
-      responses:
-        "201":
-          description: Signup success
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthActionResponse"
-
-  /auth/login:
-    post:
-      operationId: loginWithPassword
-      tags: [auth]
-      summary: Login with email/password
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
-      responses:
-        "200":
-          description: Login success
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthActionResponse"
-
-  /auth/forgot-password:
-    post:
-      operationId: forgotPassword
-      tags: [auth]
-      summary: Forgot password
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ForgotPasswordRequest"
-      responses:
-        "200":
-          description: Request accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthActionResponse"
-
-  /auth/reset-password:
-    post:
-      operationId: resetPassword
-      tags: [auth]
-      summary: Reset password
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResetPasswordRequest"
-      responses:
-        "200":
-          description: Password reset
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthActionResponse"
-
-  /auth/verify-email:
-    post:
-      operationId: verifyEmail
-      tags: [auth]
-      summary: Verify email
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VerifyEmailRequest"
-      responses:
-        "200":
-          description: Email verified
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthActionResponse"
-
   # ── USERS ─────────────────────────────────────────────────────────────────
     User:
       type: object
@@ -1719,6 +1704,103 @@ components:
         totalApps:
           type: integer
       required: [totalUsers, totalOrgs, totalSubscriptions, activeSubscriptions, totalApps]
+
+    SettingValueType:
+      type: string
+      enum: [string, number, boolean, json]
+
+    RuntimeSetting:
+      type: object
+      properties:
+        id:
+          type: string
+        appId:
+          type: ["string", "null"]
+        appSlug:
+          type: ["string", "null"]
+        key:
+          type: string
+        value:
+          type: string
+        valueType:
+          $ref: "#/components/schemas/SettingValueType"
+        description:
+          type: ["string", "null"]
+        updatedBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        parsedValue:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: object
+              additionalProperties: true
+            - type: array
+              items: {}
+      required: [id, key, value, valueType, createdAt, updatedAt]
+
+    AdminSettingsResponse:
+      type: object
+      properties:
+        globalSettings:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeSetting"
+        appSettings:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeSetting"
+      required: [globalSettings, appSettings]
+
+    UpsertSettingRequest:
+      type: object
+      properties:
+        valueType:
+          $ref: "#/components/schemas/SettingValueType"
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: object
+              additionalProperties: true
+            - type: array
+              items: {}
+        description:
+          type: ["string", "null"]
+      required: [valueType, value]
+
+    UpsertSettingResponse:
+      type: object
+      properties:
+        setting:
+          $ref: "#/components/schemas/RuntimeSetting"
+      required: [setting]
+
+    FrontendRuntimeSettings:
+      type: object
+      properties:
+        appSlug:
+          type: string
+        apiBaseUrl:
+          type: string
+        basePath:
+          type: string
+        authDebug:
+          type: boolean
+        sentryEnvironment:
+          type: string
+        sentryDsn:
+          type: ["string", "null"]
+        turnstileSiteKey:
+          type: ["string", "null"]
+      required: [appSlug, apiBaseUrl, basePath, authDebug, sentryEnvironment, sentryDsn, turnstileSiteKey]
 
     FeatureFlag:
       type: object

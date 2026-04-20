@@ -50,14 +50,30 @@ export const GetMeResponse = zod.object({
       }),
     )
     .optional(),
+  mfaPending: zod.boolean().optional(),
+  mfaEnrolled: zod.boolean().optional(),
+  nextStep: zod
+    .union([
+      zod.literal("mfa_enroll"),
+      zod.literal("mfa_challenge"),
+      zod.literal(null),
+    ])
+    .nullish(),
   appAccess: zod
-    .object({
-      appSlug: zod.string(),
-      canAccess: zod.boolean(),
-      requiredOnboarding: zod.enum(["none", "organization"]),
-      defaultRoute: zod.string(),
-      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
-    })
+    .union([
+      zod.object({
+        appSlug: zod.string(),
+        canAccess: zod.boolean(),
+        requiredOnboarding: zod.enum(["none", "organization"]),
+        defaultRoute: zod.string(),
+        normalizedAccessProfile: zod.enum([
+          "superadmin",
+          "solo",
+          "organization",
+        ]),
+      }),
+      zod.null(),
+    ])
     .optional(),
 });
 
@@ -113,15 +129,90 @@ export const GoogleAuthCallbackResponse = zod.object({
       }),
     )
     .optional(),
+  mfaPending: zod.boolean().optional(),
+  mfaEnrolled: zod.boolean().optional(),
+  nextStep: zod
+    .union([
+      zod.literal("mfa_enroll"),
+      zod.literal("mfa_challenge"),
+      zod.literal(null),
+    ])
+    .nullish(),
   appAccess: zod
-    .object({
-      appSlug: zod.string(),
-      canAccess: zod.boolean(),
-      requiredOnboarding: zod.enum(["none", "organization"]),
-      defaultRoute: zod.string(),
-      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
-    })
+    .union([
+      zod.object({
+        appSlug: zod.string(),
+        canAccess: zod.boolean(),
+        requiredOnboarding: zod.enum(["none", "organization"]),
+        defaultRoute: zod.string(),
+        normalizedAccessProfile: zod.enum([
+          "superadmin",
+          "solo",
+          "organization",
+        ]),
+      }),
+      zod.null(),
+    ])
     .optional(),
+});
+
+/**
+ * @summary Signup with email/password
+ */
+export const SignupWithPasswordBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+  name: zod.string().optional(),
+});
+
+/**
+ * @summary Login with email/password
+ */
+export const LoginWithPasswordBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+});
+
+export const LoginWithPasswordResponse = zod.object({
+  success: zod.boolean().optional(),
+  message: zod.string().nullish(),
+});
+
+/**
+ * @summary Forgot password
+ */
+export const ForgotPasswordBody = zod.object({
+  email: zod.string(),
+});
+
+export const ForgotPasswordResponse = zod.object({
+  success: zod.boolean().optional(),
+  message: zod.string().nullish(),
+});
+
+/**
+ * @summary Reset password
+ */
+export const ResetPasswordBody = zod.object({
+  token: zod.string(),
+  password: zod.string(),
+});
+
+export const ResetPasswordResponse = zod.object({
+  success: zod.boolean().optional(),
+  message: zod.string().nullish(),
+});
+
+/**
+ * @summary Verify email
+ */
+export const VerifyEmailBody = zod.object({
+  token: zod.string(),
+});
+
+export const VerifyEmailResponse = zod.object({
+  success: zod.boolean().optional(),
+  message: zod.string().nullish(),
 });
 
 /**
@@ -188,14 +279,30 @@ export const SwitchOrganizationResponse = zod.object({
       }),
     )
     .optional(),
+  mfaPending: zod.boolean().optional(),
+  mfaEnrolled: zod.boolean().optional(),
+  nextStep: zod
+    .union([
+      zod.literal("mfa_enroll"),
+      zod.literal("mfa_challenge"),
+      zod.literal(null),
+    ])
+    .nullish(),
   appAccess: zod
-    .object({
-      appSlug: zod.string(),
-      canAccess: zod.boolean(),
-      requiredOnboarding: zod.enum(["none", "organization"]),
-      defaultRoute: zod.string(),
-      normalizedAccessProfile: zod.enum(["superadmin", "solo", "organization"]),
-    })
+    .union([
+      zod.object({
+        appSlug: zod.string(),
+        canAccess: zod.boolean(),
+        requiredOnboarding: zod.enum(["none", "organization"]),
+        defaultRoute: zod.string(),
+        normalizedAccessProfile: zod.enum([
+          "superadmin",
+          "solo",
+          "organization",
+        ]),
+      }),
+      zod.null(),
+    ])
     .optional(),
 });
 
@@ -402,6 +509,52 @@ export const AcceptInvitationResponse = zod.object({
 });
 
 /**
+ * @summary Resolve invitation + auth choice state for invitation acceptance UI
+ */
+export const ResolveInvitationAcceptanceStateParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const ResolveInvitationAcceptanceStateResponse = zod.object({
+  invitation: zod
+    .object({
+      state: zod.enum(["pending", "invalid", "expired", "accepted"]),
+      email: zod.string(),
+      orgId: zod.string(),
+      role: zod.string(),
+    })
+    .optional(),
+  auth: zod
+    .object({
+      googleAllowed: zod.boolean(),
+      emailMode: zod.enum(["create_password", "sign_in"]),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Accept invitation by setting password for invited email account
+ */
+export const AcceptInvitationWithEmailPasswordSetupParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const AcceptInvitationWithEmailPasswordSetupBody = zod.object({
+  password: zod.string(),
+});
+
+export const AcceptInvitationWithEmailPasswordSetupResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  slug: zod.string(),
+  logoUrl: zod.string().nullish(),
+  website: zod.string().nullish(),
+  createdAt: zod.date(),
+  memberCount: zod.number().optional(),
+  stripeCustomerId: zod.string().nullish(),
+});
+
+/**
  * @summary Get all registered apps in the registry
  */
 export const GetAppsResponseItem = zod.object({
@@ -450,6 +603,23 @@ export const GetAppResponse = zod.object({
       }),
     )
     .optional(),
+});
+
+/**
+ * @summary Get frontend non-secret runtime settings for an app slug
+ */
+export const GetAppRuntimeSettingsParams = zod.object({
+  appSlug: zod.coerce.string(),
+});
+
+export const GetAppRuntimeSettingsResponse = zod.object({
+  appSlug: zod.string(),
+  apiBaseUrl: zod.string(),
+  basePath: zod.string(),
+  authDebug: zod.boolean(),
+  sentryEnvironment: zod.string(),
+  sentryDsn: zod.string().nullable(),
+  turnstileSiteKey: zod.string().nullable(),
 });
 
 /**
@@ -622,6 +792,145 @@ export const AdminGetStatsResponse = zod.object({
   totalSubscriptions: zod.number(),
   activeSubscriptions: zod.number(),
   totalApps: zod.number(),
+});
+
+/**
+ * @summary Admin - list global and app runtime settings
+ */
+export const AdminGetSettingsResponse = zod.object({
+  globalSettings: zod.array(
+    zod.object({
+      id: zod.string(),
+      appId: zod.string().nullish(),
+      appSlug: zod.string().nullish(),
+      key: zod.string(),
+      value: zod.string(),
+      valueType: zod.enum(["string", "number", "boolean", "json"]),
+      description: zod.string().nullish(),
+      updatedBy: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      parsedValue: zod
+        .union([
+          zod.string(),
+          zod.number(),
+          zod.boolean(),
+          zod.record(zod.string(), zod.unknown()),
+          zod.array(zod.unknown()),
+        ])
+        .optional(),
+    }),
+  ),
+  appSettings: zod.array(
+    zod.object({
+      id: zod.string(),
+      appId: zod.string().nullish(),
+      appSlug: zod.string().nullish(),
+      key: zod.string(),
+      value: zod.string(),
+      valueType: zod.enum(["string", "number", "boolean", "json"]),
+      description: zod.string().nullish(),
+      updatedBy: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      parsedValue: zod
+        .union([
+          zod.string(),
+          zod.number(),
+          zod.boolean(),
+          zod.record(zod.string(), zod.unknown()),
+          zod.array(zod.unknown()),
+        ])
+        .optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Admin - upsert one global runtime setting
+ */
+export const AdminUpsertGlobalSettingParams = zod.object({
+  key: zod.coerce.string(),
+});
+
+export const AdminUpsertGlobalSettingBody = zod.object({
+  valueType: zod.enum(["string", "number", "boolean", "json"]),
+  value: zod.union([
+    zod.string(),
+    zod.number(),
+    zod.boolean(),
+    zod.record(zod.string(), zod.unknown()),
+    zod.array(zod.unknown()),
+  ]),
+  description: zod.string().nullish(),
+});
+
+export const AdminUpsertGlobalSettingResponse = zod.object({
+  setting: zod.object({
+    id: zod.string(),
+    appId: zod.string().nullish(),
+    appSlug: zod.string().nullish(),
+    key: zod.string(),
+    value: zod.string(),
+    valueType: zod.enum(["string", "number", "boolean", "json"]),
+    description: zod.string().nullish(),
+    updatedBy: zod.string().nullish(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+    parsedValue: zod
+      .union([
+        zod.string(),
+        zod.number(),
+        zod.boolean(),
+        zod.record(zod.string(), zod.unknown()),
+        zod.array(zod.unknown()),
+      ])
+      .optional(),
+  }),
+});
+
+/**
+ * @summary Admin - upsert one app runtime setting
+ */
+export const AdminUpsertAppSettingParams = zod.object({
+  appId: zod.coerce.string(),
+  key: zod.coerce.string(),
+});
+
+export const AdminUpsertAppSettingBody = zod.object({
+  valueType: zod.enum(["string", "number", "boolean", "json"]),
+  value: zod.union([
+    zod.string(),
+    zod.number(),
+    zod.boolean(),
+    zod.record(zod.string(), zod.unknown()),
+    zod.array(zod.unknown()),
+  ]),
+  description: zod.string().nullish(),
+});
+
+export const AdminUpsertAppSettingResponse = zod.object({
+  setting: zod.object({
+    id: zod.string(),
+    appId: zod.string().nullish(),
+    appSlug: zod.string().nullish(),
+    key: zod.string(),
+    value: zod.string(),
+    valueType: zod.enum(["string", "number", "boolean", "json"]),
+    description: zod.string().nullish(),
+    updatedBy: zod.string().nullish(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+    parsedValue: zod
+      .union([
+        zod.string(),
+        zod.number(),
+        zod.boolean(),
+        zod.record(zod.string(), zod.unknown()),
+        zod.array(zod.unknown()),
+      ])
+      .optional(),
+  }),
 });
 
 /**

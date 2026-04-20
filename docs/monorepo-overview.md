@@ -140,11 +140,12 @@
 - **Backend app composition**: `apps/api-server/src/app.ts`.
   - Middleware order is explicit: correlation ID → Sentry request handler → security headers → CORS → body parsing/raw webhook → session → rate-limit mounts → monitoring endpoints → CSRF → origin/referer checks → `/api` router → Sentry error handlers.
 - **Frontend entry point**: `apps/admin/src/main.tsx`.
-  - Initializes frontend monitoring, then renders `App`.
+  - Initializes frontend monitoring from bootstrap values, hydrates app runtime settings from backend (`/api/apps/slug/:appSlug/runtime-settings`), then applies DB-backed frontend config (`authDebug`, Sentry settings, Turnstile key) without breaking bootstrap.
 - **Frontend app shell**: `apps/admin/src/App.tsx`.
   - Wrap order: QueryClientProvider → MonitoringErrorBoundary → AuthProvider → Router.
 - **Request flow (implemented path)**
   - Browser/UI (`apps/admin`) → API calls through generated hooks/custom fetch (`@workspace/api-client-react`) → Express route handlers (`apps/api-server/src/routes/*`) → Drizzle DB layer (`@workspace/db`) → PostgreSQL.
+  - Frontend runtime config flow: browser bootstrap env (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`) → `GET /api/apps/slug/:appSlug/runtime-settings` → shared runtime settings store (`lib/frontend-security/src/runtimeSettings.ts`) consumed by auth/turnstile/observability paths.
 
 ### Build and runtime coupling
 - **Runtime-coupled app dependencies**

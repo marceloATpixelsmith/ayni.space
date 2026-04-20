@@ -1,4 +1,4 @@
-const isAuthDebugEnabledFlag = import.meta.env.VITE_AUTH_DEBUG === "true";
+import { isAuthDebugEnabledRuntime } from "./runtimeSettings";
 const PREFIX = "[AUTH-DEBUG]";
 const FLOW_STORAGE_KEY = "auth:flow-id";
 const LAST_EVENT_KEY = "auth:last-event";
@@ -12,7 +12,7 @@ function serializeValue(value: unknown): string {
 }
 
 export function isAuthDebugEnabled() {
-  return isAuthDebugEnabledFlag;
+  return isAuthDebugEnabledRuntime();
 }
 
 export function getAuthFlowId(): string {
@@ -26,14 +26,14 @@ export function getAuthFlowId(): string {
 export function beginAuthDebugFlow(reason: string): string {
   const flowId = crypto.randomUUID();
   window.sessionStorage.setItem(FLOW_STORAGE_KEY, flowId);
-  if (isAuthDebugEnabledFlag) {
+  if (isAuthDebugEnabledRuntime()) {
     logAuthDebug("flow_started", { reason, flowId });
   }
   return flowId;
 }
 
 export function logAuthDebug(event: string, fields: Record<string, unknown> = {}) {
-  if (!isAuthDebugEnabledFlag) return;
+  if (!isAuthDebugEnabledRuntime()) return;
   const flowId = getAuthFlowId();
   const line = [
     `${PREFIX} layer=frontend`,

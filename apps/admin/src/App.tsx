@@ -16,6 +16,7 @@ import {
   getDisallowedAuthRouteRedirect,
   getMfaPendingRoute,
   isAuthDebugEnabled,
+  useFrontendRuntimeSettings,
   isMfaPendingStatus,
   isAuthRouteAllowed,
   logAuthDebug,
@@ -302,6 +303,7 @@ function DashboardRoute() {
 
 function AuthDebugOverlay() {
   const auth = useAuth();
+  const runtimeSettings = useFrontendRuntimeSettings();
   const [location] = useLocation();
   const storageKey = "auth-debug-overlay-collapsed";
   const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
@@ -334,7 +336,7 @@ function AuthDebugOverlay() {
     }
   }, [isCollapsed]);
 
-  if (!isAuthDebugEnabled()) {
+  if (!runtimeSettings.authDebug && !isAuthDebugEnabled()) {
     return null;
   }
 
