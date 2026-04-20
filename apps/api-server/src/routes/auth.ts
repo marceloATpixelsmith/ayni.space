@@ -93,6 +93,7 @@ import {
   verifyMfaChallenge,
 } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
+import { getGlobalSettingSnapshot, getMfaIssuerForAppSlug, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "../lib/runtimeSettings.js";
 import {
   sendLane1AuthVerificationEmail,
   sendLane1PasswordResetEmail,
@@ -566,7 +567,8 @@ function sendGoogleUrlError(
 function getGoogleConfigValidation() {
   const clientId = process.env["GOOGLE_CLIENT_ID"]?.trim() ?? "";
   const clientSecret = process.env["GOOGLE_CLIENT_SECRET"]?.trim() ?? "";
-  const redirectUriRaw = process.env["GOOGLE_REDIRECT_URI"]?.trim() ?? "";
+  void refreshRuntimeCache();
+  const redirectUriRaw = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI, process.env["GOOGLE_REDIRECT_URI"] ?? "")).trim();
   let redirectUriValid = false;
   if (redirectUriRaw) {
     try {
@@ -3006,11 +3008,14 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     return;
   }
 
-  const issuer = await getMfaIssuerForSessionGroup(
-    req.session.sessionGroup ??
-      req.resolvedSessionGroup ??
-      SESSION_GROUPS.DEFAULT,
-  );
+  const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const fallbackIssuer = await getMfaIssuerForSessionGroup(sessionGroup);
+  const appSlugForIssuer =
+    (typeof req.session.appSlug === "string" && req.session.appSlug) ||
+    (typeof req.session.pendingAppSlug === "string" && req.session.pendingAppSlug) ||
+    (typeof req.body?.appSlug === "string" && req.body.appSlug.trim()) ||
+    null;
+  const issuer = await getMfaIssuerForAppSlug(appSlugForIssuer, fallbackIssuer);
   logAuthDebug(req, "mfa_enroll_start_decision", {
     userId,
     alreadyEnrolled: false,

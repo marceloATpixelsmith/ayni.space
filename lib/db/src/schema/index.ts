@@ -16,3 +16,5 @@ export * from "./auth_credentials";
 export * from "./email_templates";
 
 export * from "./rate_limits";
+
+export * from "./settings";

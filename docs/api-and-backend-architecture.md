@@ -11,6 +11,8 @@
 - The API server is the single active backend gateway in current repository state.
 - Lane 2 transactional email foundation is implemented as a shared backend integration package at `lib/integrations/transactional-email` with provider-agnostic contracts and adapter scaffolding for Brevo and Mailchimp Transactional.
 - Lane 1 notification email delivery (invitation + email verification + password reset) is implemented in `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/auth.ts`, and `apps/api-server/src/lib/invitationEmail.ts` using template resolution from `platform.email_templates` with app-level override + platform-default fallback and platform-owned provider credentials from environment variables.
+- Runtime non-secret backend configuration is now split into cross-app `platform.settings` and app-scoped `platform.app_settings`, with API/runtime reads routed through `apps/api-server/src/lib/runtimeSettings.ts` and schema/migration definitions under `lib/db/src/schema/settings.ts` + `lib/db/migrations/20260420_platform_runtime_settings.sql`.
+- Admin settings management APIs are available under `/api/admin/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/admin.ts`.
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
 ## Inferred

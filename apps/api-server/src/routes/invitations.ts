@@ -29,6 +29,7 @@ import { resolvePostAuthContinuation } from "../lib/postAuthContinuation.js";
 import { hashPassword, isStrongEnoughPassword, normalizeEmail } from "../lib/passwordAuth.js";
 import { getTrustedDeviceCookieName, getUserAuthSecurity, hasActiveMfaFactor, isMfaRequiredForUser, isTrustedDevice } from "../lib/mfa.js";
 import { applySessionPersistence } from "../lib/session.js";
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "../lib/runtimeSettings.js";
 
 const router = Router();
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -50,7 +51,8 @@ type InvitationResolvePayload = {
 function isGoogleAuthEnabled(): boolean {
   const clientId = process.env["GOOGLE_CLIENT_ID"]?.trim() ?? "";
   const clientSecret = process.env["GOOGLE_CLIENT_SECRET"]?.trim() ?? "";
-  const redirectUriRaw = process.env["GOOGLE_REDIRECT_URI"]?.trim() ?? "";
+  void refreshRuntimeCache();
+  const redirectUriRaw = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI, process.env["GOOGLE_REDIRECT_URI"] ?? "")).trim();
   if (!clientId || !clientSecret || !redirectUriRaw) return false;
   try {
     const parsed = new URL(redirectUriRaw);

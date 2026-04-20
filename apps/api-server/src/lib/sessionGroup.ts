@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { getAllowedOriginsSnapshot, refreshRuntimeCache } from "./runtimeSettings.js";
 
 const DEFAULT_SESSION_GROUP = "default";
 const ADMIN_SESSION_GROUP = "admin";
@@ -24,7 +25,8 @@ function normalizeOrigin(origin: string | null | undefined): string | null {
 }
 
 export function getAllowedOrigins(): string[] {
-  return parseCsv(process.env["ALLOWED_ORIGINS"]).map((origin) => normalizeOrigin(origin)).filter((origin): origin is string => Boolean(origin));
+  void refreshRuntimeCache();
+  return getAllowedOriginsSnapshot().map((origin) => normalizeOrigin(origin)).filter((origin): origin is string => Boolean(origin));
 }
 
 export function getAdminSessionGroupOrigins(): string[] {
