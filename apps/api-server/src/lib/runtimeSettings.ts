@@ -243,9 +243,9 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
 
   return {
     appSlug: readString(APP_SETTING_KEYS.VITE_APP_SLUG, app.slug),
-    apiBaseUrl: readString(APP_SETTING_KEYS.VITE_API_BASE_URL, process.env["VITE_API_BASE_URL"] ?? ""),
+    apiBaseUrl: readString(APP_SETTING_KEYS.VITE_API_BASE_URL, ""),
     basePath: readString(APP_SETTING_KEYS.BASE_PATH, "/"),
-    authDebug: readBoolean(APP_SETTING_KEYS.VITE_AUTH_DEBUG, process.env["VITE_AUTH_DEBUG"] === "true"),
+    authDebug: readBoolean(APP_SETTING_KEYS.VITE_AUTH_DEBUG, false),
     sentryEnvironment: readString(
       APP_SETTING_KEYS.VITE_SENTRY_ENVIRONMENT,
       String(getGlobalSettingSnapshot<string>(
@@ -257,6 +257,6 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
       APP_SETTING_KEYS.VITE_SENTRY_DSN,
       String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "")).trim() || null,
     ),
-    turnstileSiteKey: readNullableString(APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, process.env["VITE_TURNSTILE_SITE_KEY"]?.trim() || null),
+    turnstileSiteKey: readNullableString(APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, null),
   };
 }
