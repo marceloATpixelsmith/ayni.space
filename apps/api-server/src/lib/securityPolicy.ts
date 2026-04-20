@@ -145,6 +145,12 @@ export function getSecurityConfig(): SecurityConfig {
         category: "ADMIN",
         rateLimit: { type: "default", options: { keyPrefix: "admin" } },
       },
+      {
+        method: "*",
+        pattern: /^\/api\/platform(\/|$)/,
+        category: "ADMIN",
+        rateLimit: { type: "default", options: { keyPrefix: "platform" } },
+      },
       // AUTH scope paths that are authenticated but sensitive
       {
         method: "POST",

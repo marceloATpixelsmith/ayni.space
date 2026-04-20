@@ -14,7 +14,7 @@ import { writeAuditLog } from "../lib/audit.js";
 import { EMAIL_TEMPLATE_TYPES, resolveEmailTemplate, TEMPLATE_SAMPLE_CONTEXT, TEMPLATE_TOKEN_ALLOWLIST, validateTemplateTokens, renderTemplatedString, type EmailTemplateType } from "../lib/emailTemplates.js";
 import { emailTemplatesTable } from "@workspace/db/schema";
 import { requireSuperAdmin } from "../middlewares/requireAuth.js";
-import { listAppSettings, listGlobalSettings, upsertAppSetting, upsertGlobalSetting } from "../lib/runtimeSettings.js";
+import { getAllSettings, updateAppSetting, updateSetting } from "../lib/settings.js";
 
 const router: IRouter = Router();
 
@@ -34,10 +34,7 @@ function parsePageNumber(value: unknown, fallback: number): number {
 
 // ── GET /admin/settings ──────────────────────────────────────────────────────
 router.get("/settings", async (_req, res) => {
-  const [globalSettings, appSettings] = await Promise.all([
-    listGlobalSettings(),
-    listAppSettings(),
-  ]);
+  const { globalSettings, appSettings } = await getAllSettings();
   res.json({ globalSettings, appSettings });
 });
 
@@ -50,7 +47,7 @@ router.put("/settings/global/:key", async (req, res) => {
     res.status(400).json({ error: "key and valueType are required" });
     return;
   }
-  const saved = await upsertGlobalSetting({
+  const saved = await updateSetting({
     key,
     value,
     valueType,
@@ -71,7 +68,7 @@ router.put("/settings/apps/:appId/:key", async (req, res) => {
     res.status(400).json({ error: "appId, key and valueType are required" });
     return;
   }
-  const saved = await upsertAppSetting({
+  const saved = await updateAppSetting({
     appId,
     key,
     value,
