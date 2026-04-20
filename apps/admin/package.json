@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:security-shell": "node --test src/__tests__/security-shell.contract.test.mjs",
-    "test": "pnpm --package=vitest@2.1.8 --package=jsdom@25.0.1 --package=@testing-library/react@16.1.0 --package=@testing-library/jest-dom@6.6.3 dlx vitest run --config vitest.config.ts --pool=forks --poolOptions.forks.singleFork --poolOptions.forks.isolate=false --maxWorkers=1 --minWorkers=1"
+    "test": "vitest run --config vitest.config.ts --pool=forks --poolOptions.forks.singleFork --poolOptions.forks.isolate=false --maxWorkers=1 --minWorkers=1"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -77,6 +77,10 @@
     "wouter": "^3.3.5",
     "zod": "catalog:",
     "@workspace/frontend-observability": "workspace:*",
-    "@workspace/auth-ui": "workspace:*"
+    "@workspace/auth-ui": "workspace:*",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "jsdom": "25.0.1",
+    "vitest": "2.1.8"
   }
 }
