@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import type { ErrorRequestHandler, Express, RequestHandler } from "express";
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS } from "../lib/runtimeSettings.js";
 
 const require = createRequire(`${process.cwd()}/`);
-const sentryDsn = process.env["SENTRY_DSN"];
-const sentryEnvironment =
-  process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development";
+const sentryDsn = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "")).trim() || undefined;
+const sentryEnvironment = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_ENVIRONMENT, process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development"));
 
 let sentryInitialized = false;
 let sentryModule: any | null = null;

@@ -120,6 +120,13 @@
       "when": 1776719100000,
       "tag": "20260420_frontend_runtime_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776722400000,
+      "tag": "20260420_non_secret_runtime_settings_foundation",
+      "breakpoints": true
     }
   ]
 }
