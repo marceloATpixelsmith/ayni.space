@@ -13,7 +13,7 @@
 - Lane 1 notification email delivery (invitation + email verification + password reset) is implemented in `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/auth.ts`, and `apps/api-server/src/lib/invitationEmail.ts` using template resolution from `platform.email_templates` with app-level override + platform-default fallback and platform-owned provider credentials from environment variables.
 - Runtime non-secret backend configuration is now split into cross-app `platform.settings` and app-scoped `platform.app_settings`, with API/runtime reads routed through `apps/api-server/src/lib/runtimeSettings.ts` and schema/migration definitions under `lib/db/src/schema/settings.ts` + `lib/db/migrations/20260420_platform_runtime_settings.sql`.
 - Admin settings management APIs are available under `/api/admin/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/admin.ts`.
-- Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`, while bootstrap env remains limited to API reachability/app identity (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, and build-time `BASE_PATH` where required) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`, `apps/admin/src/main.tsx`).
+- Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`; backend/frontend runtime fallbacks no longer read deployment env for migrated non-secret keys (`VITE_AUTH_DEBUG`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_DSN`, `VITE_TURNSTILE_SITE_KEY`) and bootstrap env remains limited to API reachability/app identity (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, and build-time `BASE_PATH` where required) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`, `apps/admin/src/main.tsx`, `lib/frontend-security/src/runtimeSettings.ts`).
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
 ## Inferred
@@ -29,3 +29,14 @@
 - Do not split route registration away from `apps/api-server/src/routes/index.ts` without explicit architecture change.
 - Do not introduce alternate backend entrypoints that circumvent existing security/observability middleware ordering.
 - Do not bypass `@workspace/db` for backend data access.
+
+## Operator rollout note (non-secret env cleanup)
+
+After DB-backed runtime settings rollout is complete, remove these non-secret deployment GUI variables from Vercel/Render because runtime now sources them from `platform.app_settings`:
+
+- `VITE_AUTH_DEBUG`
+- `VITE_SENTRY_ENVIRONMENT`
+- `VITE_SENTRY_DSN`
+- `VITE_TURNSTILE_SITE_KEY`
+
+Keep env only for secrets/bootstrap/infra values (for example bootstrap frontend identity/reachability, session/database secrets, provider API keys, and other boot-time infra values).

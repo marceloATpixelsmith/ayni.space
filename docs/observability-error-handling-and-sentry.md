@@ -23,7 +23,7 @@
 - Frontend monitoring boundary/capture is implemented in `lib/frontend-observability/src/index.tsx`.
 - API client error object parsing/handling behavior is implemented in `lib/api-client-react/src/custom-fetch.ts`.
 - Admin app initializes frontend monitoring in `apps/admin/src/main.tsx` and wraps shell with monitoring boundary in `apps/admin/src/App.tsx`.
-- Admin frontend monitoring/auth debug settings (`VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_AUTH_DEBUG`) now resolve from DB-backed app runtime settings after bootstrap fetch (`/api/apps/slug/:appSlug/runtime-settings`), with env values retained only as bootstrap fallback (`apps/admin/src/main.tsx`, `lib/frontend-security/src/runtimeSettings.ts`, `lib/frontend-security/src/authDebug.ts`).
+- Admin frontend monitoring/auth debug settings (`VITE_SENTRY_DSN`, `VITE_SENTRY_ENVIRONMENT`, `VITE_AUTH_DEBUG`) now resolve from DB-backed app runtime settings after bootstrap fetch (`/api/apps/slug/:appSlug/runtime-settings`); frontend env fallback for those values has been removed, leaving bootstrap env limited to API reachability/app identity (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`) (`apps/admin/src/main.tsx`, `lib/frontend-security/src/runtimeSettings.ts`, `lib/frontend-security/src/authDebug.ts`).
 
 ## Inferred
 - Observability is intended as end-to-end: frontend capture + backend ingest/error handling + request correlation.
