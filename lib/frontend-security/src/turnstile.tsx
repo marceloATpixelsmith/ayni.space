@@ -18,9 +18,7 @@ const SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
 let turnstileScriptPromise: Promise<void> | null = null;
-const AUTH_DEBUG =
-  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-    ?.VITE_AUTH_DEBUG === "true";
+const AUTH_DEBUG = import.meta.env.VITE_AUTH_DEBUG === "true";
 
 export type TurnstileUiStatus =
   | "disabled"
