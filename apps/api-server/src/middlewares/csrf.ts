@@ -76,7 +76,7 @@ export const csrfTokenEndpoint: RequestHandler = (req, res) => {
   res.json({ csrfToken: token });
 };
 
-export function originRefererProtection(allowedOrigins: string[]): RequestHandler {
+export function originRefererProtection(allowedOrigins: string[] | (() => string[] | Promise<string[]>)): RequestHandler {
   return (req, res, next) => {
     if (req.method === "GET" && req.path.startsWith("/api/auth/google/")) {
       next();
@@ -99,10 +99,11 @@ export function originRefererProtection(allowedOrigins: string[]): RequestHandle
       return;
     }
 
+    Promise.resolve(typeof allowedOrigins === "function" ? allowedOrigins() : allowedOrigins).then((resolvedAllowedOrigins) => {
     const valid = [origin, referer].some((url) => {
       if (!url) return false;
       try {
-        return allowedOrigins.includes(new URL(url).origin);
+        return resolvedAllowedOrigins.includes(new URL(url).origin);
       } catch {
         return false;
       }
@@ -114,5 +115,8 @@ export function originRefererProtection(allowedOrigins: string[]): RequestHandle
     }
 
     next();
+    }).catch(() => {
+      res.status(403).json({ error: "Invalid origin or referer" });
+    });
   };
 }

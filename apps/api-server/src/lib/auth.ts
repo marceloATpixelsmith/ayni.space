@@ -1,3 +1,4 @@
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "./runtimeSettings.js";
 import { OAuth2Client } from "google-auth-library";
 
 function getRequiredEnv(name: string): string
@@ -16,7 +17,8 @@ export function getGoogleClient(): OAuth2Client
 {
   const clientId = getRequiredEnv("GOOGLE_CLIENT_ID");
   const clientSecret = getRequiredEnv("GOOGLE_CLIENT_SECRET");
-  const redirectUri = getRequiredEnv("GOOGLE_REDIRECT_URI");
+  void refreshRuntimeCache();
+  const redirectUri = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI, getRequiredEnv("GOOGLE_REDIRECT_URI")));
 
   return new OAuth2Client(clientId, clientSecret, redirectUri);
 }

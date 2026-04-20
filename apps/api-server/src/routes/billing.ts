@@ -5,14 +5,13 @@ import { randomUUID } from "crypto";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { userHasActiveOrgMembership } from "../lib/orgMembership.js";
+import { getAllowedOriginsSnapshot, refreshRuntimeCache } from "../lib/runtimeSettings.js";
 
 const router: IRouter = Router();
 
 function getAllowedOrigins() {
-  return (process.env["ALLOWED_ORIGINS"] ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  void refreshRuntimeCache();
+  return getAllowedOriginsSnapshot();
 }
 
 function resolveFrontendBase(req: Request): string | null {

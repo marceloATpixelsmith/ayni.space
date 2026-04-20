@@ -1,3 +1,4 @@
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "./runtimeSettings.js";
 const IPQS_EMAIL_API_BASE = "https://ipqualityscore.com/api/json/email";
 
 export type SignupRiskDecision = "allow" | "step_up" | "block";
@@ -12,8 +13,8 @@ export type SignupRiskAssessment = {
   providerFailed: boolean;
 };
 
-function parsePositive(value: string | undefined, fallback: number): number {
-  const n = Number.parseInt(value ?? "", 10);
+function parsePositive(value: string | number | undefined, fallback: number): number {
+  const n = typeof value === "number" ? value : Number.parseInt(value ?? "", 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
@@ -33,8 +34,10 @@ function parseIpqsResponse(payload: Record<string, unknown>) {
 
 export async function assessSignupRiskWithIpqs(email: string, ipAddress: string | null | undefined): Promise<SignupRiskAssessment> {
   const apiKey = process.env["IPQS_API_KEY"]?.trim();
-  const timeoutMs = parsePositive(process.env["IPQS_TIMEOUT_MS"], 2000);
-  const stepUpThreshold = parsePositive(process.env["IPQS_STEP_UP_THRESHOLD"], 75);
+  void refreshRuntimeCache();
+  const timeoutMs = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_TIMEOUT_MS, process.env["IPQS_TIMEOUT_MS"] ?? 2000), 2000);
+  const stepUpThreshold = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_STEP_UP_THRESHOLD, process.env["IPQS_STEP_UP_THRESHOLD"] ?? 75), 75);
+  const blockThreshold = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_BLOCK_THRESHOLD, process.env["IPQS_BLOCK_THRESHOLD"] ?? 90), 90);
 
   if (!apiKey) {
     return {
@@ -60,8 +63,8 @@ export async function assessSignupRiskWithIpqs(email: string, ipAddress: string 
     const payload = (await response.json()) as Record<string, unknown>;
     const parsed = parseIpqsResponse(payload);
 
-    if (parsed.disposable) {
-      return { decision: "block", reason: "disposable_email", score: parsed.fraudScore, disposable: true, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
+    if (parsed.disposable || (parsed.fraudScore ?? 0) >= blockThreshold) {
+      return { decision: "block", reason: "disposable_email", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
     }
     if (parsed.undeliverable) {
       return { decision: "step_up", reason: "undeliverable_email", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: true, suspiciousIp: parsed.suspiciousIp, providerFailed: false };

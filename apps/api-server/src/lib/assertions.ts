@@ -5,7 +5,6 @@ export function runCriticalAssertions() {
   // Example: Ensure session cookie is secure in production
   if (process.env.NODE_ENV === "production") {
     assert(process.env.SESSION_SECRET, "SESSION_SECRET must be set in production");
-    assert(process.env.ALLOWED_ORIGINS, "ALLOWED_ORIGINS must be set in production");
     const rateLimitExplicitlyDisabled = process.env.RATE_LIMIT_ENABLED === "false";
     const rateLimitDisableAllowed = process.env.RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION === "true";
     assert(

@@ -29,7 +29,7 @@ async function startServer() {
   console.info("[startup] Booting API server...");
   console.info("[startup] Deployment touchpoint:", DEPLOYMENT_TOUCHPOINT);
   console.info(
-    `[startup] Env presence: PORT=${envPresence("PORT")}, SESSION_SECRET=${envPresence("SESSION_SECRET")}, DATABASE_URL=${envPresence("DATABASE_URL")}, ALLOWED_ORIGINS=${envPresence("ALLOWED_ORIGINS")}`,
+    `[startup] Env presence: PORT=${envPresence("PORT")}, SESSION_SECRET=${envPresence("SESSION_SECRET")}, DATABASE_URL=${envPresence("DATABASE_URL")}`,
   );
 
   const rawPort = process.env["PORT"];

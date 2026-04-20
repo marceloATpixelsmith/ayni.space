@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { appsTable, outboundEmailLogsTable, organizationsTable, usersTable } from "@workspace/db/schema";
 import { EMAIL_TEMPLATE_TYPES, renderTemplatedString, resolveEmailTemplate, TEMPLATE_TOKEN_ALLOWLIST, type EmailTemplateType } from "./emailTemplates.js";
+import { getAllowedOriginsSnapshot, refreshRuntimeCache } from "./runtimeSettings.js";
 
 export const INVITATION_TEMPLATE_TOKENS = TEMPLATE_TOKEN_ALLOWLIST.invitation;
 
@@ -46,10 +47,8 @@ export function renderInvitationTemplate(template: string, context: Record<strin
 
 function resolveInvitationBaseUrl(req: Request): string {
   const headers = [req.headers.origin, req.headers.referer].filter((v): v is string => typeof v === "string");
-  const allowedOrigins = (process.env["ALLOWED_ORIGINS"] ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  void refreshRuntimeCache();
+  const allowedOrigins = getAllowedOriginsSnapshot();
 
   for (const candidate of [...headers, ...allowedOrigins]) {
     try {

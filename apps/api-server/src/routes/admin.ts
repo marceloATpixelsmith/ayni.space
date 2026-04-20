@@ -13,8 +13,12 @@ import { randomUUID } from "crypto";
 import { writeAuditLog } from "../lib/audit.js";
 import { EMAIL_TEMPLATE_TYPES, resolveEmailTemplate, TEMPLATE_SAMPLE_CONTEXT, TEMPLATE_TOKEN_ALLOWLIST, validateTemplateTokens, renderTemplatedString, type EmailTemplateType } from "../lib/emailTemplates.js";
 import { emailTemplatesTable } from "@workspace/db/schema";
+import { requireSuperAdmin } from "../middlewares/requireAuth.js";
+import { listAppSettings, listGlobalSettings, upsertAppSetting, upsertGlobalSetting } from "../lib/runtimeSettings.js";
 
 const router: IRouter = Router();
+
+router.use(requireSuperAdmin);
 
 function asSingleString(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -26,6 +30,58 @@ function parsePageNumber(value: unknown, fallback: number): number {
   const parsed = Number.parseInt(asSingleString(value) ?? "", 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
+
+
+// ── GET /admin/settings ──────────────────────────────────────────────────────
+router.get("/settings", async (_req, res) => {
+  const [globalSettings, appSettings] = await Promise.all([
+    listGlobalSettings(),
+    listAppSettings(),
+  ]);
+  res.json({ globalSettings, appSettings });
+});
+
+router.put("/settings/global/:key", async (req, res) => {
+  const key = asSingleString(req.params["key"]);
+  const valueType = asSingleString(req.body?.valueType) as "string" | "number" | "boolean" | "json" | undefined;
+  const value = req.body?.value;
+  const description = typeof req.body?.description === "string" ? req.body.description : null;
+  if (!key || !valueType) {
+    res.status(400).json({ error: "key and valueType are required" });
+    return;
+  }
+  const saved = await upsertGlobalSetting({
+    key,
+    value,
+    valueType,
+    description,
+    updatedBy: req.session.userId ?? null,
+  });
+  await writeAuditLog({ req, userId: req.session.userId, action: "admin.setting.global.upsert", resourceType: "setting", resourceId: saved?.id, metadata: { key, valueType } });
+  res.json({ setting: saved });
+});
+
+router.put("/settings/apps/:appId/:key", async (req, res) => {
+  const appId = asSingleString(req.params["appId"]);
+  const key = asSingleString(req.params["key"]);
+  const valueType = asSingleString(req.body?.valueType) as "string" | "number" | "boolean" | "json" | undefined;
+  const value = req.body?.value;
+  const description = typeof req.body?.description === "string" ? req.body.description : null;
+  if (!appId || !key || !valueType) {
+    res.status(400).json({ error: "appId, key and valueType are required" });
+    return;
+  }
+  const saved = await upsertAppSetting({
+    appId,
+    key,
+    value,
+    valueType,
+    description,
+    updatedBy: req.session.userId ?? null,
+  });
+  await writeAuditLog({ req, userId: req.session.userId, action: "admin.setting.app.upsert", resourceType: "app_setting", resourceId: saved?.id, metadata: { appId, key, valueType } });
+  res.json({ setting: saved });
+});
 
 // ── GET /admin/stats ──────────────────────────────────────────────────────────
 router.get("/stats", async (_req, res) => {
@@ -55,7 +111,7 @@ router.get("/organizations", async (req, res) => {
   ]);
 
   res.json({
-    organizations: orgs.map((o) => ({ ...o, memberCount: 0 })),
+    organizations: orgs.map((o: any) => ({ ...o, memberCount: 0 })),
     total: Number(totalRow?.count ?? 0),
     limit,
     offset,
@@ -73,7 +129,7 @@ router.get("/users", async (req, res) => {
   ]);
 
   res.json({
-    users: users.map((u) => ({
+    users: users.map((u: any) => ({
       id: u.id,
       email: u.email,
       name: u.name,
@@ -159,7 +215,7 @@ router.put("/organizations/:orgId/apps/:appId", async (req, res) => {
   }
 
   const existing = await db.query.orgAppAccessTable.findFirst({
-    where: (t, { and, eq }) => and(eq(t.orgId, orgId), eq(t.appId, appId)),
+    where: (t: any, { and, eq }: any) => and(eq(t.orgId, orgId), eq(t.appId, appId)),
   });
 
   if (existing) {

@@ -2,6 +2,7 @@ import type { Request, RequestHandler } from "express";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
+import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "../lib/runtimeSettings.js";
 
 type AuditWriter = (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void>;
 const MFA_CHALLENGE_PATH_PATTERN = /^\/api\/auth\/mfa\/(challenge|recovery)\/?$/;
@@ -11,9 +12,9 @@ function isProduction(): boolean {
 }
 
 export function isTurnstileEnabled(): boolean {
-  const configured = process.env["TURNSTILE_ENABLED"];
+  void refreshRuntimeCache();
+  const configured = String(getGlobalSettingSnapshot<boolean | string>(GLOBAL_SETTING_KEYS.TURNSTILE_ENABLED, process.env["TURNSTILE_ENABLED"] ?? (isProduction() ? "true" : "false"))).trim().toLowerCase();
   // Production-safe default: ON unless explicitly disabled and force-override is set.
-  if (configured === undefined) return isProduction();
   if (configured === "true") return true;
   if (configured === "false") {
     if (isProduction()) {

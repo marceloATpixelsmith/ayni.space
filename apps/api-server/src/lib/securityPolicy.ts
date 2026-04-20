@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import { requireAuth, requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { authRateLimiter, rateLimiter, type RateLimitOptions } from "../middlewares/rateLimit.js";
 import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
+import { getAllowedOriginsSnapshot, refreshRuntimeCache } from "./runtimeSettings.js";
 
 export type EndpointCategory = "PUBLIC" | "AUTHENTICATED" | "ADMIN" | "INTERNAL";
 
@@ -25,10 +26,8 @@ type SecurityConfig = {
 };
 
 function parseAllowedOrigins(): string[] {
-  return (process.env["ALLOWED_ORIGINS"] ?? "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  void refreshRuntimeCache();
+  return getAllowedOriginsSnapshot();
 }
 
 export function getSecurityConfig(): SecurityConfig {

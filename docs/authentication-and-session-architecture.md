@@ -151,6 +151,8 @@
 - TOTP verification now decodes Base32 secrets with bit-buffer masking (preventing stale-bit corruption), applies identical verification logic in enrollment/challenge paths, and enforces a ±1 time-step acceptance window with replay-step rejection via `platform.used_mfa_totp_codes` (`apps/api-server/src/lib/mfa.ts`).
 - Trusted devices are server-authoritative (`platform.trusted_devices`) with hashed token storage, secure cookie transport, and 20-day expiry.
 - MFA issuer now derives from session-group authority (not app name/env): canonical display names are sourced from `platform.session_groups` and resolved by `apps/api-server/src/lib/sessionGroupDisplay.ts`.
+- MFA issuer resolution now uses app-scoped runtime settings (`platform.app_settings` key `MFA_ISSUER`) as primary source with session-group display fallback, preserving existing behavior when an app-level issuer is absent (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/api-server/src/lib/sessionGroupDisplay.ts`).
+- Backend allowlist origins are now DB-backed through app-scoped `ALLOWED_ORIGINS` settings (with env fallback), and CORS/origin-referer checks consume the runtime settings layer (`apps/api-server/src/app.ts`, `apps/api-server/src/middlewares/csrf.ts`, `apps/api-server/src/lib/runtimeSettings.ts`).
 - Required MFA enforcement now includes:
   - super admins (`platform.users.is_super_admin=true`),
   - org leadership roles mapped to real roles (`org_owner`, `org_admin`),

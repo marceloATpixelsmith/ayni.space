@@ -9,6 +9,7 @@ import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
 import { createSecurityEnforcementMiddleware, getSecurityConfig } from "./lib/securityPolicy.js";
 import { infoVerboseTrace, warnVerboseTrace } from "./lib/traceLogging.js";
+import { getEffectiveAllowedOrigins, getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "./lib/runtimeSettings.js";
 
 
 console.info("[startup] app.ts: validating environment...");
@@ -34,15 +35,13 @@ app.use(securityHeaders());
 const securityConfig = getSecurityConfig();
 const allowedOrigins = securityConfig.allowedOrigins;
 if (allowedOrigins.length === 0) {
-  throw new Error("ALLOWED_ORIGINS environment variable must be set with at least one origin");
+  console.warn("[startup] No allowed origins resolved at startup; runtime cache refresh may populate DB-backed values.");
 }
+void refreshRuntimeCache({ force: true });
 app.use(
   cors((req, callback) => {
-    const rawAllowedOriginsEnv = process.env["ALLOWED_ORIGINS"] ?? "";
-    const parsedAllowedOrigins = rawAllowedOriginsEnv
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter((origin) => origin.length > 0);
+    getEffectiveAllowedOrigins().then((parsedAllowedOrigins) => {
+    const rawAllowedOriginsEnv = parsedAllowedOrigins.join(",");
     const requestOrigin = req.header("origin") ?? null;
     const method = req.method;
     const path = req.path;
@@ -75,6 +74,10 @@ app.use(
     });
 
     callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
+    }).catch((error) => {
+      console.error("[CORS-TRACE] failed to resolve allowed origins", error);
+      callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
+    });
   })
 );
 
@@ -114,7 +117,7 @@ app.use(csrfProtection);
 app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // ── ORIGIN/REFERER PROTECTION (for sensitive routes) ───────────────────────
-app.use(originRefererProtection(allowedOrigins));
+app.use(originRefererProtection(() => getEffectiveAllowedOrigins()));
 
 
 // TEMPORARY: Backend-only Sentry verification endpoint.
@@ -132,11 +135,11 @@ app.get("/debug-sentry", async (_req, res) => {
 
 // ── PUBLIC FRONTEND MONITORING CONFIG ─────────────────────────────────────────
 app.get("/api/monitoring/config", (_req, res) => {
-  const dsn = process.env["SENTRY_DSN"] ?? null;
-  const environment = process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development";
+  const dsn = getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "");
+  const environment = getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_ENVIRONMENT, process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development");
 
   res.json({
-    dsn,
+    dsn: dsn || null,
     environment,
   });
 });
