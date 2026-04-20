@@ -19,6 +19,13 @@ export const GLOBAL_SETTING_KEYS = {
 export const APP_SETTING_KEYS = {
   ALLOWED_ORIGINS: "ALLOWED_ORIGINS",
   MFA_ISSUER: "MFA_ISSUER",
+  VITE_AUTH_DEBUG: "VITE_AUTH_DEBUG",
+  VITE_SENTRY_ENVIRONMENT: "VITE_SENTRY_ENVIRONMENT",
+  VITE_SENTRY_DSN: "VITE_SENTRY_DSN",
+  BASE_PATH: "BASE_PATH",
+  VITE_API_BASE_URL: "VITE_API_BASE_URL",
+  VITE_APP_SLUG: "VITE_APP_SLUG",
+  VITE_TURNSTILE_SITE_KEY: "VITE_TURNSTILE_SITE_KEY",
 } as const;
 
 export type ParsedSettingValue = string | number | boolean | Record<string, unknown> | unknown[];
@@ -188,4 +195,68 @@ export async function getMfaIssuerForAppSlug(appSlug: string | null | undefined,
   if (!appSlug) return fallback;
   await refreshRuntimeCache();
   return cachedRuntime.appIssuersBySlug[appSlug] ?? fallback;
+}
+
+export type FrontendRuntimeSettings = {
+  appSlug: string;
+  apiBaseUrl: string;
+  basePath: string;
+  authDebug: boolean;
+  sentryEnvironment: string;
+  sentryDsn: string | null;
+  turnstileSiteKey: string | null;
+};
+
+export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise<FrontendRuntimeSettings | null> {
+  const app = await db.query.appsTable.findFirst({ where: eq(appsTable.slug, appSlug) });
+  if (!app) return null;
+
+  const rows = await db.select({
+    key: appSettingsTable.key,
+    value: appSettingsTable.value,
+    valueType: appSettingsTable.valueType,
+  }).from(appSettingsTable).innerJoin(appsTable, eq(appSettingsTable.appId, appsTable.id)).where(eq(appsTable.slug, appSlug));
+
+  const byKey = new Map<string, ParsedSettingValue>();
+  for (const row of rows) {
+    byKey.set(row.key, parseSettingValue(row.value, row.valueType));
+  }
+
+  const readString = (key: string, fallback: string): string => {
+    const value = byKey.get(key);
+    if (typeof value === "string" && value.trim()) return value;
+    return fallback;
+  };
+
+  const readNullableString = (key: string, fallback: string | null): string | null => {
+    const value = byKey.get(key);
+    if (typeof value === "string" && value.trim()) return value;
+    return fallback;
+  };
+
+  const readBoolean = (key: string, fallback: boolean): boolean => {
+    const value = byKey.get(key);
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") return value.trim().toLowerCase() === "true";
+    return fallback;
+  };
+
+  return {
+    appSlug: readString(APP_SETTING_KEYS.VITE_APP_SLUG, app.slug),
+    apiBaseUrl: readString(APP_SETTING_KEYS.VITE_API_BASE_URL, process.env["VITE_API_BASE_URL"] ?? ""),
+    basePath: readString(APP_SETTING_KEYS.BASE_PATH, "/"),
+    authDebug: readBoolean(APP_SETTING_KEYS.VITE_AUTH_DEBUG, process.env["VITE_AUTH_DEBUG"] === "true"),
+    sentryEnvironment: readString(
+      APP_SETTING_KEYS.VITE_SENTRY_ENVIRONMENT,
+      String(getGlobalSettingSnapshot<string>(
+        GLOBAL_SETTING_KEYS.SENTRY_ENVIRONMENT,
+        process.env["SENTRY_ENVIRONMENT"] ?? process.env["NODE_ENV"] ?? "development",
+      )),
+    ),
+    sentryDsn: readNullableString(
+      APP_SETTING_KEYS.VITE_SENTRY_DSN,
+      String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "")).trim() || null,
+    ),
+    turnstileSiteKey: readNullableString(APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, process.env["VITE_TURNSTILE_SITE_KEY"]?.trim() || null),
+  };
 }

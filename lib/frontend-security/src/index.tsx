@@ -11,6 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { beginAuthDebugFlow, getAuthFlowId, logAuthDebug } from "./authDebug";
+import { getBootstrapAppSlug, getFrontendRuntimeSettings } from "./runtimeSettings";
 import {
   ADMIN_ACCESS_DENIED_ERROR,
   AUTH_ERROR_CODES,
@@ -113,9 +114,6 @@ type AuthContextValue = {
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const API_BASE =
-  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-    ?.VITE_API_BASE_URL ?? "";
 
 type GoogleUrlErrorPayload = {
   url?: string;
@@ -307,8 +305,9 @@ function normalizeEmailForSubmission(value: string): string {
 }
 
 function toApiUrl(path: string): string {
-  if (!API_BASE) return path;
-  return `${API_BASE.replace(/\/$/, "")}${path}`;
+  const apiBase = getFrontendRuntimeSettings().apiBaseUrl;
+  if (!apiBase) return path;
+  return `${apiBase.replace(/\/$/, "")}${path}`;
 }
 
 function isCredentialRequiredPath(path: string): boolean {
@@ -569,8 +568,7 @@ function normalizePlatformAppMetadata(
 
 
 export function resolveCurrentAppSlug(): string | null {
-  const configuredSlug =
-    (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_APP_SLUG?.trim() ?? "";
+  const configuredSlug = getBootstrapAppSlug().trim();
   return configuredSlug.length > 0 ? configuredSlug : null;
 }
 
@@ -1705,3 +1703,4 @@ export * from "./auth-page-orchestration";
 
 export * from "./auth-form-runtime";
 export * from "./authValidation";
+export * from "./runtimeSettings";

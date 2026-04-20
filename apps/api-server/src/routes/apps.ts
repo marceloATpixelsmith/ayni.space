@@ -11,6 +11,7 @@ import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
 import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute } from "../lib/appAccess.js";
 import { resolveNormalizedAccessProfile, getAuthRoutePolicyForProfile } from "../lib/appAccessProfile.js";
+import { getFrontendRuntimeSettingsForApp } from "../lib/runtimeSettings.js";
 
 const router: IRouter = Router();
 
@@ -90,6 +91,23 @@ router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
     activeOrg: context.activeOrg,
     orgMembership: context.orgMembership,
   });
+});
+
+// ── GET /apps/slug/:appSlug/runtime-settings ────────────────────────────────
+router.get("/slug/:appSlug/runtime-settings", async (req, res) => {
+  const appSlug = asSingleString(req.params["appSlug"]);
+  if (!appSlug) {
+    res.status(400).json({ error: "appSlug route param required" });
+    return;
+  }
+
+  const settings = await getFrontendRuntimeSettingsForApp(appSlug);
+  if (!settings) {
+    res.status(404).json({ error: "App not found" });
+    return;
+  }
+
+  res.json(settings);
 });
 
 // ── GET /apps/:appId ──────────────────────────────────────────────────────────

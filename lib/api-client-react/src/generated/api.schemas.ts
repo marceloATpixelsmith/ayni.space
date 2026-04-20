@@ -23,6 +23,18 @@ export interface ErrorResponse {
   code?: string;
 }
 
+/**
+ * @nullable
+ */
+export type AuthUserNextStep =
+  | (typeof AuthUserNextStep)[keyof typeof AuthUserNextStep]
+  | null;
+
+export const AuthUserNextStep = {
+  mfa_enroll: "mfa_enroll",
+  mfa_challenge: "mfa_challenge",
+} as const;
+
 export interface Organization {
   id: string;
   name: string;
@@ -79,17 +91,47 @@ export interface AuthUser {
   isSuperAdmin: boolean;
   /** @nullable */
   activeOrgId?: string | null;
-  mfaPending?: boolean;
-  mfaEnrolled?: boolean;
-  nextStep?: "mfa_enroll" | "mfa_challenge" | null;
   activeOrg?: Organization;
   memberships?: OrgMembershipSummary[];
+  mfaPending?: boolean;
+  mfaEnrolled?: boolean;
   /** @nullable */
+  nextStep?: AuthUserNextStep;
   appAccess?: AuthAppAccess | null;
 }
 
 export interface AuthUrlResponse {
   url: string;
+}
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  name?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface AuthActionResponse {
+  success?: boolean;
+  /** @nullable */
+  message?: string | null;
 }
 
 export interface User {
@@ -347,6 +389,76 @@ export interface PlatformStats {
   totalApps: number;
 }
 
+export type SettingValueType =
+  (typeof SettingValueType)[keyof typeof SettingValueType];
+
+export const SettingValueType = {
+  string: "string",
+  number: "number",
+  boolean: "boolean",
+  json: "json",
+} as const;
+
+export type RuntimeSettingParsedValue =
+  | string
+  | number
+  | boolean
+  | { [key: string]: unknown }
+  | unknown[];
+
+export interface RuntimeSetting {
+  id: string;
+  /** @nullable */
+  appId?: string | null;
+  /** @nullable */
+  appSlug?: string | null;
+  key: string;
+  value: string;
+  valueType: SettingValueType;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  parsedValue?: RuntimeSettingParsedValue;
+}
+
+export interface AdminSettingsResponse {
+  globalSettings: RuntimeSetting[];
+  appSettings: RuntimeSetting[];
+}
+
+export type UpsertSettingRequestValue =
+  | string
+  | number
+  | boolean
+  | { [key: string]: unknown }
+  | unknown[];
+
+export interface UpsertSettingRequest {
+  valueType: SettingValueType;
+  value: UpsertSettingRequestValue;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface UpsertSettingResponse {
+  setting: RuntimeSetting;
+}
+
+export interface FrontendRuntimeSettings {
+  appSlug: string;
+  apiBaseUrl: string;
+  basePath: string;
+  authDebug: boolean;
+  sentryEnvironment: string;
+  /** @nullable */
+  sentryDsn: string | null;
+  /** @nullable */
+  turnstileSiteKey: string | null;
+}
+
 export interface FeatureFlag {
   id: string;
   key: string;
@@ -502,6 +614,45 @@ export interface AyniStaff {
 export type GoogleAuthCallbackParams = {
   code: string;
   state?: string;
+};
+
+export type ResolveInvitationAcceptanceState200InvitationState =
+  (typeof ResolveInvitationAcceptanceState200InvitationState)[keyof typeof ResolveInvitationAcceptanceState200InvitationState];
+
+export const ResolveInvitationAcceptanceState200InvitationState = {
+  pending: "pending",
+  invalid: "invalid",
+  expired: "expired",
+  accepted: "accepted",
+} as const;
+
+export type ResolveInvitationAcceptanceState200Invitation = {
+  state: ResolveInvitationAcceptanceState200InvitationState;
+  email: string;
+  orgId: string;
+  role: string;
+};
+
+export type ResolveInvitationAcceptanceState200AuthEmailMode =
+  (typeof ResolveInvitationAcceptanceState200AuthEmailMode)[keyof typeof ResolveInvitationAcceptanceState200AuthEmailMode];
+
+export const ResolveInvitationAcceptanceState200AuthEmailMode = {
+  create_password: "create_password",
+  sign_in: "sign_in",
+} as const;
+
+export type ResolveInvitationAcceptanceState200Auth = {
+  googleAllowed: boolean;
+  emailMode: ResolveInvitationAcceptanceState200AuthEmailMode;
+};
+
+export type ResolveInvitationAcceptanceState200 = {
+  invitation?: ResolveInvitationAcceptanceState200Invitation;
+  auth?: ResolveInvitationAcceptanceState200Auth;
+};
+
+export type AcceptInvitationWithEmailPasswordSetupBody = {
+  password: string;
 };
 
 export type GetAuditLogsParams = {

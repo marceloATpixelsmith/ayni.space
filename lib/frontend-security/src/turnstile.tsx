@@ -1,4 +1,5 @@
 import React from "react";
+import { isAuthDebugEnabledRuntime, useFrontendRuntimeSettings } from "./runtimeSettings";
 
 declare global {
   interface Window {
@@ -18,7 +19,6 @@ const SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_LOADED_ATTR = "data-turnstile-loaded";
 let turnstileScriptPromise: Promise<void> | null = null;
-const AUTH_DEBUG = import.meta.env.VITE_AUTH_DEBUG === "true";
 
 export type TurnstileUiStatus =
   | "disabled"
@@ -148,17 +148,16 @@ export function useTurnstileToken() {
   const widgetIdRef = React.useRef<string | null>(null);
   const [containerNode, setContainerNode] =
     React.useState<HTMLDivElement | null>(null);
-
-  const siteKey = (
-    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-  ).env?.VITE_TURNSTILE_SITE_KEY;
+  const runtimeSettings = useFrontendRuntimeSettings();
+  const siteKey = runtimeSettings.turnstileSiteKey;
+  const authDebug = isAuthDebugEnabledRuntime();
   const scriptPresent =
     typeof document !== "undefined" &&
     Boolean(document.getElementById(SCRIPT_ID));
   const [retrying, setRetrying] = React.useState(false);
 
   React.useEffect(() => {
-    if (!AUTH_DEBUG) return;
+    if (!authDebug) return;
     console.info("[turnstile] mount", {
       enabled: Boolean(siteKey),
       windowTurnstileExists: Boolean(window.turnstile),
@@ -171,11 +170,11 @@ export function useTurnstileToken() {
         windowTurnstileExists: Boolean(window.turnstile),
       });
     };
-  }, [siteKey, scriptPresent, containerNode]);
+  }, [authDebug, siteKey, scriptPresent, containerNode]);
 
   React.useEffect(() => {
     if (!siteKey || !containerNode) {
-      if (AUTH_DEBUG) {
+      if (authDebug) {
         console.info("[turnstile] init skipped", {
           hasSiteKey: Boolean(siteKey),
           containerPresent: Boolean(containerNode),
@@ -198,7 +197,7 @@ export function useTurnstileToken() {
       .then(() => {
         if (cancelled || !window.turnstile || !containerNode) return;
         setWidgetRenderAttempted(true);
-        if (AUTH_DEBUG) {
+        if (authDebug) {
           console.info("[turnstile] rendering widget", {
             containerPresent: Boolean(containerNode),
             windowTurnstileExists: Boolean(window.turnstile),
@@ -214,7 +213,7 @@ export function useTurnstileToken() {
             setError(null);
             setRetrying(false);
             setCallbackState((previous) => ({ ...previous, success: true }));
-            if (AUTH_DEBUG)
+            if (authDebug)
               console.info("[turnstile] callback success", {
                 tokenPresent: Boolean(value),
               });
@@ -226,7 +225,7 @@ export function useTurnstileToken() {
             );
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, expired: true }));
-            if (AUTH_DEBUG) console.info("[turnstile] callback expired");
+            if (authDebug) console.info("[turnstile] callback expired");
           },
           "error-callback": () => {
             setToken(null);
@@ -235,7 +234,7 @@ export function useTurnstileToken() {
             );
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, error: true }));
-            if (AUTH_DEBUG) console.info("[turnstile] callback error");
+            if (authDebug) console.info("[turnstile] callback error");
           },
         });
         setReady(true);
@@ -255,7 +254,7 @@ export function useTurnstileToken() {
       widgetIdRef.current = null;
       setReady(false);
     };
-  }, [siteKey, containerNode]);
+  }, [authDebug, siteKey, containerNode]);
 
   const reset = React.useCallback(() => {
     setToken(null);
@@ -283,7 +282,7 @@ export function useTurnstileToken() {
   }, [callbackState.error, callbackState.expired, ready, siteKey, token]);
 
   React.useEffect(() => {
-    if (!AUTH_DEBUG) return;
+    if (!authDebug) return;
     console.info("[turnstile] state", {
       enabled: Boolean(siteKey),
       ready,
@@ -296,6 +295,7 @@ export function useTurnstileToken() {
       containerPresent: Boolean(containerNode),
     });
   }, [
+    authDebug,
     siteKey,
     ready,
     token,

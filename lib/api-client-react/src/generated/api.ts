@@ -21,11 +21,14 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AcceptInvitationWithEmailPasswordSetupBody,
   AdminGetAuditLogsParams,
   AdminGetOrganizationsParams,
   AdminGetUsersParams,
+  AdminSettingsResponse,
   App,
   AuditLogPage,
+  AuthActionResponse,
   AuthUrlResponse,
   AuthUser,
   AyniCeremony,
@@ -40,6 +43,8 @@ import type {
   CreateShipiboWordRequest,
   ErrorResponse,
   FeatureFlag,
+  ForgotPasswordRequest,
+  FrontendRuntimeSettings,
   GetAuditLogsParams,
   GetAyniCeremoniesParams,
   GetAyniParticipantsParams,
@@ -48,6 +53,7 @@ import type {
   GoogleAuthCallbackParams,
   HealthStatus,
   Invitation,
+  LoginRequest,
   OrgApp,
   OrgMember,
   OrgPage,
@@ -55,19 +61,25 @@ import type {
   PlatformStats,
   PortalRequest,
   PortalResponse,
+  ResetPasswordRequest,
+  ResolveInvitationAcceptanceState200,
   SetAppAccessRequest,
   SetFeatureFlagRequest,
   ShipiboCategory,
   ShipiboWord,
   ShipiboWordPage,
+  SignupRequest,
   Subscription,
   SuccessResponse,
   SwitchOrgRequest,
   UpdateMemberRoleRequest,
   UpdateOrganizationRequest,
   UpdateUserRequest,
+  UpsertSettingRequest,
+  UpsertSettingResponse,
   User,
   UserPage,
+  VerifyEmailRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -469,6 +481,436 @@ export function useGoogleAuthCallback<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Signup with email/password
+ */
+export const getSignupWithPasswordUrl = () => {
+  return `/api/auth/signup`;
+};
+
+export const signupWithPassword = async (
+  signupRequest: SignupRequest,
+  options?: RequestInit,
+): Promise<AuthActionResponse> => {
+  return customFetch<AuthActionResponse>(getSignupWithPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(signupRequest),
+  });
+};
+
+export const getSignupWithPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signupWithPassword>>,
+    TError,
+    { data: BodyType<SignupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signupWithPassword>>,
+  TError,
+  { data: BodyType<SignupRequest> },
+  TContext
+> => {
+  const mutationKey = ["signupWithPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signupWithPassword>>,
+    { data: BodyType<SignupRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return signupWithPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignupWithPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signupWithPassword>>
+>;
+export type SignupWithPasswordMutationBody = BodyType<SignupRequest>;
+export type SignupWithPasswordMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Signup with email/password
+ */
+export const useSignupWithPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signupWithPassword>>,
+    TError,
+    { data: BodyType<SignupRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof signupWithPassword>>,
+  TError,
+  { data: BodyType<SignupRequest> },
+  TContext
+> => {
+  return useMutation(getSignupWithPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Login with email/password
+ */
+export const getLoginWithPasswordUrl = () => {
+  return `/api/auth/login`;
+};
+
+export const loginWithPassword = async (
+  loginRequest: LoginRequest,
+  options?: RequestInit,
+): Promise<AuthActionResponse> => {
+  return customFetch<AuthActionResponse>(getLoginWithPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(loginRequest),
+  });
+};
+
+export const getLoginWithPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof loginWithPassword>>,
+    TError,
+    { data: BodyType<LoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof loginWithPassword>>,
+  TError,
+  { data: BodyType<LoginRequest> },
+  TContext
+> => {
+  const mutationKey = ["loginWithPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof loginWithPassword>>,
+    { data: BodyType<LoginRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return loginWithPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LoginWithPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof loginWithPassword>>
+>;
+export type LoginWithPasswordMutationBody = BodyType<LoginRequest>;
+export type LoginWithPasswordMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Login with email/password
+ */
+export const useLoginWithPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof loginWithPassword>>,
+    TError,
+    { data: BodyType<LoginRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof loginWithPassword>>,
+  TError,
+  { data: BodyType<LoginRequest> },
+  TContext
+> => {
+  return useMutation(getLoginWithPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Forgot password
+ */
+export const getForgotPasswordUrl = () => {
+  return `/api/auth/forgot-password`;
+};
+
+export const forgotPassword = async (
+  forgotPasswordRequest: ForgotPasswordRequest,
+  options?: RequestInit,
+): Promise<AuthActionResponse> => {
+  return customFetch<AuthActionResponse>(getForgotPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(forgotPasswordRequest),
+  });
+};
+
+export const getForgotPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof forgotPassword>>,
+    TError,
+    { data: BodyType<ForgotPasswordRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof forgotPassword>>,
+  TError,
+  { data: BodyType<ForgotPasswordRequest> },
+  TContext
+> => {
+  const mutationKey = ["forgotPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof forgotPassword>>,
+    { data: BodyType<ForgotPasswordRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return forgotPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ForgotPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof forgotPassword>>
+>;
+export type ForgotPasswordMutationBody = BodyType<ForgotPasswordRequest>;
+export type ForgotPasswordMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Forgot password
+ */
+export const useForgotPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof forgotPassword>>,
+    TError,
+    { data: BodyType<ForgotPasswordRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof forgotPassword>>,
+  TError,
+  { data: BodyType<ForgotPasswordRequest> },
+  TContext
+> => {
+  return useMutation(getForgotPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Reset password
+ */
+export const getResetPasswordUrl = () => {
+  return `/api/auth/reset-password`;
+};
+
+export const resetPassword = async (
+  resetPasswordRequest: ResetPasswordRequest,
+  options?: RequestInit,
+): Promise<AuthActionResponse> => {
+  return customFetch<AuthActionResponse>(getResetPasswordUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(resetPasswordRequest),
+  });
+};
+
+export const getResetPasswordMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPassword>>,
+    TError,
+    { data: BodyType<ResetPasswordRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetPassword>>,
+  TError,
+  { data: BodyType<ResetPasswordRequest> },
+  TContext
+> => {
+  const mutationKey = ["resetPassword"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetPassword>>,
+    { data: BodyType<ResetPasswordRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return resetPassword(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetPasswordMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetPassword>>
+>;
+export type ResetPasswordMutationBody = BodyType<ResetPasswordRequest>;
+export type ResetPasswordMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reset password
+ */
+export const useResetPassword = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPassword>>,
+    TError,
+    { data: BodyType<ResetPasswordRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetPassword>>,
+  TError,
+  { data: BodyType<ResetPasswordRequest> },
+  TContext
+> => {
+  return useMutation(getResetPasswordMutationOptions(options));
+};
+
+/**
+ * @summary Verify email
+ */
+export const getVerifyEmailUrl = () => {
+  return `/api/auth/verify-email`;
+};
+
+export const verifyEmail = async (
+  verifyEmailRequest: VerifyEmailRequest,
+  options?: RequestInit,
+): Promise<AuthActionResponse> => {
+  return customFetch<AuthActionResponse>(getVerifyEmailUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyEmailRequest),
+  });
+};
+
+export const getVerifyEmailMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailRequest> },
+  TContext
+> => {
+  const mutationKey = ["verifyEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    { data: BodyType<VerifyEmailRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyEmail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyEmail>>
+>;
+export type VerifyEmailMutationBody = BodyType<VerifyEmailRequest>;
+export type VerifyEmailMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Verify email
+ */
+export const useVerifyEmail = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyEmail>>,
+    TError,
+    { data: BodyType<VerifyEmailRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyEmail>>,
+  TError,
+  { data: BodyType<VerifyEmailRequest> },
+  TContext
+> => {
+  return useMutation(getVerifyEmailMutationOptions(options));
+};
 
 /**
  * @summary Get current user profile
@@ -1748,6 +2190,205 @@ export const useAcceptInvitation = <
 };
 
 /**
+ * @summary Resolve invitation + auth choice state for invitation acceptance UI
+ */
+export const getResolveInvitationAcceptanceStateUrl = (token: string) => {
+  return `/api/invitations/${token}/resolve`;
+};
+
+export const resolveInvitationAcceptanceState = async (
+  token: string,
+  options?: RequestInit,
+): Promise<ResolveInvitationAcceptanceState200> => {
+  return customFetch<ResolveInvitationAcceptanceState200>(
+    getResolveInvitationAcceptanceStateUrl(token),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getResolveInvitationAcceptanceStateQueryKey = (token: string) => {
+  return [`/api/invitations/${token}/resolve`] as const;
+};
+
+export const getResolveInvitationAcceptanceStateQueryOptions = <
+  TData = Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>,
+  TError = ErrorType<unknown>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getResolveInvitationAcceptanceStateQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>
+  > = ({ signal }) =>
+    resolveInvitationAcceptanceState(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ResolveInvitationAcceptanceStateQueryResult = NonNullable<
+  Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>
+>;
+export type ResolveInvitationAcceptanceStateQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Resolve invitation + auth choice state for invitation acceptance UI
+ */
+
+export function useResolveInvitationAcceptanceState<
+  TData = Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>,
+  TError = ErrorType<unknown>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof resolveInvitationAcceptanceState>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getResolveInvitationAcceptanceStateQueryOptions(
+    token,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Accept invitation by setting password for invited email account
+ */
+export const getAcceptInvitationWithEmailPasswordSetupUrl = (token: string) => {
+  return `/api/invitations/${token}/accept-email`;
+};
+
+export const acceptInvitationWithEmailPasswordSetup = async (
+  token: string,
+  acceptInvitationWithEmailPasswordSetupBody: AcceptInvitationWithEmailPasswordSetupBody,
+  options?: RequestInit,
+): Promise<Organization> => {
+  return customFetch<Organization>(
+    getAcceptInvitationWithEmailPasswordSetupUrl(token),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(acceptInvitationWithEmailPasswordSetupBody),
+    },
+  );
+};
+
+export const getAcceptInvitationWithEmailPasswordSetupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>,
+    TError,
+    {
+      token: string;
+      data: BodyType<AcceptInvitationWithEmailPasswordSetupBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>,
+  TError,
+  { token: string; data: BodyType<AcceptInvitationWithEmailPasswordSetupBody> },
+  TContext
+> => {
+  const mutationKey = ["acceptInvitationWithEmailPasswordSetup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>,
+    {
+      token: string;
+      data: BodyType<AcceptInvitationWithEmailPasswordSetupBody>;
+    }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return acceptInvitationWithEmailPasswordSetup(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptInvitationWithEmailPasswordSetupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>
+>;
+export type AcceptInvitationWithEmailPasswordSetupMutationBody =
+  BodyType<AcceptInvitationWithEmailPasswordSetupBody>;
+export type AcceptInvitationWithEmailPasswordSetupMutationError =
+  ErrorType<unknown>;
+
+/**
+ * @summary Accept invitation by setting password for invited email account
+ */
+export const useAcceptInvitationWithEmailPasswordSetup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>,
+    TError,
+    {
+      token: string;
+      data: BodyType<AcceptInvitationWithEmailPasswordSetupBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptInvitationWithEmailPasswordSetup>>,
+  TError,
+  { token: string; data: BodyType<AcceptInvitationWithEmailPasswordSetupBody> },
+  TContext
+> => {
+  return useMutation(
+    getAcceptInvitationWithEmailPasswordSetupMutationOptions(options),
+  );
+};
+
+/**
  * @summary Get all registered apps in the registry
  */
 export const getGetAppsUrl = () => {
@@ -1879,6 +2520,98 @@ export function useGetApp<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetAppQueryOptions(appId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get frontend non-secret runtime settings for an app slug
+ */
+export const getGetAppRuntimeSettingsUrl = (appSlug: string) => {
+  return `/api/apps/slug/${appSlug}/runtime-settings`;
+};
+
+export const getAppRuntimeSettings = async (
+  appSlug: string,
+  options?: RequestInit,
+): Promise<FrontendRuntimeSettings> => {
+  return customFetch<FrontendRuntimeSettings>(
+    getGetAppRuntimeSettingsUrl(appSlug),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAppRuntimeSettingsQueryKey = (appSlug: string) => {
+  return [`/api/apps/slug/${appSlug}/runtime-settings`] as const;
+};
+
+export const getGetAppRuntimeSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAppRuntimeSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  appSlug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAppRuntimeSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAppRuntimeSettingsQueryKey(appSlug);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAppRuntimeSettings>>
+  > = ({ signal }) =>
+    getAppRuntimeSettings(appSlug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!appSlug,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAppRuntimeSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAppRuntimeSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAppRuntimeSettings>>
+>;
+export type GetAppRuntimeSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get frontend non-secret runtime settings for an app slug
+ */
+
+export function useGetAppRuntimeSettings<
+  TData = Awaited<ReturnType<typeof getAppRuntimeSettings>>,
+  TError = ErrorType<unknown>,
+>(
+  appSlug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAppRuntimeSettings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAppRuntimeSettingsQueryOptions(appSlug, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2695,6 +3428,263 @@ export function useAdminGetStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Admin - list global and app runtime settings
+ */
+export const getAdminGetSettingsUrl = () => {
+  return `/api/admin/settings`;
+};
+
+export const adminGetSettings = async (
+  options?: RequestInit,
+): Promise<AdminSettingsResponse> => {
+  return customFetch<AdminSettingsResponse>(getAdminGetSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetSettingsQueryKey = () => {
+  return [`/api/admin/settings`] as const;
+};
+
+export const getAdminGetSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof adminGetSettings>>
+  > = ({ signal }) => adminGetSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetSettings>>
+>;
+export type AdminGetSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Admin - list global and app runtime settings
+ */
+
+export function useAdminGetSettings<
+  TData = Awaited<ReturnType<typeof adminGetSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Admin - upsert one global runtime setting
+ */
+export const getAdminUpsertGlobalSettingUrl = (key: string) => {
+  return `/api/admin/settings/global/${key}`;
+};
+
+export const adminUpsertGlobalSetting = async (
+  key: string,
+  upsertSettingRequest: UpsertSettingRequest,
+  options?: RequestInit,
+): Promise<UpsertSettingResponse> => {
+  return customFetch<UpsertSettingResponse>(
+    getAdminUpsertGlobalSettingUrl(key),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertSettingRequest),
+    },
+  );
+};
+
+export const getAdminUpsertGlobalSettingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpsertGlobalSetting>>,
+    TError,
+    { key: string; data: BodyType<UpsertSettingRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpsertGlobalSetting>>,
+  TError,
+  { key: string; data: BodyType<UpsertSettingRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminUpsertGlobalSetting"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpsertGlobalSetting>>,
+    { key: string; data: BodyType<UpsertSettingRequest> }
+  > = (props) => {
+    const { key, data } = props ?? {};
+
+    return adminUpsertGlobalSetting(key, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpsertGlobalSettingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpsertGlobalSetting>>
+>;
+export type AdminUpsertGlobalSettingMutationBody =
+  BodyType<UpsertSettingRequest>;
+export type AdminUpsertGlobalSettingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Admin - upsert one global runtime setting
+ */
+export const useAdminUpsertGlobalSetting = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpsertGlobalSetting>>,
+    TError,
+    { key: string; data: BodyType<UpsertSettingRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpsertGlobalSetting>>,
+  TError,
+  { key: string; data: BodyType<UpsertSettingRequest> },
+  TContext
+> => {
+  return useMutation(getAdminUpsertGlobalSettingMutationOptions(options));
+};
+
+/**
+ * @summary Admin - upsert one app runtime setting
+ */
+export const getAdminUpsertAppSettingUrl = (appId: string, key: string) => {
+  return `/api/admin/settings/apps/${appId}/${key}`;
+};
+
+export const adminUpsertAppSetting = async (
+  appId: string,
+  key: string,
+  upsertSettingRequest: UpsertSettingRequest,
+  options?: RequestInit,
+): Promise<UpsertSettingResponse> => {
+  return customFetch<UpsertSettingResponse>(
+    getAdminUpsertAppSettingUrl(appId, key),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertSettingRequest),
+    },
+  );
+};
+
+export const getAdminUpsertAppSettingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpsertAppSetting>>,
+    TError,
+    { appId: string; key: string; data: BodyType<UpsertSettingRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpsertAppSetting>>,
+  TError,
+  { appId: string; key: string; data: BodyType<UpsertSettingRequest> },
+  TContext
+> => {
+  const mutationKey = ["adminUpsertAppSetting"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpsertAppSetting>>,
+    { appId: string; key: string; data: BodyType<UpsertSettingRequest> }
+  > = (props) => {
+    const { appId, key, data } = props ?? {};
+
+    return adminUpsertAppSetting(appId, key, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpsertAppSettingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpsertAppSetting>>
+>;
+export type AdminUpsertAppSettingMutationBody = BodyType<UpsertSettingRequest>;
+export type AdminUpsertAppSettingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Admin - upsert one app runtime setting
+ */
+export const useAdminUpsertAppSetting = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpsertAppSetting>>,
+    TError,
+    { appId: string; key: string; data: BodyType<UpsertSettingRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpsertAppSetting>>,
+  TError,
+  { appId: string; key: string; data: BodyType<UpsertSettingRequest> },
+  TContext
+> => {
+  return useMutation(getAdminUpsertAppSettingMutationOptions(options));
+};
 
 /**
  * @summary Admin - enable or disable app access for organization

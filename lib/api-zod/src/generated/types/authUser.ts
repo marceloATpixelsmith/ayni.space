@@ -10,6 +10,7 @@ Authentication uses the `saas.sid` cookie-backed session. For authenticated stat
  * OpenAPI spec version: 0.1.0
  */
 import type { AuthAppAccess } from "./authAppAccess";
+import type { AuthUserNextStep } from "./authUserNextStep";
 import type { Organization } from "./organization";
 import type { OrgMembershipSummary } from "./orgMembershipSummary";
 
@@ -25,5 +26,9 @@ export interface AuthUser {
   activeOrgId?: string | null;
   activeOrg?: Organization;
   memberships?: OrgMembershipSummary[];
-  appAccess?: AuthAppAccess;
+  mfaPending?: boolean;
+  mfaEnrolled?: boolean;
+  /** @nullable */
+  nextStep?: AuthUserNextStep;
+  appAccess?: AuthAppAccess | null;
 }

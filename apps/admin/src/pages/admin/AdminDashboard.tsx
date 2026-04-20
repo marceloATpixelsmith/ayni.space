@@ -8,6 +8,10 @@ import {
   useAdminGetAuditLogs,
   useAdminGetFeatureFlags,
   useAdminSetFeatureFlag,
+  useAdminGetSettings,
+  useAdminUpsertAppSetting,
+  useAdminUpsertGlobalSetting,
+  useGetApps,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut, Mail } from "lucide-react";
+import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut, Mail, Settings } from "lucide-react";
 import { adminAccessDeniedLoginPath } from "../auth/accessDenied";
 import { useAuth } from "@workspace/frontend-security";
 
@@ -37,6 +41,7 @@ const NAV = [
   { id: "users", label: "Users", icon: Users },
   { id: "audit-logs", label: "Audit Logs", icon: Activity },
   { id: "feature-flags", label: "Feature Flags", icon: Flag },
+  { id: "settings", label: "Runtime Settings", icon: Settings },
   { id: "email-templates", label: "Email Templates", icon: Mail },
 ];
 
@@ -96,6 +101,7 @@ export default function AdminDashboard({ section = "overview" }: { section?: str
         {section === "users" && <AdminUsers />}
         {section === "audit-logs" && <AdminAuditLogs />}
         {section === "feature-flags" && <AdminFeatureFlags />}
+        {section === "settings" && <AdminRuntimeSettings />}
         {section === "email-templates" && <AdminEmailTemplates />}
       </main>
     </div>
@@ -114,6 +120,149 @@ function AdminFeatureFlags() {
   const { data: flags, isLoading } = useAdminGetFeatureFlags();
   const setFlag = useAdminSetFeatureFlag();
   return <div className="space-y-4"><h1 className="text-2xl font-bold">Feature Flags</h1><Card><CardContent className="pt-4">{isLoading ? <div className="text-center py-8 text-muted-foreground">Loading...</div> : <div className="space-y-3">{flags?.map((flag) => (<div key={flag.id} className="flex items-center justify-between p-4 rounded-lg border"><div><div className="font-mono text-sm font-medium">{flag.key}</div>{flag.description && <div className="text-sm text-muted-foreground mt-0.5">{flag.description}</div>}{flag.orgId && <Badge variant="secondary" className="text-xs mt-1">Org: {flag.orgId}</Badge>}</div><Switch checked={flag.value} onCheckedChange={(checked) => setFlag.mutateAsync({ data: { key: flag.key, value: checked } })} /></div>))}{!flags?.length && <div className="text-center py-8 text-muted-foreground">No feature flags configured</div>}</div>}</CardContent></Card></div>;
+}
+
+type SettingValueType = "string" | "number" | "boolean" | "json";
+type RuntimeSetting = {
+  id: string;
+  appId?: string | null;
+  appSlug?: string | null;
+  key: string;
+  value: string;
+  valueType: SettingValueType;
+  description?: string | null;
+};
+
+function parseSettingValue(valueType: SettingValueType, value: string): unknown {
+  if (valueType === "boolean") return value.trim().toLowerCase() === "true";
+  if (valueType === "number") return Number(value);
+  if (valueType === "json") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+  return value;
+}
+
+function AdminRuntimeSettings() {
+  const { data, isLoading, refetch } = useAdminGetSettings();
+  const { data: apps } = useGetApps();
+  const upsertGlobal = useAdminUpsertGlobalSetting();
+  const upsertApp = useAdminUpsertAppSetting();
+
+  const [globalDrafts, setGlobalDrafts] = React.useState<Record<string, string>>({});
+  const [appDrafts, setAppDrafts] = React.useState<Record<string, string>>({});
+
+  const saveGlobal = async (setting: RuntimeSetting) => {
+    const value = globalDrafts[setting.key] ?? setting.value;
+    await upsertGlobal.mutateAsync({
+      key: setting.key,
+      data: {
+        valueType: setting.valueType,
+        value: parseSettingValue(setting.valueType, value),
+        description: setting.description ?? null,
+      },
+    });
+    await refetch();
+  };
+
+  const saveApp = async (setting: RuntimeSetting) => {
+    if (!setting.appId) return;
+    const draftKey = `${setting.appId}:${setting.key}`;
+    const value = appDrafts[draftKey] ?? setting.value;
+    await upsertApp.mutateAsync({
+      appId: setting.appId,
+      key: setting.key,
+      data: {
+        valueType: setting.valueType,
+        value: parseSettingValue(setting.valueType, value),
+        description: setting.description ?? null,
+      },
+    });
+    await refetch();
+  };
+
+  const appSettingsBySlug = React.useMemo(() => {
+    const grouped = new Map<string, RuntimeSetting[]>();
+    for (const row of (data?.appSettings ?? []) as RuntimeSetting[]) {
+      const slug = row.appSlug ?? "unknown";
+      const bucket = grouped.get(slug) ?? [];
+      bucket.push(row);
+      grouped.set(slug, bucket);
+    }
+    return grouped;
+  }, [data?.appSettings]);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Runtime Settings</h1>
+      <p className="text-sm text-muted-foreground">
+        Manage non-secret runtime configuration. Bootstrap env should only remain for API base URL, app slug, and base path.
+      </p>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Global Settings</CardTitle>
+          <CardDescription>Shared across apps (non-secret only).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoading && <div className="text-muted-foreground">Loading settings…</div>}
+          {((data?.globalSettings ?? []) as RuntimeSetting[]).map((setting) => (
+            <div key={setting.id} className="grid grid-cols-12 gap-2 items-center border rounded-md p-3">
+              <div className="col-span-3">
+                <div className="font-mono text-xs">{setting.key}</div>
+                <div className="text-xs text-muted-foreground">{setting.valueType}</div>
+              </div>
+              <Input
+                className="col-span-7"
+                value={globalDrafts[setting.key] ?? setting.value}
+                onChange={(e) => setGlobalDrafts((prev) => ({ ...prev, [setting.key]: e.target.value }))}
+              />
+              <Button className="col-span-2" size="sm" onClick={() => void saveGlobal(setting)}>
+                Save
+              </Button>
+              {setting.description && <div className="col-span-12 text-xs text-muted-foreground">{setting.description}</div>}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>App Settings</CardTitle>
+          <CardDescription>Per-app frontend runtime values (non-secret only).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {(apps ?? []).map((app) => (
+            <div key={app.id} className="border rounded-md p-3 space-y-2">
+              <div className="font-semibold">{app.name} <span className="text-xs text-muted-foreground">({app.slug})</span></div>
+              {(appSettingsBySlug.get(app.slug) ?? []).map((setting) => {
+                const draftKey = `${setting.appId}:${setting.key}`;
+                return (
+                  <div key={setting.id} className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-3">
+                      <div className="font-mono text-xs">{setting.key}</div>
+                      <div className="text-xs text-muted-foreground">{setting.valueType}</div>
+                    </div>
+                    <Input
+                      className="col-span-7"
+                      value={appDrafts[draftKey] ?? setting.value}
+                      onChange={(e) => setAppDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))}
+                    />
+                    <Button className="col-span-2" size="sm" onClick={() => void saveApp(setting)}>
+                      Save
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function AdminEmailTemplates() {
