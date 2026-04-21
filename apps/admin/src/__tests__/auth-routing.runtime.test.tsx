@@ -38,30 +38,34 @@ vi.mock("@workspace/frontend-observability", () => ({
   MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@workspace/frontend-security", () => ({
-  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useAuth: () => authState,
-  useCurrentPlatformAppMetadata: () => metadataState,
-  getLastAuthDebugEventSummary: () => null,
-  getDisallowedAuthRouteRedirect: () => "/login",
-  getMfaPendingRoute: (status: string) =>
-    status === "authenticated_mfa_pending_enrolled" ? "/mfa/challenge" : "/mfa/enroll",
-  isAuthDebugEnabled: () => false,
-  isMfaPendingStatus: (status: string) =>
-    status === "authenticated_mfa_pending_enrolled" ||
-    status === "authenticated_mfa_pending_unenrolled",
-  isAuthRouteAllowed: (
-    metadata: { authRoutePolicy?: { allowInvitations?: boolean; allowCustomerRegistration?: boolean } } | null,
-    routeKind: string,
-  ) => {
-    if (!metadata?.authRoutePolicy) return true;
-    if (routeKind === "signup") return metadata.authRoutePolicy.allowCustomerRegistration !== false;
-    if (routeKind === "invitation") return metadata.authRoutePolicy.allowInvitations !== false;
-    return true;
-  },
-  logAuthDebug: () => undefined,
-  resolveAuthenticatedNextStep: () => ({ destination: "/dashboard", reason: "default" }),
-}));
+vi.mock("@workspace/frontend-security", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workspace/frontend-security")>();
+  return {
+    ...actual,
+    AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useAuth: () => authState,
+    useCurrentPlatformAppMetadata: () => metadataState,
+    getLastAuthDebugEventSummary: () => null,
+    getDisallowedAuthRouteRedirect: () => "/login",
+    getMfaPendingRoute: (status: string) =>
+      status === "authenticated_mfa_pending_enrolled" ? "/mfa/challenge" : "/mfa/enroll",
+    isAuthDebugEnabled: () => false,
+    isMfaPendingStatus: (status: string) =>
+      status === "authenticated_mfa_pending_enrolled" ||
+      status === "authenticated_mfa_pending_unenrolled",
+    isAuthRouteAllowed: (
+      metadata: { authRoutePolicy?: { allowInvitations?: boolean; allowCustomerRegistration?: boolean } } | null,
+      routeKind: string,
+    ) => {
+      if (!metadata?.authRoutePolicy) return true;
+      if (routeKind === "signup") return metadata.authRoutePolicy.allowCustomerRegistration !== false;
+      if (routeKind === "invitation") return metadata.authRoutePolicy.allowInvitations !== false;
+      return true;
+    },
+    logAuthDebug: () => undefined,
+    resolveAuthenticatedNextStep: () => ({ destination: "/dashboard", reason: "default" }),
+  };
+});
 
 vi.mock("../pages/auth/Login", () => ({
   default: () => <h1>Welcome</h1>,
