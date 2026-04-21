@@ -34,7 +34,6 @@ export const GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS = [
 ] as const;
 
 export const APP_SETTING_KEYS = {
-  ALLOWED_ORIGIN: "ALLOWED_ORIGIN",
   MFA_ISSUER: "MFA_ISSUER",
   VITE_AUTH_DEBUG: "VITE_AUTH_DEBUG",
   VITE_SENTRY_ENVIRONMENT: "VITE_SENTRY_ENVIRONMENT",
@@ -42,7 +41,6 @@ export const APP_SETTING_KEYS = {
   BASE_PATH: "BASE_PATH",
   VITE_API_BASE_URL: "VITE_API_BASE_URL",
   VITE_APP_SLUG: "VITE_APP_SLUG",
-  VITE_TURNSTILE_SITE_KEY: "VITE_TURNSTILE_SITE_KEY",
 } as const;
 export const APP_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(APP_SETTING_KEYS);
 
@@ -69,7 +67,6 @@ export const GLOBAL_RUNTIME_SETTING_DEFINITIONS: readonly RuntimeSettingDefiniti
 ] as const;
 
 export const APP_RUNTIME_SETTING_DEFINITIONS: readonly RuntimeSettingDefinition[] = [
-  { key: APP_SETTING_KEYS.ALLOWED_ORIGIN, valueType: "string", editScope: "operator_editable", description: "Allowed browser origin for the app." },
   { key: APP_SETTING_KEYS.MFA_ISSUER, valueType: "string", editScope: "operator_editable", description: "MFA issuer display label for the app." },
   { key: APP_SETTING_KEYS.VITE_AUTH_DEBUG, valueType: "boolean", editScope: "operator_editable", description: "Frontend auth debug panel toggle." },
   { key: APP_SETTING_KEYS.VITE_SENTRY_ENVIRONMENT, valueType: "string", editScope: "operator_editable", description: "Frontend Sentry environment." },
@@ -77,7 +74,6 @@ export const APP_RUNTIME_SETTING_DEFINITIONS: readonly RuntimeSettingDefinition[
   { key: APP_SETTING_KEYS.BASE_PATH, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend base path mirror for bootstrap compatibility." },
   { key: APP_SETTING_KEYS.VITE_API_BASE_URL, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend API base URL mirror for bootstrap compatibility." },
   { key: APP_SETTING_KEYS.VITE_APP_SLUG, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend app slug mirror for bootstrap compatibility." },
-  { key: APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, valueType: "string", editScope: "operator_editable", description: "Cloudflare Turnstile site key (non-secret)." },
 ] as const;
 
 export const OPERATOR_EDITABLE_GLOBAL_RUNTIME_SETTING_KEYS = GLOBAL_RUNTIME_SETTING_DEFINITIONS
@@ -93,14 +89,45 @@ type RuntimeCache = {
   globalByKey: Record<string, ParsedSettingValue>;
   appById: Record<string, Record<string, ParsedSettingValue>>;
   appBySlug: Record<string, Record<string, ParsedSettingValue>>;
+  appConfigById: Record<string, { slug: string; domain: string; baseUrl: string | null; turnstileSiteKeyOverride: string | null }>;
+  appConfigBySlug: Record<string, { id: string; domain: string; baseUrl: string | null; turnstileSiteKeyOverride: string | null }>;
 };
 
-const FALLBACK_CACHE: RuntimeCache = { loadedAtMs: 0, globalByKey: {}, appById: {}, appBySlug: {} };
+const FALLBACK_CACHE: RuntimeCache = {
+  loadedAtMs: 0,
+  globalByKey: {},
+  appById: {},
+  appBySlug: {},
+  appConfigById: {},
+  appConfigBySlug: {},
+};
 let cache = FALLBACK_CACHE;
 let inFlightRefresh: Promise<void> | null = null;
 
 function parseCsv(value: string | undefined): string[] {
   return (value ?? "").split(",").map((entry) => entry.trim()).filter(Boolean);
+}
+
+function normalizeOrigin(origin: string): string | null {
+  const value = origin.trim();
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function deriveOriginFromDomain(domain: string): string | null {
+  const trimmed = domain.trim().toLowerCase();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return normalizeOrigin(trimmed);
+  }
+  if (trimmed.includes("localhost") || trimmed.startsWith("127.0.0.1")) {
+    return normalizeOrigin(`http://${trimmed}`);
+  }
+  return normalizeOrigin(`https://${trimmed}`);
 }
 
 export function parseSettingValue(value: string, valueType: SettingValueType): ParsedSettingValue {
@@ -148,7 +175,7 @@ export async function refreshSettingsCache(options: { force?: boolean } = {}) {
   if (!options.force && Date.now() - cache.loadedAtMs < 15_000) return;
 
   inFlightRefresh = (async () => {
-    const [globalRows, appRows] = await Promise.all([
+    const [globalRows, appRows, appConfigRows] = await Promise.all([
       db.query.settingsTable.findMany(),
       db.select({
         appId: appSettingsTable.appId,
@@ -157,6 +184,16 @@ export async function refreshSettingsCache(options: { force?: boolean } = {}) {
         value: appSettingsTable.value,
         valueType: appSettingsTable.valueType,
       }).from(appSettingsTable).innerJoin(appsTable, eq(appSettingsTable.appId, appsTable.id)),
+      db.query.appsTable.findMany({
+        columns: {
+          id: true,
+          slug: true,
+          domain: true,
+          baseUrl: true,
+          turnstileSiteKeyOverride: true,
+        },
+        where: eq(appsTable.isActive, true),
+      }),
     ]);
 
     const appById: RuntimeCache["appById"] = {};
@@ -169,11 +206,32 @@ export async function refreshSettingsCache(options: { force?: boolean } = {}) {
       appBySlug[row.appSlug]![row.key] = parsed;
     }
 
+    const appConfigById: RuntimeCache["appConfigById"] = {};
+    const appConfigBySlug: RuntimeCache["appConfigBySlug"] = {};
+    for (const app of appConfigRows) {
+      const domain = app.domain?.trim() ?? "";
+      if (!domain) continue;
+      appConfigById[app.id] = {
+        slug: app.slug,
+        domain,
+        baseUrl: app.baseUrl?.trim() || null,
+        turnstileSiteKeyOverride: app.turnstileSiteKeyOverride?.trim() || null,
+      };
+      appConfigBySlug[app.slug] = {
+        id: app.id,
+        domain,
+        baseUrl: app.baseUrl?.trim() || null,
+        turnstileSiteKeyOverride: app.turnstileSiteKeyOverride?.trim() || null,
+      };
+    }
+
     cache = {
       loadedAtMs: Date.now(),
       globalByKey: Object.fromEntries(globalRows.map((row: any) => [row.key, parseSettingValue(row.value, row.valueType)])),
       appById,
       appBySlug,
+      appConfigById,
+      appConfigBySlug,
     };
   })().catch(() => {
     // fail safe: keep previous cache
@@ -253,30 +311,32 @@ export async function getGlobalSettingValues(keys: string[]) {
 
 export async function getEffectiveAllowedOrigins(): Promise<string[]> {
   await refreshSettingsCache();
-  const canonicalOrigins = Object.values(cache.appById).flatMap((byKey) => {
-    const single = byKey[APP_SETTING_KEYS.ALLOWED_ORIGIN];
-    if (typeof single === "string" && single.trim()) return [single.trim()];
-    return [];
-  });
-
-  const dedupedCanonical = Array.from(new Set(canonicalOrigins));
-  if (dedupedCanonical.length > 0) return dedupedCanonical;
-
-  return parseCsv(process.env["ALLOWED_ORIGINS"]);
+  const fromDomains = Object.values(cache.appConfigById)
+    .map((app) => deriveOriginFromDomain(app.domain))
+    .filter((value): value is string => Boolean(value));
+  const fromEnv = parseCsv(process.env["ALLOWED_ORIGINS"])
+    .map((origin) => normalizeOrigin(origin))
+    .filter((value): value is string => Boolean(value));
+  return Array.from(new Set([...fromDomains, ...fromEnv]));
 }
 
 export function getAllowedOriginsSnapshot(): string[] {
-  const fromDb = Object.values(cache.appById).flatMap((byKey) => {
-    const single = byKey[APP_SETTING_KEYS.ALLOWED_ORIGIN];
-    if (typeof single === "string" && single.trim()) return [single.trim()];
-    return [];
-  });
-  if (fromDb.length > 0) return Array.from(new Set(fromDb));
-  return parseCsv(process.env["ALLOWED_ORIGINS"]);
+  const fromDomains = Object.values(cache.appConfigById)
+    .map((app) => deriveOriginFromDomain(app.domain))
+    .filter((value): value is string => Boolean(value));
+  const fromEnv = parseCsv(process.env["ALLOWED_ORIGINS"])
+    .map((origin) => normalizeOrigin(origin))
+    .filter((value): value is string => Boolean(value));
+  return Array.from(new Set([...fromDomains, ...fromEnv]));
 }
 
 export async function getMfaIssuerForAppSlug(appSlug: string | null | undefined, fallback: string): Promise<string> {
   if (!appSlug) return fallback;
   const value = await getAppSettingBySlug<string>(appSlug, APP_SETTING_KEYS.MFA_ISSUER, fallback);
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+export async function getAppCanonicalConfigBySlug(appSlug: string) {
+  await refreshSettingsCache();
+  return cache.appConfigBySlug[appSlug] ?? null;
 }

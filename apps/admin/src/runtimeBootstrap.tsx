@@ -28,6 +28,8 @@ export async function hydrateFrontendRuntimeSettings() {
     sentryEnvironment: payload.sentryEnvironment,
     sentryDsn: payload.sentryDsn,
     turnstileSiteKey: payload.turnstileSiteKey,
+    domain: payload.domain,
+    baseUrl: payload.baseUrl,
   });
 }
 

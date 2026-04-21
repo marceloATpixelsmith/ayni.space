@@ -40,12 +40,15 @@ function mockDbForSuperAdminFlow() {
     patchProperty(db.query.appSettingsTable, "findFirst", async () => ({
       ...updatedRow,
       appId: "app-admin",
-      key: "ALLOWED_ORIGIN",
+      key: "MFA_ISSUER",
     })),
     patchProperty(db.query.appsTable, "findFirst", async () => ({
       id: "app-admin",
       slug: "admin",
       name: "Admin",
+      domain: "admin.ayni.space",
+      baseUrl: "https://admin.ayni.space",
+      turnstileSiteKeyOverride: null,
       isActive: true,
     })),
     patchProperty(db, "select", (() => ({
@@ -58,7 +61,7 @@ function mockDbForSuperAdminFlow() {
         where: () => ({
           returning: async () => [{
             ...(table === appSettingsTable
-              ? { ...updatedRow, appId: "app-admin", key: "ALLOWED_ORIGIN" }
+              ? { ...updatedRow, appId: "app-admin", key: "MFA_ISSUER" }
               : table === settingsTable
                 ? { ...updatedRow, key: "SENTRY_ENVIRONMENT" }
                 : updatedRow),
@@ -85,7 +88,14 @@ test("GET /api/platform/settings returns global + app settings payload", async (
       ]),
     }),
   })) as unknown as typeof db.select);
-  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([{ id: "app-admin", slug: "admin", name: "Admin" }]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([{
+    id: "app-admin",
+    slug: "admin",
+    name: "Admin",
+    domain: "admin.ayni.space",
+    baseUrl: "https://admin.ayni.space",
+    turnstileSiteKeyOverride: null,
+  }]));
 
   try {
     const app = createSessionApp(platformRouter, { userId: "super-1" });
@@ -94,6 +104,7 @@ test("GET /api/platform/settings returns global + app settings payload", async (
     assert.equal(response.body.globalSettings[0].key, "SENTRY_ENVIRONMENT");
     assert.equal(response.body.appSettings[0].key, "VITE_APP_SLUG");
     assert.equal(response.body.apps[0].slug, "admin");
+    assert.equal(response.body.apps[0].domain, "admin.ayni.space");
     assert.equal(Array.isArray(response.body.editableKeyRegistry?.global), true);
     assert.equal(Array.isArray(response.body.editableKeyRegistry?.app), true);
     assert.deepEqual(
@@ -115,12 +126,12 @@ test("GET /api/platform/settings returns global + app settings payload", async (
       },
     );
     assert.deepEqual(
-      response.body.editableKeyRegistry.app.find((entry: { key: string }) => entry.key === "ALLOWED_ORIGIN"),
+      response.body.editableKeyRegistry.app.find((entry: { key: string }) => entry.key === "MFA_ISSUER"),
       {
-        key: "ALLOWED_ORIGIN",
+        key: "MFA_ISSUER",
         valueType: "string",
         editScope: "operator_editable",
-        description: "Allowed browser origin for the app.",
+        description: "MFA issuer display label for the app.",
       },
     );
     assert.deepEqual(
@@ -221,12 +232,12 @@ test("PATCH /api/platform/apps/:id/settings allows operator-editable app key", a
   try {
     const app = createSessionApp(platformRouter, { userId: "super-1" });
     const response = await performJsonRequest(app, "PATCH", "/api/apps/app-admin/settings", {
-      key: "ALLOWED_ORIGIN",
+      key: "MFA_ISSUER",
       valueType: "string",
-      value: "https://admin.example.com",
+      value: "Ayni Admin",
     });
     assert.equal(response.status, 200);
-    assert.equal(response.body.setting.key, "ALLOWED_ORIGIN");
+    assert.equal(response.body.setting.key, "MFA_ISSUER");
   } finally {
     restoreAuth();
   }

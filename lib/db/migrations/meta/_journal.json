@@ -155,6 +155,13 @@
       "when": 1776812400000,
       "tag": "20260421_runtime_settings_canonicalization",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1776816000000,
+      "tag": "20260421_canonical_app_config",
+      "breakpoints": true
     }
   ]
 }

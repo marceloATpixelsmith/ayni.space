@@ -279,6 +279,11 @@ export interface App {
   id: string;
   name: string;
   slug: string;
+  domain: string;
+  /** @nullable */
+  baseUrl?: string | null;
+  /** @nullable */
+  turnstileSiteKeyOverride?: string | null;
   /** @nullable */
   description?: string | null;
   /** @nullable */
@@ -433,6 +438,11 @@ export interface PlatformAppSummary {
   id: string;
   slug: string;
   name: string;
+  domain: string;
+  /** @nullable */
+  baseUrl?: string | null;
+  /** @nullable */
+  turnstileSiteKeyOverride?: string | null;
 }
 
 export interface PlatformSettingsResponse {
@@ -476,6 +486,8 @@ export interface UpsertSettingResponse {
 
 export interface FrontendRuntimeSettings {
   appSlug: string;
+  domain: string;
+  baseUrl: string;
   apiBaseUrl: string;
   basePath: string;
   authDebug: boolean;

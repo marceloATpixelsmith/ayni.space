@@ -1606,6 +1606,12 @@ components:
           type: string
         slug:
           type: string
+        domain:
+          type: string
+        baseUrl:
+          type: ["string", "null"]
+        turnstileSiteKeyOverride:
+          type: ["string", "null"]
         description:
           type: ["string", "null"]
         iconUrl:
@@ -1616,7 +1622,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AppPlan"
-      required: [id, name, slug, isActive]
+      required: [id, name, slug, domain, isActive]
 
     AppPlan:
       type: object
@@ -1845,7 +1851,13 @@ components:
           type: string
         name:
           type: string
-      required: [id, slug, name]
+        domain:
+          type: string
+        baseUrl:
+          type: ["string", "null"]
+        turnstileSiteKeyOverride:
+          type: ["string", "null"]
+      required: [id, slug, name, domain]
 
     PlatformSettingsResponse:
       type: object
@@ -1914,6 +1926,10 @@ components:
       properties:
         appSlug:
           type: string
+        domain:
+          type: string
+        baseUrl:
+          type: string
         apiBaseUrl:
           type: string
         basePath:
@@ -1926,7 +1942,7 @@ components:
           type: ["string", "null"]
         turnstileSiteKey:
           type: ["string", "null"]
-      required: [appSlug, apiBaseUrl, basePath, authDebug, sentryEnvironment, sentryDsn, turnstileSiteKey]
+      required: [appSlug, domain, baseUrl, apiBaseUrl, basePath, authDebug, sentryEnvironment, sentryDsn, turnstileSiteKey]
 
     FeatureFlag:
       type: object

@@ -561,6 +561,9 @@ export const GetAppsResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
   slug: zod.string(),
+  domain: zod.string(),
+  baseUrl: zod.string().nullish(),
+  turnstileSiteKeyOverride: zod.string().nullish(),
   description: zod.string().nullish(),
   iconUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -589,6 +592,9 @@ export const GetAppResponse = zod.object({
   id: zod.string(),
   name: zod.string(),
   slug: zod.string(),
+  domain: zod.string(),
+  baseUrl: zod.string().nullish(),
+  turnstileSiteKeyOverride: zod.string().nullish(),
   description: zod.string().nullish(),
   iconUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -614,6 +620,8 @@ export const GetAppRuntimeSettingsParams = zod.object({
 
 export const GetAppRuntimeSettingsResponse = zod.object({
   appSlug: zod.string(),
+  domain: zod.string(),
+  baseUrl: zod.string(),
   apiBaseUrl: zod.string(),
   basePath: zod.string(),
   authDebug: zod.boolean(),
@@ -988,6 +996,9 @@ export const PlatformGetSettingsResponse = zod.object({
       id: zod.string(),
       slug: zod.string(),
       name: zod.string(),
+      domain: zod.string(),
+      baseUrl: zod.string().nullish(),
+      turnstileSiteKeyOverride: zod.string().nullish(),
     }),
   ),
 });

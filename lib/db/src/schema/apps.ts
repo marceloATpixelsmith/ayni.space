@@ -13,6 +13,9 @@ export const appsTable = platform.table(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull().unique(),
+    domain: text("domain").notNull(),
+    baseUrl: text("base_url"),
+    turnstileSiteKeyOverride: text("turnstile_site_key_override"),
     description: text("description"),
     iconUrl: text("icon_url"),
     accessMode: appAccessModeEnum("access_mode").notNull().default("organization"),
@@ -28,7 +31,7 @@ export const appsTable = platform.table(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
-  (t) => [uniqueIndex("apps_slug_unique").on(t.slug)]
+  (t) => [uniqueIndex("apps_slug_unique").on(t.slug), uniqueIndex("apps_domain_unique").on(t.domain)]
 );
 
 export const userAppAccessTable = platform.table(

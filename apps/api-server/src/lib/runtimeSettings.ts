@@ -3,6 +3,7 @@ import { appSettingsTable, appsTable, db } from "@workspace/db";
 import {
   APP_SETTING_KEYS,
   GLOBAL_SETTING_KEYS,
+  getAppCanonicalConfigBySlug,
   getAllowedOriginsSnapshot,
   getAppSetting,
   getAppSettingBySlug,
@@ -36,6 +37,8 @@ export async function refreshRuntimeCache(options: { force?: boolean } = {}) {
 
 export type FrontendRuntimeSettings = {
   appSlug: string;
+  domain: string;
+  baseUrl: string;
   apiBaseUrl: string;
   basePath: string;
   authDebug: boolean;
@@ -47,6 +50,7 @@ export type FrontendRuntimeSettings = {
 export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise<FrontendRuntimeSettings | null> {
   const app = await db.query.appsTable.findFirst({ where: eq(appsTable.slug, appSlug) });
   if (!app) return null;
+  const canonicalConfig = await getAppCanonicalConfigBySlug(appSlug);
 
   const readString = async (key: string, fallback: string): Promise<string> => {
     const value = await getAppSetting(app.id, key, fallback);
@@ -68,6 +72,8 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
 
   return {
     appSlug: await readString(APP_SETTING_KEYS.VITE_APP_SLUG, app.slug),
+    domain: app.domain,
+    baseUrl: app.baseUrl?.trim() || deriveBaseUrlFromDomain(app.domain),
     apiBaseUrl: await readString(APP_SETTING_KEYS.VITE_API_BASE_URL, ""),
     basePath: await readString(APP_SETTING_KEYS.BASE_PATH, "/"),
     authDebug: await readBoolean(APP_SETTING_KEYS.VITE_AUTH_DEBUG, false),
@@ -79,8 +85,16 @@ export async function getFrontendRuntimeSettingsForApp(appSlug: string): Promise
       APP_SETTING_KEYS.VITE_SENTRY_DSN,
       String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.SENTRY_DSN, process.env["SENTRY_DSN"] ?? "")).trim() || null,
     ),
-    turnstileSiteKey: await readNullableString(APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, null),
+    turnstileSiteKey:
+      canonicalConfig?.turnstileSiteKeyOverride ??
+      (String(process.env["VITE_TURNSTILE_SITE_KEY"] ?? "").trim() || null),
   };
+}
+
+function deriveBaseUrlFromDomain(domain: string): string {
+  if (domain.includes("localhost") || domain.startsWith("127.0.0.1")) return `http://${domain}`;
+  if (domain.startsWith("http://") || domain.startsWith("https://")) return domain;
+  return `https://${domain}`;
 }
 
 export async function listGlobalSettings() {

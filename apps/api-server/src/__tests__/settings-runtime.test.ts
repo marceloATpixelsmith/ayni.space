@@ -11,6 +11,7 @@ test("getSetting reads parsed value from cache-backed DB rows", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([
     { key: "TURNSTILE_ENABLED", value: "true", valueType: "boolean" },
   ]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({ innerJoin: () => ([]) }),
   })) as unknown as typeof db.select);
@@ -21,6 +22,7 @@ test("getSetting reads parsed value from cache-backed DB rows", async () => {
     assert.equal(value, true);
   } finally {
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
@@ -34,6 +36,7 @@ test("getAppSettingBySlug resolves app-scoped value", async () => {
     }),
   })) as unknown as typeof db.select);
   const restoreGlobals = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
 
   try {
     await settings.refreshSettingsCache({ force: true });
@@ -42,6 +45,7 @@ test("getAppSettingBySlug resolves app-scoped value", async () => {
   } finally {
     restore();
     restoreGlobals();
+    restoreApps();
   }
 });
 
@@ -54,19 +58,22 @@ test("getAppSetting falls back when app key missing", async () => {
     }),
   })) as unknown as typeof db.select);
   const restoreGlobals = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
 
   try {
     await settings.refreshSettingsCache({ force: true });
-    const turnstile = await settings.getAppSetting("app-admin", "VITE_TURNSTILE_SITE_KEY", "fallback-key");
+    const turnstile = await settings.getAppSetting("app-admin", "MISSING_KEY", "fallback-key");
     assert.equal(turnstile, "fallback-key");
   } finally {
     restore();
     restoreGlobals();
+    restoreApps();
   }
 });
 
 test("getMfaIssuerForAppSlug falls back safely", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({ innerJoin: () => ([]) }),
   })) as unknown as typeof db.select);
@@ -76,12 +83,14 @@ test("getMfaIssuerForAppSlug falls back safely", async () => {
     assert.equal(issuer, "Fallback Issuer");
   } finally {
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
 
 test("getMfaIssuerForAppSlug resolves canonical per-app issuer values when present", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({
       innerJoin: () => ([
@@ -100,18 +109,20 @@ test("getMfaIssuerForAppSlug resolves canonical per-app issuer values when prese
     assert.equal(await settings.getMfaIssuerForAppSlug("screening", "fallback"), "Ayni Screening");
   } finally {
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
 
-test("allowed origins aggregate app-level ALLOWED_ORIGIN values", async () => {
+test("allowed origins derive from active app domains", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([
+    { id: "a1", slug: "admin", domain: "admin.ayni.space", baseUrl: null, turnstileSiteKeyOverride: null },
+    { id: "a2", slug: "ayni", domain: "ayni.ayni.space", baseUrl: null, turnstileSiteKeyOverride: null },
+  ]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({
-      innerJoin: () => ([
-        { appId: "a1", appSlug: "admin", key: "ALLOWED_ORIGIN", value: "https://admin.ayni.space", valueType: "string" },
-        { appId: "a2", appSlug: "ayni", key: "ALLOWED_ORIGIN", value: "https://ayni.ayni.space", valueType: "string" },
-      ]),
+      innerJoin: () => ([]),
     }),
   })) as unknown as typeof db.select);
   try {
@@ -120,26 +131,32 @@ test("allowed origins aggregate app-level ALLOWED_ORIGIN values", async () => {
     assert.deepEqual(origins.sort(), ["https://admin.ayni.space", "https://ayni.ayni.space"]);
   } finally {
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
 
-test("allowed origins ignores legacy ALLOWED_ORIGINS rows and uses canonical key only", async () => {
+test("allowed origins normalize localhost domains and union env extension values", async () => {
+  const previous = process.env["ALLOWED_ORIGINS"];
+  process.env["ALLOWED_ORIGINS"] = "https://extra.example.com";
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([
+    { id: "a1", slug: "admin", domain: "localhost:5173", baseUrl: null, turnstileSiteKeyOverride: null },
+  ]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({
-      innerJoin: () => ([
-        { appId: "a1", appSlug: "admin", key: "ALLOWED_ORIGIN", value: "https://admin.ayni.space", valueType: "string" },
-        { appId: "a1", appSlug: "admin", key: "ALLOWED_ORIGINS", value: "https://legacy-admin.test", valueType: "string" },
-      ]),
+      innerJoin: () => ([]),
     }),
   })) as unknown as typeof db.select);
   try {
     await settings.refreshSettingsCache({ force: true });
     const origins = await settings.getEffectiveAllowedOrigins();
-    assert.deepEqual(origins, ["https://admin.ayni.space"]);
+    assert.deepEqual(origins.sort(), ["http://localhost:5173", "https://extra.example.com"]);
   } finally {
+    if (previous === undefined) delete process.env["ALLOWED_ORIGINS"];
+    else process.env["ALLOWED_ORIGINS"] = previous;
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
@@ -148,6 +165,7 @@ test("allowed origins uses env fallback when DB returns empty", async () => {
   const previous = process.env["ALLOWED_ORIGINS"];
   process.env["ALLOWED_ORIGINS"] = "https://fallback-a.test, https://fallback-b.test";
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({ innerJoin: () => ([]) }),
   })) as unknown as typeof db.select);
@@ -159,6 +177,7 @@ test("allowed origins uses env fallback when DB returns empty", async () => {
     if (previous === undefined) delete process.env["ALLOWED_ORIGINS"];
     else process.env["ALLOWED_ORIGINS"] = previous;
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
@@ -175,6 +194,7 @@ test("global setting snapshot uses DB cache before env fallback", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([
     { key: "SENTRY_ENVIRONMENT", value: "db-production", valueType: "string" },
   ]));
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({ innerJoin: () => ([]) }),
   })) as unknown as typeof db.select);
@@ -185,6 +205,7 @@ test("global setting snapshot uses DB cache before env fallback", async () => {
     if (prev === undefined) delete process.env["SENTRY_ENVIRONMENT"];
     else process.env["SENTRY_ENVIRONMENT"] = prev;
     restore();
+    restoreApps();
     restoreSelect();
   }
 });
