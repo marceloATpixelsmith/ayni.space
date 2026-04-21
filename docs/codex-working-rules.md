@@ -25,3 +25,10 @@
 - Do not invent components, services, or enforcement boundaries not present in overview/code.
 - Do not present inferred behavior as confirmed behavior.
 - Do not resolve unclear areas by assumption; carry them forward explicitly as open questions.
+
+## Documentation maintenance policy (mandatory)
+- Any change to architecture, auth, routing, runtime settings, env contracts, migrations, platform behavior, security behavior, or operator workflows is incomplete until relevant docs are updated in the same PR.
+- Documentation updates must remove or rewrite stale wording when behavior changes; appending new text without resolving contradictions is not acceptable.
+- Keep code, migrations, `.env.example`, architecture docs, security docs, and operator-facing docs mutually consistent.
+- Material subsystem changes require a dedicated source-of-truth document when one does not already exist.
+- Final change summaries must include a `DOCS UPDATED` section listing each updated documentation file and why it changed.
