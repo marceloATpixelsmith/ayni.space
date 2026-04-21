@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import express from "express";
 import { ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
@@ -193,6 +194,21 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     flowDecision: null,
   });
   assert.equal(fallbackOnly, DEFAULT_POST_AUTH_PATH);
+});
+
+test("invitation acceptance route does not hardcode dashboard masking fallback", () => {
+  const invitationsRouteSource = readFileSync(
+    new URL("../routes/invitations.ts", import.meta.url),
+    "utf8",
+  );
+  assert.equal(
+    invitationsRouteSource.includes('let nextPath = "/dashboard";'),
+    false,
+  );
+  assert.equal(
+    invitationsRouteSource.includes('fallbackPath: "/dashboard"'),
+    false,
+  );
 });
 
 test("requireAuth enforces MFA-pending behavior consistently across /api/auth/me and protected routes", async () => {
