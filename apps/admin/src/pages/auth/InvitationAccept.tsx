@@ -40,7 +40,7 @@ export default function InvitationAccept() {
             <Button
               onClick={() =>
                 setLocation(
-                  invitation.auth.status === "unauthenticated" ? "/login" : "/dashboard",
+                  invitation.auth.status === "unauthenticated" ? "/login" : "/",
                 )
               }
               className="w-full"

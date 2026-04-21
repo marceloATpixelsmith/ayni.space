@@ -31,7 +31,10 @@ test("SOLO SIGNUP FLOW: fallback route policy keeps user-onboarding available wh
     normalizedAccessProfile: "solo",
   });
   assert.equal(soloPolicy.allowOnboarding, true);
+  assert.equal(soloPolicy.allowCustomerRegistration, true);
+  assert.equal(soloPolicy.allowInvitations, false);
   assert.equal(isAuthRouteAllowed({ slug: "solo-app", normalizedAccessProfile: "solo" }, "onboarding"), true);
+  assert.equal(isAuthRouteAllowed({ slug: "solo-app", normalizedAccessProfile: "solo" }, "invitation"), false);
 });
 
 test("AUTH/ME + ROUTE GUARDS: unauthenticated, fully authenticated, and MFA-pending states map to correct guard destination", () => {

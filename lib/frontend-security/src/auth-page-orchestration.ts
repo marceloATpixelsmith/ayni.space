@@ -543,7 +543,7 @@ export function useInvitationAcceptRouteRuntime(options: {
         inFlightRef.current = false;
         setStatus("done");
         setMessage("Invitation accepted. Redirecting...");
-        window.setTimeout(() => onRedirect(nextPath ?? "/dashboard"), 900);
+        window.setTimeout(() => onRedirect(nextPath ?? "/"), 900);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -619,7 +619,7 @@ export function useInvitationAcceptRouteRuntime(options: {
       .then((nextPath) => {
         setStatus("done");
         setMessage("Invitation accepted. Redirecting...");
-        window.setTimeout(() => onRedirect(nextPath ?? "/dashboard"), 900);
+        window.setTimeout(() => onRedirect(nextPath ?? "/"), 900);
       })
       .catch((error) => {
         setStatus("error");

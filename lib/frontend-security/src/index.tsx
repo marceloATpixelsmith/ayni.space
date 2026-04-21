@@ -473,7 +473,7 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "solo") {
-    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
   }
 
   return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
@@ -1127,13 +1127,16 @@ if (loginRequestRef.current) {
           (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
             ? "/mfa/enroll"
             : "/mfa/challenge";
+        markAuthTransition();
+        await refreshSession({ retryAfterDelay: true });
+        await refreshCsrfState();
         window.location.assign(target);
         return target;
       }
-      await refreshSession();
+      await refreshSession({ retryAfterDelay: true });
       return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
     },
-    [refreshCsrfState, refreshSession],
+    [markAuthTransition, refreshCsrfState, refreshSession],
   );
 
   const loginWithPassword = React.useCallback(
