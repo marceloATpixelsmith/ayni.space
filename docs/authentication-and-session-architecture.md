@@ -152,7 +152,7 @@
 - Trusted devices are server-authoritative (`platform.trusted_devices`) with hashed token storage, secure cookie transport, and 20-day expiry.
 - MFA issuer now derives from session-group authority (not app name/env): canonical display names are sourced from `platform.session_groups` and resolved by `apps/api-server/src/lib/sessionGroupDisplay.ts`.
 - MFA issuer resolution now uses app-scoped runtime settings (`platform.app_settings` key `MFA_ISSUER`) as primary source with session-group display fallback, preserving existing behavior when an app-level issuer is absent (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/api-server/src/lib/sessionGroupDisplay.ts`).
-- Backend allowlist origins are derived from active `platform.apps.domain` values (protocol-normalized) and may be extended by `ALLOWED_ORIGINS` env entries; CORS/origin-referer checks consume that runtime layer (`apps/api-server/src/app.ts`, `apps/api-server/src/middlewares/csrf.ts`, `apps/api-server/src/lib/runtimeSettings.ts`).
+- Backend allowlist origins are derived from active `platform.apps.domain` values (protocol-normalized) and then merged with optional legacy `ALLOWED_ORIGINS` env entries; CORS/origin-referer checks consume that runtime layer (`apps/api-server/src/app.ts`, `apps/api-server/src/middlewares/csrf.ts`, `apps/api-server/src/lib/runtimeSettings.ts`).
 - Required MFA enforcement now includes:
   - super admins (`platform.users.is_super_admin=true`),
   - org leadership roles mapped to real roles (`org_owner`, `org_admin`),

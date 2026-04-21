@@ -33,7 +33,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 ## 2) Confirmed implemented controls
 
 ### A) Edge/perimeter-adjacent (app-layer perimeter)
-- **CORS allowlist + credentialed requests** in backend app bootstrap (canonical source is active `platform.apps.domain` values; optional `ALLOWED_ORIGINS` env entries extend the allowlist, dynamic origin check, credentials true).
+- **CORS allowlist + credentialed requests** in backend app bootstrap (canonical source is active `platform.apps.domain` values; legacy optional `ALLOWED_ORIGINS` env entries only extend the allowlist, dynamic origin check, credentials true).
   - `apps/api-server/src/app.ts`
 - **Origin/Referer verification middleware** for sensitive routes (with explicit OAuth callback exception).
   - `apps/api-server/src/middlewares/csrf.ts`
@@ -302,7 +302,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Control area | Status | Evidence | Notes / risk |
 |---|---|---|---|
 | Security headers (API) | Implemented | `apps/api-server/src/middlewares/securityHeaders.ts` | Good baseline; CSP includes `unsafe-inline` (risk tradeoff). |
-| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Canonical app-origin source is `platform.apps.domain` (protocol-normalized per app); optional `ALLOWED_ORIGINS` env values extend the set. |
+| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Canonical app-origin source is `platform.apps.domain` (protocol-normalized per app); legacy optional `ALLOWED_ORIGINS` env values only extend the set. |
 | CSRF token validation | Implemented | `apps/api-server/src/middlewares/csrf.ts`, `lib/api-client-react/src/custom-fetch.ts` | Solid session-bound token pattern. |
 | Origin/Referer protection | Implemented | `apps/api-server/src/middlewares/csrf.ts` | Defense-in-depth; allows auth callback exception. |
 | Backend auth | Implemented | `apps/api-server/src/lib/auth.ts`, `apps/api-server/src/routes/auth.ts` | OAuth state validated; optional hosted domain check. |

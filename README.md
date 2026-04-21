@@ -90,19 +90,43 @@ Both are proxied through Replit's shared proxy at your Replit domain.
 
 Environment variables are managed through Replit Secrets.
 
+## Runtime Configuration Model
+
+- Canonical non-secret runtime configuration is DB-backed:
+  - `platform.settings` (global runtime keys)
+  - `platform.app_settings` (per-app runtime keys)
+  - `platform.apps` (canonical app identity/runtime fields, including `domain`)
+- Environment variables are used for:
+  - secrets,
+  - infrastructure/bootstrap values,
+  - explicit legacy fallback inputs only.
+
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `SESSION_SECRET` | ✅ | Random secret for session signing (min 32 chars) |
-| `GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | ✅ | Google OAuth callback URL |
-| `STRIPE_SECRET_KEY` | ⚠️ | Stripe secret key (billing features) |
-| `STRIPE_WEBHOOK_SECRET` | ⚠️ | Stripe webhook signing secret |
-| `FRONTEND_URL` | ✅ | Frontend base URL for OAuth redirects |
-| `PORT` | ✅ | API server port |
+### Required (secrets / infrastructure bootstrap)
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SESSION_SECRET` | Session signing secret (min 32 chars) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | OAuth callback URL bootstrap value (DB mirror remains canonical runtime source where present) |
+| `FRONTEND_URL` | Frontend base URL used in auth flow bootstrap |
+| `PORT` | API server port |
+
+### Optional (feature-dependent secrets)
+
+| Variable | Description |
+|----------|-------------|
+| `STRIPE_SECRET_KEY` | Stripe secret key for billing flows |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signature secret |
+
+### Legacy / fallback-only (non-canonical runtime inputs)
+
+| Variable | Description |
+|----------|-------------|
+| `ALLOWED_ORIGINS` | Optional CSV extension list merged with canonical `platform.apps.domain`-derived origins at runtime; not the primary origin config source. |
 
 ## Database Schema
 

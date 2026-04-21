@@ -15,13 +15,12 @@
 - Platform settings management APIs are available under `/api/platform/settings` and `/api/platform/apps/:id/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/platform.ts` (legacy `/api/admin/settings` remains available in `apps/api-server/src/routes/admin.ts`).
 - Frontend non-secret runtime settings are served per app via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`). Bootstrap env remains the startup source of truth for app identity/reachability (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`), while hydrated DB settings drive runtime behavior (`authDebug`, `sentryEnvironment`, `sentryDsn`) plus app-canonical values (`domain`, `baseUrl`, resolved `turnstileSiteKey`) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
 - Superadmin runtime settings management is now standardized on protected platform endpoints (`GET/PATCH /api/platform/settings`, `GET/PATCH /api/platform/apps/:id/settings`) with explicit non-secret key allowlists and typed value handling (`apps/api-server/src/routes/platform.ts`, `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/lib/settings.ts`).
-- Runtime settings editability policy is now explicit and enforced in code:
+- Runtime settings editability policy is explicit and enforced in code (`apps/api-server/src/lib/settings.ts`, `apps/api-server/src/routes/platform.ts`):
   - **Operator-editable global keys:** `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `TURNSTILE_ENABLED`, `IPQS_BLOCK_THRESHOLD`, `IPQS_STEP_UP_THRESHOLD`, `IPQS_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE`, `OPENAI_TIMEOUT_MS`.
   - **Seeded (not operator-editable) global key:** `GOOGLE_REDIRECT_URI` (provider-coupled).
   - **Operator-editable app keys:** `MFA_ISSUER`, `VITE_AUTH_DEBUG`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_DSN`.
   - **Bootstrap mirror app keys (seeded, not operator-editable):** `VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`.
-  - Enforcement source of truth is `apps/api-server/src/lib/settings.ts` definitions consumed by `/api/platform/*settings` routes in `apps/api-server/src/routes/platform.ts`.
-- Allowed origins now derive from active `platform.apps.domain` values at runtime (with protocol normalization) and optional `ALLOWED_ORIGINS` env entries extend the final set (`apps/api-server/src/lib/settings.ts`).
+- Allowed origins are derived at runtime from active `platform.apps.domain` values and then merged with optional legacy `ALLOWED_ORIGINS` env entries (`apps/api-server/src/lib/settings.ts`).
 - Turnstile site key resolution is now: `platform.apps.turnstile_site_key_override` (if set) -> global env `VITE_TURNSTILE_SITE_KEY` fallback; `platform.app_settings` keys `VITE_TURNSTILE_SITE_KEY`/`ALLOWED_ORIGINS` are removed as invalid runtime config storage (`apps/api-server/src/lib/runtimeSettings.ts`, `lib/db/migrations/20260421_canonical_app_config.sql`).
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
@@ -38,6 +37,55 @@
 - Do not split route registration away from `apps/api-server/src/routes/index.ts` without explicit architecture change.
 - Do not introduce alternate backend entrypoints that circumvent existing security/observability middleware ordering.
 - Do not bypass `@workspace/db` for backend data access.
+
+## Runtime configuration authority (implementation truth)
+
+### Configuration layers (authoritative order)
+1. **Global runtime settings (`platform.settings`)**
+   - Cross-app non-secret runtime keys read through `getSetting`/`getGlobalSettingSnapshot` and cached in `refreshSettingsCache`.
+2. **App runtime settings (`platform.app_settings`)**
+   - Per-app runtime keys (`MFA_ISSUER`, frontend auth/sentry keys, bootstrap mirrors) read through `getAppSetting`/`getAppSettingBySlug`.
+3. **App registry (`platform.apps`)**
+   - Canonical app identity/runtime fields (`domain`, `base_url`, `turnstile_site_key_override`) loaded into cache as app canonical config.
+4. **Environment variables**
+   - Bootstrap/secret inputs and explicit legacy fallback inputs only; env is not the canonical source for non-secret runtime settings.
+
+### Origin resolution contract
+- Runtime origin set is built by `getEffectiveAllowedOrigins()` / `getAllowedOriginsSnapshot()` in `apps/api-server/src/lib/settings.ts`.
+- Domain path (`platform.apps.domain`):
+  - Reads active apps from cache (`appConfigById`), derives origin per domain via `deriveOriginFromDomain`.
+  - Normalization rules are deterministic:
+    - If domain already has `http://` or `https://`, use URL origin normalization directly.
+    - If domain contains `localhost` or starts with `127.0.0.1`, force `http://`.
+    - Otherwise force `https://`.
+- Env extension path (`ALLOWED_ORIGINS`):
+  - Parsed as CSV, each entry normalized with `new URL(...).origin`, invalid entries dropped.
+  - Merged with domain-derived origins and de-duplicated via `Set`.
+- CORS and origin/referer protection both consume this resolved runtime origin set (`apps/api-server/src/app.ts`, `apps/api-server/src/middlewares/csrf.ts`).
+
+### Runtime cache behavior
+- Cache owner: `apps/api-server/src/lib/settings.ts` (`cache`, `inFlightRefresh`).
+- Refresh lifecycle:
+  - `refreshSettingsCache()` skips DB read if cache is younger than 15 seconds and no `force` flag is passed.
+  - `refreshSettingsCache({ force: true })` always re-reads DB and rebuilds all global/app/app-canonical maps.
+  - Concurrent refresh calls share one in-flight promise (`inFlightRefresh`) to avoid duplicate DB fan-out.
+- Startup flow:
+  - `app.ts` validates env and boots middleware, then calls `refreshRuntimeCache({ force: true })` asynchronously at startup.
+  - CORS/origin checks call `getEffectiveAllowedOrigins()` per request, which first ensures cache freshness then resolves domain + legacy env origins.
+- Failure behavior:
+  - If refresh fails, code keeps prior cache (`catch` fail-safe), preventing partial cache corruption.
+
+### Environment variable classification (runtime config context)
+- **Required env (secrets / infrastructure bootstrap):**
+  - Examples: `DATABASE_URL`, `SESSION_SECRET`, provider/API secret keys (`GOOGLE_CLIENT_SECRET`, `STRIPE_SECRET_KEY`, `TURNSTILE_SECRET_KEY`, `IPQS_API_KEY`, `OPENAI_API_KEY`, transactional email provider secrets).
+- **Optional env (fallback-only or bootstrap-only):**
+  - Bootstrap mirrors: `VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional `BASE_PATH`.
+  - Legacy optional fallback: `ALLOWED_ORIGINS` extends domain-derived origins only.
+  - Global fallback inputs still read by snapshot helpers when DB value is absent (`SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `TURNSTILE_ENABLED`, `GOOGLE_REDIRECT_URI`, IPQS/OpenAI non-secret knobs).
+  - Global turnstile site-key fallback for frontend runtime: `VITE_TURNSTILE_SITE_KEY` when app override is absent.
+- **Deprecated/non-canonical storage:**
+  - `platform.app_settings` keys `ALLOWED_ORIGIN`, `ALLOWED_ORIGINS`, and `VITE_TURNSTILE_SITE_KEY` are removed from canonical runtime storage; canonical sources are `platform.apps.domain` and `platform.apps.turnstile_site_key_override`.
+
 
 ## Operator rollout note (non-secret env cleanup)
 
