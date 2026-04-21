@@ -307,26 +307,26 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  let nextPath = "/dashboard";
   const appSlug = req.session.appSlug;
+  let postAcceptDecision = null;
   if (appSlug && user) {
     const app = await getAppBySlug(appSlug);
     const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
     if (app && normalizedAccessProfile) {
-      const postAcceptDecision = await resolvePostAuthFlowDecision({
+      postAcceptDecision = await resolvePostAuthFlowDecision({
         userId,
         appSlug: app.slug,
         isSuperAdmin: Boolean(user.isSuperAdmin),
         normalizedAccessProfile,
       });
-      nextPath = resolveAuthenticatedPostAuthDestination({
-        continuation: null,
-        flowDecision: postAcceptDecision,
-        fallbackPath: "/dashboard",
-        stage: "post_auth",
-      });
     }
   }
+  const nextPath = resolveAuthenticatedPostAuthDestination({
+    continuation: null,
+    flowDecision: postAcceptDecision,
+    stage: "post_auth",
+    currentAppSlug: appSlug ?? null,
+  });
   return { ok: true as const, nextPath, org };
 }
 
