@@ -10,8 +10,10 @@ const runtimeState = {
   turnstileSiteKey: null as string | null,
 };
 
-const getAppRuntimeSettings = vi.fn();
-const initFrontendMonitoring = vi.fn();
+const { getAppRuntimeSettings, initFrontendMonitoring } = vi.hoisted(() => ({
+  getAppRuntimeSettings: vi.fn(),
+  initFrontendMonitoring: vi.fn(),
+}));
 
 vi.mock("@workspace/api-client-react", () => ({ getAppRuntimeSettings }));
 vi.mock("@workspace/frontend-observability", () => ({ initFrontendMonitoring }));
