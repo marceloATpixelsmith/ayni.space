@@ -45,6 +45,26 @@ test("getAppSettingBySlug resolves app-scoped value", async () => {
   }
 });
 
+test("getAppSetting falls back when app key missing", async () => {
+  const restore = patchProperty(db, "select", (() => ({
+    from: () => ({
+      innerJoin: () => ([
+        { appId: "app-admin", appSlug: "admin", key: "MFA_ISSUER", value: "Ayni Admin", valueType: "string" },
+      ]),
+    }),
+  })) as unknown as typeof db.select);
+  const restoreGlobals = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+
+  try {
+    await settings.refreshSettingsCache({ force: true });
+    const turnstile = await settings.getAppSetting("app-admin", "VITE_TURNSTILE_SITE_KEY", "fallback-key");
+    assert.equal(turnstile, "fallback-key");
+  } finally {
+    restore();
+    restoreGlobals();
+  }
+});
+
 test("getMfaIssuerForAppSlug falls back safely", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
@@ -54,6 +74,26 @@ test("getMfaIssuerForAppSlug falls back safely", async () => {
     await settings.refreshSettingsCache({ force: true });
     const issuer = await settings.getMfaIssuerForAppSlug("missing", "Fallback Issuer");
     assert.equal(issuer, "Fallback Issuer");
+  } finally {
+    restore();
+    restoreSelect();
+  }
+});
+
+test("getMfaIssuerForAppSlug resolves per-app issuer when present", async () => {
+  const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
+  const restoreSelect = patchProperty(db, "select", (() => ({
+    from: () => ({
+      innerJoin: () => ([
+        { appId: "a1", appSlug: "admin", key: "MFA_ISSUER", value: "Admin Issuer", valueType: "string" },
+        { appId: "a2", appSlug: "ayni", key: "MFA_ISSUER", value: "Ayni Issuer", valueType: "string" },
+      ]),
+    }),
+  })) as unknown as typeof db.select);
+  try {
+    await settings.refreshSettingsCache({ force: true });
+    assert.equal(await settings.getMfaIssuerForAppSlug("admin", "fallback"), "Admin Issuer");
+    assert.equal(await settings.getMfaIssuerForAppSlug("ayni", "fallback"), "Ayni Issuer");
   } finally {
     restore();
     restoreSelect();

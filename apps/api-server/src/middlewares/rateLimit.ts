@@ -1,20 +1,54 @@
 import type { Request, RequestHandler } from "express";
 import { pool } from "@workspace/db";
+import { GLOBAL_SETTING_KEYS, getGlobalSettingSnapshot, refreshRuntimeCache } from "../lib/runtimeSettings.js";
 import { infoVerboseTrace } from "../lib/traceLogging.js";
 
 function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
-const configuredRateLimitEnabled = process.env.RATE_LIMIT_ENABLED;
-const RATE_LIMIT_ENABLED =
-  configuredRateLimitEnabled === undefined
-    ? isProduction()
-    : configuredRateLimitEnabled === "true";
-const RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION = process.env.RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION === "true";
-const DEFAULT_WINDOW_MS = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
-const DEFAULT_MAX = Number.parseInt(process.env.RATE_LIMIT_MAX ?? "30", 10);
-const DEFAULT_AUTH_MAX = Number.parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? "10", 10);
+type RuntimeRateLimitConfig = {
+  enabled: boolean;
+  allowDisableInProduction: boolean;
+  windowMs: number;
+  max: number;
+  authMax: number;
+};
+
+function parsePositiveInt(value: number | string | undefined, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getRuntimeRateLimitConfig(): RuntimeRateLimitConfig {
+  void refreshRuntimeCache();
+
+  const configuredEnabled = getGlobalSettingSnapshot<boolean | string>(
+    GLOBAL_SETTING_KEYS.RATE_LIMIT_ENABLED,
+    process.env.RATE_LIMIT_ENABLED ?? (isProduction() ? "true" : "false"),
+  );
+
+  const enabled = typeof configuredEnabled === "boolean"
+    ? configuredEnabled
+    : configuredEnabled.trim().toLowerCase() === "true";
+
+  return {
+    enabled,
+    allowDisableInProduction: process.env.RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION === "true",
+    windowMs: parsePositiveInt(
+      getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.RATE_LIMIT_WINDOW_MS, process.env.RATE_LIMIT_WINDOW_MS ?? "60000"),
+      60_000,
+    ),
+    max: parsePositiveInt(
+      getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.RATE_LIMIT_MAX, process.env.RATE_LIMIT_MAX ?? "30"),
+      30,
+    ),
+    authMax: parsePositiveInt(
+      getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.AUTH_RATE_LIMIT_MAX, process.env.AUTH_RATE_LIMIT_MAX ?? "10"),
+      10,
+    ),
+  };
+}
 
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
@@ -146,21 +180,23 @@ export type RateLimitOptions = {
 };
 
 export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
-  if (!RATE_LIMIT_ENABLED && (!isProduction() || RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION)) {
-    return (_req, _res, next) => next();
-  }
-
-  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
-  const max = options.max ?? DEFAULT_MAX;
   const keyPrefix = options.keyPrefix ?? "default";
   const skip = options.skip;
 
   return (req, res, next) => {
+    const runtime = getRuntimeRateLimitConfig();
+    if (!runtime.enabled && (!isProduction() || runtime.allowDisableInProduction)) {
+      next();
+      return;
+    }
+
     if (skip?.(req)) {
       next();
       return;
     }
 
+    const windowMs = options.windowMs ?? runtime.windowMs;
+    const max = options.max ?? runtime.max;
     const now = Date.now();
     const key = `${keyPrefix}:${getClientKey(req)}`;
     getRateLimitStore()
@@ -217,9 +253,10 @@ export function rateLimiter(options: RateLimitOptions = {}): RequestHandler {
 }
 
 export function authRateLimiter(options: RateLimitOptions = {}): RequestHandler {
+  const runtime = getRuntimeRateLimitConfig();
   return rateLimiter({
-    max: options.max ?? DEFAULT_AUTH_MAX,
-    windowMs: options.windowMs ?? DEFAULT_WINDOW_MS,
+    max: options.max ?? runtime.authMax,
+    windowMs: options.windowMs ?? runtime.windowMs,
     keyPrefix: options.keyPrefix ?? "auth",
   });
 }
@@ -229,9 +266,10 @@ export type AuthRateLimiterWithIdentifierOptions = RateLimitOptions & {
 };
 
 export function authRateLimiterWithIdentifier(options: AuthRateLimiterWithIdentifierOptions = {}): RequestHandler {
+  const runtime = getRuntimeRateLimitConfig();
   const ipLimiter = authRateLimiter(options);
-  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
-  const max = options.max ?? DEFAULT_AUTH_MAX;
+  const windowMs = options.windowMs ?? runtime.windowMs;
+  const max = options.max ?? runtime.authMax;
   const keyPrefix = options.keyPrefix ?? "auth";
   const opaqueIdentifier = options.opaqueIdentifier;
   const skip = options.skip;

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { appsTable, db, settingValueTypeEnumValues } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { appSettingsTable, appsTable, db, settingValueTypeEnumValues } from "@workspace/db";
 import { requireSuperAdmin } from "../middlewares/requireAuth.js";
 import {
   APP_NON_SECRET_RUNTIME_SETTING_KEYS,
@@ -13,9 +13,17 @@ import { writeAuditLog } from "../lib/audit.js";
 
 const router: IRouter = Router();
 router.use(requireSuperAdmin);
-const VALUE_TYPES = new Set(settingValueTypeEnumValues);
+
+type SettingValueType = (typeof settingValueTypeEnumValues)[number];
+const VALUE_TYPES = new Set<SettingValueType>(settingValueTypeEnumValues);
 const GLOBAL_KEYS = new Set<string>(GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS);
 const APP_KEYS = new Set<string>(APP_NON_SECRET_RUNTIME_SETTING_KEYS);
+
+type ParsedMutation = {
+  valueType: SettingValueType;
+  value: unknown;
+  description: string | null;
+};
 
 function asString(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -26,15 +34,19 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseSettingMutation(payload: unknown): { valueType: "string" | "number" | "boolean" | "json"; value: unknown; description: string | null } | null {
+function parseSettingMutation(payload: unknown): ParsedMutation | null {
   if (!isObject(payload)) return null;
-  const valueType = asString(payload["valueType"]) as "string" | "number" | "boolean" | "json" | null;
-  if (!valueType || !VALUE_TYPES.has(valueType)) return null;
+  const valueType = asString(payload["valueType"]);
+  if (!valueType || !VALUE_TYPES.has(valueType as SettingValueType)) return null;
   return {
-    valueType,
+    valueType: valueType as SettingValueType,
     value: payload["value"],
     description: typeof payload["description"] === "string" ? payload["description"] : null,
   };
+}
+
+async function getActiveAppById(appId: string) {
+  return db.query.appsTable.findFirst({ where: and(eq(appsTable.id, appId), eq(appsTable.isActive, true)) });
 }
 
 router.get("/settings", async (_req, res) => {
@@ -42,6 +54,7 @@ router.get("/settings", async (_req, res) => {
     getAllSettings(),
     db.query.appsTable.findMany({ where: eq(appsTable.isActive, true) }),
   ]);
+
   res.json({
     ...all,
     apps: apps.map((app: { id: string; slug: string; name: string }) => ({ id: app.id, slug: app.slug, name: app.name })),
@@ -59,6 +72,7 @@ router.patch("/settings", async (req, res) => {
     res.status(400).json({ error: "Unsupported global runtime setting key" });
     return;
   }
+
   const setting = await updateSetting({
     key,
     value: parsed.value,
@@ -66,7 +80,16 @@ router.patch("/settings", async (req, res) => {
     description: parsed.description,
     updatedBy: req.session.userId ?? null,
   });
-  await writeAuditLog({ req, userId: req.session.userId, action: "platform.setting.update", resourceType: "setting", resourceId: setting?.id, metadata: { key, valueType: parsed.valueType } });
+
+  await writeAuditLog({
+    req,
+    userId: req.session.userId,
+    action: "platform.setting.update",
+    resourceType: "setting",
+    resourceId: setting?.id,
+    metadata: { key, valueType: parsed.valueType },
+  });
+
   res.json({ setting });
 });
 
@@ -76,9 +99,29 @@ router.get("/apps/:id/settings", async (req, res) => {
     res.status(400).json({ error: "id is required" });
     return;
   }
-  const all = await getAllSettings();
+
+  const app = await getActiveAppById(appId);
+  if (!app) {
+    res.status(404).json({ error: "App not found" });
+    return;
+  }
+
+  const appSettings = await db.select({
+    id: appSettingsTable.id,
+    appId: appSettingsTable.appId,
+    appSlug: appsTable.slug,
+    key: appSettingsTable.key,
+    value: appSettingsTable.value,
+    valueType: appSettingsTable.valueType,
+    description: appSettingsTable.description,
+    updatedBy: appSettingsTable.updatedBy,
+    createdAt: appSettingsTable.createdAt,
+    updatedAt: appSettingsTable.updatedAt,
+  }).from(appSettingsTable).innerJoin(appsTable, eq(appSettingsTable.appId, appsTable.id)).where(eq(appSettingsTable.appId, appId));
+
   res.json({
-    appSettings: all.appSettings.filter((row: any) => row.appId === appId),
+    app: { id: app.id, slug: app.slug, name: app.name },
+    appSettings,
   });
 });
 
@@ -86,6 +129,7 @@ router.patch("/apps/:id/settings", async (req, res) => {
   const appId = asString(req.params["id"]);
   const key = asString(req.body?.key);
   const parsed = parseSettingMutation(req.body);
+
   if (!appId || !key || !parsed) {
     res.status(400).json({ error: "app id, key and valueType are required" });
     return;
@@ -94,6 +138,13 @@ router.patch("/apps/:id/settings", async (req, res) => {
     res.status(400).json({ error: "Unsupported app runtime setting key" });
     return;
   }
+
+  const app = await getActiveAppById(appId);
+  if (!app) {
+    res.status(404).json({ error: "App not found" });
+    return;
+  }
+
   const setting = await updateAppSetting({
     appId,
     key,
@@ -102,7 +153,16 @@ router.patch("/apps/:id/settings", async (req, res) => {
     description: parsed.description,
     updatedBy: req.session.userId ?? null,
   });
-  await writeAuditLog({ req, userId: req.session.userId, action: "platform.app_setting.update", resourceType: "app_setting", resourceId: setting?.id, metadata: { appId, key, valueType: parsed.valueType } });
+
+  await writeAuditLog({
+    req,
+    userId: req.session.userId,
+    action: "platform.app_setting.update",
+    resourceType: "app_setting",
+    resourceId: setting?.id,
+    metadata: { appId, key, valueType: parsed.valueType },
+  });
+
   res.json({ setting });
 });
 

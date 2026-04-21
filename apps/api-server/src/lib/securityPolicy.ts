@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import { requireAuth, requireSuperAdmin } from "../middlewares/requireAuth.js";
 import { authRateLimiter, rateLimiter, type RateLimitOptions } from "../middlewares/rateLimit.js";
 import { turnstileVerifyMiddleware } from "../middlewares/turnstile.js";
-import { getAllowedOriginsSnapshot, refreshRuntimeCache } from "./runtimeSettings.js";
+import { getAllowedOriginsSnapshot, getGlobalSettingSnapshot, refreshRuntimeCache } from "./runtimeSettings.js";
 
 export type EndpointCategory = "PUBLIC" | "AUTHENTICATED" | "ADMIN" | "INTERNAL";
 
@@ -30,6 +30,12 @@ function parseAllowedOrigins(): string[] {
   return getAllowedOriginsSnapshot();
 }
 
+function readRateLimitMax(key: string, fallback: number): number {
+  const value = getGlobalSettingSnapshot<number | string>(key, process.env[key] ?? String(fallback));
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export function getSecurityConfig(): SecurityConfig {
   return {
     allowedOrigins: parseAllowedOrigins(),
@@ -43,7 +49,7 @@ export function getSecurityConfig(): SecurityConfig {
         rateLimit: {
           type: "auth",
           options: {
-            max: Number.parseInt(process.env["AUTH_GOOGLE_URL_RATE_LIMIT_MAX"] ?? "60", 10),
+            max: readRateLimitMax("AUTH_GOOGLE_URL_RATE_LIMIT_MAX", 60),
             keyPrefix: "auth-google-url",
           },
         },
@@ -55,7 +61,7 @@ export function getSecurityConfig(): SecurityConfig {
         rateLimit: {
           type: "auth",
           options: {
-            max: Number.parseInt(process.env["AUTH_GOOGLE_CALLBACK_RATE_LIMIT_MAX"] ?? "20", 10),
+            max: readRateLimitMax("AUTH_GOOGLE_CALLBACK_RATE_LIMIT_MAX", 20),
             keyPrefix: "auth-google-callback",
           },
         },

@@ -151,6 +151,8 @@ function parseSettingValue(valueType: SettingValueType, value: string): unknown 
 function AdminRuntimeSettings() {
   const { data: registryApps } = useGetApps();
   const [data, setData] = React.useState<PlatformSettingsResponse | null>(null);
+  const [selectedAppId, setSelectedAppId] = React.useState<string>("");
+  const [selectedAppSettings, setSelectedAppSettings] = React.useState<RuntimeSetting[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [saveError, setSaveError] = React.useState<string | null>(null);
 
@@ -163,7 +165,19 @@ function AdminRuntimeSettings() {
     if (!response.ok) throw new Error("Failed to load platform settings.");
     const payload = (await response.json()) as PlatformSettingsResponse;
     setData(payload);
+    if (!selectedAppId && payload.apps[0]?.id) setSelectedAppId(payload.apps[0].id);
     setIsLoading(false);
+  }, [selectedAppId]);
+
+  const loadAppSettings = React.useCallback(async (appId: string) => {
+    if (!appId) {
+      setSelectedAppSettings([]);
+      return;
+    }
+    const response = await fetch(`/api/platform/apps/${appId}/settings`, { credentials: "include" });
+    if (!response.ok) throw new Error("Failed to load app settings.");
+    const payload = (await response.json()) as { appSettings: RuntimeSetting[] };
+    setSelectedAppSettings(payload.appSettings ?? []);
   }, []);
 
   React.useEffect(() => {
@@ -172,6 +186,12 @@ function AdminRuntimeSettings() {
       setIsLoading(false);
     });
   }, [loadSettings]);
+
+  React.useEffect(() => {
+    void loadAppSettings(selectedAppId).catch((error: unknown) => {
+      setSaveError(error instanceof Error ? error.message : "Failed to load app settings.");
+    });
+  }, [loadAppSettings, selectedAppId]);
 
   const saveGlobal = async (setting: RuntimeSetting) => {
     setSaveError(null);
@@ -214,19 +234,8 @@ function AdminRuntimeSettings() {
       setSaveError("Failed to save app runtime setting.");
       return;
     }
-    await loadSettings();
+    await Promise.all([loadSettings(), loadAppSettings(setting.appId)]);
   };
-
-  const appSettingsBySlug = React.useMemo(() => {
-    const grouped = new Map<string, RuntimeSetting[]>();
-    for (const row of (data?.appSettings ?? []) as RuntimeSetting[]) {
-      const slug = row.appSlug ?? "unknown";
-      const bucket = grouped.get(slug) ?? [];
-      bucket.push(row);
-      grouped.set(slug, bucket);
-    }
-    return grouped;
-  }, [data?.appSettings]);
 
   return (
     <div className="space-y-6">
@@ -269,30 +278,35 @@ function AdminRuntimeSettings() {
           <CardDescription>Per-app frontend runtime values (non-secret only).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(data?.apps ?? registryApps ?? []).map((app) => (
-            <div key={app.id} className="border rounded-md p-3 space-y-2">
-              <div className="font-semibold">{app.name} <span className="text-xs text-muted-foreground">({app.slug})</span></div>
-              {(appSettingsBySlug.get(app.slug) ?? []).map((setting) => {
-                const draftKey = `${setting.appId}:${setting.key}`;
-                return (
-                  <div key={setting.id} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-3">
-                      <div className="font-mono text-xs">{setting.key}</div>
-                      <div className="text-xs text-muted-foreground">{setting.valueType}</div>
-                    </div>
-                    <Input
-                      className="col-span-7"
-                      value={appDrafts[draftKey] ?? setting.value}
-                      onChange={(e) => setAppDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))}
-                    />
-                    <Button className="col-span-2" size="sm" onClick={() => void saveApp(setting)}>
-                      Save
-                    </Button>
+          <label className="text-sm font-medium">Select app</label>
+          <select value={selectedAppId} onChange={(e) => setSelectedAppId(e.target.value)} className="border rounded p-2 w-full max-w-md">
+            {(data?.apps ?? registryApps ?? []).map((app) => (
+              <option key={app.id} value={app.id}>{app.name} ({app.slug})</option>
+            ))}
+          </select>
+
+          <div className="space-y-2">
+            {selectedAppSettings.map((setting) => {
+              const draftKey = `${setting.appId}:${setting.key}`;
+              return (
+                <div key={setting.id} className="grid grid-cols-12 gap-2 items-center border rounded-md p-3">
+                  <div className="col-span-3">
+                    <div className="font-mono text-xs">{setting.key}</div>
+                    <div className="text-xs text-muted-foreground">{setting.valueType}</div>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                  <Input
+                    className="col-span-7"
+                    value={appDrafts[draftKey] ?? setting.value}
+                    onChange={(e) => setAppDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))}
+                  />
+                  <Button className="col-span-2" size="sm" onClick={() => void saveApp(setting)}>
+                    Save
+                  </Button>
+                  {setting.description && <div className="col-span-12 text-xs text-muted-foreground">{setting.description}</div>}
+                </div>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>
