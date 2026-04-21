@@ -5,7 +5,7 @@ import { createSessionApp, ensureTestDatabaseEnv, patchProperty, performJsonRequ
 ensureTestDatabaseEnv();
 
 const { default: platformRouter } = await import("../routes/platform.js");
-const { db } = await import("@workspace/db");
+const { appSettingsTable, db, settingsTable } = await import("@workspace/db");
 
 function mockSuperAdminUser() {
   return {
@@ -42,15 +42,28 @@ function mockDbForSuperAdminFlow() {
       appId: "app-admin",
       key: "ALLOWED_ORIGIN",
     })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "app-admin",
+      slug: "admin",
+      name: "Admin",
+      isActive: true,
+    })),
     patchProperty(db, "select", (() => ({
       from: () => ({
         innerJoin: () => [],
       }),
     })) as unknown as typeof db.select),
-    patchProperty(db, "update", (() => ({
+    patchProperty(db, "update", ((table: unknown) => ({
       set: (payload: Record<string, unknown>) => ({
         where: () => ({
-          returning: async () => [{ ...updatedRow, ...payload }],
+          returning: async () => [{
+            ...(table === appSettingsTable
+              ? { ...updatedRow, appId: "app-admin", key: "ALLOWED_ORIGIN" }
+              : table === settingsTable
+                ? { ...updatedRow, key: "SENTRY_ENVIRONMENT" }
+                : updatedRow),
+            ...payload,
+          }],
         }),
       }),
     })) as unknown as typeof db.update),
