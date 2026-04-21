@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../App";
 
 type AuthStateMock = {
@@ -12,7 +12,7 @@ type AuthStateMock = {
   loginInFlight: boolean;
 };
 
-const { authState, metadataState } = vi.hoisted(() => ({
+const { authState, metadataState, resolveAuthenticatedNextStepMock } = vi.hoisted(() => ({
   authState: {
     status: "unauthenticated",
     user: null,
@@ -32,6 +32,10 @@ const { authState, metadataState } = vi.hoisted(() => ({
       },
     },
   },
+  resolveAuthenticatedNextStepMock: vi.fn(() => ({
+    destination: "/dashboard",
+    reason: "default",
+  })),
 }));
 
 vi.mock("@workspace/frontend-observability", () => ({
@@ -63,13 +67,35 @@ vi.mock("@workspace/frontend-security", async (importOriginal) => {
       return true;
     },
     logAuthDebug: () => undefined,
-    resolveAuthenticatedNextStep: () => ({ destination: "/dashboard", reason: "default" }),
+    resolveAuthenticatedNextStep: resolveAuthenticatedNextStepMock,
   };
 });
 
-vi.mock("../pages/auth/Login", () => ({
-  default: () => <h1>Welcome</h1>,
-}));
+vi.mock("../pages/auth/Login", async () => {
+  const { useLocation } = await import("wouter");
+  const { useAuth, resolveAuthenticatedNextStep } = await import("@workspace/frontend-security");
+
+  return {
+    default: () => {
+      const [, setLocation] = useLocation();
+      const auth = useAuth();
+
+      React.useEffect(() => {
+        if (auth.status !== "authenticated_fully") return;
+        const nextStep = resolveAuthenticatedNextStep({
+          authStatus: auth.status,
+          user: auth.user,
+          deniedLoginPath: "/login?error=access_denied",
+          defaultPath: "/dashboard",
+        });
+        setLocation(nextStep.destination);
+      }, [auth.status, auth.user, setLocation]);
+
+      if (auth.status === "authenticated_fully") return null;
+      return <h1>Welcome</h1>;
+    },
+  };
+});
 vi.mock("../pages/auth/Signup", async () => {
   const { useLocation } = await import("wouter");
   const {
@@ -90,7 +116,23 @@ vi.mock("../pages/auth/Signup", async () => {
       }, [loading, signupAllowed, location, setLocation]);
 
       if (!signupAllowed) return null;
-      return <h1>Create account</h1>;
+      return (
+        <>
+          <h1>Create account</h1>
+          <button
+            type="button"
+            onClick={() => {
+              const continuation = window.location.search;
+              setLocation("/login");
+              if (continuation) {
+                window.history.replaceState({}, "", `/login${continuation}`);
+              }
+            }}
+          >
+            Already have an account
+          </button>
+        </>
+      );
     },
   };
 });
@@ -167,6 +209,11 @@ describe("App auth routing runtime behavior", () => {
         allowCustomerRegistration: true,
       },
     };
+    resolveAuthenticatedNextStepMock.mockReset();
+    resolveAuthenticatedNextStepMock.mockReturnValue({
+      destination: "/dashboard",
+      reason: "default",
+    });
     setPath("/");
   });
 
@@ -267,5 +314,45 @@ describe("App auth routing runtime behavior", () => {
 
     await waitFor(() => expect(window.location.pathname).toBe("/dashboard/invitations"));
     expect(screen.getByText("Invitations")).toBeTruthy();
+  });
+
+  it("preserves continuation through signup already-have-account branch and keeps onboarding precedence", async () => {
+    setPath("/signup?next=/dashboard/apps");
+    const view = render(<App />);
+
+    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Already have an account" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
+    expect(window.location.search).toBe("?next=/dashboard/apps");
+
+    authState.status = "authenticated_fully";
+    authState.user = {
+      isSuperAdmin: false,
+      pendingPostAuthContinuation: "/dashboard/apps",
+      appAccess: {
+        appSlug: "admin",
+        canAccess: false,
+        requiredOnboarding: "organization",
+        normalizedAccessProfile: "organization",
+        defaultRoute: "/dashboard",
+      },
+    };
+    resolveAuthenticatedNextStepMock.mockReturnValue({
+      destination: "/dashboard/apps",
+      reason: "pending_continuation",
+    });
+    view.rerender(<App />);
+
+    await waitFor(() =>
+      expect(resolveAuthenticatedNextStepMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authStatus: "authenticated_fully",
+          user: expect.objectContaining({
+            pendingPostAuthContinuation: "/dashboard/apps",
+          }),
+        }),
+      ),
+    );
+    await waitFor(() => expect(window.location.pathname).toBe("/onboarding/organization"));
   });
 });
