@@ -313,7 +313,6 @@ The persistence model is intentionally queryable for future superadmin tooling:
     - `GOOGLE_CLIENT_ID`
     - `GOOGLE_CLIENT_SECRET`
     - `GOOGLE_REDIRECT_URI`
-    - `ALLOWED_ORIGINS`
     - `STRIPE_WEBHOOK_SECRET`
     - `EMAIL_CREDENTIALS_ENCRYPTION_KEY` (exactly 64 hex chars)
   - Required only when feature is enabled / in specific runtime mode:

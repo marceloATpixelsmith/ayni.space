@@ -110,22 +110,50 @@
     {
       "idx": 15,
       "version": "7",
+      "when": 1743811200000,
+      "tag": "20260404_users_email_case_insensitive_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1743984000000,
+      "tag": "20260407_distributed_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
       "when": 1776718015265,
       "tag": "20260420_platform_runtime_settings",
       "breakpoints": true
     },
     {
-      "idx": 16,
+      "idx": 18,
       "version": "7",
       "when": 1776719100000,
       "tag": "20260420_frontend_runtime_app_settings",
       "breakpoints": true
     },
     {
-      "idx": 17,
+      "idx": 19,
       "version": "7",
       "when": 1776722400000,
       "tag": "20260420_non_secret_runtime_settings_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776726000000,
+      "tag": "20260420_runtime_settings_completion",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776812400000,
+      "tag": "20260421_runtime_settings_canonicalization",
       "breakpoints": true
     }
   ]

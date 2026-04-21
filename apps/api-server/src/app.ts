@@ -70,7 +70,7 @@ app.use(
       path,
       rawAllowedOriginsEnv,
       parsedAllowedOrigins,
-      reason: "Request origin is not in ALLOWED_ORIGINS",
+      reason: "Request origin is not in canonical ALLOWED_ORIGIN set",
     });
 
     callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
