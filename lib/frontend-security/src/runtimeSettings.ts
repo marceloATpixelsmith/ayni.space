@@ -11,6 +11,10 @@ export type FrontendRuntimeSettings = {
 };
 
 type FrontendRuntimeSettingsPatch = Partial<FrontendRuntimeSettings>;
+type HydratedFrontendRuntimeSettingsPatch = Pick<
+  FrontendRuntimeSettingsPatch,
+  "authDebug" | "sentryEnvironment" | "sentryDsn" | "turnstileSiteKey"
+>;
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 
@@ -50,6 +54,22 @@ export function applyFrontendRuntimeSettings(patch: FrontendRuntimeSettingsPatch
     ...patch,
   };
   emit();
+}
+
+/**
+ * Apply backend-hydrated runtime settings for frontend behavior/monitoring keys.
+ *
+ * Bootstrap identity/reachability values (`apiBaseUrl`, `appSlug`, `basePath`) remain
+ * sourced from the build/runtime bootstrap environment so startup routing/network
+ * assumptions are explicit and stable.
+ */
+export function applyHydratedFrontendRuntimeSettings(patch: HydratedFrontendRuntimeSettingsPatch) {
+  applyFrontendRuntimeSettings({
+    authDebug: patch.authDebug,
+    sentryEnvironment: patch.sentryEnvironment,
+    sentryDsn: patch.sentryDsn,
+    turnstileSiteKey: patch.turnstileSiteKey,
+  });
 }
 
 export function subscribeFrontendRuntimeSettings(callback: () => void) {

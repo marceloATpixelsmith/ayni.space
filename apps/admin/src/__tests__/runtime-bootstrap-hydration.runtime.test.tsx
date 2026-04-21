@@ -18,7 +18,7 @@ vi.mock("@workspace/frontend-observability", () => ({ initFrontendMonitoring }))
 vi.mock("@workspace/frontend-security", () => ({
   getBootstrapAppSlug: () => runtimeState.appSlug,
   getFrontendRuntimeSettings: () => runtimeState,
-  applyFrontendRuntimeSettings: (patch: Partial<typeof runtimeState>) => Object.assign(runtimeState, patch),
+  applyHydratedFrontendRuntimeSettings: (patch: Partial<typeof runtimeState>) => Object.assign(runtimeState, patch),
   isAuthDebugEnabledRuntime: () => runtimeState.authDebug,
 }));
 

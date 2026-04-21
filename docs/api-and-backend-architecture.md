@@ -11,9 +11,9 @@
 - The API server is the single active backend gateway in current repository state.
 - Lane 2 transactional email foundation is implemented as a shared backend integration package at `lib/integrations/transactional-email` with provider-agnostic contracts and adapter scaffolding for Brevo and Mailchimp Transactional.
 - Lane 1 notification email delivery (invitation + email verification + password reset) is implemented in `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/auth.ts`, and `apps/api-server/src/lib/invitationEmail.ts` using template resolution from `platform.email_templates` with app-level override + platform-default fallback and platform-owned provider credentials from environment variables.
-- Runtime non-secret backend configuration is now split into cross-app `platform.settings` and app-scoped `platform.app_settings`, with API/runtime reads routed through `apps/api-server/src/lib/runtimeSettings.ts` and schema/migration definitions under `lib/db/src/schema/settings.ts` + `lib/db/migrations/20260420_platform_runtime_settings.sql`.
+- Runtime non-secret backend configuration is now split into cross-app `platform.settings` and app-scoped `platform.app_settings`, with API/runtime reads routed through `apps/api-server/src/lib/runtimeSettings.ts` + `apps/api-server/src/lib/settings.ts` and schema/migration definitions under `lib/db/src/schema/settings.ts`.
 - Platform settings management APIs are available under `/api/platform/settings` and `/api/platform/apps/:id/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/platform.ts` (legacy `/api/admin/settings` remains available in `apps/api-server/src/routes/admin.ts`).
-- Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`), and bootstrap env remains limited to API reachability/app identity (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, and build-time `BASE_PATH` where required) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
+- Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`). Bootstrap env remains the startup source of truth for app identity/reachability (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`), while hydrated DB settings drive runtime behavior (`authDebug`, `sentryEnvironment`, `sentryDsn`, `turnstileSiteKey`) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
 - Superadmin runtime settings management is now standardized on protected platform endpoints (`GET/PATCH /api/platform/settings`, `GET/PATCH /api/platform/apps/:id/settings`) with explicit non-secret key allowlists and typed value handling (`apps/api-server/src/routes/platform.ts`, `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/lib/settings.ts`).
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
@@ -54,5 +54,12 @@ After DB-backed runtime settings rollout is complete, remove these non-secret de
 - `VITE_SENTRY_ENVIRONMENT`
 - `VITE_SENTRY_DSN`
 - `VITE_TURNSTILE_SITE_KEY`
+
+Runtime settings rollout source-of-truth migrations are:
+
+- `lib/db/migrations/20260420_non_secret_runtime_settings_foundation.sql`
+- `lib/db/migrations/20260420_platform_runtime_settings.sql`
+- `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`
+- `lib/db/migrations/20260420_runtime_settings_completion.sql`
 
 Keep env only for secrets/bootstrap/infra values (for example `VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional `BASE_PATH`, session/database secrets, provider API keys, and other boot-time infra values).

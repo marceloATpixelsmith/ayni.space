@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { initFrontendMonitoring } from "@workspace/frontend-observability";
 import {
-  applyFrontendRuntimeSettings,
+  applyHydratedFrontendRuntimeSettings,
   getBootstrapAppSlug,
   getFrontendRuntimeSettings,
   type FrontendRuntimeSettings,
@@ -23,12 +23,24 @@ export async function hydrateFrontendRuntimeSettings() {
   const appSlug = getBootstrapAppSlug();
   const payload = (await getAppRuntimeSettings(appSlug).catch(() => null)) as FrontendRuntimeSettings | null;
   if (!payload || typeof payload !== "object") return;
-  applyFrontendRuntimeSettings(payload);
+  applyHydratedFrontendRuntimeSettings({
+    authDebug: payload.authDebug,
+    sentryEnvironment: payload.sentryEnvironment,
+    sentryDsn: payload.sentryDsn,
+    turnstileSiteKey: payload.turnstileSiteKey,
+  });
 }
 
 export async function bootstrapAdminApp() {
-  applyMonitoringSettings(getFrontendRuntimeSettings());
+  const bootstrapSettings = getFrontendRuntimeSettings();
+  applyMonitoringSettings(bootstrapSettings);
   await hydrateFrontendRuntimeSettings();
-  applyMonitoringSettings(getFrontendRuntimeSettings());
+  const hydratedSettings = getFrontendRuntimeSettings();
+  const monitoringChanged =
+    hydratedSettings.sentryDsn !== bootstrapSettings.sentryDsn ||
+    hydratedSettings.sentryEnvironment !== bootstrapSettings.sentryEnvironment;
+  if (monitoringChanged) {
+    applyMonitoringSettings(hydratedSettings);
+  }
   createRoot(document.getElementById("root")!).render(<App />);
 }
