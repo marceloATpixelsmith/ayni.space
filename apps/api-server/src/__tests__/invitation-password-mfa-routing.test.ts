@@ -161,3 +161,69 @@ test("invitation password acceptance returns MFA enrollment step when user is no
     restores.reverse().forEach((restore) => restore());
   }
 });
+
+test("invitation destination matrix keeps canonical precedence with onboarding and continuation combinations", () => {
+  const invitationContinuation = resolvePostAuthContinuation({
+    appSlug: "admin",
+    returnPath: "/invitations/token-matrix/accept",
+    continuationType: "invitation_acceptance",
+    orgId: "org-1",
+    resourceId: "token-matrix",
+  });
+
+  const onboardingRequiredDestination = resolveAuthenticatedPostAuthDestination({
+    continuation: invitationContinuation,
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      requiredOnboarding: "organization",
+      normalizedAccessProfile: "organization",
+      destination: "/onboarding/organization",
+    },
+    stage: "post_auth",
+    currentAppSlug: "admin",
+  });
+  assert.equal(onboardingRequiredDestination, "/onboarding/organization");
+
+  const onboardingCompleteDestination = resolveAuthenticatedPostAuthDestination({
+    continuation: invitationContinuation,
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      requiredOnboarding: "organization",
+      normalizedAccessProfile: "organization",
+      destination: "/onboarding/organization",
+    },
+    stage: "post_onboarding",
+    currentAppSlug: "admin",
+  });
+  assert.equal(onboardingCompleteDestination, "/invitations/token-matrix/accept");
+
+  const noOnboardingWithContinuation = resolveAuthenticatedPostAuthDestination({
+    continuation: invitationContinuation,
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
+      destination: "/apps/admin",
+    },
+    stage: "post_auth",
+    currentAppSlug: "admin",
+  });
+  assert.equal(noOnboardingWithContinuation, "/invitations/token-matrix/accept");
+
+  const noOnboardingNoContinuation = resolveAuthenticatedPostAuthDestination({
+    continuation: null,
+    flowDecision: {
+      appSlug: "admin",
+      canAccess: true,
+      requiredOnboarding: "none",
+      normalizedAccessProfile: "organization",
+      destination: "/apps/admin",
+    },
+    stage: "post_auth",
+    currentAppSlug: "admin",
+  });
+  assert.equal(noOnboardingNoContinuation, "/apps/admin");
+});

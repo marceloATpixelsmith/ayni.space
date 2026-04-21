@@ -148,7 +148,7 @@ test("invitation accept route remains reachable pre-auth and controls login cont
   );
 });
 
-test("post-onboarding flow waits for auth refresh before navigating to /dashboard", () => {
+test("post-onboarding flow waits for auth refresh before navigating to canonical nextPath or neutral root fallback", () => {
   expectIncludes(
     onboardingSource,
     "await auth.refreshSession();",
@@ -157,8 +157,8 @@ test("post-onboarding flow waits for auth refresh before navigating to /dashboar
 
   expectIncludes(
     onboardingSource,
-    "setLocation(\"/dashboard\");",
-    "Onboarding completion should route users directly to /dashboard after auth refresh.",
+    "setLocation(\"/\");",
+    "Onboarding completion fallback should use neutral root instead of hardcoded dashboard.",
   );
 });
 
@@ -198,6 +198,11 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
   );
   expectIncludes(
     invitationAcceptSource,
+    'invitation.auth.status === "unauthenticated" ? "/login" : "/"',
+    "Invitation resolve fallback destination should be neutral root for authenticated sessions.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
     "invitation.shouldShowInvitationChoices ? (",
     "Invitation auth actions should render only when shared runtime marks invitation choices as ready.",
   );
@@ -205,6 +210,29 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
     invitationAcceptSource,
     "invitation.resolutionError",
     "Invitation page should surface explicit resolve failure state from shared invitation runtime.",
+  );
+});
+
+test("auth routes avoid /dashboard fallback shortcuts and rely on canonical resolver handoffs", () => {
+  expectNotIncludes(
+    loginSource,
+    'setLocation("/dashboard")',
+    "Login route must not hardcode /dashboard fallback.",
+  );
+  expectNotIncludes(
+    signupSource,
+    'setLocation("/dashboard")',
+    "Signup route must not hardcode /dashboard fallback.",
+  );
+  expectNotIncludes(
+    onboardingSource,
+    'setLocation("/dashboard")',
+    "Onboarding route fallback must remain neutral root when backend nextPath is absent.",
+  );
+  expectIncludes(
+    sharedOrchestrationSource,
+    "resolveAuthenticatedNextStep({",
+    "Frontend auth flows should resolve destinations via shared canonical resolver logic.",
   );
 });
 
