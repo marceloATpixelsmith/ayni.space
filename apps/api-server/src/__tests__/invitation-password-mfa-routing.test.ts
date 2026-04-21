@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { ensureTestDatabaseEnv, patchProperty, performJsonRequest } from "./helpers.js";
 
@@ -9,6 +12,8 @@ const { db } = await import("@workspace/db");
 const { default: invitationsRouter } = await import("../routes/invitations.js");
 const { resolvePostAuthContinuation } = await import("../lib/postAuthContinuation.js");
 const { resolveAuthenticatedPostAuthDestination } = await import("../lib/postAuthDestination.js");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 test("invitation password acceptance returns MFA enrollment step when user is not enrolled", async () => {
   const persistedSession: Record<string, unknown> = {
@@ -226,4 +231,12 @@ test("invitation destination matrix keeps canonical precedence with onboarding a
     currentAppSlug: "admin",
   });
   assert.equal(noOnboardingNoContinuation, "/apps/admin");
+});
+
+test("invitation route source keeps resolver-based destination and blocks route-local dashboard fallback literals", () => {
+  const routeFile = path.resolve(__dirname, "../routes/invitations.ts");
+  const source = readFileSync(routeFile, "utf8");
+  assert.match(source, /resolveAuthenticatedPostAuthDestination\(/);
+  assert.ok(!/nextPath\s*\?\?\s*["'`]\/dashboard["'`]/.test(source));
+  assert.ok(!/fallbackPath\s*:\s*["'`]\/dashboard["'`]/.test(source));
 });
