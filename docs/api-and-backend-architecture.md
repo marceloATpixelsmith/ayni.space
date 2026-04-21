@@ -61,5 +61,16 @@ Runtime settings rollout source-of-truth migrations are:
 - `lib/db/migrations/20260420_platform_runtime_settings.sql`
 - `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`
 - `lib/db/migrations/20260420_runtime_settings_completion.sql`
+- `lib/db/migrations/20260421_runtime_settings_canonicalization.sql` (**authoritative final canonicalization pass**)
+
+Canonical runtime-settings final state is established by `20260421_runtime_settings_canonicalization.sql`:
+
+- Canonical app origin key is `ALLOWED_ORIGIN` (legacy `ALLOWED_ORIGINS` rows are removed in final migration).
+- Canonical app MFA issuers are seeded as:
+  - `admin` → `Ayni Admin`
+  - `ayni` → `Ayni`
+  - `shipibo` → `Shipibo`
+  - `screening` → `Ayni Screening`
+- Earlier overlapping 2026-04-20 migrations remain historical and safe to keep for already-applied databases; final effective values are intentionally normalized by the 2026-04-21 migration.
 
 Keep env only for secrets/bootstrap/infra values (for example `VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional `BASE_PATH`, session/database secrets, provider API keys, and other boot-time infra values).

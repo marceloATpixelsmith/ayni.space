@@ -23,7 +23,6 @@ export const GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(GLOBAL_SETTI
 
 export const APP_SETTING_KEYS = {
   ALLOWED_ORIGIN: "ALLOWED_ORIGIN",
-  ALLOWED_ORIGINS: "ALLOWED_ORIGINS",
   MFA_ISSUER: "MFA_ISSUER",
   VITE_AUTH_DEBUG: "VITE_AUTH_DEBUG",
   VITE_SENTRY_ENVIRONMENT: "VITE_SENTRY_ENVIRONMENT",
@@ -34,6 +33,7 @@ export const APP_SETTING_KEYS = {
   VITE_TURNSTILE_SITE_KEY: "VITE_TURNSTILE_SITE_KEY",
 } as const;
 export const APP_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(APP_SETTING_KEYS);
+const LEGACY_ALLOWED_ORIGINS_KEY = "ALLOWED_ORIGINS";
 
 export type ParsedSettingValue = string | number | boolean | Record<string, unknown> | unknown[];
 type RuntimeCache = {
@@ -201,16 +201,23 @@ export async function getGlobalSettingValues(keys: string[]) {
 
 export async function getEffectiveAllowedOrigins(): Promise<string[]> {
   await refreshSettingsCache();
-  const fromDb = Object.values(cache.appById).flatMap((byKey) => {
+  const canonicalOrigins = Object.values(cache.appById).flatMap((byKey) => {
     const single = byKey[APP_SETTING_KEYS.ALLOWED_ORIGIN];
-    const legacyPlural = byKey[APP_SETTING_KEYS.ALLOWED_ORIGINS];
-    const out: string[] = [];
-    if (typeof single === "string" && single.trim()) out.push(single.trim());
-    if (typeof legacyPlural === "string" && legacyPlural.trim()) out.push(...parseCsv(legacyPlural));
-    return out;
+    if (typeof single === "string" && single.trim()) return [single.trim()];
+    return [];
   });
-  const deduped = Array.from(new Set(fromDb));
-  if (deduped.length > 0) return deduped;
+
+  const dedupedCanonical = Array.from(new Set(canonicalOrigins));
+  if (dedupedCanonical.length > 0) return dedupedCanonical;
+
+  const legacyOrigins = Object.values(cache.appById).flatMap((byKey) => {
+    const legacyPlural = byKey[LEGACY_ALLOWED_ORIGINS_KEY];
+    if (typeof legacyPlural === "string" && legacyPlural.trim()) return parseCsv(legacyPlural);
+    return [];
+  });
+  const dedupedLegacy = Array.from(new Set(legacyOrigins));
+  if (dedupedLegacy.length > 0) return dedupedLegacy;
+
   return parseCsv(process.env["ALLOWED_ORIGINS"]);
 }
 

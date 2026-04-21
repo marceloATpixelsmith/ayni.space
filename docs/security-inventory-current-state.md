@@ -33,7 +33,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 ## 2) Confirmed implemented controls
 
 ### A) Edge/perimeter-adjacent (app-layer perimeter)
-- **CORS allowlist + credentialed requests** in backend app bootstrap (`ALLOWED_ORIGINS`, dynamic origin check, credentials true).
+- **CORS allowlist + credentialed requests** in backend app bootstrap (canonical app runtime key `ALLOWED_ORIGIN`, legacy/env fallback supported, dynamic origin check, credentials true).
   - `apps/api-server/src/app.ts`
 - **Origin/Referer verification middleware** for sensitive routes (with explicit OAuth callback exception).
   - `apps/api-server/src/middlewares/csrf.ts`
@@ -302,7 +302,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Control area | Status | Evidence | Notes / risk |
 |---|---|---|---|
 | Security headers (API) | Implemented | `apps/api-server/src/middlewares/securityHeaders.ts` | Good baseline; CSP includes `unsafe-inline` (risk tradeoff). |
-| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Requires `ALLOWED_ORIGINS`; credentialed cookies supported. |
+| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Canonical runtime key is `ALLOWED_ORIGIN` (legacy/env fallback remains for safety); credentialed cookies supported. |
 | CSRF token validation | Implemented | `apps/api-server/src/middlewares/csrf.ts`, `lib/api-client-react/src/custom-fetch.ts` | Solid session-bound token pattern. |
 | Origin/Referer protection | Implemented | `apps/api-server/src/middlewares/csrf.ts` | Defense-in-depth; allows auth callback exception. |
 | Backend auth | Implemented | `apps/api-server/src/lib/auth.ts`, `apps/api-server/src/routes/auth.ts` | OAuth state validated; optional hosted domain check. |
