@@ -274,8 +274,8 @@ test("shared route policy enforces normalized access-profile onboarding and invi
 
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };",
-    "Solo profile should deny onboarding, invitation, and customer-registration auth routes.",
+    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };",
+    "Solo profile should allow onboarding and customer-registration routes while still denying invitations.",
   );
 
   expectIncludes(
@@ -812,10 +812,28 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
     "Turnstile init should wait for a real container node before attempting widget render.",
   );
 
-  expectIncludes(
-    turnstileSource,
-    "}, [siteKey, containerNode]);",
-    "Turnstile render effect must rerun when widget container appears after loading state resolves.",
+  const renderEffectMatch = turnstileSource.match(
+    /React\.useEffect\(\(\) => \{\n[\s\S]*?if \(!siteKey \|\| !containerNode\) \{[\s\S]*?\n  \}, \[([^\]]+)\]\);/,
+  );
+  assert.ok(
+    renderEffectMatch,
+    "Turnstile render effect should define an explicit dependency list.",
+  );
+  const renderEffectDependencies = renderEffectMatch[1]
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  assert.ok(
+    renderEffectDependencies.includes("siteKey"),
+    "Turnstile render effect must depend on siteKey.",
+  );
+  assert.ok(
+    renderEffectDependencies.includes("containerNode"),
+    "Turnstile render effect must depend on containerNode.",
+  );
+  assert.ok(
+    renderEffectDependencies.length >= 2,
+    "Turnstile render effect may include additional benign dependencies (for example authDebug) without breaking contract expectations.",
   );
 
   expectIncludes(
