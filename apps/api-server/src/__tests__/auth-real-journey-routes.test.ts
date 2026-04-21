@@ -452,12 +452,17 @@ test("invitation password + existing sign-in + google continuation branches pres
     assert.equal(acceptPassword.status, 202);
     assert.equal(acceptPassword.body?.mfaRequired, true);
     assert.equal(acceptPassword.body?.nextPath, "/mfa/challenge");
+    assert.equal(
+      (session.pendingPostAuthContinuation as { returnPath?: string } | undefined)?.returnPath,
+      "/invitations/invite-password-token/accept",
+    );
 
     const mfaAfterPassword = await performJsonRequest(app, "POST", "/api/auth/mfa/challenge", {
       code: "RECOVERY-CODE",
     });
     assert.equal(mfaAfterPassword.status, 200);
     assert.equal(mfaAfterPassword.body?.nextPath, "/onboarding/user");
+    assert.notEqual(mfaAfterPassword.body?.nextPath, "/dashboard");
 
     const resolveSignin = await performJsonRequest(app, "GET", "/api/invitations/invite-signin-token/resolve");
     assert.equal(resolveSignin.status, 200);
