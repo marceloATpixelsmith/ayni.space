@@ -26,6 +26,11 @@ test("admin preview rejects unsupported template tokens", async () => {
       textTemplate: null,
       isActive: true,
     })),
+    patchProperty(db, "update", (() => ({
+      set: () => ({
+        where: async () => undefined,
+      }),
+    })) as unknown as typeof db.update),
   ];
 
   try {
