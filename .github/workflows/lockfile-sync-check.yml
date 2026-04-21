@@ -30,5 +30,10 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Refresh pnpm store metadata
+        run: |
+          pnpm store prune
+          rm -rf "$(pnpm store path)/metadata"
+
       - name: Validate lockfile sync
         run: pnpm install --frozen-lockfile
