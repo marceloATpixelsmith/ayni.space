@@ -70,9 +70,30 @@ vi.mock("@workspace/frontend-security", async (importOriginal) => {
 vi.mock("../pages/auth/Login", () => ({
   default: () => <h1>Welcome</h1>,
 }));
-vi.mock("../pages/auth/Signup", () => ({
-  default: () => <h1>Create account</h1>,
-}));
+vi.mock("../pages/auth/Signup", async () => {
+  const { useLocation } = await import("wouter");
+  const {
+    useCurrentPlatformAppMetadata,
+    deriveAppAuthRoutePolicy,
+  } = await import("@workspace/frontend-security");
+
+  return {
+    default: () => {
+      const [location, setLocation] = useLocation();
+      const { metadata, loading } = useCurrentPlatformAppMetadata();
+      const signupAllowed = deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+
+      React.useEffect(() => {
+        if (loading || signupAllowed) return;
+        if (location !== "/signup") return;
+        setLocation("/login");
+      }, [loading, signupAllowed, location, setLocation]);
+
+      if (!signupAllowed) return null;
+      return <h1>Create account</h1>;
+    },
+  };
+});
 vi.mock("../pages/auth/ForgotPassword", () => ({
   default: () => <div>Forgot password page</div>,
 }));
