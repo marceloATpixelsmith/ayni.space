@@ -22,6 +22,7 @@ const { default: usersRouter } = await import("../routes/users.js");
 const sessionLib = await import("../lib/session.js");
 const sessionGroupLib = await import("../lib/sessionGroup.js");
 const { createSecurityEnforcementMiddleware } = await import("../lib/securityPolicy.js");
+const { csrfProtection, originRefererProtection } = await import("../middlewares/csrf.js");
 const ADMIN_OAUTH_STATE = "admin.valid-state.eyJub25jZSI6InZhbGlkLXN0YXRlIiwiYXBwU2x1ZyI6ImFkbWluIiwicmV0dXJuVG8iOiJodHRwOi8vYWRtaW4ubG9jYWwiLCJzZXNzaW9uR3JvdXAiOiJhZG1pbiJ9";
 
 function createSessionGroupApp(handlers: Map<string, RequestHandler>) {
@@ -555,4 +556,45 @@ test("PART 9+10: CORS and ambiguous session-group resolution fail closed", async
     cookie: "saas.workspace.sid=workspace-cookie; saas.admin.sid=admin-cookie",
   });
   assert.equal(ambiguous.status, 400);
+});
+
+test("PART 11: CSRF/origin failures expose stable machine-readable error codes", async () => {
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    (req as any).session = {};
+    next();
+  });
+  app.post("/api/security/csrf", csrfProtection, (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+  app.post(
+    "/api/security/origin",
+    originRefererProtection(["http://workspace.local"]),
+    (_req, res) => {
+      res.status(200).json({ ok: true });
+    },
+  );
+
+  const csrfMismatch = await request(app, "/api/security/csrf", "POST", {
+    "x-csrf-token": "wrong",
+  });
+  assert.equal(csrfMismatch.status, 403);
+  assert.equal((await csrfMismatch.json() as { code?: string }).code, "CSRF_INVALID");
+
+  const missingOrigin = await request(app, "/api/security/origin", "POST");
+  assert.equal(missingOrigin.status, 403);
+  assert.equal(
+    (await missingOrigin.json() as { code?: string }).code,
+    "ORIGIN_OR_REFERER_REQUIRED",
+  );
+
+  const invalidOrigin = await request(app, "/api/security/origin", "POST", {
+    origin: "http://evil.local",
+  });
+  assert.equal(invalidOrigin.status, 403);
+  assert.equal(
+    (await invalidOrigin.json() as { code?: string }).code,
+    "ORIGIN_OR_REFERER_INVALID",
+  );
 });

@@ -19,7 +19,7 @@
   - `.github/workflows/auto-merge.yml` enables rebase auto-merge for `codex/*` PRs targeting `master`.
 - Auth security regression workflow:
   - `.github/workflows/auth-security-regression-suite.yml` runs the dedicated auth/session/security integration suite on every PR to `master` and every push to `master` (no path filters).
-  - Enforced command: `pnpm run test:auth-security-regression`.
+  - Enforced command: `pnpm run test:auth-security-regression` (admin auth runtime routes + backend auth core, session-group/MFA-pending, journey orchestration, and invitation-MFA continuation tests).
 - Repository currently contains **no GitHub Actions deploy workflow for the admin frontend**.
 
 ## Inferred

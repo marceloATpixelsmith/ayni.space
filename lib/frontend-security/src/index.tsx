@@ -418,10 +418,10 @@ export function mapVerifyEmailError(
   if (payload?.code === "VERIFICATION_TOKEN_INVALID") {
     return "This verification link is invalid.";
   }
-  if (
-    response?.status === 403 &&
-    payload?.error?.toLowerCase().includes("csrf")
-  ) {
+  if (payload?.code === "CSRF_INVALID") {
+    return "Security check failed. Please retry the verification link.";
+  }
+  if (response?.status === 403) {
     return "Security check failed. Please retry the verification link.";
   }
   return payload?.error ?? "Unable to verify email.";
