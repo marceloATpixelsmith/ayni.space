@@ -17,16 +17,18 @@
 - CORS/origin behavior (allowed origin succeeds, disallowed origin blocked, preflight handled correctly).
 - Fail-closed behavior (missing session denied, invalid/ambiguous group resolution denied).
 - Route-level auth journey coverage now includes explicit backend route chains for signup/verify-email/MFA/onboarding/dashboard, invitation accept branches (password/sign-in/google continuations), and forgot/reset-password bootstrap cleanup (`apps/api-server/src/__tests__/auth-real-journey-routes.test.ts`).
-- Frontend auth route/page contract coverage now includes route-guard outcomes (unauthenticated, MFA-pending, onboarding, denied), login/signup branching, superadmin affordance hiding, and invitation continuation branch assertions (`apps/admin/src/__tests__/auth-page-route-journeys.contract.test.mjs`).
+- Frontend auth runtime coverage now includes route-guard outcomes (unauthenticated, MFA-pending, onboarding, denied), login/signup branching, superadmin affordance hiding, and invitation continuation branch assertions (`apps/admin/src/__tests__/auth-routing.runtime.test.tsx`, `apps/admin/src/__tests__/invitation-flow.runtime.test.tsx`).
 
 ## Test location
 - `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts`
 
 ## How to run locally
-- From repository root:
+- From repository root (frontend runtime + targeted backend auth-flow proofs):
   - `pnpm run test:auth-security-regression`
-- Directly in API package:
-  - `pnpm --filter @workspace/api-server run test:auth-security-regression`
+- Frontend runtime auth tests only:
+  - `pnpm --filter @workspace/admin run test:auth-runtime`
+- Backend targeted auth-flow tests only:
+  - `pnpm --filter @workspace/api-server exec tsx --test src/__tests__/auth-real-journey-routes.test.ts src/__tests__/invitation-password-mfa-routing.test.ts`
 
 ## Required GitHub check
 - Workflow name: `Auth Security Regression Suite`

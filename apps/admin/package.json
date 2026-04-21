@@ -9,7 +9,8 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:security-shell": "node --test src/__tests__/security-shell.contract.test.mjs",
-    "test": "vitest run --config vitest.config.ts --pool=forks --poolOptions.forks.singleFork --poolOptions.forks.isolate=false --maxWorkers=1 --minWorkers=1"
+    "test": "vitest run --config vitest.config.ts --pool=forks --poolOptions.forks.singleFork --poolOptions.forks.isolate=false --maxWorkers=1 --minWorkers=1",
+    "test:auth-runtime": "vitest run --config vitest.config.ts src/__tests__/auth-routing.runtime.test.tsx src/__tests__/invitation-flow.runtime.test.tsx"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
