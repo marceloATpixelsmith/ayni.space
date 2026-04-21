@@ -12,7 +12,7 @@
   - `.github/workflows/backend-ci-summary.yml` runs on `pull_request` to `master`, queries checks for both `pull_request.head.sha` and `pull_request.merge_commit_sha` via GitHub API, then summarizes from the SHA with the most observed required checks (`backend-typecheck`, `backend-build-api`, `backend-api-tests`, `api-regression-suite`, and `auth-security-regression-suite`) into one PR-attached `backend-ci-summary` check.
   - Backend gate CI runs with `BACKEND_TRACE_VERBOSE=0` by default to suppress high-volume auth/CORS trace logs; set `BACKEND_TRACE_VERBOSE=1` to restore deep trace output for diagnostics.
   - `.github/workflows/lockfile-sync-check.yml` enforces `pnpm install --frozen-lockfile` for dependency/workflow-affecting PRs.
-  - Backend/API/auth regression workflows and the lockfile sync check now run a deterministic pnpm store refresh step (`pnpm store prune` plus removal of `$(pnpm store path)/metadata`) immediately before frozen install to recover from stale/corrupted runner cache metadata without relaxing lockfile enforcement.
+  - Backend/API/auth regression workflows and the lockfile sync check disable `setup-node` pnpm cache restore and run a deterministic pnpm store reset step (`STORE_PATH="$(pnpm store path --silent)"` then `rm -rf "$STORE_PATH"`) immediately before frozen install so stale/corrupted tarballs cannot survive into `pnpm install --frozen-lockfile`.
   - `.github/workflows/linear-history-enforcement.yml` enforces no-merge-commit (linear/rebase-only) PR history.
 - PR governance workflows:
   - `.github/workflows/auto-rebase.yml` rebases `codex/*` PR branches onto latest `master`.

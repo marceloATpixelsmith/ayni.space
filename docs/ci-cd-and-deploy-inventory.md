@@ -15,7 +15,7 @@
 - The backend summary output block is emitted to both workflow logs and `$GITHUB_STEP_SUMMARY` with `OVERALL RESULT`, `FAILED CHECKS`, and `PASSED CHECKS`.
 - Backend regression gates default `BACKEND_TRACE_VERBOSE=0` so CI logs stay concise; verbose auth/CORS traces can be re-enabled by setting `BACKEND_TRACE_VERBOSE=1`.
 - `.github/workflows/lockfile-sync-check.yml` enforces frozen lockfile install checks on PRs touching dependency/workflow metadata.
-- Backend/API/auth regression workflows and `.github/workflows/lockfile-sync-check.yml` refresh pnpm store state before install (`pnpm store prune` and clearing `$(pnpm store path)/metadata`) to mitigate transient `ERR_PNPM_TARBALL_INTEGRITY` cache corruption while preserving `pnpm install --frozen-lockfile`.
+- Backend/API/auth regression workflows and `.github/workflows/lockfile-sync-check.yml` now disable `setup-node` pnpm cache restore and reset the pnpm store path (`rm -rf "$(pnpm store path --silent)"`) immediately before `pnpm install --frozen-lockfile` to prevent stale/corrupt tarballs from causing `ERR_PNPM_TARBALL_INTEGRITY`.
 - `.github/workflows/linear-history-enforcement.yml` blocks PRs with merge commits (rebase-only history).
 - `.github/workflows/auto-rebase.yml` and `.github/workflows/auto-merge.yml` automate Codex PR maintenance/merge behavior for `master`-targeting codex branches.
 - There is currently **no GitHub Actions deployment workflow** for the admin frontend.

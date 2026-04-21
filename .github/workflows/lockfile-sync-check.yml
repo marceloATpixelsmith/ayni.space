@@ -28,12 +28,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: pnpm
 
-      - name: Refresh pnpm store metadata
+      - name: Reset pnpm store before install
         run: |
-          pnpm store prune
-          rm -rf "$(pnpm store path)/metadata"
+          STORE_PATH="$(pnpm store path --silent)"
+          rm -rf "$STORE_PATH"
+          mkdir -p "$STORE_PATH"
 
       - name: Validate lockfile sync
         run: pnpm install --frozen-lockfile
