@@ -80,20 +80,24 @@ test("getMfaIssuerForAppSlug falls back safely", async () => {
   }
 });
 
-test("getMfaIssuerForAppSlug resolves per-app issuer when present", async () => {
+test("getMfaIssuerForAppSlug resolves canonical per-app issuer values when present", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({
       innerJoin: () => ([
-        { appId: "a1", appSlug: "admin", key: "MFA_ISSUER", value: "Admin Issuer", valueType: "string" },
-        { appId: "a2", appSlug: "ayni", key: "MFA_ISSUER", value: "Ayni Issuer", valueType: "string" },
+        { appId: "a1", appSlug: "admin", key: "MFA_ISSUER", value: "Ayni Admin", valueType: "string" },
+        { appId: "a2", appSlug: "ayni", key: "MFA_ISSUER", value: "Ayni", valueType: "string" },
+        { appId: "a3", appSlug: "shipibo", key: "MFA_ISSUER", value: "Shipibo", valueType: "string" },
+        { appId: "a4", appSlug: "screening", key: "MFA_ISSUER", value: "Ayni Screening", valueType: "string" },
       ]),
     }),
   })) as unknown as typeof db.select);
   try {
     await settings.refreshSettingsCache({ force: true });
-    assert.equal(await settings.getMfaIssuerForAppSlug("admin", "fallback"), "Admin Issuer");
-    assert.equal(await settings.getMfaIssuerForAppSlug("ayni", "fallback"), "Ayni Issuer");
+    assert.equal(await settings.getMfaIssuerForAppSlug("admin", "fallback"), "Ayni Admin");
+    assert.equal(await settings.getMfaIssuerForAppSlug("ayni", "fallback"), "Ayni");
+    assert.equal(await settings.getMfaIssuerForAppSlug("shipibo", "fallback"), "Shipibo");
+    assert.equal(await settings.getMfaIssuerForAppSlug("screening", "fallback"), "Ayni Screening");
   } finally {
     restore();
     restoreSelect();

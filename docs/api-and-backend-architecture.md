@@ -42,10 +42,6 @@ After DB-backed runtime settings rollout is complete, remove these non-secret de
 - `IPQS_BLOCK_THRESHOLD`
 - `IPQS_STEP_UP_THRESHOLD`
 - `IPQS_TIMEOUT_MS`
-- `RATE_LIMIT_ENABLED`
-- `RATE_LIMIT_WINDOW_MS`
-- `RATE_LIMIT_MAX`
-- `AUTH_RATE_LIMIT_MAX`
 - `OPENAI_MAX_RETRIES`
 - `OPENAI_MODEL`
 - `OPENAI_TEMPERATURE`
@@ -62,6 +58,8 @@ Runtime settings rollout source-of-truth migrations are:
 - `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`
 - `lib/db/migrations/20260420_runtime_settings_completion.sql`
 - `lib/db/migrations/20260421_runtime_settings_canonicalization.sql` (**authoritative final canonicalization pass**)
+
+The canonicalization migration is registered in the live Drizzle migration chain at `lib/db/migrations/meta/_journal.json` and must remain registered for new environments.
 
 Canonical runtime-settings final state is established by `20260421_runtime_settings_canonicalization.sql`:
 
