@@ -211,6 +211,29 @@ test("invitation acceptance route does not hardcode dashboard masking fallback",
   );
 });
 
+test("finalizeInvitationAcceptance resolves post-auth destination through canonical resolver only", () => {
+  const invitationsRouteSource = readFileSync(
+    new URL("../routes/invitations.ts", import.meta.url),
+    "utf8",
+  );
+  const functionStart = invitationsRouteSource.indexOf("async function finalizeInvitationAcceptance(");
+  assert.notEqual(functionStart, -1, "Expected finalizeInvitationAcceptance() to exist.");
+  const functionEnd = invitationsRouteSource.indexOf("\n\nasync function listInvitations", functionStart);
+  assert.notEqual(functionEnd, -1, "Expected finalizeInvitationAcceptance() boundary to be discoverable.");
+  const finalizeSource = invitationsRouteSource.slice(functionStart, functionEnd);
+
+  assert.equal(
+    finalizeSource.includes('"/dashboard"'),
+    false,
+    "finalizeInvitationAcceptance() must not contain /dashboard fallback shortcuts.",
+  );
+  assert.equal(
+    finalizeSource.includes("resolveAuthenticatedPostAuthDestination({"),
+    true,
+    "finalizeInvitationAcceptance() must route destination resolution through canonical resolver.",
+  );
+});
+
 test("requireAuth enforces MFA-pending behavior consistently across /api/auth/me and protected routes", async () => {
   const restore = patchProperty(db.query.usersTable, "findFirst", async () => ({
     id: "user-pending-1",

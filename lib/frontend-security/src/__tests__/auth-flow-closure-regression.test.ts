@@ -119,9 +119,9 @@ test("POST-AUTH CONTINUATION COMPETITION: MFA first, onboarding second, continua
     } as never,
     continuationPath: "/totally-invalid",
     deniedLoginPath: "/login?error=access_denied",
-    defaultPath: "/dashboard",
+    defaultPath: "/",
   });
-  assert.equal(defaultLast.destination, "/dashboard");
+  assert.equal(defaultLast.destination, "/");
 });
 
 test("STANDARD LOGIN ACCESS-DENIED BRANCH: denied access always overrides continuation", () => {
@@ -163,7 +163,7 @@ test("ORG ADMIN SIGNUP + SOLO SIGNUP journey destinations stay deterministic acr
     } as never,
     continuationPath: "/invitations/org-token/accept",
     deniedLoginPath: "/login?error=access_denied",
-    defaultPath: "/dashboard",
+    defaultPath: "/",
   });
   assert.equal(orgPostMfa.destination, "/onboarding/organization");
 
@@ -187,7 +187,7 @@ test("ORG ADMIN SIGNUP + SOLO SIGNUP journey destinations stay deterministic acr
     } as never,
     continuationPath: "/dashboard/apps",
     deniedLoginPath: "/login?error=access_denied",
-    defaultPath: "/dashboard",
+    defaultPath: "/",
   });
   assert.equal(soloPostMfa.destination, "/dashboard/apps");
   assert.notEqual(soloPostMfa.destination, "/onboarding/organization");
