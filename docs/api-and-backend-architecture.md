@@ -68,6 +68,7 @@ Runtime settings rollout source-of-truth migrations are:
 - `lib/db/migrations/20260421_canonical_app_config.sql` (**authoritative canonical app-config pass**)
 
 The runtime-settings migrations are registered in the live Drizzle migration chain at `lib/db/migrations/meta/_journal.json` and must remain registered for new environments.
+`lib/db/migrations/20260421_runtime_settings_canonicalization.sql` remains in the chain as a valid-key canonicalization pass only (global `platform.settings` + supported per-app runtime keys) and no longer seeds deprecated app-setting keys (`ALLOWED_ORIGIN`, `ALLOWED_ORIGINS`, `VITE_TURNSTILE_SITE_KEY`).
 
 Canonical app identity/runtime final state is established by `20260421_canonical_app_config.sql`:
 
