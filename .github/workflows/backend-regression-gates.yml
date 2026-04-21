@@ -48,7 +48,7 @@ jobs:
           fi
           exit "$status"
       - name: Upload backend-typecheck failure log
-        if: failure()
+        if: ${{ failure() && hashFiles('ci-output/backend-typecheck.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-typecheck-failure-log
@@ -89,7 +89,7 @@ jobs:
           fi
           exit "$status"
       - name: Upload backend-build-api failure log
-        if: failure()
+        if: ${{ failure() && hashFiles('ci-output/backend-build-api.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-build-api-failure-log
@@ -131,7 +131,7 @@ jobs:
           fi
           exit "$status"
       - name: Upload backend-api-tests failure log
-        if: failure()
+        if: ${{ failure() && hashFiles('ci-output/backend-api-tests.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-api-tests-failure-log
