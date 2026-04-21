@@ -65,11 +65,11 @@ Runtime settings rollout source-of-truth migrations are:
 - `lib/db/migrations/20260420_platform_runtime_settings.sql`
 - `lib/db/migrations/20260420_frontend_runtime_app_settings.sql`
 - `lib/db/migrations/20260420_runtime_settings_completion.sql`
-- `lib/db/migrations/20260421_runtime_settings_canonicalization.sql` (**authoritative final canonicalization pass**)
+- `lib/db/migrations/20260421_canonical_app_config.sql` (**authoritative canonical app-config pass**)
 
-The canonicalization migration is registered in the live Drizzle migration chain at `lib/db/migrations/meta/_journal.json` and must remain registered for new environments.
+The runtime-settings migrations are registered in the live Drizzle migration chain at `lib/db/migrations/meta/_journal.json` and must remain registered for new environments.
 
-Canonical runtime-settings final state is established by `20260421_runtime_settings_canonicalization.sql`:
+Canonical app identity/runtime final state is established by `20260421_canonical_app_config.sql`:
 
 - Canonical app origin source is `platform.apps.domain` (legacy `ALLOWED_ORIGINS` app-setting rows are removed).
 - Canonical app MFA issuers are seeded as:
@@ -77,7 +77,7 @@ Canonical runtime-settings final state is established by `20260421_runtime_setti
   - `ayni` → `Ayni`
   - `shipibo` → `Shipibo`
   - `screening` → `Ayni Screening`
-- Earlier overlapping 2026-04-20 migrations remain historical and safe to keep for already-applied databases; final effective values are intentionally normalized by the 2026-04-21 migration.
+- Earlier overlapping 2026-04-20 and 2026-04-21 migrations remain historical and safe to keep for already-applied databases; final effective app identity/runtime values are intentionally normalized and enforced by `20260421_canonical_app_config.sql`, while broader DB-backed runtime settings remain active through `platform.settings` + `platform.app_settings`.
 
 Keep env only for secrets/bootstrap/infra values (for example `VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional `BASE_PATH`, session/database secrets, provider API keys, and other boot-time infra values).
 
