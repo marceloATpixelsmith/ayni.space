@@ -12,6 +12,8 @@ Authentication uses the `saas.sid` cookie-backed session. For authenticated stat
 
 export interface FrontendRuntimeSettings {
   appSlug: string;
+  domain: string;
+  baseUrl: string;
   apiBaseUrl: string;
   basePath: string;
   authDebug: boolean;

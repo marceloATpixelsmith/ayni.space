@@ -43,9 +43,9 @@ async function seed() {
   const adminAppId = "admin";
 
   const appsToSeed = [
-    { id: adminAppId, name: "Admin", slug: "admin", accessMode: "superadmin", staffInvitesEnabled: false, customerRegistrationEnabled: false, isActive: true },
-    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", accessMode: "solo", staffInvitesEnabled: false, customerRegistrationEnabled: true, isActive: true },
-    { id: ayniAppId, name: "Ayni", slug: "ayni", accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: true, isActive: true },
+    { id: adminAppId, name: "Admin", slug: "admin", domain: "admin.localhost:5173", baseUrl: "http://admin.localhost:5173", accessMode: "superadmin", staffInvitesEnabled: false, customerRegistrationEnabled: false, isActive: true },
+    { id: shipiboAppId, name: "Shipibo", slug: "shipibo", domain: "shipibo.localhost:5173", baseUrl: "http://shipibo.localhost:5173", accessMode: "solo", staffInvitesEnabled: false, customerRegistrationEnabled: true, isActive: true },
+    { id: ayniAppId, name: "Ayni", slug: "ayni", domain: "ayni.localhost:5173", baseUrl: "http://ayni.localhost:5173", accessMode: "organization", staffInvitesEnabled: true, customerRegistrationEnabled: true, isActive: true },
   ] satisfies InsertApp[];
 
   await db.insert(appsTable).values(appsToSeed).onConflictDoNothing();

@@ -33,7 +33,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 ## 2) Confirmed implemented controls
 
 ### A) Edge/perimeter-adjacent (app-layer perimeter)
-- **CORS allowlist + credentialed requests** in backend app bootstrap (canonical app runtime key `ALLOWED_ORIGIN`, resolved from `platform.app_settings`; env fallback is safety-only when canonical DB rows are absent, dynamic origin check, credentials true).
+- **CORS allowlist + credentialed requests** in backend app bootstrap (canonical source is active `platform.apps.domain` values; optional `ALLOWED_ORIGINS` env entries extend the allowlist, dynamic origin check, credentials true).
   - `apps/api-server/src/app.ts`
 - **Origin/Referer verification middleware** for sensitive routes (with explicit OAuth callback exception).
   - `apps/api-server/src/middlewares/csrf.ts`
@@ -302,7 +302,7 @@ At the same time, there are still notable **operational and perimeter gaps**: ed
 | Control area | Status | Evidence | Notes / risk |
 |---|---|---|---|
 | Security headers (API) | Implemented | `apps/api-server/src/middlewares/securityHeaders.ts` | Good baseline; CSP includes `unsafe-inline` (risk tradeoff). |
-| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Canonical app-origin key is `ALLOWED_ORIGIN`, with runtime resolution from `platform.app_settings`; env fallback is safety-only if canonical DB rows are absent, and legacy `ALLOWED_ORIGINS` is not part of the canonical runtime contract. |
+| CORS allowlist | Implemented | `apps/api-server/src/app.ts` | Canonical app-origin source is `platform.apps.domain` (protocol-normalized per app); optional `ALLOWED_ORIGINS` env values extend the set. |
 | CSRF token validation | Implemented | `apps/api-server/src/middlewares/csrf.ts`, `lib/api-client-react/src/custom-fetch.ts` | Solid session-bound token pattern. |
 | Origin/Referer protection | Implemented | `apps/api-server/src/middlewares/csrf.ts` | Defense-in-depth; allows auth callback exception. |
 | Backend auth | Implemented | `apps/api-server/src/lib/auth.ts`, `apps/api-server/src/routes/auth.ts` | OAuth state validated; optional hosted domain check. |
@@ -408,7 +408,7 @@ Security posture is **moderately strong at the app layer** for a SaaS baseline, 
 ## Contradictions between docs and code
 1. **Role model mismatch**: narrative docs/readme mention roles like `owner/admin/member/viewer`, while backend RBAC constants and org admin checks use `org_owner/org_admin/staff`.
    - Evidence: `README.md`, `replit.md`, `apps/api-server/src/lib/rbac.ts`, `apps/api-server/src/routes/organizations.ts`, `apps/admin/src/pages/dashboard/Invitations.tsx`.
-2. **Origin runtime contract mismatch resolved**: canonical app-origin config is now `ALLOWED_ORIGIN` resolved from `platform.app_settings`; legacy `ALLOWED_ORIGINS` remains only as non-canonical emergency fallback and no longer represents normal runtime configuration.
+2. **Origin runtime contract mismatch resolved**: canonical app-origin config is now `platform.apps.domain`; `ALLOWED_ORIGINS` remains env-only extension input and no longer belongs in app settings.
    - Evidence: `apps/api-server/src/app.ts`, `lib/db/src/schema/apps.ts`, `.env.example`.
 3. **Rate-limit guidance drift**: portability doc says “consider adding express-rate-limit,” while code already has a custom rate limiter mounted (though optional).
    - Evidence: `PORTABILITY.md`, `apps/api-server/src/middlewares/rateLimit.ts`, `apps/api-server/src/app.ts`.

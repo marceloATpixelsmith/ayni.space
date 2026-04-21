@@ -3,6 +3,8 @@ import React from "react";
 export type FrontendRuntimeSettings = {
   apiBaseUrl: string;
   appSlug: string;
+  domain: string;
+  baseUrl: string;
   basePath: string;
   authDebug: boolean;
   sentryEnvironment: string;
@@ -13,7 +15,7 @@ export type FrontendRuntimeSettings = {
 type FrontendRuntimeSettingsPatch = Partial<FrontendRuntimeSettings>;
 type HydratedFrontendRuntimeSettingsPatch = Pick<
   FrontendRuntimeSettingsPatch,
-  "authDebug" | "sentryEnvironment" | "sentryDsn" | "turnstileSiteKey"
+  "authDebug" | "sentryEnvironment" | "sentryDsn" | "turnstileSiteKey" | "domain" | "baseUrl"
 >;
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
@@ -25,6 +27,8 @@ function parseString(value: string | undefined, fallback: string) {
 let state: FrontendRuntimeSettings = {
   apiBaseUrl: parseString(env.VITE_API_BASE_URL, ""),
   appSlug: parseString(env.VITE_APP_SLUG, "admin"),
+  domain: "",
+  baseUrl: "",
   basePath: parseString(env.BASE_PATH, "/"),
   authDebug: false,
   sentryEnvironment: env.MODE ?? "development",
@@ -69,6 +73,8 @@ export function applyHydratedFrontendRuntimeSettings(patch: HydratedFrontendRunt
     sentryEnvironment: patch.sentryEnvironment,
     sentryDsn: patch.sentryDsn,
     turnstileSiteKey: patch.turnstileSiteKey,
+    domain: patch.domain ?? state.domain,
+    baseUrl: patch.baseUrl ?? state.baseUrl,
   });
 }
 

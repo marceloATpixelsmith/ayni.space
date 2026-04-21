@@ -59,7 +59,14 @@ router.get("/settings", async (_req, res) => {
 
   res.json({
     ...all,
-    apps: apps.map((app: { id: string; slug: string; name: string }) => ({ id: app.id, slug: app.slug, name: app.name })),
+    apps: apps.map((app: { id: string; slug: string; name: string; domain: string; baseUrl: string | null; turnstileSiteKeyOverride: string | null }) => ({
+      id: app.id,
+      slug: app.slug,
+      name: app.name,
+      domain: app.domain,
+      baseUrl: app.baseUrl,
+      turnstileSiteKeyOverride: app.turnstileSiteKeyOverride,
+    })),
     editableKeyRegistry: {
       global: GLOBAL_RUNTIME_SETTING_DEFINITIONS,
       app: APP_RUNTIME_SETTING_DEFINITIONS,
@@ -126,7 +133,14 @@ router.get("/apps/:id/settings", async (req, res) => {
   }).from(appSettingsTable).innerJoin(appsTable, eq(appSettingsTable.appId, appsTable.id)).where(eq(appSettingsTable.appId, appId));
 
   res.json({
-    app: { id: app.id, slug: app.slug, name: app.name },
+    app: {
+      id: app.id,
+      slug: app.slug,
+      name: app.name,
+      domain: app.domain,
+      baseUrl: app.baseUrl,
+      turnstileSiteKeyOverride: app.turnstileSiteKeyOverride,
+    },
     appSettings,
   });
 });

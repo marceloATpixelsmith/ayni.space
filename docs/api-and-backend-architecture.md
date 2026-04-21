@@ -11,17 +11,18 @@
 - The API server is the single active backend gateway in current repository state.
 - Lane 2 transactional email foundation is implemented as a shared backend integration package at `lib/integrations/transactional-email` with provider-agnostic contracts and adapter scaffolding for Brevo and Mailchimp Transactional.
 - Lane 1 notification email delivery (invitation + email verification + password reset) is implemented in `apps/api-server/src/routes/invitations.ts`, `apps/api-server/src/routes/auth.ts`, and `apps/api-server/src/lib/invitationEmail.ts` using template resolution from `platform.email_templates` with app-level override + platform-default fallback and platform-owned provider credentials from environment variables.
-- Runtime non-secret backend configuration is now split into cross-app `platform.settings` and app-scoped `platform.app_settings`, with API/runtime reads routed through `apps/api-server/src/lib/runtimeSettings.ts` + `apps/api-server/src/lib/settings.ts` and schema/migration definitions under `lib/db/src/schema/settings.ts`.
+- Runtime non-secret backend configuration now uses `platform.settings` for cross-app keys and `platform.apps` for canonical app identity/runtime fields (`domain`, `base_url`, `turnstile_site_key_override`), with app-scoped toggles that remain in `platform.app_settings` (for example `MFA_ISSUER`, frontend auth/sentry flags) routed through `apps/api-server/src/lib/runtimeSettings.ts` + `apps/api-server/src/lib/settings.ts`.
 - Platform settings management APIs are available under `/api/platform/settings` and `/api/platform/apps/:id/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/platform.ts` (legacy `/api/admin/settings` remains available in `apps/api-server/src/routes/admin.ts`).
-- Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`). Bootstrap env remains the startup source of truth for app identity/reachability (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`), while hydrated DB settings drive runtime behavior (`authDebug`, `sentryEnvironment`, `sentryDsn`, `turnstileSiteKey`) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
+- Frontend non-secret runtime settings are served per app via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`). Bootstrap env remains the startup source of truth for app identity/reachability (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`), while hydrated DB settings drive runtime behavior (`authDebug`, `sentryEnvironment`, `sentryDsn`) plus app-canonical values (`domain`, `baseUrl`, resolved `turnstileSiteKey`) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
 - Superadmin runtime settings management is now standardized on protected platform endpoints (`GET/PATCH /api/platform/settings`, `GET/PATCH /api/platform/apps/:id/settings`) with explicit non-secret key allowlists and typed value handling (`apps/api-server/src/routes/platform.ts`, `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/lib/settings.ts`).
 - Runtime settings editability policy is now explicit and enforced in code:
   - **Operator-editable global keys:** `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `TURNSTILE_ENABLED`, `IPQS_BLOCK_THRESHOLD`, `IPQS_STEP_UP_THRESHOLD`, `IPQS_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE`, `OPENAI_TIMEOUT_MS`.
   - **Seeded (not operator-editable) global key:** `GOOGLE_REDIRECT_URI` (provider-coupled).
-  - **Operator-editable app keys:** `ALLOWED_ORIGIN`, `MFA_ISSUER`, `VITE_AUTH_DEBUG`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_DSN`, `VITE_TURNSTILE_SITE_KEY`.
+  - **Operator-editable app keys:** `MFA_ISSUER`, `VITE_AUTH_DEBUG`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_DSN`.
   - **Bootstrap mirror app keys (seeded, not operator-editable):** `VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`.
   - Enforcement source of truth is `apps/api-server/src/lib/settings.ts` definitions consumed by `/api/platform/*settings` routes in `apps/api-server/src/routes/platform.ts`.
-- Legacy app key `ALLOWED_ORIGINS` is no longer used by runtime resolution; effective allowed origins now read canonical `ALLOWED_ORIGIN` app rows first, then env fallback only when app rows are absent (`apps/api-server/src/lib/settings.ts`).
+- Allowed origins now derive from active `platform.apps.domain` values at runtime (with protocol normalization) and optional `ALLOWED_ORIGINS` env entries extend the final set (`apps/api-server/src/lib/settings.ts`).
+- Turnstile site key resolution is now: `platform.apps.turnstile_site_key_override` (if set) -> global env `VITE_TURNSTILE_SITE_KEY` fallback; `platform.app_settings` keys `VITE_TURNSTILE_SITE_KEY`/`ALLOWED_ORIGINS` are removed as invalid runtime config storage (`apps/api-server/src/lib/runtimeSettings.ts`, `lib/db/migrations/20260421_canonical_app_config.sql`).
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
 ## Inferred
@@ -56,7 +57,7 @@ After DB-backed runtime settings rollout is complete, remove these non-secret de
 - `VITE_AUTH_DEBUG`
 - `VITE_SENTRY_ENVIRONMENT`
 - `VITE_SENTRY_DSN`
-- `VITE_TURNSTILE_SITE_KEY`
+- `VITE_TURNSTILE_SITE_KEY` remains a global fallback only (do not store this in DB).
 
 Runtime settings rollout source-of-truth migrations are:
 
@@ -70,7 +71,7 @@ The canonicalization migration is registered in the live Drizzle migration chain
 
 Canonical runtime-settings final state is established by `20260421_runtime_settings_canonicalization.sql`:
 
-- Canonical app origin key is `ALLOWED_ORIGIN` (legacy `ALLOWED_ORIGINS` rows are removed in final migration).
+- Canonical app origin source is `platform.apps.domain` (legacy `ALLOWED_ORIGINS` app-setting rows are removed).
 - Canonical app MFA issuers are seeded as:
   - `admin` → `Ayni Admin`
   - `ayni` → `Ayni`
@@ -88,7 +89,7 @@ Keep env only for secrets/bootstrap/infra values (for example `VITE_API_BASE_URL
 
 ### `platform.app_settings` (per-app, non-secret runtime + frontend runtime)
 - Holds app-specific non-secret backend/frontend runtime values.
-- Operator-editable keys are app security/monitoring/runtime controls (`ALLOWED_ORIGIN`, `MFA_ISSUER`, auth debug, Sentry labels/DSN, Turnstile site key).
+- Operator-editable keys are app security/monitoring/runtime controls (`MFA_ISSUER`, auth debug, Sentry labels/DSN).
 - Bootstrap mirrors (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`) remain seeded for consistency but are not operator-editable in superadmin runtime settings APIs/UI.
 
 ### Bootstrap env (must remain env/bootstrap contract)

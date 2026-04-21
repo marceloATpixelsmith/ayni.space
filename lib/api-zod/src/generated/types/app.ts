@@ -15,6 +15,11 @@ export interface App {
   id: string;
   name: string;
   slug: string;
+  domain: string;
+  /** @nullable */
+  baseUrl?: string | null;
+  /** @nullable */
+  turnstileSiteKeyOverride?: string | null;
   /** @nullable */
   description?: string | null;
   /** @nullable */

@@ -14,4 +14,9 @@ export interface PlatformAppSummary {
   id: string;
   slug: string;
   name: string;
+  domain: string;
+  /** @nullable */
+  baseUrl?: string | null;
+  /** @nullable */
+  turnstileSiteKeyOverride?: string | null;
 }

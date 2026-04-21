@@ -15,6 +15,9 @@ export interface AppContext {
   app: {
     id: string;
     slug: AppSlug;
+    domain: string;
+    baseUrl: string | null;
+    turnstileSiteKeyOverride: string | null;
     accessMode: AppAccessMode;
     staffInvitesEnabled: boolean;
     customerRegistrationEnabled: boolean;
@@ -34,6 +37,6 @@ export interface AppContext {
     role: string;
     membershipStatus: MembershipStatus;
   } | null;
-  requiredOnboarding: "none" | "organization";
+  requiredOnboarding: "none" | "organization" | "user";
   defaultRoute: string;
 }

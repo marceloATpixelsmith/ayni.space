@@ -3,6 +3,7 @@ import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { normalizeEmail, hashOpaqueToken } from "../lib/passwordAuth.js";
 import { getGlobalSettingSnapshot, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "../lib/runtimeSettings.js";
+import { getAppCanonicalConfigBySlug } from "../lib/settings.js";
 
 type AuditWriter = (entry: Parameters<typeof writeAuditLog>[0]) => void | Promise<void>;
 const MFA_CHALLENGE_PATH_PATTERN = /^\/api\/auth\/mfa\/(challenge|recovery)\/?$/;
@@ -129,6 +130,9 @@ async function logTurnstileFailure(
   const key = `${req.path}:${getAbuseClientKey(req)}`;
   const signal = recordAbuseSignal(`turnstile:${key}`);
 
+  const appSlug = typeof metadata["appSlug"] === "string" ? metadata["appSlug"] : typeof req.body?.appSlug === "string" ? req.body.appSlug.trim() : typeof req.session?.appSlug === "string" ? req.session.appSlug : null;
+  const appCanonical = appSlug ? await getAppCanonicalConfigBySlug(appSlug) : null;
+
   await writeAuditLogFn({
     userId,
     action: signal.repeated ? "turnstile.failed.repeated" : "turnstile.failed",
@@ -142,6 +146,7 @@ async function logTurnstileFailure(
       path: req.path,
       correlationId: req.correlationId ?? null,
       ...getSignupAuditContext(req),
+      appDomain: appCanonical?.domain ?? null,
       ...getSignupTurnstileDecisionDetails(req.path, reason),
       ...metadata,
     },
