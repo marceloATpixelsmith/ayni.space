@@ -9,6 +9,14 @@ const { default: adminRouter } = await import("../routes/admin.js");
 
 test("admin preview rejects unsupported template tokens", async () => {
   const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => ({
+      id: "super-1",
+      email: "superadmin@example.com",
+      active: true,
+      suspended: false,
+      deletedAt: null,
+      isSuperAdmin: true,
+    })),
     patchProperty(db.query.emailTemplatesTable, "findFirst", async () => ({
       id: "tpl-default",
       appId: null,
