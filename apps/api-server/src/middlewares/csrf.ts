@@ -38,7 +38,7 @@ export const csrfProtection: RequestHandler = (req, res, next) => {
 
   const providedToken = req.get("x-csrf-token");
   if (!providedToken || providedToken !== token) {
-    res.status(403).json({ error: "Invalid CSRF token" });
+    res.status(403).json({ error: "Invalid CSRF token", code: "CSRF_INVALID" });
     return;
   }
 
@@ -91,7 +91,10 @@ export function originRefererProtection(allowedOrigins: string[] | (() => string
           (entry) => entry.method === req.method.toUpperCase() && entry.pattern.test(req.path),
         );
         if (!exceptionMatch) {
-          res.status(403).json({ error: "Origin or referer header required for unsafe requests" });
+          res.status(403).json({
+            error: "Origin or referer header required for unsafe requests",
+            code: "ORIGIN_OR_REFERER_REQUIRED",
+          });
           return;
         }
       }
@@ -110,13 +113,19 @@ export function originRefererProtection(allowedOrigins: string[] | (() => string
     });
 
     if (!valid) {
-      res.status(403).json({ error: "Invalid origin or referer" });
+      res.status(403).json({
+        error: "Invalid origin or referer",
+        code: "ORIGIN_OR_REFERER_INVALID",
+      });
       return;
     }
 
     next();
     }).catch(() => {
-      res.status(403).json({ error: "Invalid origin or referer" });
+      res.status(403).json({
+        error: "Invalid origin or referer",
+        code: "ORIGIN_OR_REFERER_INVALID",
+      });
     });
   };
 }

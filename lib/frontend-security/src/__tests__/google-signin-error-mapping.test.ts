@@ -53,7 +53,7 @@ test("maps verify-email token states and csrf failures distinctly", () => {
     "This verification link is invalid.",
   );
   assert.equal(
-    mapVerifyEmailError(makeResponse(403), { error: "Invalid CSRF token" }),
+    mapVerifyEmailError(makeResponse(403), { code: "CSRF_INVALID", error: "Invalid CSRF token" }),
     "Security check failed. Please retry the verification link.",
   );
 });
