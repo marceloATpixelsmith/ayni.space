@@ -21,28 +21,35 @@ ON CONFLICT (key) DO UPDATE SET
 
 WITH app_seed AS (
   SELECT * FROM (VALUES
-    ('admin', 'https://admin.ayni.space', 'Ayni Admin', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'admin', '0x4AAAAAAB9LjVgfMYRntfDt'),
-    ('ayni', 'https://ayni.ayni.space', 'Ayni', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'ayni', '0x4AAAAAAB9LjVgfMYRntfDt'),
-    ('shipibo', 'https://shipibo.ayni.space', 'Shipibo', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'shipibo', '0x4AAAAAAB9LjVgfMYRntfDt'),
-    ('screening', 'https://screening.ayni.space', 'Ayni Screening', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'screening', '0x4AAAAAAB9LjVgfMYRntfDt')
-  ) AS data(slug, allowed_origin, mfa_issuer, vite_auth_debug, vite_sentry_environment, vite_sentry_dsn, base_path, vite_api_base_url, vite_app_slug, vite_turnstile_site_key)
+    ('admin', 'Ayni Admin', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'admin'),
+    ('ayni', 'Ayni', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'ayni'),
+    ('shipibo', 'Shipibo', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'shipibo'),
+    ('screening', 'Ayni Screening', 'true', 'production', 'https://63816b2d3a49fb681239bc9a06c6f813@o4511067811282944.ingest.us.sentry.io/4511067970666496', '/', 'https://api.ayni.space', 'screening')
+  ) AS data(slug, mfa_issuer, vite_auth_debug, vite_sentry_environment, vite_sentry_dsn, base_path, vite_api_base_url, vite_app_slug)
 ), app_rows AS (
-  SELECT a.id AS app_id, a.slug, s.*
+  SELECT
+    a.id AS app_id,
+    a.slug AS app_slug,
+    s.mfa_issuer,
+    s.vite_auth_debug,
+    s.vite_sentry_environment,
+    s.vite_sentry_dsn,
+    s.base_path,
+    s.vite_api_base_url,
+    s.vite_app_slug
   FROM platform.apps a
   JOIN app_seed s ON s.slug = a.slug
 ), app_kv AS (
-  SELECT app_id, slug, 'ALLOWED_ORIGIN'::text AS key, allowed_origin::text AS value, 'string'::text AS value_type, 'Allowed browser origin for app'::text AS description FROM app_rows
-  UNION ALL SELECT app_id, slug, 'MFA_ISSUER', mfa_issuer, 'string', 'MFA issuer display label for app' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_AUTH_DEBUG', vite_auth_debug, 'boolean', 'Frontend auth debug panel toggle' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_SENTRY_ENVIRONMENT', vite_sentry_environment, 'string', 'Frontend Sentry environment label' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_SENTRY_DSN', vite_sentry_dsn, 'string', 'Frontend Sentry DSN (non-secret runtime value)' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'BASE_PATH', base_path, 'string', 'Frontend app base path' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_API_BASE_URL', vite_api_base_url, 'string', 'Frontend API base URL bootstrap/runtime mirror' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_APP_SLUG', vite_app_slug, 'string', 'Frontend app slug bootstrap/runtime mirror' FROM app_rows
-  UNION ALL SELECT app_id, slug, 'VITE_TURNSTILE_SITE_KEY', vite_turnstile_site_key, 'string', 'Cloudflare Turnstile site key (non-secret)' FROM app_rows
+  SELECT app_rows.app_id, app_rows.app_slug, 'MFA_ISSUER'::text AS key, app_rows.mfa_issuer::text AS value, 'string'::text AS value_type, 'MFA issuer display label for app'::text AS description FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'VITE_AUTH_DEBUG', app_rows.vite_auth_debug, 'boolean', 'Frontend auth debug panel toggle' FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'VITE_SENTRY_ENVIRONMENT', app_rows.vite_sentry_environment, 'string', 'Frontend Sentry environment label' FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'VITE_SENTRY_DSN', app_rows.vite_sentry_dsn, 'string', 'Frontend Sentry DSN (non-secret runtime value)' FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'BASE_PATH', app_rows.base_path, 'string', 'Frontend app base path' FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'VITE_API_BASE_URL', app_rows.vite_api_base_url, 'string', 'Frontend API base URL bootstrap/runtime mirror' FROM app_rows
+  UNION ALL SELECT app_rows.app_id, app_rows.app_slug, 'VITE_APP_SLUG', app_rows.vite_app_slug, 'string', 'Frontend app slug bootstrap/runtime mirror' FROM app_rows
 )
 INSERT INTO platform.app_settings (id, app_id, key, value, value_type, description)
-SELECT 'app_setting_' || lower(app_kv.slug) || '_' || lower(app_kv.key), app_kv.app_id, app_kv.key, app_kv.value, app_kv.value_type, app_kv.description
+SELECT 'app_setting_' || lower(app_kv.app_slug) || '_' || lower(app_kv.key), app_kv.app_id, app_kv.key, app_kv.value, app_kv.value_type, app_kv.description
 FROM app_kv
 ON CONFLICT (app_id, key) DO UPDATE SET
   value = EXCLUDED.value,
