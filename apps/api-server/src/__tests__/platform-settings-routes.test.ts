@@ -23,9 +23,37 @@ function mockSuperAdminUser() {
 }
 
 function mockDbForSuperAdminFlow() {
+  const updatedRow = {
+    id: "setting-1",
+    key: "SENTRY_ENVIRONMENT",
+    value: "production",
+    valueType: "string",
+    description: "desc",
+    updatedBy: "super-1",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
   const restores = [
     patchProperty(db.query.usersTable, "findFirst", async () => mockSuperAdminUser()),
-    patchProperty(db, "update", (() => ({ set: () => ({ where: async () => [] }), where: async () => [] })) as unknown as typeof db.update),
+    patchProperty(db.query.settingsTable, "findMany", async () => []),
+    patchProperty(db.query.settingsTable, "findFirst", async () => updatedRow),
+    patchProperty(db.query.appSettingsTable, "findFirst", async () => ({
+      ...updatedRow,
+      appId: "app-admin",
+      key: "ALLOWED_ORIGIN",
+    })),
+    patchProperty(db, "select", (() => ({
+      from: () => ({
+        innerJoin: () => [],
+      }),
+    })) as unknown as typeof db.select),
+    patchProperty(db, "update", (() => ({
+      set: (payload: Record<string, unknown>) => ({
+        where: () => ({
+          returning: async () => [{ ...updatedRow, ...payload }],
+        }),
+      }),
+    })) as unknown as typeof db.update),
   ];
   return () => {
     for (const restore of restores.reverse()) restore();
@@ -55,6 +83,42 @@ test("GET /api/platform/settings returns global + app settings payload", async (
     assert.equal(response.body.apps[0].slug, "admin");
     assert.equal(Array.isArray(response.body.editableKeyRegistry?.global), true);
     assert.equal(Array.isArray(response.body.editableKeyRegistry?.app), true);
+    assert.deepEqual(
+      response.body.editableKeyRegistry.global.find((entry: { key: string }) => entry.key === "SENTRY_ENVIRONMENT"),
+      {
+        key: "SENTRY_ENVIRONMENT",
+        valueType: "string",
+        editScope: "operator_editable",
+        description: "Backend Sentry environment label.",
+      },
+    );
+    assert.deepEqual(
+      response.body.editableKeyRegistry.global.find((entry: { key: string }) => entry.key === "GOOGLE_REDIRECT_URI"),
+      {
+        key: "GOOGLE_REDIRECT_URI",
+        valueType: "string",
+        editScope: "seeded_canonical",
+        description: "OAuth callback URI; changes require coordinated provider updates.",
+      },
+    );
+    assert.deepEqual(
+      response.body.editableKeyRegistry.app.find((entry: { key: string }) => entry.key === "ALLOWED_ORIGIN"),
+      {
+        key: "ALLOWED_ORIGIN",
+        valueType: "string",
+        editScope: "operator_editable",
+        description: "Allowed browser origin for the app.",
+      },
+    );
+    assert.deepEqual(
+      response.body.editableKeyRegistry.app.find((entry: { key: string }) => entry.key === "VITE_API_BASE_URL"),
+      {
+        key: "VITE_API_BASE_URL",
+        valueType: "string",
+        editScope: "bootstrap_mirror",
+        description: "Frontend API base URL mirror for bootstrap compatibility.",
+      },
+    );
   } finally {
     restoreAuth();
     restoreGlobal();
@@ -108,6 +172,22 @@ test("PATCH /api/platform/settings rejects seeded non-editable global key", asyn
   }
 });
 
+test("PATCH /api/platform/settings allows operator-editable global key", async () => {
+  const restoreAuth = mockDbForSuperAdminFlow();
+  try {
+    const app = createSessionApp(platformRouter, { userId: "super-1" });
+    const response = await performJsonRequest(app, "PATCH", "/api/settings", {
+      key: "SENTRY_ENVIRONMENT",
+      valueType: "string",
+      value: "staging",
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.setting.key, "SENTRY_ENVIRONMENT");
+  } finally {
+    restoreAuth();
+  }
+});
+
 test("PATCH /api/platform/apps/:id/settings rejects bootstrap mirror key", async () => {
   const restoreAuth = mockDbForSuperAdminFlow();
   try {
@@ -118,6 +198,22 @@ test("PATCH /api/platform/apps/:id/settings rejects bootstrap mirror key", async
       value: "https://api.new.example",
     });
     assert.equal(response.status, 400);
+  } finally {
+    restoreAuth();
+  }
+});
+
+test("PATCH /api/platform/apps/:id/settings allows operator-editable app key", async () => {
+  const restoreAuth = mockDbForSuperAdminFlow();
+  try {
+    const app = createSessionApp(platformRouter, { userId: "super-1" });
+    const response = await performJsonRequest(app, "PATCH", "/api/apps/app-admin/settings", {
+      key: "ALLOWED_ORIGIN",
+      valueType: "string",
+      value: "https://admin.example.com",
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.setting.key, "ALLOWED_ORIGIN");
   } finally {
     restoreAuth();
   }
