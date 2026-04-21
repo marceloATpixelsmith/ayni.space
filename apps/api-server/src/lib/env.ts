@@ -35,13 +35,6 @@ function validateLane1ProviderEnv() {
   if (process.env["NODE_ENV"] === "production" && !apiKey) throw new Error("PLATFORM_BREVO_API_KEY is required in production for lane1 invitation email delivery.");
 }
 
-function validatePositiveIntEnv(name: string) {
-  const raw = process.env[name];
-  if (raw === undefined) return;
-  const value = Number.parseInt(raw, 10);
-  if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive integer when set.`);
-}
-
 export function validateEnv() {
   const missing = REQUIRED_ENV_VARS.filter((name) => !process.env[name]);
   if (missing.length > 0) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
@@ -58,9 +51,4 @@ export function validateEnv() {
   if ("BREVO_WEBHOOK_SECRET" in process.env && !process.env["BREVO_WEBHOOK_SECRET"]) throw new Error("BREVO_WEBHOOK_SECRET is set but empty.");
   if ("MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY" in process.env && !process.env["MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY"]) throw new Error("MAILCHIMP_TRANSACTIONAL_WEBHOOK_KEY is set but empty.");
 
-  validatePositiveIntEnv("IPQS_TIMEOUT_MS");
-  validatePositiveIntEnv("IPQS_STEP_UP_THRESHOLD");
-  validatePositiveIntEnv("IPQS_BLOCK_THRESHOLD");
-  validatePositiveIntEnv("OPENAI_MAX_RETRIES");
-  validatePositiveIntEnv("OPENAI_TIMEOUT_MS");
 }
