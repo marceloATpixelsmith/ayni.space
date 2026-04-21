@@ -37,7 +37,6 @@ export async function assessSignupRiskWithIpqs(email: string, ipAddress: string 
   void refreshRuntimeCache();
   const timeoutMs = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_TIMEOUT_MS, process.env["IPQS_TIMEOUT_MS"] ?? 2000), 2000);
   const stepUpThreshold = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_STEP_UP_THRESHOLD, process.env["IPQS_STEP_UP_THRESHOLD"] ?? 75), 75);
-  const blockThreshold = parsePositive(getGlobalSettingSnapshot<number | string>(GLOBAL_SETTING_KEYS.IPQS_BLOCK_THRESHOLD, process.env["IPQS_BLOCK_THRESHOLD"] ?? 90), 90);
 
   if (!apiKey) {
     return {
@@ -63,7 +62,7 @@ export async function assessSignupRiskWithIpqs(email: string, ipAddress: string 
     const payload = (await response.json()) as Record<string, unknown>;
     const parsed = parseIpqsResponse(payload);
 
-    if (parsed.disposable || (parsed.fraudScore ?? 0) >= blockThreshold) {
+    if (parsed.disposable) {
       return { decision: "block", reason: "disposable_email", score: parsed.fraudScore, disposable: parsed.disposable, undeliverable: parsed.undeliverable, suspiciousIp: parsed.suspiciousIp, providerFailed: false };
     }
     if (parsed.undeliverable) {
