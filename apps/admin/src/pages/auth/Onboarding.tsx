@@ -102,7 +102,7 @@ export default function Onboarding() {
         if (nextPayload?.nextPath) {
           setLocation(nextPayload.nextPath);
         } else {
-          setLocation("/dashboard");
+          setLocation("/");
         }
       },
       onError: (
@@ -224,7 +224,7 @@ export default function Onboarding() {
       if (nextPayload?.nextPath) {
         setLocation(nextPayload.nextPath);
       } else {
-        setLocation("/dashboard");
+        setLocation("/");
       }
     } catch (error) {
       toast({
