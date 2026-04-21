@@ -3,8 +3,10 @@ import { and, eq } from "drizzle-orm";
 import { appSettingsTable, appsTable, db, settingValueTypeEnumValues } from "@workspace/db";
 import { requireSuperAdmin } from "../middlewares/requireAuth.js";
 import {
-  APP_NON_SECRET_RUNTIME_SETTING_KEYS,
-  GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS,
+  APP_RUNTIME_SETTING_DEFINITIONS,
+  GLOBAL_RUNTIME_SETTING_DEFINITIONS,
+  OPERATOR_EDITABLE_APP_RUNTIME_SETTING_KEYS,
+  OPERATOR_EDITABLE_GLOBAL_RUNTIME_SETTING_KEYS,
   getAllSettings,
   updateAppSetting,
   updateSetting,
@@ -16,8 +18,8 @@ router.use(requireSuperAdmin);
 
 type SettingValueType = (typeof settingValueTypeEnumValues)[number];
 const VALUE_TYPES = new Set<SettingValueType>(settingValueTypeEnumValues);
-const GLOBAL_KEYS = new Set<string>(GLOBAL_NON_SECRET_RUNTIME_SETTING_KEYS);
-const APP_KEYS = new Set<string>(APP_NON_SECRET_RUNTIME_SETTING_KEYS);
+const GLOBAL_KEYS = new Set<string>(OPERATOR_EDITABLE_GLOBAL_RUNTIME_SETTING_KEYS);
+const APP_KEYS = new Set<string>(OPERATOR_EDITABLE_APP_RUNTIME_SETTING_KEYS);
 
 type ParsedMutation = {
   valueType: SettingValueType;
@@ -58,6 +60,10 @@ router.get("/settings", async (_req, res) => {
   res.json({
     ...all,
     apps: apps.map((app: { id: string; slug: string; name: string }) => ({ id: app.id, slug: app.slug, name: app.name })),
+    editableKeyRegistry: {
+      global: GLOBAL_RUNTIME_SETTING_DEFINITIONS,
+      app: APP_RUNTIME_SETTING_DEFINITIONS,
+    },
   });
 });
 

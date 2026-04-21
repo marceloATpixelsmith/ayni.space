@@ -15,6 +15,13 @@
 - Platform settings management APIs are available under `/api/platform/settings` and `/api/platform/apps/:id/settings` and protected by `requireSuperAdmin` via `apps/api-server/src/routes/platform.ts` (legacy `/api/admin/settings` remains available in `apps/api-server/src/routes/admin.ts`).
 - Frontend non-secret runtime settings are now served per app from `platform.app_settings` via `GET /api/apps/slug/:appSlug/runtime-settings`; admin boot hydrates runtime settings before rendering auth flow (`apps/admin/src/runtimeBootstrap.ts`). Bootstrap env remains the startup source of truth for app identity/reachability (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional build-time `BASE_PATH`), while hydrated DB settings drive runtime behavior (`authDebug`, `sentryEnvironment`, `sentryDsn`, `turnstileSiteKey`) (`apps/api-server/src/routes/apps.ts`, `apps/api-server/src/lib/runtimeSettings.ts`, `apps/admin/src/runtimeBootstrap.ts`, `lib/frontend-security/src/runtimeSettings.ts`).
 - Superadmin runtime settings management is now standardized on protected platform endpoints (`GET/PATCH /api/platform/settings`, `GET/PATCH /api/platform/apps/:id/settings`) with explicit non-secret key allowlists and typed value handling (`apps/api-server/src/routes/platform.ts`, `apps/admin/src/pages/admin/AdminDashboard.tsx`, `apps/api-server/src/lib/settings.ts`).
+- Runtime settings editability policy is now explicit and enforced in code:
+  - **Operator-editable global keys:** `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `TURNSTILE_ENABLED`, `IPQS_BLOCK_THRESHOLD`, `IPQS_STEP_UP_THRESHOLD`, `IPQS_TIMEOUT_MS`, `OPENAI_MAX_RETRIES`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE`, `OPENAI_TIMEOUT_MS`.
+  - **Seeded (not operator-editable) global key:** `GOOGLE_REDIRECT_URI` (provider-coupled).
+  - **Operator-editable app keys:** `ALLOWED_ORIGIN`, `MFA_ISSUER`, `VITE_AUTH_DEBUG`, `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_DSN`, `VITE_TURNSTILE_SITE_KEY`.
+  - **Bootstrap mirror app keys (seeded, not operator-editable):** `VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`.
+  - Enforcement source of truth is `apps/api-server/src/lib/settings.ts` definitions consumed by `/api/platform/*settings` routes in `apps/api-server/src/routes/platform.ts`.
+- Legacy app key `ALLOWED_ORIGINS` is no longer used by runtime resolution; effective allowed origins now read canonical `ALLOWED_ORIGIN` app rows first, then env fallback only when app rows are absent (`apps/api-server/src/lib/settings.ts`).
 - Invitation create flow persists invitee `first_name`/`last_name` on `platform.invitations` and passes deterministic `invitee_name` rendering context into lane1 invitation templates.
 
 ## Inferred
@@ -72,3 +79,24 @@ Canonical runtime-settings final state is established by `20260421_runtime_setti
 - Earlier overlapping 2026-04-20 migrations remain historical and safe to keep for already-applied databases; final effective values are intentionally normalized by the 2026-04-21 migration.
 
 Keep env only for secrets/bootstrap/infra values (for example `VITE_API_BASE_URL`, `VITE_APP_SLUG`, optional `BASE_PATH`, session/database secrets, provider API keys, and other boot-time infra values).
+
+## Final runtime settings contract
+
+### `platform.settings` (cross-app, non-secret backend runtime)
+- Holds shared backend runtime knobs and mirrors that apply platform-wide.
+- Operator-editable keys are listed above; `GOOGLE_REDIRECT_URI` remains seeded/non-editable by superadmin API to avoid accidental OAuth provider drift.
+
+### `platform.app_settings` (per-app, non-secret runtime + frontend runtime)
+- Holds app-specific non-secret backend/frontend runtime values.
+- Operator-editable keys are app security/monitoring/runtime controls (`ALLOWED_ORIGIN`, `MFA_ISSUER`, auth debug, Sentry labels/DSN, Turnstile site key).
+- Bootstrap mirrors (`VITE_API_BASE_URL`, `VITE_APP_SLUG`, `BASE_PATH`) remain seeded for consistency but are not operator-editable in superadmin runtime settings APIs/UI.
+
+### Bootstrap env (must remain env/bootstrap contract)
+- `VITE_API_BASE_URL`
+- `VITE_APP_SLUG`
+- `BASE_PATH` (optional build-time)
+
+### Secret env (must remain env/secret contract)
+- Session/database secrets (`SESSION_SECRET`, DB credentials/URL).
+- Provider secret keys (`GOOGLE_CLIENT_SECRET`, `TURNSTILE_SECRET_KEY`, `IPQS_API_KEY`, `OPENAI_API_KEY`, SMTP/provider API secrets).
+- Any boot-time infra secrets or transport credentials.

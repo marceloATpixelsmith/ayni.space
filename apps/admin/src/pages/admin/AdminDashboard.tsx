@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Building2, Users, Activity, Flag, LayoutDashboard, LogOut, Mail, Settings } from "lucide-react";
 import { adminAccessDeniedLoginPath } from "../auth/accessDenied";
 import { useAuth } from "@workspace/frontend-security";
+import { parseSettingDraft, toDraftString, type SettingValueType } from "./runtimeSettingsHelpers";
 
 type TemplateType = "invitation" | "email_verification" | "password_reset";
 
@@ -119,7 +120,6 @@ function AdminFeatureFlags() {
   return <div className="space-y-4"><h1 className="text-2xl font-bold">Feature Flags</h1><Card><CardContent className="pt-4">{isLoading ? <div className="text-center py-8 text-muted-foreground">Loading...</div> : <div className="space-y-3">{flags?.map((flag) => (<div key={flag.id} className="flex items-center justify-between p-4 rounded-lg border"><div><div className="font-mono text-sm font-medium">{flag.key}</div>{flag.description && <div className="text-sm text-muted-foreground mt-0.5">{flag.description}</div>}{flag.orgId && <Badge variant="secondary" className="text-xs mt-1">Org: {flag.orgId}</Badge>}</div><Switch checked={flag.value} onCheckedChange={(checked) => setFlag.mutateAsync({ data: { key: flag.key, value: checked } })} /></div>))}{!flags?.length && <div className="text-center py-8 text-muted-foreground">No feature flags configured</div>}</div>}</CardContent></Card></div>;
 }
 
-type SettingValueType = "string" | "number" | "boolean" | "json";
 type RuntimeSetting = {
   id: string;
   appId?: string | null;
@@ -133,19 +133,48 @@ type PlatformSettingsResponse = {
   globalSettings: RuntimeSetting[];
   appSettings: RuntimeSetting[];
   apps: Array<{ id: string; slug: string; name: string }>;
+  editableKeyRegistry?: {
+    global: RuntimeSettingDefinition[];
+    app: RuntimeSettingDefinition[];
+  };
 };
 
-function parseSettingValue(valueType: SettingValueType, value: string): unknown {
-  if (valueType === "boolean") return value.trim().toLowerCase() === "true";
-  if (valueType === "number") return Number(value);
-  if (valueType === "json") {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return {};
-    }
+type RuntimeSettingEditScope = "operator_editable" | "seeded_canonical" | "bootstrap_mirror";
+type RuntimeSettingDefinition = {
+  key: string;
+  valueType: SettingValueType;
+  editScope: RuntimeSettingEditScope;
+  description: string;
+};
+
+function RuntimeSettingInput({
+  setting,
+  draftValue,
+  onChange,
+}: {
+  setting: RuntimeSetting;
+  draftValue: string;
+  onChange: (next: string) => void;
+}) {
+  if (setting.valueType === "boolean") {
+    return (
+      <select className="col-span-7 border rounded-md h-9 px-2 bg-background" value={draftValue} onChange={(event) => onChange(event.target.value)}>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
   }
-  return value;
+  if (setting.valueType === "json") {
+    return <Textarea className="col-span-7 min-h-28 font-mono text-xs" value={draftValue} onChange={(event) => onChange(event.target.value)} />;
+  }
+  return (
+    <Input
+      type={setting.valueType === "number" ? "number" : "text"}
+      className="col-span-7"
+      value={draftValue}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
 }
 
 function AdminRuntimeSettings() {
@@ -155,6 +184,8 @@ function AdminRuntimeSettings() {
   const [selectedAppSettings, setSelectedAppSettings] = React.useState<RuntimeSetting[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = React.useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = React.useState<Record<string, string>>({});
 
   const [globalDrafts, setGlobalDrafts] = React.useState<Record<string, string>>({});
   const [appDrafts, setAppDrafts] = React.useState<Record<string, string>>({});
@@ -165,6 +196,13 @@ function AdminRuntimeSettings() {
     if (!response.ok) throw new Error("Failed to load platform settings.");
     const payload = (await response.json()) as PlatformSettingsResponse;
     setData(payload);
+    setGlobalDrafts((previous) => {
+      const next = { ...previous };
+      for (const setting of payload.globalSettings ?? []) {
+        if (next[setting.key] === undefined) next[setting.key] = toDraftString(setting);
+      }
+      return next;
+    });
     if (!selectedAppId && payload.apps[0]?.id) setSelectedAppId(payload.apps[0].id);
     setIsLoading(false);
   }, [selectedAppId]);
@@ -178,6 +216,15 @@ function AdminRuntimeSettings() {
     if (!response.ok) throw new Error("Failed to load app settings.");
     const payload = (await response.json()) as { appSettings: RuntimeSetting[] };
     setSelectedAppSettings(payload.appSettings ?? []);
+    setAppDrafts((previous) => {
+      const next = { ...previous };
+      for (const setting of payload.appSettings ?? []) {
+        if (!setting.appId) continue;
+        const draftKey = `${setting.appId}:${setting.key}`;
+        if (next[draftKey] === undefined) next[draftKey] = toDraftString(setting);
+      }
+      return next;
+    });
   }, []);
 
   React.useEffect(() => {
@@ -195,7 +242,18 @@ function AdminRuntimeSettings() {
 
   const saveGlobal = async (setting: RuntimeSetting) => {
     setSaveError(null);
-    const value = parseSettingValue(setting.valueType, globalDrafts[setting.key] ?? setting.value);
+    setSaveSuccess(null);
+    const draftValue = globalDrafts[setting.key] ?? toDraftString(setting);
+    const parsed = parseSettingDraft(setting, draftValue);
+    if (!parsed.ok) {
+      setValidationErrors((previous) => ({ ...previous, [setting.key]: parsed.error }));
+      return;
+    }
+    setValidationErrors((previous) => {
+      const next = { ...previous };
+      delete next[setting.key];
+      return next;
+    });
     const response = await fetch("/api/platform/settings", {
       method: "PATCH",
       credentials: "include",
@@ -203,7 +261,7 @@ function AdminRuntimeSettings() {
       body: JSON.stringify({
         key: setting.key,
         valueType: setting.valueType,
-        value,
+        value: parsed.value,
         description: setting.description ?? null,
       }),
     });
@@ -211,14 +269,26 @@ function AdminRuntimeSettings() {
       setSaveError("Failed to save global runtime setting.");
       return;
     }
+    setSaveSuccess(`Saved ${setting.key}.`);
     await loadSettings();
   };
 
   const saveApp = async (setting: RuntimeSetting) => {
     setSaveError(null);
+    setSaveSuccess(null);
     if (!setting.appId) return;
     const draftKey = `${setting.appId}:${setting.key}`;
-    const value = parseSettingValue(setting.valueType, appDrafts[draftKey] ?? setting.value);
+    const draftValue = appDrafts[draftKey] ?? toDraftString(setting);
+    const parsed = parseSettingDraft(setting, draftValue);
+    if (!parsed.ok) {
+      setValidationErrors((previous) => ({ ...previous, [draftKey]: parsed.error }));
+      return;
+    }
+    setValidationErrors((previous) => {
+      const next = { ...previous };
+      delete next[draftKey];
+      return next;
+    });
     const response = await fetch(`/api/platform/apps/${setting.appId}/settings`, {
       method: "PATCH",
       credentials: "include",
@@ -226,7 +296,7 @@ function AdminRuntimeSettings() {
       body: JSON.stringify({
         key: setting.key,
         valueType: setting.valueType,
-        value,
+        value: parsed.value,
         description: setting.description ?? null,
       }),
     });
@@ -234,8 +304,27 @@ function AdminRuntimeSettings() {
       setSaveError("Failed to save app runtime setting.");
       return;
     }
+    setSaveSuccess(`Saved ${setting.key} for ${setting.appSlug ?? "app"}.`);
     await Promise.all([loadSettings(), loadAppSettings(setting.appId)]);
   };
+
+  const globalDefinitionByKey = React.useMemo(() => new Map((data?.editableKeyRegistry?.global ?? []).map((definition) => [definition.key, definition])), [data]);
+  const appDefinitionByKey = React.useMemo(() => new Map((data?.editableKeyRegistry?.app ?? []).map((definition) => [definition.key, definition])), [data]);
+
+  const groupedGlobalSettings = React.useMemo(() => {
+    const source = data?.globalSettings ?? [];
+    return {
+      editable: source.filter((setting) => globalDefinitionByKey.get(setting.key)?.editScope === "operator_editable"),
+      seeded: source.filter((setting) => globalDefinitionByKey.get(setting.key)?.editScope !== "operator_editable"),
+    };
+  }, [data, globalDefinitionByKey]);
+
+  const groupedAppSettings = React.useMemo(() => {
+    return {
+      editable: selectedAppSettings.filter((setting) => appDefinitionByKey.get(setting.key)?.editScope === "operator_editable"),
+      nonEditable: selectedAppSettings.filter((setting) => appDefinitionByKey.get(setting.key)?.editScope !== "operator_editable"),
+    };
+  }, [appDefinitionByKey, selectedAppSettings]);
 
   return (
     <div className="space-y-6">
@@ -252,23 +341,33 @@ function AdminRuntimeSettings() {
         <CardContent className="space-y-3">
           {isLoading && <div className="text-muted-foreground">Loading settings…</div>}
           {saveError && <div className="text-sm text-destructive">{saveError}</div>}
-          {((data?.globalSettings ?? []) as RuntimeSetting[]).map((setting) => (
+          {saveSuccess && <div className="text-sm text-emerald-600">{saveSuccess}</div>}
+          {groupedGlobalSettings.editable.map((setting) => (
             <div key={setting.id} className="grid grid-cols-12 gap-2 items-center border rounded-md p-3">
               <div className="col-span-3">
                 <div className="font-mono text-xs">{setting.key}</div>
                 <div className="text-xs text-muted-foreground">{setting.valueType}</div>
               </div>
-              <Input
-                className="col-span-7"
-                value={globalDrafts[setting.key] ?? setting.value}
-                onChange={(e) => setGlobalDrafts((prev) => ({ ...prev, [setting.key]: e.target.value }))}
-              />
+              <RuntimeSettingInput setting={setting} draftValue={globalDrafts[setting.key] ?? toDraftString(setting)} onChange={(next) => setGlobalDrafts((prev) => ({ ...prev, [setting.key]: next }))} />
               <Button className="col-span-2" size="sm" onClick={() => void saveGlobal(setting)}>
                 Save
               </Button>
-              {setting.description && <div className="col-span-12 text-xs text-muted-foreground">{setting.description}</div>}
+              {validationErrors[setting.key] && <div className="col-span-12 text-xs text-destructive">{validationErrors[setting.key]}</div>}
+              <div className="col-span-12 text-xs text-muted-foreground">
+                {globalDefinitionByKey.get(setting.key)?.description ?? setting.description ?? "No description available."}
+              </div>
             </div>
           ))}
+          {groupedGlobalSettings.seeded.length > 0 && (
+            <div className="rounded-md border p-3 bg-muted/30">
+              <div className="text-sm font-medium">Seeded / restricted global keys</div>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {groupedGlobalSettings.seeded.map((setting) => (
+                  <li key={setting.id}><span className="font-mono">{setting.key}</span> — {globalDefinitionByKey.get(setting.key)?.description ?? setting.description ?? "Seeded value."}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -286,7 +385,7 @@ function AdminRuntimeSettings() {
           </select>
 
           <div className="space-y-2">
-            {selectedAppSettings.map((setting) => {
+            {groupedAppSettings.editable.map((setting) => {
               const draftKey = `${setting.appId}:${setting.key}`;
               return (
                 <div key={setting.id} className="grid grid-cols-12 gap-2 items-center border rounded-md p-3">
@@ -294,18 +393,27 @@ function AdminRuntimeSettings() {
                     <div className="font-mono text-xs">{setting.key}</div>
                     <div className="text-xs text-muted-foreground">{setting.valueType}</div>
                   </div>
-                  <Input
-                    className="col-span-7"
-                    value={appDrafts[draftKey] ?? setting.value}
-                    onChange={(e) => setAppDrafts((prev) => ({ ...prev, [draftKey]: e.target.value }))}
-                  />
+                  <RuntimeSettingInput setting={setting} draftValue={appDrafts[draftKey] ?? toDraftString(setting)} onChange={(next) => setAppDrafts((prev) => ({ ...prev, [draftKey]: next }))} />
                   <Button className="col-span-2" size="sm" onClick={() => void saveApp(setting)}>
                     Save
                   </Button>
-                  {setting.description && <div className="col-span-12 text-xs text-muted-foreground">{setting.description}</div>}
+                  {validationErrors[draftKey] && <div className="col-span-12 text-xs text-destructive">{validationErrors[draftKey]}</div>}
+                  <div className="col-span-12 text-xs text-muted-foreground">
+                    {appDefinitionByKey.get(setting.key)?.description ?? setting.description ?? "No description available."}
+                  </div>
                 </div>
               );
             })}
+            {groupedAppSettings.nonEditable.length > 0 && (
+              <div className="rounded-md border p-3 bg-muted/30">
+                <div className="text-sm font-medium">Seeded / bootstrap mirror app keys</div>
+                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {groupedAppSettings.nonEditable.map((setting) => (
+                    <li key={setting.id}><span className="font-mono">{setting.key}</span> — {appDefinitionByKey.get(setting.key)?.description ?? setting.description ?? "Seeded value."}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
