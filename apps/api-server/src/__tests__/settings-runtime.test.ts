@@ -124,26 +124,7 @@ test("allowed origins aggregate app-level ALLOWED_ORIGIN values", async () => {
   }
 });
 
-test("allowed origins falls back to legacy ALLOWED_ORIGINS when canonical keys are absent", async () => {
-  const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
-  const restoreSelect = patchProperty(db, "select", (() => ({
-    from: () => ({
-      innerJoin: () => ([
-        { appId: "a1", appSlug: "admin", key: "ALLOWED_ORIGINS", value: "https://legacy-a.test, https://legacy-b.test", valueType: "string" },
-      ]),
-    }),
-  })) as unknown as typeof db.select);
-  try {
-    await settings.refreshSettingsCache({ force: true });
-    const origins = await settings.getEffectiveAllowedOrigins();
-    assert.deepEqual(origins, ["https://legacy-a.test", "https://legacy-b.test"]);
-  } finally {
-    restore();
-    restoreSelect();
-  }
-});
-
-test("allowed origins prefers canonical ALLOWED_ORIGIN over legacy ALLOWED_ORIGINS", async () => {
+test("allowed origins ignores legacy ALLOWED_ORIGINS rows and uses canonical key only", async () => {
   const restore = patchProperty(db.query.settingsTable, "findMany", async () => ([]));
   const restoreSelect = patchProperty(db, "select", (() => ({
     from: () => ({

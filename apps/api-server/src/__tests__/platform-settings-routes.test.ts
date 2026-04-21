@@ -53,6 +53,8 @@ test("GET /api/platform/settings returns global + app settings payload", async (
     assert.equal(response.body.globalSettings[0].key, "SENTRY_ENVIRONMENT");
     assert.equal(response.body.appSettings[0].key, "VITE_APP_SLUG");
     assert.equal(response.body.apps[0].slug, "admin");
+    assert.equal(Array.isArray(response.body.editableKeyRegistry?.global), true);
+    assert.equal(Array.isArray(response.body.editableKeyRegistry?.app), true);
   } finally {
     restoreAuth();
     restoreGlobal();
@@ -84,6 +86,36 @@ test("PATCH /api/platform/apps/:id/settings rejects unsupported app key", async 
       key: "SESSION_SECRET",
       valueType: "string",
       value: "not-allowed",
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    restoreAuth();
+  }
+});
+
+test("PATCH /api/platform/settings rejects seeded non-editable global key", async () => {
+  const restoreAuth = mockDbForSuperAdminFlow();
+  try {
+    const app = createSessionApp(platformRouter, { userId: "super-1" });
+    const response = await performJsonRequest(app, "PATCH", "/api/settings", {
+      key: "GOOGLE_REDIRECT_URI",
+      valueType: "string",
+      value: "https://example.test/callback",
+    });
+    assert.equal(response.status, 400);
+  } finally {
+    restoreAuth();
+  }
+});
+
+test("PATCH /api/platform/apps/:id/settings rejects bootstrap mirror key", async () => {
+  const restoreAuth = mockDbForSuperAdminFlow();
+  try {
+    const app = createSessionApp(platformRouter, { userId: "super-1" });
+    const response = await performJsonRequest(app, "PATCH", "/api/apps/app-admin/settings", {
+      key: "VITE_API_BASE_URL",
+      valueType: "string",
+      value: "https://api.new.example",
     });
     assert.equal(response.status, 400);
   } finally {

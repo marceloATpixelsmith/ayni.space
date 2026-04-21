@@ -45,7 +45,47 @@ export const APP_SETTING_KEYS = {
   VITE_TURNSTILE_SITE_KEY: "VITE_TURNSTILE_SITE_KEY",
 } as const;
 export const APP_NON_SECRET_RUNTIME_SETTING_KEYS = Object.values(APP_SETTING_KEYS);
-const LEGACY_ALLOWED_ORIGINS_KEY = "ALLOWED_ORIGINS";
+
+type RuntimeSettingEditScope = "operator_editable" | "seeded_canonical" | "bootstrap_mirror";
+type RuntimeSettingDefinition = {
+  key: string;
+  valueType: SettingValueType;
+  editScope: RuntimeSettingEditScope;
+  description: string;
+};
+
+export const GLOBAL_RUNTIME_SETTING_DEFINITIONS: readonly RuntimeSettingDefinition[] = [
+  { key: GLOBAL_SETTING_KEYS.SENTRY_DSN, valueType: "string", editScope: "operator_editable", description: "Backend Sentry DSN (non-secret)." },
+  { key: GLOBAL_SETTING_KEYS.SENTRY_ENVIRONMENT, valueType: "string", editScope: "operator_editable", description: "Backend Sentry environment label." },
+  { key: GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI, valueType: "string", editScope: "seeded_canonical", description: "OAuth callback URI; changes require coordinated provider updates." },
+  { key: GLOBAL_SETTING_KEYS.TURNSTILE_ENABLED, valueType: "boolean", editScope: "operator_editable", description: "Enable or disable Turnstile challenge enforcement." },
+  { key: GLOBAL_SETTING_KEYS.IPQS_BLOCK_THRESHOLD, valueType: "number", editScope: "operator_editable", description: "IPQS hard-block threshold." },
+  { key: GLOBAL_SETTING_KEYS.IPQS_STEP_UP_THRESHOLD, valueType: "number", editScope: "operator_editable", description: "IPQS step-up threshold." },
+  { key: GLOBAL_SETTING_KEYS.IPQS_TIMEOUT_MS, valueType: "number", editScope: "operator_editable", description: "IPQS request timeout in milliseconds." },
+  { key: GLOBAL_SETTING_KEYS.OPENAI_MAX_RETRIES, valueType: "number", editScope: "operator_editable", description: "OpenAI max retry count for backend calls." },
+  { key: GLOBAL_SETTING_KEYS.OPENAI_MODEL, valueType: "string", editScope: "operator_editable", description: "OpenAI model for non-secret runtime callers." },
+  { key: GLOBAL_SETTING_KEYS.OPENAI_TEMPERATURE, valueType: "number", editScope: "operator_editable", description: "OpenAI sampling temperature." },
+  { key: GLOBAL_SETTING_KEYS.OPENAI_TIMEOUT_MS, valueType: "number", editScope: "operator_editable", description: "OpenAI timeout in milliseconds." },
+] as const;
+
+export const APP_RUNTIME_SETTING_DEFINITIONS: readonly RuntimeSettingDefinition[] = [
+  { key: APP_SETTING_KEYS.ALLOWED_ORIGIN, valueType: "string", editScope: "operator_editable", description: "Allowed browser origin for the app." },
+  { key: APP_SETTING_KEYS.MFA_ISSUER, valueType: "string", editScope: "operator_editable", description: "MFA issuer display label for the app." },
+  { key: APP_SETTING_KEYS.VITE_AUTH_DEBUG, valueType: "boolean", editScope: "operator_editable", description: "Frontend auth debug panel toggle." },
+  { key: APP_SETTING_KEYS.VITE_SENTRY_ENVIRONMENT, valueType: "string", editScope: "operator_editable", description: "Frontend Sentry environment." },
+  { key: APP_SETTING_KEYS.VITE_SENTRY_DSN, valueType: "string", editScope: "operator_editable", description: "Frontend Sentry DSN (non-secret)." },
+  { key: APP_SETTING_KEYS.BASE_PATH, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend base path mirror for bootstrap compatibility." },
+  { key: APP_SETTING_KEYS.VITE_API_BASE_URL, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend API base URL mirror for bootstrap compatibility." },
+  { key: APP_SETTING_KEYS.VITE_APP_SLUG, valueType: "string", editScope: "bootstrap_mirror", description: "Frontend app slug mirror for bootstrap compatibility." },
+  { key: APP_SETTING_KEYS.VITE_TURNSTILE_SITE_KEY, valueType: "string", editScope: "operator_editable", description: "Cloudflare Turnstile site key (non-secret)." },
+] as const;
+
+export const OPERATOR_EDITABLE_GLOBAL_RUNTIME_SETTING_KEYS = GLOBAL_RUNTIME_SETTING_DEFINITIONS
+  .filter((setting) => setting.editScope === "operator_editable")
+  .map((setting) => setting.key);
+export const OPERATOR_EDITABLE_APP_RUNTIME_SETTING_KEYS = APP_RUNTIME_SETTING_DEFINITIONS
+  .filter((setting) => setting.editScope === "operator_editable")
+  .map((setting) => setting.key);
 
 export type ParsedSettingValue = string | number | boolean | Record<string, unknown> | unknown[];
 type RuntimeCache = {
@@ -221,14 +261,6 @@ export async function getEffectiveAllowedOrigins(): Promise<string[]> {
 
   const dedupedCanonical = Array.from(new Set(canonicalOrigins));
   if (dedupedCanonical.length > 0) return dedupedCanonical;
-
-  const legacyOrigins = Object.values(cache.appById).flatMap((byKey) => {
-    const legacyPlural = byKey[LEGACY_ALLOWED_ORIGINS_KEY];
-    if (typeof legacyPlural === "string" && legacyPlural.trim()) return parseCsv(legacyPlural);
-    return [];
-  });
-  const dedupedLegacy = Array.from(new Set(legacyOrigins));
-  if (dedupedLegacy.length > 0) return dedupedLegacy;
 
   return parseCsv(process.env["ALLOWED_ORIGINS"]);
 }
