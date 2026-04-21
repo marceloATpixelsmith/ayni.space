@@ -23,7 +23,8 @@
 2. **Database migration SQL history**  
    - `lib/db/migrations/*.sql` (already in git; ensure remote origin remains healthy).
 3. **Critical environment configuration values (securely, out of git)**  
-   - `DATABASE_URL`, `SESSION_SECRET`, OAuth secrets, Stripe secrets, Sentry DSN, allowed origins.
+   - `DATABASE_URL`, `SESSION_SECRET`, OAuth secrets, Stripe secrets, provider secrets.
+   - Non-secret runtime values are DB-backed (`platform.settings`, `platform.app_settings`, `platform.apps`); `ALLOWED_ORIGINS` is legacy optional fallback only and is not required for canonical origin configuration.
 4. **Operational CI/CD/security config in git**  
    - `.github/workflows/*`, `.github/CODEOWNERS`, docs runbooks.
 
