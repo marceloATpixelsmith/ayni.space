@@ -147,8 +147,8 @@ test("invitation password acceptance returns MFA enrollment step when user is no
       resolveAuthenticatedPostAuthDestination({
         continuation,
         flowDecision,
-        fallbackPath: "/dashboard",
         stage: "post_auth",
+        currentAppSlug: "admin",
       }),
       "/onboarding/organization",
     );
@@ -157,8 +157,8 @@ test("invitation password acceptance returns MFA enrollment step when user is no
       resolveAuthenticatedPostAuthDestination({
         continuation,
         flowDecision,
-        fallbackPath: "/dashboard",
         stage: "post_onboarding",
+        currentAppSlug: "admin",
       }),
       "/invitations/token-1/accept",
     );
