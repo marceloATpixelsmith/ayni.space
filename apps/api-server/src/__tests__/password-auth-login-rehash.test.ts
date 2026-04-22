@@ -77,6 +77,7 @@ test("legacy scrypt login transparently upgrades stored hash to current versione
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
+      appSlug: "admin",
       email: "user@example.com",
       password: "StrongPassword123!",
     });
