@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createMountedSessionApp, ensureTestDatabaseEnv } from "./helpers.js";
+import { createMountedSessionApp, ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
 
 ensureTestDatabaseEnv();
 
@@ -14,6 +14,22 @@ process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=workspace";
 const { default: authRouter } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
 const { csrfProtection, csrfTokenEndpoint } = await import("../middlewares/csrf.js");
+const { db } = await import("@workspace/db");
+
+function mockCanonicalAppLookupAsNotFound() {
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => null);
+  const restoreSelect = patchProperty(db, "select", () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: async () => [],
+      }),
+    }),
+  }) as never);
+  return () => {
+    restoreSelect();
+    restoreFindFirst();
+  };
+}
 
 async function requestJson(
   app: ReturnType<typeof createMountedSessionApp>,
@@ -155,6 +171,7 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
 test("google oauth url fails closed with app_not_found when origin candidate has no canonical app row", async () => {
   const prevEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
+  const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
@@ -171,6 +188,7 @@ test("google oauth url fails closed with app_not_found when origin candidate has
     assert.equal(response.status, 400);
     assert.equal(response.body?.code, "app_not_found");
   } finally {
+    restoreLookup();
     if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevEnabled;
   }
@@ -181,6 +199,7 @@ test("google oauth url prioritizes canonical app lookup and fails closed before 
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
   delete process.env["GOOGLE_CLIENT_ID"];
+  const restoreLookup = mockCanonicalAppLookupAsNotFound();
   const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
 
   try {
@@ -188,6 +207,7 @@ test("google oauth url prioritizes canonical app lookup and fails closed before 
     assert.equal(response.status, 400);
     assert.equal(response.body?.code, "app_not_found");
   } finally {
+    restoreLookup();
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
@@ -253,6 +273,7 @@ test("google oauth url rejects disallowed origins with explicit error code", asy
 test("csrf lifecycle after logout requires a fresh token for immediate login", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
+  const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   type MutableSession = {
     id: string;
@@ -330,6 +351,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
     assert.equal(freshLoginAttempt.status, 400);
     assert.equal(freshLoginAttempt.body?.code, "app_not_found");
   } finally {
+    restoreLookup();
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
@@ -339,6 +361,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
 test("google oauth url does not persist stayLoggedIn when canonical app lookup fails", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
+  const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   const state: { session: Record<string, unknown> } = {
     session: {
@@ -371,6 +394,7 @@ test("google oauth url does not persist stayLoggedIn when canonical app lookup f
     assert.equal(response.body?.code, "app_not_found");
     assert.equal(state.session.oauthStayLoggedIn, undefined);
   } finally {
+    restoreLookup();
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
