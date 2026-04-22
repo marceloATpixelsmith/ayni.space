@@ -35,7 +35,6 @@ import {
   getRequestedAppSlugFromRequest,
   mapAuthContextFailureToAuthErrorCode,
   resolveAppContextForAuth,
-  type AuthContextFailureReason,
 } from "../lib/authContextPolicy.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
@@ -1094,7 +1093,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sendGoogleUrlError(
       req,
       res,
-      getAppContextFailureStatus(appContext.reason),
+      400,
       mapAuthContextFailureToAuthErrorCode(appContext.reason),
       "App context is required to start OAuth.",
       appContext.reason,
@@ -2020,21 +2019,13 @@ function buildMfaRequiredAuthResponse(mfaGate: {
   };
 }
 
-function getAppContextFailureStatus(reason: AuthContextFailureReason): number {
-  if (reason === "app_context_unavailable" || reason === "app_slug_missing") return 400;
-  if (reason === "app_not_found") return 404;
-  if (reason === "session_group_conflict") return 409;
-  return 403;
-}
-
 function sendAppContextResolutionError(
   res: Response,
-  contextReason: AuthContextFailureReason,
-  reasonCode: string = mapAuthContextFailureToAuthErrorCode(contextReason),
+  reason: string = AUTH_ERROR_CODES.APP_NOT_FOUND,
 ) {
-  res.status(getAppContextFailureStatus(contextReason)).json({
+  res.status(400).json({
     error: "Application context could not be resolved. Please reload and try again.",
-    code: reasonCode,
+    code: reason,
   });
 }
 
@@ -2425,7 +2416,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
   if (!signupAppContext.ok) {
     sendAppContextResolutionError(
       res,
-      signupAppContext.reason,
       mapAuthContextFailureToAuthErrorCode(signupAppContext.reason),
     );
     return;
@@ -2709,7 +2699,6 @@ async function handlePasswordLogin(req: Request, res: Response) {
   if (!appContext.ok) {
     sendAppContextResolutionError(
       res,
-      appContext.reason,
       mapAuthContextFailureToAuthErrorCode(appContext.reason),
     );
     return;
@@ -2799,7 +2788,6 @@ async function handleForgotPassword(req: Request, res: Response) {
   if (!appContext.ok) {
     sendAppContextResolutionError(
       res,
-      appContext.reason,
       mapAuthContextFailureToAuthErrorCode(appContext.reason),
     );
     return;
