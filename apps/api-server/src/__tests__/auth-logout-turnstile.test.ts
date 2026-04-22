@@ -152,7 +152,7 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
   }
 });
 
-test("google oauth url returns auth URL when origin is allowed and turnstile already verified", async () => {
+test("google oauth url fails closed with app_not_found when origin candidate has no canonical app row", async () => {
   const prevEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
 
@@ -168,16 +168,15 @@ test("google oauth url returns auth URL when origin is allowed and turnstile alr
       {},
       { origin: "http://localhost:5173" },
     );
-    assert.equal(response.status, 200);
-    assert.equal(typeof response.body?.url, "string");
-    assert.equal(String(response.body?.url).startsWith("https://accounts.google.com/"), true);
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.code, "app_not_found");
   } finally {
     if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevEnabled;
   }
 });
 
-test("google oauth url returns clear config error when oauth env is missing", async () => {
+test("google oauth url prioritizes canonical app lookup and fails closed before oauth config checks", async () => {
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
@@ -186,8 +185,8 @@ test("google oauth url returns clear config error when oauth env is missing", as
 
   try {
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
-    assert.equal(response.status, 500);
-    assert.equal(response.body?.code, "OAUTH_CONFIG_MISSING");
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.code, "app_not_found");
   } finally {
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
@@ -328,8 +327,8 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
       {},
       { origin: "http://localhost:5173", "x-csrf-token": anonymousCsrf },
     );
-    assert.equal(freshLoginAttempt.status, 200);
-    assert.equal(typeof freshLoginAttempt.body?.url, "string");
+    assert.equal(freshLoginAttempt.status, 400);
+    assert.equal(freshLoginAttempt.body?.code, "app_not_found");
   } finally {
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
@@ -337,7 +336,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
 });
 
 
-test("google oauth url stores stayLoggedIn preference in session for callback persistence", async () => {
+test("google oauth url does not persist stayLoggedIn when canonical app lookup fails", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
 
@@ -368,8 +367,9 @@ test("google oauth url stores stayLoggedIn preference in session for callback pe
       { origin: "http://localhost:5173" },
     );
 
-    assert.equal(response.status, 200);
-    assert.equal(state.session.oauthStayLoggedIn, true);
+    assert.equal(response.status, 400);
+    assert.equal(response.body?.code, "app_not_found");
+    assert.equal(state.session.oauthStayLoggedIn, undefined);
   } finally {
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
