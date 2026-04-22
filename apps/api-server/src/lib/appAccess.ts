@@ -43,6 +43,15 @@ function parseMappedTestAppSlugs(): Set<string> {
     return rawSlug.toLowerCase();
   });
 
+  const directEnvSlugs = [
+    process.env["VITE_APP_SLUG"],
+    process.env["APP_SLUG"],
+  ];
+  for (const envSlug of directEnvSlugs) {
+    const normalized = typeof envSlug === "string" ? envSlug.trim().toLowerCase() : "";
+    if (normalized) slugs.add(normalized);
+  }
+
   return slugs;
 }
 

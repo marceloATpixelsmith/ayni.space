@@ -1100,7 +1100,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     );
     return;
   }
-  const appSlug = appContext.resolvedAppSlug;
+  const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
   const oauthSessionGroup = appContext.sessionGroup;
   const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
   if (!returnTo) {
@@ -1442,7 +1442,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("B0. APP LOOKUP BEFORE", {
       appSlug: activeAppSlug,
     });
-    const app = await getAppBySlug(activeAppSlug);
+    const app = await getAppBySlug(activeAppSlug, { allowOutageFallback: true });
     logSuperadminTrace("B1. APP LOOKUP AFTER", {
       appSlug: activeAppSlug,
       appFound: Boolean(app),
