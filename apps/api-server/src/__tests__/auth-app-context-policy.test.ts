@@ -105,6 +105,7 @@ test("resolveAppContextForAuth resolves canonical app through VITE_APP_SLUG mapp
     });
     assert.equal(result.ok, true);
     if (!result.ok) throw new Error("Expected app context resolution to succeed");
+    assert.ok(result.app, "Expected canonical app to be resolved");
     assert.equal(result.resolvedAppSlug, "workspace");
     assert.equal(result.app.slug, "ayni");
   } finally {
