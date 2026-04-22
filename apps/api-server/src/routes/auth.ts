@@ -1921,7 +1921,10 @@ async function resolveRequestedEmailPasswordAppContext(req: Request) {
     req,
     appSlug: bodyAppSlug,
     origin,
-    sessionGroup: "",
+    sessionGroup:
+      req.resolvedSessionGroup ??
+      req.session?.sessionGroup ??
+      resolveSessionGroupFromOrigin(origin),
   });
 }
 

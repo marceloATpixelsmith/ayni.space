@@ -197,14 +197,23 @@ export async function resolveAppContextForAuth(input: {
   );
 
   if (selected.source === "explicit" || selected.source === "body") {
-    if (originConflicts) {
+    const explicitOriginConflict =
+      Boolean(selectedCanonicalApp) &&
+      Boolean(originCanonicalApp) &&
+      selectedCanonicalApp!.id !== originCanonicalApp!.id;
+    const explicitDefaultConflict =
+      Boolean(selectedCanonicalApp) &&
+      Boolean(defaultCanonicalApp) &&
+      selectedCanonicalApp!.id !== defaultCanonicalApp!.id;
+
+    if (explicitOriginConflict) {
       return {
         ok: false,
         reason: "app_context_ambiguous",
         details: { explicitAppSlug: selected.appSlug, originAppSlug },
       };
     }
-    if (defaultConflicts) {
+    if (explicitDefaultConflict) {
       return {
         ok: false,
         reason: "app_context_ambiguous",
