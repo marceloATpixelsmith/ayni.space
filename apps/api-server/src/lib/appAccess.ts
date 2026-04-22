@@ -19,8 +19,10 @@ function getDefaultRouteByAppSlug(appSlug: string): string {
   return appSlug === "admin" ? "/dashboard" : `/${appSlug}`;
 }
 
-export async function getAppBySlug(appSlug: string) {
-  const normalizedSlug = appSlug.trim().toLowerCase();
+export async function getAppBySlug(appSlug: string | null | undefined) {
+  const normalizedSlug =
+    typeof appSlug === "string" ? appSlug.trim().toLowerCase() : "";
+  if (!normalizedSlug) return null;
   const directMatch = await db.query.appsTable.findFirst({
     where: and(eq(appsTable.slug, normalizedSlug), eq(appsTable.isActive, true)),
   });

@@ -146,15 +146,64 @@ export async function resolveAppContextForAuth(input: {
     return { ok: false, reason: "app_slug_missing" };
   }
 
-  if (selected.source === "explicit") {
-    if (originAppSlug && originAppSlug !== selected.appSlug) {
+  const candidatesConflict = (
+    leftSlug: string | null,
+    leftApp: App | null,
+    rightSlug: string | null,
+    rightApp: App | null,
+  ): boolean => {
+    if (!leftSlug || !rightSlug) return false;
+    if (leftSlug === rightSlug) return false;
+    if (leftApp && rightApp) return leftApp.id !== rightApp.id;
+    return true;
+  };
+
+  let selectedCanonicalApp: App | null = null;
+  try {
+    selectedCanonicalApp = (await getAppBySlug(selected.appSlug)) ?? null;
+  } catch {
+    selectedCanonicalApp = null;
+  }
+
+  let originCanonicalApp: App | null = null;
+  if (originAppSlug) {
+    try {
+      originCanonicalApp = (await getAppBySlug(originAppSlug)) ?? null;
+    } catch {
+      originCanonicalApp = null;
+    }
+  }
+  let defaultCanonicalApp: App | null = null;
+  if (defaultByGroup) {
+    try {
+      defaultCanonicalApp = (await getAppBySlug(defaultByGroup)) ?? null;
+    } catch {
+      defaultCanonicalApp = null;
+    }
+  }
+
+  const originConflicts = candidatesConflict(
+    selected.appSlug,
+    selectedCanonicalApp,
+    originAppSlug,
+    originCanonicalApp,
+  );
+  const defaultConflicts = candidatesConflict(
+    selected.appSlug,
+    selectedCanonicalApp,
+    defaultByGroup,
+    defaultCanonicalApp,
+  );
+
+  if (selected.source === "explicit" || selected.source === "body") {
+    if (originConflicts) {
       return {
         ok: false,
         reason: "app_context_ambiguous",
         details: { explicitAppSlug: selected.appSlug, originAppSlug },
       };
     }
-    if (defaultByGroup && defaultByGroup !== selected.appSlug) {
+    if (defaultConflicts) {
       return {
         ok: false,
         reason: "app_context_ambiguous",
@@ -164,13 +213,25 @@ export async function resolveAppContextForAuth(input: {
   }
   if (
     selected.source === "origin" &&
-    defaultByGroup &&
-    defaultByGroup !== selected.appSlug
+    candidatesConflict(
+      originAppSlug,
+      originCanonicalApp,
+      defaultByGroup,
+      defaultCanonicalApp,
+    )
   ) {
     return {
       ok: false,
       reason: "app_context_ambiguous",
       details: { originAppSlug: selected.appSlug, defaultByGroup },
+    };
+  }
+
+  if (!selectedCanonicalApp) {
+    return {
+      ok: false,
+      reason: "app_not_found",
+      details: { resolvedAppSlug: selected.appSlug, source: selected.source },
     };
   }
 
@@ -182,21 +243,8 @@ export async function resolveAppContextForAuth(input: {
         ? "session-group-default"
         : "request";
 
-  let app: App | null = null;
+  const app = selectedCanonicalApp;
   let policy: AuthContextPolicy | null = null;
-  try {
-    app = (await getAppBySlug(resolvedAppSlug)) ?? null;
-  } catch {
-    app = null;
-  }
-
-  if (!app) {
-    return {
-      ok: false,
-      reason: "app_not_found",
-      details: { resolvedAppSlug, source },
-    };
-  }
 
   policy = deriveAuthContextPolicy(app);
   if (!policy) {

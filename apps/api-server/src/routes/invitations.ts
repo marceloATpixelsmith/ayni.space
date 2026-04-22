@@ -307,10 +307,13 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
 
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   const org = await db.query.organizationsTable.findFirst({ where: eq(organizationsTable.id, invitation.orgId) });
-  const appSlug = req.session.appSlug;
+  const invitationApp = await db.query.appsTable.findFirst({
+    where: and(eq(appsTable.id, invitation.appId), eq(appsTable.isActive, true)),
+  });
+  const appSlug = invitationApp?.slug ?? req.session.appSlug ?? null;
   let postAcceptDecision = null;
   if (appSlug && user) {
-    const app = await getAppBySlug(appSlug);
+    const app = invitationApp ?? (await getAppBySlug(appSlug));
     const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
     if (app && normalizedAccessProfile) {
       postAcceptDecision = await resolvePostAuthFlowDecision({
