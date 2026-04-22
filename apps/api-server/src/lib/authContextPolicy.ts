@@ -197,7 +197,7 @@ export async function resolveAppContextForAuth(input: {
   let app: App | null = null;
   let policy: AuthContextPolicy | null = null;
   try {
-    app = await getAppBySlug(resolvedAppSlug);
+    app = (await getAppBySlug(resolvedAppSlug)) ?? null;
     if (
       !app &&
       selected.source === "body" &&
