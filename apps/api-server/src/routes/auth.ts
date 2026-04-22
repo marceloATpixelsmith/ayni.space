@@ -1102,6 +1102,31 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
+  if (
+    appContext.policy.applyAdminPrivileges &&
+    appContext.source !== "request" &&
+    !requestedAppSlug
+  ) {
+    logAuthFailure(req, "google-url-admin-explicit-appslug-required", {
+      requestOrigin: trustedRequestOrigin,
+      source: appContext.source,
+      resolvedAppSlug: appSlug,
+    });
+    sendGoogleUrlError(
+      req,
+      res,
+      400,
+      AUTH_ERROR_CODES.APP_NOT_FOUND,
+      "App context is required to start OAuth.",
+      "app_not_found",
+      {
+        source: appContext.source,
+        resolvedAppSlug: appSlug,
+      },
+    );
+    return;
+  }
+
   const oauthSessionGroup = appContext.sessionGroup;
   const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
   if (!returnTo) {
