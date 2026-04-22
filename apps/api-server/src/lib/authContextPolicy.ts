@@ -2,7 +2,7 @@ import type { Request } from "express";
 import type { App } from "@workspace/db";
 import { getAppBySlug } from "./appAccess.js";
 import { resolveNormalizedAccessProfile, type NormalizedAccessProfile } from "./appAccessProfile.js";
-import { getKnownSessionGroups, resolveSessionGroupFromAppSlug, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
+import { getKnownSessionGroups, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
 import { resolveSessionGroupForApp } from "./sessionGroupCompatibility.js";
 
 export type AuthContextPolicy = {
@@ -25,7 +25,7 @@ export type AuthContextResolution =
       resolvedAppSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
-      app: App | null;
+      app: App;
       source: "request" | "origin" | "session-group-default";
     }
   | {
@@ -86,33 +86,13 @@ export function deriveAuthContextPolicy(appMetadata: Pick<App, "slug" | "accessM
   if (!accessMode) return null;
 
   const sessionGroup = resolveSessionGroupForApp(appMetadata);
-  const applyAdminPrivileges =
-    accessMode === "superadmin" ||
-    sessionGroup === SESSION_GROUPS.ADMIN ||
-    appMetadata.slug === "admin";
+  const applyAdminPrivileges = accessMode === "superadmin";
 
   return {
     accessMode,
     sessionGroup,
     applyAdminPrivileges,
   };
-}
-
-function deriveAuthContextPolicyFromSlug(appSlug: string): AuthContextPolicy {
-  const sessionGroup = resolveSessionGroupFromAppSlug(appSlug);
-  return {
-    accessMode: appSlug === "admin" ? "superadmin" : "organization",
-    sessionGroup,
-    applyAdminPrivileges:
-      appSlug === "admin" || sessionGroup === SESSION_GROUPS.ADMIN,
-  };
-}
-
-function isKnownAuthAppSlug(appSlug: string): boolean {
-  if (appSlug === "admin") return true;
-  if ([...parseAppSlugByOriginEnv().values()].includes(appSlug)) return true;
-  if ([...parseDefaultAppSlugBySessionGroupEnv().values()].includes(appSlug)) return true;
-  return false;
 }
 
 export async function resolveAppContextForAuth(input: {
@@ -194,35 +174,30 @@ export async function resolveAppContextForAuth(input: {
       : selected.source === "session-group-default"
         ? "session-group-default"
         : "request";
+
   let app: App | null = null;
   let policy: AuthContextPolicy | null = null;
   try {
     app = (await getAppBySlug(resolvedAppSlug)) ?? null;
-    if (
-      !app &&
-      selected.source === "body" &&
-      !isKnownAuthAppSlug(resolvedAppSlug)
-    ) {
-      return {
-        ok: false,
-        reason: "app_not_found",
-        details: { resolvedAppSlug },
-      };
-    }
-    policy = app
-      ? deriveAuthContextPolicy(app)
-      : deriveAuthContextPolicyFromSlug(resolvedAppSlug);
-    if (!policy) {
-      return { ok: false, reason: "invalid_access_mode", details: { resolvedAppSlug } };
-    }
   } catch {
-    if (
-      selected.source === "body" &&
-      !isKnownAuthAppSlug(resolvedAppSlug)
-    ) {
-      return { ok: false, reason: "app_not_found", details: { resolvedAppSlug } };
-    }
-    policy = deriveAuthContextPolicyFromSlug(resolvedAppSlug);
+    app = null;
+  }
+
+  if (!app) {
+    return {
+      ok: false,
+      reason: "app_not_found",
+      details: { resolvedAppSlug, source },
+    };
+  }
+
+  policy = deriveAuthContextPolicy(app);
+  if (!policy) {
+    return {
+      ok: false,
+      reason: "invalid_access_mode",
+      details: { resolvedAppSlug },
+    };
   }
 
   const knownGroups = getKnownSessionGroups();

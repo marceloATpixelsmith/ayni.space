@@ -65,7 +65,7 @@ test("resolveAppContextForAuth fails closed on conflicting origin and session-gr
   }
 });
 
-test("resolveAppContextForAuth denies admin app when request session group is not admin", async () => {
+test("resolveAppContextForAuth fails closed when explicit body appSlug has no canonical app row", async () => {
   const result = await resolveAppContextForAuth({
     req: buildReq({ body: { appSlug: "admin" } }),
     sessionGroup: "default",
@@ -73,17 +73,26 @@ test("resolveAppContextForAuth denies admin app when request session group is no
   });
   assert.equal(result.ok, false);
   if (result.ok) throw new Error("Expected failed app context resolution");
-  assert.equal(result.reason, "admin_context_required");
+  assert.equal(result.reason, "app_not_found");
 });
 
-test("deriveAuthContextPolicy marks admin metadata as explicit admin policy", () => {
-  const policy = deriveAuthContextPolicy({
+test("deriveAuthContextPolicy sets admin privileges only from canonical superadmin access mode", () => {
+  const adminPolicy = deriveAuthContextPolicy({
     slug: "admin",
     accessMode: "superadmin",
     metadata: { sessionGroup: "admin" },
   } as any);
-  assert.ok(policy);
-  assert.equal(policy?.applyAdminPrivileges, true);
-  assert.equal(policy?.sessionGroup, "admin");
-  assert.equal(policy?.accessMode, "superadmin");
+  assert.ok(adminPolicy);
+  assert.equal(adminPolicy?.applyAdminPrivileges, true);
+  assert.equal(adminPolicy?.sessionGroup, "admin");
+  assert.equal(adminPolicy?.accessMode, "superadmin");
+
+  const orgPolicy = deriveAuthContextPolicy({
+    slug: "admin",
+    accessMode: "organization",
+    metadata: { sessionGroup: "admin" },
+  } as any);
+  assert.ok(orgPolicy);
+  assert.equal(orgPolicy?.applyAdminPrivileges, false);
+  assert.equal(orgPolicy?.accessMode, "organization");
 });
