@@ -105,6 +105,7 @@ test("signup denial logs disposable_email reason code", async () => {
       email: "disposable@example.com",
       password: "SuperSecret123!",
       name: "Disposable",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 400);
@@ -152,6 +153,7 @@ test("signup step-up logs undeliverable_email reason code", async () => {
       email: "undeliverable@example.com",
       password: "SuperSecret123!",
       name: "Undeliverable",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 201);
@@ -195,6 +197,7 @@ test("signup step-up logs ipqs_advisory_step_up reason code for high fraud score
       email: "threshold@example.com",
       password: "SuperSecret123!",
       name: "Threshold",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 201);
@@ -238,6 +241,7 @@ test("signup duplicate-email denial logs duplicate_existing_email reason code", 
       email: "duplicate@example.com",
       password: "SuperSecret123!",
       name: "Duplicate",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 201);
@@ -331,11 +335,13 @@ test("signup duplicate-email and fresh signup share public success contract", as
       email: "fresh@example.com",
       password: "SuperSecret123!",
       name: "Fresh",
+      appSlug: "admin",
     });
     const duplicateResponse = await performJsonRequest(app, "POST", "/api/auth/signup", {
       email: "existing@example.com",
       password: "SuperSecret123!",
       name: "Existing",
+      appSlug: "admin",
     });
 
     assert.equal(freshResponse.status, 201);
