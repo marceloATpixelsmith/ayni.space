@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ensureTestDatabaseEnv } from "./helpers.js";
+import { ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
 
 ensureTestDatabaseEnv();
 
+const { db } = await import("@workspace/db");
 const {
   deriveAuthContextPolicy,
   resolveAppContextForAuth,
@@ -74,6 +75,66 @@ test("resolveAppContextForAuth fails closed when explicit body appSlug has no ca
   assert.equal(result.ok, false);
   if (result.ok) throw new Error("Expected failed app context resolution");
   assert.equal(result.reason, "app_not_found");
+});
+
+test("resolveAppContextForAuth resolves canonical app through VITE_APP_SLUG mapping", async () => {
+  const restoreSelect = patchProperty(db, "select", () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: async () => ([
+          {
+            app: {
+              id: "app-1",
+              slug: "ayni",
+              accessMode: "organization",
+              metadata: {},
+              isActive: true,
+            },
+          },
+        ]),
+      }),
+    }),
+  }) as never);
+
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => null);
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq({ body: { appSlug: "workspace" } }),
+      origin: "http://workspace.local",
+      sessionGroup: "default",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error("Expected app context resolution to succeed");
+    assert.equal(result.resolvedAppSlug, "workspace");
+    assert.equal(result.app.slug, "ayni");
+  } finally {
+    restoreFindFirst();
+    restoreSelect();
+  }
+});
+
+test("resolveAppContextForAuth accepts trusted origin-derived app slug without explicit body appSlug", async () => {
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => ({
+    id: "app-admin",
+    slug: "admin",
+    accessMode: "superadmin",
+    metadata: { sessionGroup: "admin" },
+    isActive: true,
+    domain: "admin.local",
+  }));
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq(),
+      origin: "http://admin.local",
+      sessionGroup: "admin",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error("Expected app context resolution to succeed");
+    assert.equal(result.resolvedAppSlug, "admin");
+    assert.equal(result.source, "origin");
+  } finally {
+    restoreFindFirst();
+  }
 });
 
 test("deriveAuthContextPolicy sets admin privileges only from canonical superadmin access mode", () => {
