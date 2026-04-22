@@ -123,10 +123,25 @@ export async function resolveAppContextForAuth(input: {
   }
 
   let selectedCanonicalApp: App | null = null;
+  let canonicalLookupError: unknown = null;
   try {
     selectedCanonicalApp = (await getAppBySlug(selectedAppSlug)) ?? null;
-  } catch {
-    selectedCanonicalApp = null;
+  } catch (error) {
+    canonicalLookupError = error;
+  }
+
+  if (canonicalLookupError) {
+    return {
+      ok: false,
+      reason: "app_context_unavailable",
+      details: {
+        resolvedAppSlug: selectedAppSlug,
+        lookupError:
+          canonicalLookupError instanceof Error
+            ? canonicalLookupError.message
+            : String(canonicalLookupError),
+      },
+    };
   }
 
   if (!selectedCanonicalApp) {
@@ -158,7 +173,17 @@ export async function resolveAppContextForAuth(input: {
   const knownGroups = getKnownSessionGroups();
   const requestGroup = (derivedSessionGroup || "").trim();
   const hasRequestGroup = requestGroup.length > 0 && knownGroups.includes(requestGroup);
-  if (hasRequestGroup && requestGroup !== policy.sessionGroup) {
+  const hasAuthenticatedSessionIdentity = Boolean(
+    input.req.session?.userId || input.req.session?.pendingUserId,
+  );
+  const enforceSessionGroupConflict =
+    source === "origin" || hasAuthenticatedSessionIdentity;
+
+  if (
+    hasRequestGroup &&
+    requestGroup !== policy.sessionGroup &&
+    enforceSessionGroupConflict
+  ) {
     return {
       ok: false,
       reason: policy.applyAdminPrivileges ? "admin_context_required" : "session_group_conflict",
