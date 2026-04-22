@@ -160,12 +160,10 @@ export async function resolveAppContextForAuth(input: {
   };
 
   let selectedCanonicalApp: App | null = null;
-  let selectedLookupErrored = false;
   try {
     selectedCanonicalApp = (await getAppBySlug(selected.appSlug)) ?? null;
   } catch {
     selectedCanonicalApp = null;
-    selectedLookupErrored = true;
   }
 
   let originCanonicalApp: App | null = null;
@@ -230,7 +228,7 @@ export async function resolveAppContextForAuth(input: {
     };
   }
 
-  if (!selectedCanonicalApp && !selectedLookupErrored) {
+  if (!selectedCanonicalApp) {
     return {
       ok: false,
       reason: "app_not_found",
@@ -247,23 +245,7 @@ export async function resolveAppContextForAuth(input: {
         : "request";
 
   const app = selectedCanonicalApp;
-  let policy: AuthContextPolicy | null = null;
-
-  if (app) {
-    policy = deriveAuthContextPolicy(app);
-  } else if (selectedLookupErrored) {
-    const knownGroups = getKnownSessionGroups();
-    const fallbackSessionGroup =
-      typeof derivedSessionGroup === "string" &&
-      knownGroups.includes(derivedSessionGroup)
-        ? derivedSessionGroup
-        : SESSION_GROUPS.DEFAULT;
-    policy = {
-      accessMode: fallbackSessionGroup === SESSION_GROUPS.ADMIN ? "superadmin" : "organization",
-      sessionGroup: fallbackSessionGroup,
-      applyAdminPrivileges: false,
-    };
-  }
+  const policy = deriveAuthContextPolicy(app);
 
   if (!policy) {
     return {
