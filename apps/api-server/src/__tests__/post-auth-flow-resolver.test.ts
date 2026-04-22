@@ -43,7 +43,6 @@ test("post-auth resolver prioritizes onboarding over continuation path", () => {
       requiredOnboarding: "organization",
       destination: "/onboarding/organization",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -60,7 +59,6 @@ test("post-auth resolver falls back to flow decision destination when continuati
       requiredOnboarding: "user",
       destination: "/onboarding/user",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -80,7 +78,6 @@ test("post-auth resolver prioritizes continuation when onboarding is not require
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -102,7 +99,6 @@ test("login without onboarding and with continuation resolves continuation desti
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -126,7 +122,6 @@ test("verify-email without onboarding and with continuation resolves continuatio
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -150,13 +145,11 @@ test("login with onboarding and continuation resolves onboarding first, then con
   const postAuthDestination = resolveAuthenticatedPostAuthDestination({
     continuation,
     flowDecision,
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
   const postOnboardingDestination = resolveAuthenticatedPostAuthDestination({
     continuation,
     flowDecision,
-    fallbackPath: "/dashboard",
     stage: "post_onboarding",
   });
 
@@ -174,25 +167,23 @@ test("post-auth resolver falls back to default destination when continuation is 
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
   assert.equal(destination, "/dashboard");
 });
 
-test("post-auth resolver returns fallback path when flow decision is unavailable", () => {
+test("post-auth resolver fail-closes when flow decision is unavailable", () => {
   const destination = resolveAuthenticatedPostAuthDestination({
     continuation: resolvePostAuthContinuation({
       appSlug: "admin",
       returnPath: "https://example.com/evil",
     }),
     flowDecision: null,
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
-  assert.equal(destination, "/dashboard");
+  assert.equal(destination, null);
 });
 
 test("post-onboarding resolver resumes continuation before default destination", () => {
@@ -209,7 +200,6 @@ test("post-onboarding resolver resumes continuation before default destination",
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_onboarding",
   });
 
@@ -230,7 +220,6 @@ test("post-auth resolver ignores invalid continuation paths and falls back safel
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -247,7 +236,6 @@ test("post-onboarding resolver uses default destination when continuation is mis
       requiredOnboarding: "none",
       destination: "/dashboard",
     },
-    fallbackPath: "/dashboard",
     stage: "post_onboarding",
   });
 
@@ -267,7 +255,6 @@ test("post-auth resolver ignores continuation when app access is denied", () => 
       requiredOnboarding: "none",
       destination: "/login?error=access_denied",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -287,7 +274,6 @@ test("post-auth resolver ignores continuation when continuation app does not mat
       requiredOnboarding: "none",
       destination: "/workspace/home",
     },
-    fallbackPath: "/workspace/home",
     stage: "post_auth",
   });
 
@@ -307,7 +293,6 @@ test("post-onboarding resolver still blocks continuation when onboarding is stil
       requiredOnboarding: "user",
       destination: "/onboarding/user",
     },
-    fallbackPath: "/dashboard",
     stage: "post_onboarding",
   });
 
@@ -327,7 +312,6 @@ test("solo flow does not leak organization onboarding when user onboarding is re
       requiredOnboarding: "user",
       destination: "/onboarding/user",
     },
-    fallbackPath: "/dashboard",
     stage: "post_auth",
   });
 
@@ -349,7 +333,6 @@ test("continuation competition remains MFA->onboarding->continuation->default in
         requiredOnboarding: "organization",
         destination: "/onboarding/organization",
       },
-      fallbackPath: "/dashboard",
       stage: "post_auth",
     }),
     "/onboarding/organization",
@@ -364,7 +347,6 @@ test("continuation competition remains MFA->onboarding->continuation->default in
         requiredOnboarding: "none",
         destination: "/dashboard",
       },
-      fallbackPath: "/dashboard",
       stage: "post_auth",
     }),
     "/invitations/token-222/accept",
@@ -379,7 +361,6 @@ test("continuation competition remains MFA->onboarding->continuation->default in
         requiredOnboarding: "none",
         destination: "/dashboard",
       },
-      fallbackPath: "/dashboard",
       stage: "post_auth",
     }),
     "/dashboard",

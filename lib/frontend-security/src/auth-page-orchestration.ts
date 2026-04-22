@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  AUTH_LOGIN_PATH,
   DEFAULT_POST_AUTH_PATH,
   buildAdminAccessDeniedLoginPath,
   getAuthErrorMessage,
@@ -543,7 +544,12 @@ export function useInvitationAcceptRouteRuntime(options: {
         inFlightRef.current = false;
         setStatus("done");
         setMessage("Invitation accepted. Redirecting...");
-        window.setTimeout(() => onRedirect(nextPath ?? "/"), 900);
+        if (!nextPath) {
+          setStatus("error");
+          setMessage("Authenticated destination could not be resolved.");
+          return;
+        }
+        window.setTimeout(() => onRedirect(nextPath), 900);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -593,8 +599,8 @@ export function useInvitationAcceptRouteRuntime(options: {
     });
   }, [auth, continuationPath, turnstile]);
   const loginContinuationPath = React.useMemo(() => {
-    if (!continuationPath) return "/login";
-    return `/login?next=${encodeURIComponent(continuationPath)}`;
+    if (!continuationPath) return AUTH_LOGIN_PATH;
+    return `${AUTH_LOGIN_PATH}?next=${encodeURIComponent(continuationPath)}`;
   }, [continuationPath]);
   const shouldShowEmailSignInOption =
     shouldShowInvitationChoices && resolutionAuth?.emailMode === "sign_in";
@@ -617,9 +623,14 @@ export function useInvitationAcceptRouteRuntime(options: {
     auth
       .acceptInvitationWithPassword(token, password, turnstile.token)
       .then((nextPath) => {
+        if (!nextPath) {
+          setStatus("error");
+          setMessage("Authenticated destination could not be resolved.");
+          return;
+        }
         setStatus("done");
         setMessage("Invitation accepted. Redirecting...");
-        window.setTimeout(() => onRedirect(nextPath ?? "/"), 900);
+        window.setTimeout(() => onRedirect(nextPath), 900);
       })
       .catch((error) => {
         setStatus("error");

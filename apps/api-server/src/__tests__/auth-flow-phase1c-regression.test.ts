@@ -36,7 +36,6 @@ function resolveFinalDestination(options: {
       requiredOnboarding: options.requiredOnboarding,
       destination: options.destination ?? "/dashboard",
     },
-    fallbackPath: "/dashboard",
   });
 }
 

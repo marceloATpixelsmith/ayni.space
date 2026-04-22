@@ -34,7 +34,6 @@ function flow(input: {
       destination: input.destination ?? "/dashboard",
     },
     stage: input.stage ?? "post_auth",
-    fallbackPath: "/dashboard",
   });
 }
 
@@ -89,7 +88,6 @@ test("SOLO SIGNUP FLOW: verify/authenticated routes to user onboarding and never
         destination: "/onboarding/user",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/onboarding/user",
   );
@@ -125,7 +123,6 @@ test("INVITATION FLOW: password + google continuations survive MFA and onboardin
         destination: "/onboarding/organization",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/onboarding/organization",
   );
@@ -141,7 +138,6 @@ test("INVITATION FLOW: password + google continuations survive MFA and onboardin
         destination: "/onboarding/organization",
       },
       stage: "post_onboarding",
-      fallbackPath: "/dashboard",
     }),
     invitationPath,
   );
@@ -164,7 +160,6 @@ test("STANDARD LOGIN FLOW: email/password and google share denied-access overrid
         destination: denied,
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     denied,
   );
@@ -213,7 +208,6 @@ test("CONTINUATION COMPETITION: onboarding > continuation > default and invalid/
         destination: "/onboarding/organization",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/onboarding/organization",
   );
@@ -229,7 +223,6 @@ test("CONTINUATION COMPETITION: onboarding > continuation > default and invalid/
         destination: "/dashboard",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/invitations/token-200/accept",
   );
@@ -248,7 +241,6 @@ test("CONTINUATION COMPETITION: onboarding > continuation > default and invalid/
         destination: "/dashboard",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/dashboard",
   );
@@ -268,7 +260,6 @@ test("CONTINUATION COMPETITION: onboarding > continuation > default and invalid/
         destination: "/dashboard",
       },
       stage: "post_auth",
-      fallbackPath: "/dashboard",
     }),
     "/dashboard",
   );

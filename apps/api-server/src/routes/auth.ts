@@ -31,12 +31,16 @@ import {
   resolveSessionGroupFromAppSlug,
   SESSION_GROUPS,
 } from "../lib/sessionGroup.js";
+import {
+  getRequestedAppSlugFromRequest,
+  mapAuthContextFailureToAuthErrorCode,
+  resolveAppContextForAuth,
+} from "../lib/authContextPolicy.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { getAbuseClientKey, recordAbuseSignal } from "../lib/authAbuse.js";
 import { resolvePostAuthFlowDecision } from "../lib/postAuthFlow.js";
 import {
   resolveAuthenticatedPostAuthDestination,
-  DEFAULT_POST_AUTH_PATH,
   type PostAuthResolutionStage,
 } from "../lib/postAuthDestination.js";
 import {
@@ -321,100 +325,6 @@ function validateOAuthCallbackState(
     returnToPath: parsedState.returnToPath,
   };
   return { valid: true, stateContext };
-}
-
-function parseAppSlugByOriginEnv(): Map<string, string> {
-  const raw = process.env["APP_SLUG_BY_ORIGIN"] ?? "";
-  const mappings = new Map<string, string>();
-  for (const entry of raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)) {
-    const [origin, slug] = entry.split("=").map((value) => value.trim());
-    if (!origin || !slug) continue;
-    try {
-      mappings.set(new URL(origin).origin, slug);
-    } catch {
-      continue;
-    }
-  }
-  return mappings;
-}
-
-function parseDefaultAppSlugBySessionGroupEnv(): Map<string, string> {
-  const raw = process.env["SESSION_GROUP_APP_SLUGS"] ?? "";
-  const mappings = new Map<string, string>();
-  for (const entry of raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)) {
-    const [sessionGroup, appSlug] = entry
-      .split("=")
-      .map((value) => value.trim());
-    if (!sessionGroup || !appSlug) continue;
-    mappings.set(sessionGroup, appSlug);
-  }
-  return mappings;
-}
-
-function getRequestedAppSlug(req: Request): string | null {
-  const bodyAppSlug = firstQueryParam(req.body?.appSlug);
-  if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim();
-
-  const queryAppSlug = firstQueryParam(req.query?.appSlug);
-  if (queryAppSlug && queryAppSlug.trim()) return queryAppSlug.trim();
-
-  const sessionAppSlug =
-    typeof req.session?.appSlug === "string" ? req.session.appSlug.trim() : "";
-  if (sessionAppSlug) return sessionAppSlug;
-
-  return null;
-}
-
-function resolveActiveAppSlugForAuth(
-  req: Request,
-  frontendBase: string,
-  sessionGroup: string,
-  options?: { preferAdminFromOriginSessionGroup?: boolean },
-): string | null {
-  const requestedAppSlug = getRequestedAppSlug(req);
-  if (requestedAppSlug) return requestedAppSlug;
-
-  if (options?.preferAdminFromOriginSessionGroup && frontendBase) {
-    const originSessionGroup = resolveSessionGroupFromOrigin(frontendBase);
-    if (originSessionGroup === SESSION_GROUPS.ADMIN) {
-      return "admin";
-    }
-  }
-
-  const explicit = frontendBase
-    ? parseAppSlugByOriginEnv().get(frontendBase)
-    : undefined;
-  if (explicit) return explicit;
-
-  const groupDefault = parseDefaultAppSlugBySessionGroupEnv().get(sessionGroup);
-  if (groupDefault) return groupDefault;
-
-  return null;
-}
-
-function resolveOauthStartContext(req: Request, returnTo: string) {
-  const originSessionGroup = resolveSessionGroupFromOrigin(returnTo);
-  const resolvedSessionGroup = req.resolvedSessionGroup ?? originSessionGroup;
-  const appSlug = resolveActiveAppSlugForAuth(
-    req,
-    returnTo,
-    resolvedSessionGroup,
-    { preferAdminFromOriginSessionGroup: true },
-  );
-  const oauthSessionGroup = appSlug
-    ? resolveSessionGroupFromAppSlug(appSlug)
-    : resolvedSessionGroup;
-
-  return {
-    appSlug,
-    oauthSessionGroup,
-  };
 }
 
 function firstQueryParam(value: unknown): string | undefined {
@@ -1131,28 +1041,36 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
 
-  const { appSlug, oauthSessionGroup } = resolveOauthStartContext(
+  const appContext = await resolveAppContextForAuth({
     req,
-    returnTo,
-  );
-  if (!appSlug) {
-    console.error("[auth/google/url] missing appSlug for oauth start", {
+    origin: returnTo,
+    sessionGroup: req.resolvedSessionGroup ?? resolveSessionGroupFromOrigin(returnTo),
+  });
+  if (!appContext.ok) {
+    console.error("[auth/google/url] app context resolution failed", {
       returnTo,
+      reason: appContext.reason,
+      details: appContext.details ?? null,
       resolvedSessionGroup: req.resolvedSessionGroup ?? null,
       originSessionGroup: resolveSessionGroupFromOrigin(returnTo),
-      requestAppSlug: getRequestedAppSlug(req),
+      requestAppSlug: getRequestedAppSlugFromRequest(req),
     });
-    logAuthFailure(req, "google-url-missing-app-slug", { returnTo });
+    logAuthFailure(req, "google-url-app-context-failed", {
+      returnTo,
+      reason: appContext.reason,
+    });
     sendGoogleUrlError(
       req,
       res,
       400,
-      AUTH_ERROR_CODES.APP_SLUG_MISSING,
-      "App slug is required to start OAuth.",
-      "app_slug_missing",
+      mapAuthContextFailureToAuthErrorCode(appContext.reason),
+      "App context is required to start OAuth.",
+      appContext.reason,
     );
     return;
   }
+  const appSlug = appContext.resolvedAppSlug;
+  const oauthSessionGroup = appContext.sessionGroup;
 
   const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
 
@@ -1992,10 +1910,14 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
-function getRequestedEmailPasswordAppSlug(req: Request): string | null {
+async function resolveRequestedEmailPasswordAppContext(req: Request) {
   const origin = getRequestFrontendOrigin(req) ?? null;
   const group = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
-  return resolveActiveAppSlugForAuth(req, origin ?? "", group);
+  return resolveAppContextForAuth({
+    req,
+    origin,
+    sessionGroup: group,
+  });
 }
 
 function getGenericAuthResponseMessage() {
@@ -2018,10 +1940,13 @@ function buildMfaRequiredAuthResponse(mfaGate: {
   };
 }
 
-function sendAppSlugMissingError(res: Response) {
+function sendAppContextResolutionError(
+  res: Response,
+  reason: string = AUTH_ERROR_CODES.APP_SLUG_MISSING,
+) {
   res.status(400).json({
-    error: "Application context is missing. Please reload and try again.",
-    code: AUTH_ERROR_CODES.APP_SLUG_MISSING,
+    error: "Application context could not be resolved. Please reload and try again.",
+    code: reason,
   });
 }
 
@@ -2357,10 +2282,12 @@ async function resolveNextPathForEstablishedSession(
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
-      fallbackPath: DEFAULT_POST_AUTH_PATH,
       stage,
       currentAppSlug: app.slug,
     });
+    if (!destination) {
+      return null;
+    }
     const shouldKeepContinuation =
       stage === "post_auth" && flow?.requiredOnboarding !== "none";
     if (effectiveContinuation && shouldKeepContinuation) {
@@ -2386,11 +2313,15 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
-  const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
-  if (!signupAppSlug) {
-    sendAppSlugMissingError(res);
+  const signupAppContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!signupAppContext.ok) {
+    sendAppContextResolutionError(
+      res,
+      mapAuthContextFailureToAuthErrorCode(signupAppContext.reason),
+    );
     return;
   }
+  const signupAppSlug = signupAppContext.resolvedAppSlug;
 
   if (!email || !password || !isStrongEnoughPassword(password)) {
     await logSignupDecision(req, {
@@ -2680,11 +2611,15 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const appSlug = getRequestedEmailPasswordAppSlug(req);
-  if (!appSlug) {
-    sendAppSlugMissingError(res);
+  const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!appContext.ok) {
+    sendAppContextResolutionError(
+      res,
+      mapAuthContextFailureToAuthErrorCode(appContext.reason),
+    );
     return;
   }
+  const appSlug = appContext.resolvedAppSlug;
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   const continuation = resolvePostAuthContinuation({
     appSlug,
@@ -2765,11 +2700,15 @@ async function handlePasswordLogin(req: Request, res: Response) {
 }
 
 async function handleForgotPassword(req: Request, res: Response) {
-  const appSlug = getRequestedEmailPasswordAppSlug(req);
-  if (!appSlug) {
-    sendAppSlugMissingError(res);
+  const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!appContext.ok) {
+    sendAppContextResolutionError(
+      res,
+      mapAuthContextFailureToAuthErrorCode(appContext.reason),
+    );
     return;
   }
+  const appSlug = appContext.resolvedAppSlug;
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   let token: string | undefined;
   if (email) {

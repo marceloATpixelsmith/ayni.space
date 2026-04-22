@@ -494,7 +494,7 @@ test("invitation password + existing sign-in + google continuation branches pres
         appSlug: "org-open",
         returnToPath: "/invitations/invite-signin-token/accept",
       },
-      { origin: "http://admin.local" },
+      { origin: "http://workspace.local" },
     );
     assert.equal(googleStart.status, 200);
     const googleUrl = String(googleStart.body?.url ?? "");

@@ -9,7 +9,6 @@ ensureTestDatabaseEnv();
 const { db } = await import("@workspace/db");
 const { resolvePostAuthContinuation } = await import("../lib/postAuthContinuation.js");
 const {
-  DEFAULT_POST_AUTH_PATH,
   resolveAuthenticatedPostAuthDestination,
 } = await import("../lib/postAuthDestination.js");
 const {
@@ -193,7 +192,7 @@ test("post-auth destination precedence matrix stays backend-authoritative across
     currentAppSlug: "ayni",
     flowDecision: null,
   });
-  assert.equal(fallbackOnly, DEFAULT_POST_AUTH_PATH);
+  assert.equal(fallbackOnly, null);
 });
 
 test("invitation acceptance route does not hardcode dashboard masking fallback", () => {

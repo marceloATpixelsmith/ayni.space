@@ -327,6 +327,15 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
     stage: "post_auth",
     currentAppSlug: appSlug ?? null,
   });
+  if (!nextPath) {
+    return {
+      ok: false as const,
+      status: 409,
+      error:
+        "Authenticated state could not be resolved to a destination. Please sign in again.",
+      code: "POST_AUTH_DESTINATION_UNRESOLVED",
+    };
+  }
   return { ok: true as const, nextPath, org };
 }
 
@@ -716,7 +725,10 @@ async function acceptInvitation(req: Request<{ token: string }>, res: Response) 
       metadata: { reason: acceptance.error },
       req,
     });
-    res.status(acceptance.status).json({ error: acceptance.error });
+    res.status(acceptance.status).json({
+      error: acceptance.error,
+      ...(acceptance.code ? { code: acceptance.code } : {}),
+    });
     return;
   }
 
@@ -833,7 +845,10 @@ async function acceptInvitationWithPassword(req: Request<{ token: string }, unkn
   await establishInvitationSession(req, user.id, app.slug);
   const acceptance = await finalizeInvitationAcceptance(req, invitation, user.id);
   if (!acceptance.ok) {
-    res.status(acceptance.status).json({ error: acceptance.error });
+    res.status(acceptance.status).json({
+      error: acceptance.error,
+      ...(acceptance.code ? { code: acceptance.code } : {}),
+    });
     return;
   }
 
