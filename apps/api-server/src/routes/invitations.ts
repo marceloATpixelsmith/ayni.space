@@ -310,7 +310,11 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
   const invitationApp = await db.query.appsTable.findFirst({
     where: and(eq(appsTable.id, invitation.appId), eq(appsTable.isActive, true)),
   });
-  const appSlug = invitationApp?.slug ?? req.session.appSlug ?? null;
+  const appSlugCandidate = invitationApp?.slug ?? req.session.appSlug ?? null;
+  const appSlug =
+    typeof appSlugCandidate === "string" && appSlugCandidate.trim().length > 0
+      ? appSlugCandidate.trim().toLowerCase()
+      : null;
   let postAcceptDecision = null;
   if (appSlug && user) {
     const app = invitationApp ?? (await getAppBySlug(appSlug));
@@ -318,7 +322,7 @@ async function finalizeInvitationAcceptance(req: Request, invitation: typeof inv
     if (app && normalizedAccessProfile) {
       postAcceptDecision = await resolvePostAuthFlowDecision({
         userId,
-        appSlug: app.slug,
+        appSlug,
         isSuperAdmin: Boolean(user.isSuperAdmin),
         normalizedAccessProfile,
       });

@@ -25,7 +25,8 @@ export type AuthContextResolution =
       resolvedAppSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
-      app: App;
+      app: App | null;
+      canonicalAppResolved: boolean;
       source: "request" | "origin" | "session-group-default";
     }
   | {
@@ -159,10 +160,12 @@ export async function resolveAppContextForAuth(input: {
   };
 
   let selectedCanonicalApp: App | null = null;
+  let selectedLookupErrored = false;
   try {
     selectedCanonicalApp = (await getAppBySlug(selected.appSlug)) ?? null;
   } catch {
     selectedCanonicalApp = null;
+    selectedLookupErrored = true;
   }
 
   let originCanonicalApp: App | null = null;
@@ -227,7 +230,7 @@ export async function resolveAppContextForAuth(input: {
     };
   }
 
-  if (!selectedCanonicalApp) {
+  if (!selectedCanonicalApp && !selectedLookupErrored) {
     return {
       ok: false,
       reason: "app_not_found",
@@ -246,7 +249,22 @@ export async function resolveAppContextForAuth(input: {
   const app = selectedCanonicalApp;
   let policy: AuthContextPolicy | null = null;
 
-  policy = deriveAuthContextPolicy(app);
+  if (app) {
+    policy = deriveAuthContextPolicy(app);
+  } else if (selectedLookupErrored) {
+    const knownGroups = getKnownSessionGroups();
+    const fallbackSessionGroup =
+      typeof derivedSessionGroup === "string" &&
+      knownGroups.includes(derivedSessionGroup)
+        ? derivedSessionGroup
+        : SESSION_GROUPS.DEFAULT;
+    policy = {
+      accessMode: fallbackSessionGroup === SESSION_GROUPS.ADMIN ? "superadmin" : "organization",
+      sessionGroup: fallbackSessionGroup,
+      applyAdminPrivileges: false,
+    };
+  }
+
   if (!policy) {
     return {
       ok: false,
@@ -284,6 +302,7 @@ export async function resolveAppContextForAuth(input: {
     sessionGroup: policy.sessionGroup,
     policy,
     app,
+    canonicalAppResolved: Boolean(app),
     source,
   };
 }
