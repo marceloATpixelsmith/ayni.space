@@ -244,7 +244,7 @@ test("production session cookie config defaults to SameSite=None with secure=tru
     else process.env["SESSION_COOKIE_SAME_SITE"] = prevSameSite;
   }
 });
-test("admin oauth start derives admin context and emits oauth-state trace log", async () => {
+test("admin oauth start requires explicit admin appSlug and emits oauth-state trace log", async () => {
   const logs: unknown[][] = [];
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
@@ -262,7 +262,7 @@ test("admin oauth start derives admin context and emits oauth-state trace log", 
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
-    const response = await request(app, "/api/auth/google/url", {
+    const response = await request(app, "/api/auth/google/url?appSlug=admin", {
       method: "POST",
       headers: {
         referer: "http://admin.local/login",
@@ -335,7 +335,7 @@ test("oauth start preserves login continuation path in oauth state payload", asy
   }
 });
 
-test("admin oauth start ignores conflicting APP_SLUG_BY_ORIGIN mapping and keeps admin context", async () => {
+test("admin oauth start fails closed when explicit appSlug conflicts with origin mapping", async () => {
   const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
   process.env["APP_SLUG_BY_ORIGIN"] = "http://admin.local=workspace";
 
@@ -348,21 +348,15 @@ test("admin oauth start ignores conflicting APP_SLUG_BY_ORIGIN mapping and keeps
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
-    const response = await request(app, "/api/auth/google/url", {
+    const response = await request(app, "/api/auth/google/url?appSlug=admin", {
       method: "POST",
       headers: {
         origin: "http://admin.local",
       },
     });
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as { url: string };
-    const state = new URL(body.url).searchParams.get("state");
-    assert.ok(state);
-    const segments = state.split(".");
-    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
-    assert.equal(payload.appSlug, "admin");
-    assert.equal(payload.sessionGroup, "admin");
-    assert.equal(payload.returnTo, "http://admin.local");
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string };
+    assert.equal(body.code, "app_context_unavailable");
   } finally {
     if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
@@ -375,7 +369,7 @@ test("admin oauth start ignores conflicting APP_SLUG_BY_ORIGIN mapping and keeps
   }
 });
 
-test("admin oauth start derives admin context from forwarded host when origin/referer are unavailable", async () => {
+test("admin oauth start fails closed without explicit appSlug when using forwarded host context", async () => {
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
@@ -392,15 +386,9 @@ test("admin oauth start derives admin context from forwarded host when origin/re
         "x-forwarded-proto": "http",
       },
     });
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as { url: string };
-    const state = new URL(body.url).searchParams.get("state");
-    assert.ok(state);
-    const segments = state.split(".");
-    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
-    assert.equal(payload.appSlug, "admin");
-    assert.equal(payload.sessionGroup, "admin");
-    assert.equal(payload.returnTo, "http://admin.local");
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { code?: string };
+    assert.equal(body.code, "app_slug_missing");
   } finally {
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;

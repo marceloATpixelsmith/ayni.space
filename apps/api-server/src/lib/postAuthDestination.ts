@@ -13,10 +13,9 @@ export type PostAuthResolutionStage = "post_auth" | "post_onboarding";
 export function resolveAuthenticatedPostAuthDestination(options: {
   continuation?: PostAuthContinuation | null;
   flowDecision: PostAuthFlowDecision | null;
-  fallbackPath?: string;
   stage?: PostAuthResolutionStage;
   currentAppSlug?: string | null;
-}): string {
+}): string | null {
   const stage = options.stage ?? "post_auth";
   const expectedAppSlug =
     (options.currentAppSlug ?? options.flowDecision?.appSlug ?? "").trim()
@@ -38,7 +37,7 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     options.flowDecision.requiredOnboarding !== "none";
 
   if (!canAccess) {
-    return flowDestination ?? options.fallbackPath ?? DEFAULT_POST_AUTH_PATH;
+    return flowDestination ?? null;
   }
 
   if (requiresOnboarding && flowDestination) {
@@ -58,5 +57,5 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     return flowDestination;
   }
 
-  return options.fallbackPath ?? DEFAULT_POST_AUTH_PATH;
+  return null;
 }
