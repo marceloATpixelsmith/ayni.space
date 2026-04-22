@@ -22,6 +22,7 @@ import {
   logAuthDebug,
   resolveAuthenticatedNextStep,
   useCurrentPlatformAppMetadata,
+  DEFAULT_POST_AUTH_PATH,
   type AuthRouteKind,
 } from "@workspace/frontend-security";
 import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
@@ -125,13 +126,17 @@ function Home() {
         authStatus: auth.status,
         user: auth.user,
         deniedLoginPath: adminAccessDeniedLoginPath(),
-        defaultPath: "/dashboard",
+        defaultPath: DEFAULT_POST_AUTH_PATH,
       });
       if (
         (auth.user as (typeof auth.user & { appAccess?: { normalizedAccessProfile?: string } }) | null)?.appAccess
           ?.normalizedAccessProfile === "superadmin"
       ) {
-        setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());
+        setLocation(
+          auth.user?.isSuperAdmin
+            ? DEFAULT_POST_AUTH_PATH
+            : adminAccessDeniedLoginPath(),
+        );
         return;
       }
       logAuthDebug("guard_redirect", {
@@ -473,7 +478,7 @@ function Router() {
               authStatus: auth.status,
               user: auth.user,
               deniedLoginPath: adminAccessDeniedLoginPath(),
-              defaultPath: "/dashboard",
+              defaultPath: DEFAULT_POST_AUTH_PATH,
             });
             return <AuthRedirect to={nextStep.destination} />;
           }
@@ -492,7 +497,7 @@ function Router() {
               authStatus: auth.status,
               user: auth.user,
               deniedLoginPath: adminAccessDeniedLoginPath(),
-              defaultPath: "/dashboard",
+              defaultPath: DEFAULT_POST_AUTH_PATH,
             });
             return <AuthRedirect to={nextStep.destination} />;
           }

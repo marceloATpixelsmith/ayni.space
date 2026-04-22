@@ -341,6 +341,22 @@ function parseAppSlugByOriginEnv(): Map<string, string> {
   return mappings;
 }
 
+function parseDefaultAppSlugBySessionGroupEnv(): Map<string, string> {
+  const raw = process.env["SESSION_GROUP_APP_SLUGS"] ?? "";
+  const mappings = new Map<string, string>();
+  for (const entry of raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)) {
+    const [sessionGroup, appSlug] = entry
+      .split("=")
+      .map((value) => value.trim());
+    if (!sessionGroup || !appSlug) continue;
+    mappings.set(sessionGroup, appSlug);
+  }
+  return mappings;
+}
+
 function getRequestedAppSlug(req: Request): string | null {
   const bodyAppSlug = firstQueryParam(req.body?.appSlug);
   if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim();
@@ -363,20 +379,13 @@ function resolveActiveAppSlugForAuth(
   const requestedAppSlug = getRequestedAppSlug(req);
   if (requestedAppSlug) return requestedAppSlug;
 
-  try {
-    const hostname = new URL(frontendBase).hostname.toLowerCase();
-    if (hostname === "admin.ayni.space" || hostname.startsWith("admin.")) {
-      return "admin";
-    }
-  } catch {
-    // noop
-  }
-
-  if (sessionGroup === SESSION_GROUPS.ADMIN) return "admin";
-
-  const explicitMap = parseAppSlugByOriginEnv();
-  const explicit = explicitMap.get(frontendBase);
+  const explicit = frontendBase
+    ? parseAppSlugByOriginEnv().get(frontendBase)
+    : undefined;
   if (explicit) return explicit;
+
+  const groupDefault = parseDefaultAppSlugBySessionGroupEnv().get(sessionGroup);
+  if (groupDefault) return groupDefault;
 
   return null;
 }
@@ -389,10 +398,9 @@ function resolveOauthStartContext(req: Request, returnTo: string) {
     returnTo,
     resolvedSessionGroup,
   );
-  const oauthSessionGroup =
-    appSlug === "admin" || resolvedSessionGroup === SESSION_GROUPS.ADMIN
-      ? SESSION_GROUPS.ADMIN
-      : SESSION_GROUPS.DEFAULT;
+  const oauthSessionGroup = appSlug
+    ? resolveSessionGroupFromAppSlug(appSlug)
+    : resolvedSessionGroup;
 
   return {
     appSlug,
@@ -1130,7 +1138,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req,
       res,
       400,
-      "APP_SLUG_REQUIRED",
+      AUTH_ERROR_CODES.APP_SLUG_MISSING,
       "App slug is required to start OAuth.",
       "app_slug_missing",
     );
@@ -1929,14 +1937,23 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const finalDestination =
-      (await resolveNextPathForEstablishedSession(
-        req,
-        user.id,
-        activeAppSlug,
-        oauthContinuation,
-        "post_auth",
-      )) ?? DEFAULT_POST_AUTH_PATH;
+    const finalDestination = await resolveNextPathForEstablishedSession(
+      req,
+      user.id,
+      activeAppSlug,
+      oauthContinuation,
+      "post_auth",
+    );
+    if (!finalDestination) {
+      await destroySessionAndClearCookie(req, res, oauthSessionGroup);
+      res.redirect(
+        getControlledAuthErrorRedirect(
+          frontendBase,
+          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
+        ),
+      );
+      return;
+    }
     infoVerboseTrace("[auth/google/callback] final redirect path", {
       appSlug: activeAppSlug,
       redirectPath: finalDestination,
@@ -1966,10 +1983,10 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
-function getRequestedEmailPasswordAppSlug(req: Request): string {
+function getRequestedEmailPasswordAppSlug(req: Request): string | null {
   const origin = getRequestFrontendOrigin(req) ?? null;
   const group = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
-  return resolveActiveAppSlugForAuth(req, origin ?? "", group) ?? "admin";
+  return resolveActiveAppSlugForAuth(req, origin ?? "", group);
 }
 
 function getGenericAuthResponseMessage() {
@@ -1990,6 +2007,21 @@ function buildMfaRequiredAuthResponse(mfaGate: {
       mfaGate.nextPath ??
       (mfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge"),
   };
+}
+
+function sendAppSlugMissingError(res: Response) {
+  res.status(400).json({
+    error: "Application context is missing. Please reload and try again.",
+    code: AUTH_ERROR_CODES.APP_SLUG_MISSING,
+  });
+}
+
+function sendPostAuthDestinationUnresolved(res: Response) {
+  res.status(409).json({
+    error:
+      "Authenticated state could not be resolved to a destination. Please sign in again.",
+    code: "POST_AUTH_DESTINATION_UNRESOLVED",
+  });
 }
 
 type SignupDecisionCategory =
@@ -2346,6 +2378,10 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const password = String(req.body?.password ?? "");
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
   const signupAppSlug = getRequestedEmailPasswordAppSlug(req);
+  if (!signupAppSlug) {
+    sendAppSlugMissingError(res);
+    return;
+  }
 
   if (!email || !password || !isStrongEnoughPassword(password)) {
     await logSignupDecision(req, {
@@ -2636,6 +2672,10 @@ async function handlePasswordLogin(req: Request, res: Response) {
   }
 
   const appSlug = getRequestedEmailPasswordAppSlug(req);
+  if (!appSlug) {
+    sendAppSlugMissingError(res);
+    return;
+  }
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   const continuation = resolvePostAuthContinuation({
     appSlug,
@@ -2690,9 +2730,16 @@ async function handlePasswordLogin(req: Request, res: Response) {
     .update(usersTable)
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
-  const nextPath =
-    (await resolveNextPathForEstablishedSession(req, user.id, appSlug, continuation)) ??
-    DEFAULT_POST_AUTH_PATH;
+  const nextPath = await resolveNextPathForEstablishedSession(
+    req,
+    user.id,
+    appSlug,
+    continuation,
+  );
+  if (!nextPath) {
+    sendPostAuthDestinationUnresolved(res);
+    return;
+  }
   logAuthDebug(req, "login_result", {
     userId: user.id,
     appSlug,
@@ -2709,6 +2756,11 @@ async function handlePasswordLogin(req: Request, res: Response) {
 }
 
 async function handleForgotPassword(req: Request, res: Response) {
+  const appSlug = getRequestedEmailPasswordAppSlug(req);
+  if (!appSlug) {
+    sendAppSlugMissingError(res);
+    return;
+  }
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   let token: string | undefined;
   if (email) {
@@ -2717,7 +2769,6 @@ async function handleForgotPassword(req: Request, res: Response) {
     });
     if (user) {
       token = await createAuthToken(user.id, "password_reset", 30);
-      const appSlug = getRequestedEmailPasswordAppSlug(req);
       const app = await getAppBySlug(appSlug);
       if (app) {
         await sendLane1PasswordResetEmail({
@@ -2920,14 +2971,16 @@ async function handleVerifyEmail(req: Request, res: Response) {
     .update(usersTable)
     .set({ lastLoginAt: new Date() })
     .where(eq(usersTable.id, user.id));
-  const nextPath =
-    (await resolveNextPathForEstablishedSession(
-      req,
-      user.id,
-      appSlug,
-      continuation,
-    )) ??
-    DEFAULT_POST_AUTH_PATH;
+  const nextPath = await resolveNextPathForEstablishedSession(
+    req,
+    user.id,
+    appSlug,
+    continuation,
+  );
+  if (!nextPath) {
+    sendPostAuthDestinationUnresolved(res);
+    return;
+  }
   logAuthDebug(req, "verify_email_result", {
     userId: user.id,
     appSlug,
@@ -3090,14 +3143,17 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   if (completed) {
     const appSlug = req.session.appSlug;
     if (appSlug) {
-      nextPath =
-        (await resolveNextPathForEstablishedSession(
-          req,
-          completed.userId,
-          appSlug,
-          completed.continuation,
-        )) ??
-        undefined;
+      const resolvedNextPath = await resolveNextPathForEstablishedSession(
+        req,
+        completed.userId,
+        appSlug,
+        completed.continuation,
+      );
+      if (!resolvedNextPath) {
+        sendPostAuthDestinationUnresolved(res);
+        return;
+      }
+      nextPath = resolvedNextPath;
     }
   }
   logAuthDebug(req, "mfa_enroll_verify_result", {
@@ -3168,6 +3224,10 @@ async function handleMfaChallenge(req: Request, res: Response) {
       )) ??
       undefined)
     : undefined;
+  if (appSlug && !nextPath) {
+    sendPostAuthDestinationUnresolved(res);
+    return;
+  }
   logAuthDebug(req, "mfa_challenge_result", {
     userId,
     verified: true,
@@ -3227,6 +3287,10 @@ async function handleMfaRecovery(req: Request, res: Response) {
       )) ??
       undefined)
     : undefined;
+  if (appSlug && !nextPath) {
+    sendPostAuthDestinationUnresolved(res);
+    return;
+  }
   logAuthDebug(req, "mfa_recovery_result", {
     userId,
     verified: true,
@@ -3251,13 +3315,17 @@ async function handlePostOnboardingNextPath(req: Request, res: Response) {
   }
 
   const nextPath =
-    (await resolveNextPathForEstablishedSession(
+    await resolveNextPathForEstablishedSession(
       req,
       userId,
       appSlug,
       req.session.postAuthContinuation ?? null,
       "post_onboarding",
-    )) ?? DEFAULT_POST_AUTH_PATH;
+    );
+  if (!nextPath) {
+    sendPostAuthDestinationUnresolved(res);
+    return;
+  }
   delete req.session.postAuthContinuation;
   await new Promise<void>((resolve, reject) => {
     req.session.save((err: unknown) => (err ? reject(err) : resolve()));

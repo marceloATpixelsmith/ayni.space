@@ -37,6 +37,12 @@ test("maps origin rejection and oauth config errors to specific text", () => {
     error: "Google OAuth is not configured.",
   });
   assert.equal(configMessage, "Sign-in is temporarily unavailable due to configuration. Please contact support.");
+
+  const missingAppSlugMessage = mapGoogleSignInError(makeResponse(400), {
+    code: "app_slug_missing",
+    error: "Application context is missing.",
+  });
+  assert.equal(missingAppSlugMessage, "Application context is missing. Please reload and try again.");
 });
 
 test("maps verify-email token states and csrf failures distinctly", () => {
