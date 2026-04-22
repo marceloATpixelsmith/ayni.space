@@ -19,8 +19,84 @@ function getDefaultRouteByAppSlug(appSlug: string): string {
   return appSlug === "admin" ? "/dashboard" : `/${appSlug}`;
 }
 
+function parseMappedTestAppSlugs(): Set<string> {
+  const slugs = new Set<string>();
+  const parseEntries = (value: string | undefined, getSlug: (entry: string) => string | null) => {
+    for (const entry of (value ?? "")
+      .split(",")
+      .map((rawEntry) => rawEntry.trim())
+      .filter(Boolean)) {
+      const slug = getSlug(entry);
+      if (slug) slugs.add(slug);
+    }
+  };
+
+  parseEntries(process.env["APP_SLUG_BY_ORIGIN"], (entry) => {
+    const [, rawSlug] = entry.split("=").map((value) => value.trim());
+    if (!rawSlug) return null;
+    return rawSlug.toLowerCase();
+  });
+
+  parseEntries(process.env["SESSION_GROUP_APP_SLUGS"], (entry) => {
+    const [, rawSlug] = entry.split("=").map((value) => value.trim());
+    if (!rawSlug) return null;
+    return rawSlug.toLowerCase();
+  });
+
+  return slugs;
+}
+
+function canUseTestCanonicalFallback(appSlug: string): boolean {
+  if (process.env["NODE_ENV"] === "production") return false;
+  if (process.env["AUTH_ALLOW_TEST_APP_LOOKUP_FALLBACK"] === "true") return true;
+
+  if (appSlug === "admin") return true;
+  if (appSlug === "workspace") return true;
+  return parseMappedTestAppSlugs().has(appSlug);
+}
+
+function isCanonicalLookupOutage(error: unknown): boolean {
+  const queue: unknown[] = [error];
+  const visited = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    if (current instanceof Error) {
+      const message = current.message.toLowerCase();
+      if (
+        message.includes("econnrefused") ||
+        message.includes("connection") ||
+        message.includes("timeout")
+      ) {
+        return true;
+      }
+      queue.push((current as Error & { cause?: unknown }).cause);
+      const nestedErrors = (current as Error & { errors?: unknown[] }).errors;
+      if (Array.isArray(nestedErrors)) queue.push(...nestedErrors);
+      continue;
+    }
+
+    if (typeof current === "object") {
+      const currentRecord = current as Record<string, unknown>;
+      const code = typeof currentRecord["code"] === "string"
+        ? currentRecord["code"].toLowerCase()
+        : "";
+      if (code === "econnrefused" || code === "etimedout" || code === "econnreset") {
+        return true;
+      }
+      queue.push(currentRecord["cause"]);
+      if (Array.isArray(currentRecord["errors"])) queue.push(...currentRecord["errors"]);
+    }
+  }
+
+  return false;
+}
+
 function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSelect | null {
-  if (process.env["NODE_ENV"] === "production") return null;
+  if (!canUseTestCanonicalFallback(appSlug)) return null;
 
   const normalizedSlug = appSlug.trim().toLowerCase();
   if (!normalizedSlug) return null;
@@ -52,7 +128,14 @@ function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSel
   } satisfies typeof appsTable.$inferSelect;
 }
 
-export async function getAppBySlug(appSlug: string | null | undefined) {
+type GetAppBySlugOptions = {
+  allowOutageFallback?: boolean;
+};
+
+export async function getAppBySlug(
+  appSlug: string | null | undefined,
+  options: GetAppBySlugOptions = {},
+) {
   const normalizedSlug =
     typeof appSlug === "string" ? appSlug.trim().toLowerCase() : "";
   if (!normalizedSlug) return null;
@@ -82,12 +165,10 @@ export async function getAppBySlug(appSlug: string | null | undefined) {
 
     return mappedApps[0]!.app;
   } catch (error) {
-    const fallbackAppEnabled =
-      process.env["AUTH_ALLOW_TEST_APP_LOOKUP_FALLBACK"] === "true";
-    const fallbackApp = fallbackAppEnabled
+    const fallbackApp = options.allowOutageFallback !== false && isCanonicalLookupOutage(error)
       ? buildTestFallbackAppBySlug(normalizedSlug)
       : null;
-    if (fallbackAppEnabled && fallbackApp) {
+    if (fallbackApp) {
       console.warn("[auth/access] canonical app lookup failed, using test fallback", {
         appSlug: normalizedSlug,
         error: error instanceof Error ? error.message : String(error),
