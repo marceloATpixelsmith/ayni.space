@@ -55,6 +55,18 @@ test("legacy scrypt login transparently upgrades stored hash to current versione
       suspended: false,
       deletedAt: null,
       emailVerifiedAt: new Date(),
+      isSuperAdmin: false,
+      activeOrgId: null,
+      name: "User",
+      avatarUrl: null,
+    })),
+    patchProperty(db.query.appsTable, "findFirst", async () => ({
+      id: "admin-app",
+      slug: "admin",
+      isActive: true,
+      accessMode: "solo",
+      staffInvitesEnabled: false,
+      customerRegistrationEnabled: false,
     })),
     patchProperty(db.query.userCredentialsTable, "findFirst", async () => ({
       id: "cred-1",
