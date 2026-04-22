@@ -375,9 +375,17 @@ function resolveActiveAppSlugForAuth(
   req: Request,
   frontendBase: string,
   sessionGroup: string,
+  options?: { preferAdminFromOriginSessionGroup?: boolean },
 ): string | null {
   const requestedAppSlug = getRequestedAppSlug(req);
   if (requestedAppSlug) return requestedAppSlug;
+
+  if (options?.preferAdminFromOriginSessionGroup && frontendBase) {
+    const originSessionGroup = resolveSessionGroupFromOrigin(frontendBase);
+    if (originSessionGroup === SESSION_GROUPS.ADMIN) {
+      return "admin";
+    }
+  }
 
   const explicit = frontendBase
     ? parseAppSlugByOriginEnv().get(frontendBase)
@@ -397,6 +405,7 @@ function resolveOauthStartContext(req: Request, returnTo: string) {
     req,
     returnTo,
     resolvedSessionGroup,
+    { preferAdminFromOriginSessionGroup: true },
   );
   const oauthSessionGroup = appSlug
     ? resolveSessionGroupFromAppSlug(appSlug)

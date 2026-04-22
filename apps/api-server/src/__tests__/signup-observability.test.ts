@@ -374,6 +374,7 @@ test("signup policy denial logs signup_not_allowed_by_access_policy reason code"
       email: "policy@example.com",
       password: "SuperSecret123!",
       name: "Policy",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 403);
@@ -414,6 +415,7 @@ test("signup provider-failure step-up logs ipqs_provider_failure_step_up reason 
       email: "provider@example.com",
       password: "SuperSecret123!",
       name: "Provider",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 201);
@@ -487,6 +489,7 @@ test("signup validation denial logs validation_failed reason code", async () => 
       email: " ",
       password: "short",
       name: "Invalid",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 400);
@@ -546,6 +549,7 @@ test("signup internal exception path logs internal_exception reason code", async
       email: "explode@example.com",
       password: "SuperSecret123!",
       name: "Explode",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 500);
@@ -611,6 +615,7 @@ test("signup returns appSlug and routes verification email through lane1 outboun
       email: "new@example.com",
       password: "Password123!",
       name: "New User",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 201);
