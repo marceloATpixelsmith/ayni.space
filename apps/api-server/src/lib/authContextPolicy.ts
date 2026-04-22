@@ -27,7 +27,7 @@ export type AuthContextResolution =
       policy: AuthContextPolicy;
       app: App | null;
       canonicalAppResolved: boolean;
-      source: "request" | "origin";
+      source: "request" | "origin" | "session_group";
     }
   | {
       ok: false;
@@ -59,21 +59,48 @@ function firstQueryParam(value: unknown): string | undefined {
   return undefined;
 }
 
+function normalizeSlug(value: unknown): string | null {
+  const raw = firstQueryParam(value);
+  if (!raw || !raw.trim()) return null;
+  return raw.trim().toLowerCase();
+}
+
+function getBodyAppSlug(req: Request): string | null {
+  return normalizeSlug(req.body?.appSlug);
+}
+
+function getQueryOrParamAppSlug(req: Request, explicitAppSlug?: string | null): string | null {
+  return (
+    normalizeSlug(explicitAppSlug) ??
+    normalizeSlug(req.query?.appSlug) ??
+    normalizeSlug(req.params?.appSlug)
+  );
+}
+
+function parseSessionGroupSlugMap(): Map<string, string> {
+  const raw = process.env["SESSION_GROUP_APP_SLUGS"] ?? "";
+  const mapping = new Map<string, string>();
+  for (const entry of raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)) {
+    const [sessionGroup, appSlug] = entry.split("=").map((value) => value.trim());
+    if (!sessionGroup || !appSlug) continue;
+    mapping.set(sessionGroup, appSlug.toLowerCase());
+  }
+  return mapping;
+}
+
+function getSessionGroupFallbackAppSlug(sessionGroup: string | null | undefined): string | null {
+  const normalizedGroup = typeof sessionGroup === "string" ? sessionGroup.trim() : "";
+  if (!normalizedGroup) return null;
+  const mappedSlug = parseSessionGroupSlugMap().get(normalizedGroup);
+  if (mappedSlug) return mappedSlug;
+  return normalizedGroup === SESSION_GROUPS.ADMIN ? "admin" : null;
+}
+
 export function getRequestedAppSlugFromRequest(req: Request): string | null {
-  const bodyAppSlug = firstQueryParam(req.body?.appSlug);
-  if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim().toLowerCase();
-
-  const queryAppSlug = firstQueryParam(req.query?.appSlug);
-  if (queryAppSlug && queryAppSlug.trim()) {
-    return queryAppSlug.trim().toLowerCase();
-  }
-
-  const routeParamAppSlug = firstQueryParam(req.params?.appSlug);
-  if (routeParamAppSlug && routeParamAppSlug.trim()) {
-    return routeParamAppSlug.trim().toLowerCase();
-  }
-
-  return null;
+  return getBodyAppSlug(req) ?? getQueryOrParamAppSlug(req);
 }
 
 export function deriveAuthContextPolicy(appMetadata: Pick<App, "slug" | "accessMode" | "metadata">): AuthContextPolicy | null {
@@ -96,12 +123,9 @@ export async function resolveAppContextForAuth(input: {
   sessionGroup?: string | null;
   origin?: string | null;
 }): Promise<AuthContextResolution> {
-  const bodyAppSlug = getRequestedAppSlugFromRequest(input.req);
-  const paramAppSlug =
-    typeof input.appSlug === "string" && input.appSlug.trim()
-      ? input.appSlug.trim().toLowerCase()
-      : null;
-  const explicitAppSlug = bodyAppSlug ?? paramAppSlug;
+  const bodyAppSlug = getBodyAppSlug(input.req);
+  const queryOrParamAppSlug = getQueryOrParamAppSlug(input.req, input.appSlug);
+  const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
 
   const origin = input.origin ?? null;
   let originAppSlug: string | null = null;
@@ -120,15 +144,14 @@ export async function resolveAppContextForAuth(input: {
     }
   }
 
-  if (explicitAppSlug && originAppSlug && explicitAppSlug !== originAppSlug) {
-    return {
-      ok: false,
-      reason: "app_context_unavailable",
-      details: { explicitAppSlug, originAppSlug },
-    };
-  }
+  const fallbackSessionGroup =
+    input.sessionGroup ??
+    input.req.resolvedSessionGroup ??
+    input.req.session?.sessionGroup ??
+    resolveSessionGroupFromOrigin(origin);
+  const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const selectedAppSlug = explicitAppSlug ?? originAppSlug;
+  const selectedAppSlug = explicitAppSlug ?? originAppSlug ?? sessionGroupFallbackAppSlug;
   if (!selectedAppSlug) {
     return { ok: false, reason: "app_slug_missing" };
   }
@@ -144,7 +167,7 @@ export async function resolveAppContextForAuth(input: {
   if (canonicalLookupError) {
     return {
       ok: false,
-      reason: "app_context_unavailable",
+      reason: "app_not_found",
       details: {
         resolvedAppSlug: selectedAppSlug,
         lookupError:
@@ -163,7 +186,11 @@ export async function resolveAppContextForAuth(input: {
     };
   }
 
-  const source: "request" | "origin" = explicitAppSlug ? "request" : "origin";
+  const source: "request" | "origin" | "session_group" = explicitAppSlug
+    ? "request"
+    : originAppSlug
+      ? "origin"
+      : "session_group";
 
   const app = selectedCanonicalApp;
   const policy = deriveAuthContextPolicy(app);
@@ -177,9 +204,7 @@ export async function resolveAppContextForAuth(input: {
   }
 
   const derivedSessionGroup =
-    input.sessionGroup ??
-    input.req.resolvedSessionGroup ??
-    resolveSessionGroupFromOrigin(origin);
+    fallbackSessionGroup;
 
   const knownGroups = getKnownSessionGroups();
   const requestGroup = (derivedSessionGroup || "").trim();
