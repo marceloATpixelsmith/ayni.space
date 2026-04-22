@@ -6,6 +6,8 @@
 
 ## Confirmed
 - Backend auth core hardening coverage is included via `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts` (session-group isolation, denial cleanup, turnstile/rate-limit/origin fail-closed behavior, and stable CSRF/origin error-code contracts).
+- Password auth and OAuth start now fail closed when app context cannot be resolved (no implicit `admin` fallback), with machine-readable contract code `app_slug_missing` covered in route-level auth regression tests (`apps/api-server/src/routes/auth.ts`, `apps/api-server/src/__tests__/auth-logout-turnstile.test.ts`, `lib/frontend-security/src/__tests__/google-signin-error-mapping.test.ts`).
+- Post-auth destination resolution now fails closed with explicit `POST_AUTH_DESTINATION_UNRESOLVED` instead of silently defaulting to dashboard-like fallbacks during login/verify-email/MFA/onboarding completion (`apps/api-server/src/routes/auth.ts`).
 - Multi-session-group behavior with one browser cookie jar (`admin` + `default` cookies coexist and remain independently valid).
 - Cross-group isolation (auth in one group does not authenticate another group).
 - Admin denial flow for non-super-admin users (`/login?error=access_denied`, admin-group session destroyed/cleared, other group cookie left intact).

@@ -294,19 +294,19 @@ test("disallowed route redirects are explicit and avoid blank fallthrough states
 
   expectIncludes(
     authProviderSource,
-    "return isSuperAdmin ? \"/dashboard\" : (deniedLoginPath ?? \"/login\");",
+    "return isSuperAdmin\n        ? DEFAULT_POST_AUTH_PATH\n        : (deniedLoginPath ?? AUTH_LOGIN_PATH);",
     "Superadmin-profile authenticated route denials should redirect super admins to /dashboard and others to login-denied behavior.",
   );
 
   expectIncludes(
     authProviderSource,
-    "return \"/login\";",
+    "return AUTH_LOGIN_PATH;",
     "Disallowed unauthenticated routes should redirect to /login.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (isFullyAuthenticatedStatus(authStatus)) {\n    return \"/dashboard\";",
+    "if (isFullyAuthenticatedStatus(authStatus)) {\n    return DEFAULT_POST_AUTH_PATH;",
     "Non-superadmin-profile disallowed routes should redirect fully-authenticated users to /dashboard.",
   );
 });
@@ -430,7 +430,7 @@ test("protected authenticated non-super-admin users are routed to login with acc
 
   expectIncludes(
     appSource,
-    'setLocation(auth.user?.isSuperAdmin ? "/dashboard" : adminAccessDeniedLoginPath());',
+    "auth.user?.isSuperAdmin\n            ? DEFAULT_POST_AUTH_PATH\n            : adminAccessDeniedLoginPath()",
     "Root route should route authenticated non-super-admin users to /login with access error.",
   );
 });
@@ -1160,7 +1160,7 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
 
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({\n            email: normalizedEmail,\n            password,\n            "cf-turnstile-response": turnstileToken ?? undefined,\n          })',
+    'body: JSON.stringify({\n            email: normalizedEmail,\n            password,\n            appSlug: resolveRequiredAuthAppSlug(),\n            "cf-turnstile-response": turnstileToken ?? undefined,\n          })',
     "Signup request should include turnstile token payload for central enforcement.",
   );
 

@@ -264,7 +264,7 @@ const CLIENT_REGISTRATION_CONTINUATION_REGEX =
   /^\/(register|registration)\/(client|public)(?:\/)?$/i;
 const AUTHORIZED_POST_AUTH_PATHS = new Set([
   "/",
-  "/dashboard",
+  DEFAULT_POST_AUTH_PATH,
   "/dashboard/apps",
   "/apps",
   "/onboarding/organization",
@@ -396,6 +396,9 @@ export function mapGoogleSignInError(
     return "Sign-in is temporarily unavailable due to configuration. Please contact support.";
   }
   if (payload?.code === "ORIGIN_NOT_ALLOWED") return "Access origin is not allowed for sign-in.";
+  if (payload?.code === AUTH_ERROR_CODES.APP_SLUG_MISSING) {
+    return "Application context is missing. Please reload and try again.";
+  }
 
   if (status === 403)
     return payload?.error ?? "Verification failed. Please try again.";
@@ -425,6 +428,16 @@ export function mapVerifyEmailError(
     return "Security check failed. Please retry the verification link.";
   }
   return payload?.error ?? "Unable to verify email.";
+}
+
+function resolveRequiredAuthAppSlug(): string {
+  const appSlug = resolveCurrentAppSlug();
+  if (appSlug) return appSlug;
+  const error = new Error(
+    "Application context is missing. Please reload and try again.",
+  ) as Error & { code?: string };
+  error.code = AUTH_ERROR_CODES.APP_SLUG_MISSING;
+  throw error;
 }
 
 export async function requireCsrfToken(
@@ -502,16 +515,18 @@ export function getDisallowedAuthRouteRedirect({
 }): string {
   if (app?.normalizedAccessProfile === "superadmin") {
     if (isFullyAuthenticatedStatus(authStatus)) {
-      return isSuperAdmin ? "/dashboard" : (deniedLoginPath ?? "/login");
+      return isSuperAdmin
+        ? DEFAULT_POST_AUTH_PATH
+        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
     }
     if (isMfaPendingStatus(authStatus)) {
       return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
     }
-    return "/login";
+    return AUTH_LOGIN_PATH;
   }
 
   if (isFullyAuthenticatedStatus(authStatus)) {
-    return "/dashboard";
+    return DEFAULT_POST_AUTH_PATH;
   }
   if (isMfaPendingStatus(authStatus)) {
     return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
@@ -1167,6 +1182,7 @@ if (loginRequestRef.current) {
           body: JSON.stringify({
             email: normalizedEmail,
             password,
+            appSlug: resolveRequiredAuthAppSlug(),
             "cf-turnstile-response": turnstileToken ?? undefined,
             returnToPath: normalizedReturnToPath,
           }),
@@ -1186,6 +1202,11 @@ if (loginRequestRef.current) {
           ok: false,
           status: response.status,
         });
+        if (payload?.code === "POST_AUTH_DESTINATION_UNRESOLVED") {
+          throw new Error(
+            "We could not complete sign-in routing safely. Please sign in again.",
+          );
+        }
         throw new Error(payload?.error ?? "Invalid email or password.");
       }
       logAuthDebug("login_response_received", {
@@ -1257,6 +1278,7 @@ if (loginRequestRef.current) {
           body: JSON.stringify({
             email: normalizedEmail,
             password,
+            appSlug: resolveRequiredAuthAppSlug(),
             "cf-turnstile-response": turnstileToken ?? undefined,
           }),
         },
@@ -1267,6 +1289,11 @@ if (loginRequestRef.current) {
         appSlug?: string;
       } & ApiErrorPayload;
       if (!response.ok) {
+        if (payload?.code === AUTH_ERROR_CODES.APP_SLUG_MISSING) {
+          throw new Error(
+            "Application context is missing. Please reload and try again.",
+          );
+        }
         throw new Error(payload?.error ?? "Unable to sign up.");
       }
       await refreshSession();
@@ -1288,7 +1315,10 @@ if (loginRequestRef.current) {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail }),
+          body: JSON.stringify({
+            email: normalizedEmail,
+            appSlug: resolveRequiredAuthAppSlug(),
+          }),
         },
         csrfToken,
       );
