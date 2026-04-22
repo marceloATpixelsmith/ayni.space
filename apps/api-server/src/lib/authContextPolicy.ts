@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import type { App } from "@workspace/db";
-import { getAppBySlug } from "./appAccess.js";
+import { getAppBySlug, getAppSlugByOrigin } from "./appAccess.js";
 import { resolveNormalizedAccessProfile, type NormalizedAccessProfile } from "./appAccessProfile.js";
 import { getKnownSessionGroups, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
 import { resolveSessionGroupForApp } from "./sessionGroupCompatibility.js";
@@ -113,6 +113,13 @@ export async function resolveAppContextForAuth(input: {
       originAppSlug = parseAppSlugByOriginEnv().get(new URL(origin).origin) ?? null;
     } catch {
       originAppSlug = null;
+    }
+    if (!originAppSlug) {
+      try {
+        originAppSlug = await getAppSlugByOrigin(origin);
+      } catch {
+        originAppSlug = null;
+      }
     }
   }
   const derivedSessionGroup =

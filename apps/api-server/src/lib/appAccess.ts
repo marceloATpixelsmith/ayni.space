@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import {
   db,
+  appSettingsTable,
   appsTable,
   orgAppAccessTable,
   orgMembershipsTable,
@@ -12,15 +13,56 @@ import {
   getAuthRoutePolicyForProfile,
   resolveNormalizedAccessProfile,
 } from "./appAccessProfile.js";
+import { APP_SETTING_KEYS } from "./runtimeSettings.js";
 
 function getDefaultRouteByAppSlug(appSlug: string): string {
   return appSlug === "admin" ? "/dashboard" : `/${appSlug}`;
 }
 
 export async function getAppBySlug(appSlug: string) {
-  return db.query.appsTable.findFirst({
-    where: and(eq(appsTable.slug, appSlug), eq(appsTable.isActive, true)),
+  const normalizedSlug = appSlug.trim().toLowerCase();
+  const directMatch = await db.query.appsTable.findFirst({
+    where: and(eq(appsTable.slug, normalizedSlug), eq(appsTable.isActive, true)),
   });
+  if (directMatch) return directMatch;
+
+  const mappedApps = await db
+    .select({
+      app: appsTable,
+    })
+    .from(appSettingsTable)
+    .innerJoin(appsTable, eq(appSettingsTable.appId, appsTable.id))
+    .where(
+      and(
+        eq(appSettingsTable.key, APP_SETTING_KEYS.VITE_APP_SLUG),
+        eq(appSettingsTable.value, normalizedSlug),
+        eq(appsTable.isActive, true),
+      ),
+    );
+
+  if (mappedApps.length !== 1) {
+    return null;
+  }
+
+  return mappedApps[0]!.app;
+}
+
+export async function getAppSlugByOrigin(origin: string): Promise<string | null> {
+  let normalizedHost: string | null = null;
+  try {
+    normalizedHost = new URL(origin).host.toLowerCase();
+  } catch {
+    normalizedHost = null;
+  }
+  if (!normalizedHost) return null;
+
+  const app = await db.query.appsTable.findFirst({
+    where: and(eq(appsTable.domain, normalizedHost), eq(appsTable.isActive, true)),
+    columns: {
+      slug: true,
+    },
+  });
+  return app?.slug ?? null;
 }
 
 export async function canAccessApp(
