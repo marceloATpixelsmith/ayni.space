@@ -1950,7 +1950,7 @@ function buildMfaRequiredAuthResponse(mfaGate: {
 
 function sendAppContextResolutionError(
   res: Response,
-  reason: string = AUTH_ERROR_CODES.APP_SLUG_MISSING,
+  reason: string = AUTH_ERROR_CODES.APP_NOT_FOUND,
 ) {
   res.status(400).json({
     error: "Application context could not be resolved. Please reload and try again.",
