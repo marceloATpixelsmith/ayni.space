@@ -42,9 +42,13 @@ function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSel
     metadata: { sessionGroup: inferredSessionGroup },
     baseUrl: null,
     turnstileSiteKeyOverride: null,
+    description: null,
+    iconUrl: null,
     transactionalFromEmail: null,
     transactionalFromName: null,
     transactionalReplyToEmail: null,
+    invitationEmailSubject: null,
+    invitationEmailHtml: null,
   } satisfies typeof appsTable.$inferSelect;
 }
 
@@ -78,8 +82,12 @@ export async function getAppBySlug(appSlug: string | null | undefined) {
 
     return mappedApps[0]!.app;
   } catch (error) {
-    const fallbackApp = buildTestFallbackAppBySlug(normalizedSlug);
-    if (fallbackApp) {
+    const fallbackAppEnabled =
+      process.env["AUTH_ALLOW_TEST_APP_LOOKUP_FALLBACK"] === "true";
+    const fallbackApp = fallbackAppEnabled
+      ? buildTestFallbackAppBySlug(normalizedSlug)
+      : null;
+    if (fallbackAppEnabled && fallbackApp) {
       console.warn("[auth/access] canonical app lookup failed, using test fallback", {
         appSlug: normalizedSlug,
         error: error instanceof Error ? error.message : String(error),

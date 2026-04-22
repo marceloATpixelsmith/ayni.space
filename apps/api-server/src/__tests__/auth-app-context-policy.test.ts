@@ -20,7 +20,7 @@ function buildReq(seed: Record<string, unknown> = {}) {
   } as any;
 }
 
-test("resolveAppContextForAuth fails with app_not_found when no app context candidates are present", async () => {
+test("resolveAppContextForAuth fails with app_slug_missing when no app context candidates are present", async () => {
   const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
   const prevGroupMap = process.env["SESSION_GROUP_APP_SLUGS"];
   delete process.env["APP_SLUG_BY_ORIGIN"];
@@ -34,7 +34,7 @@ test("resolveAppContextForAuth fails with app_not_found when no app context cand
     });
     assert.equal(result.ok, false);
     if (result.ok) throw new Error("Expected failed app context resolution");
-    assert.equal(result.reason, "app_not_found");
+    assert.equal(result.reason, "app_slug_missing");
   } finally {
     if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
@@ -66,14 +66,27 @@ test("resolveAppContextForAuth fails closed when explicit appSlug conflicts with
 });
 
 test("resolveAppContextForAuth fails closed when explicit body appSlug has no canonical app row", async () => {
-  const result = await resolveAppContextForAuth({
-    req: buildReq({ body: { appSlug: "admin" } }),
-    sessionGroup: "default",
-    origin: "http://localhost:5173",
-  });
-  assert.equal(result.ok, false);
-  if (result.ok) throw new Error("Expected failed app context resolution");
-  assert.equal(result.reason, "app_not_found");
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => null);
+  const restoreSelect = patchProperty(db, "select", () => ({
+    from: () => ({
+      innerJoin: () => ({
+        where: async () => [],
+      }),
+    }),
+  }) as never);
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq({ body: { appSlug: "admin" } }),
+      sessionGroup: "default",
+      origin: "http://localhost:5173",
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("Expected failed app context resolution");
+    assert.equal(result.reason, "app_not_found");
+  } finally {
+    restoreSelect();
+    restoreFindFirst();
+  }
 });
 
 test("resolveAppContextForAuth resolves canonical app through VITE_APP_SLUG mapping", async () => {

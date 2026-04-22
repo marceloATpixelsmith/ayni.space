@@ -12,6 +12,7 @@ export type AuthContextPolicy = {
 };
 
 export type AuthContextFailureReason =
+  | "app_slug_missing"
   | "app_not_found"
   | "app_context_unavailable"
   | "invalid_access_mode"
@@ -61,6 +62,16 @@ function firstQueryParam(value: unknown): string | undefined {
 export function getRequestedAppSlugFromRequest(req: Request): string | null {
   const bodyAppSlug = firstQueryParam(req.body?.appSlug);
   if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim().toLowerCase();
+
+  const queryAppSlug = firstQueryParam(req.query?.appSlug);
+  if (queryAppSlug && queryAppSlug.trim()) {
+    return queryAppSlug.trim().toLowerCase();
+  }
+
+  const routeParamAppSlug = firstQueryParam(req.params?.appSlug);
+  if (routeParamAppSlug && routeParamAppSlug.trim()) {
+    return routeParamAppSlug.trim().toLowerCase();
+  }
 
   return null;
 }
@@ -119,7 +130,7 @@ export async function resolveAppContextForAuth(input: {
 
   const selectedAppSlug = explicitAppSlug ?? originAppSlug;
   if (!selectedAppSlug) {
-    return { ok: false, reason: "app_not_found" };
+    return { ok: false, reason: "app_slug_missing" };
   }
 
   let selectedCanonicalApp: App | null = null;
@@ -215,6 +226,7 @@ export async function resolveAppContextForAuth(input: {
 }
 
 export function mapAuthContextFailureToAuthErrorCode(reason: AuthContextFailureReason): string {
+  if (reason === "app_slug_missing") return "app_slug_missing";
   if (reason === "app_not_found") return "app_not_found";
   if (reason === "admin_context_required") return "access_denied";
   return "app_context_unavailable";
