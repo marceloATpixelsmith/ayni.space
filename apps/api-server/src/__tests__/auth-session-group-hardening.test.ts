@@ -388,7 +388,7 @@ test("admin oauth start fails closed without explicit appSlug when using forward
     });
     assert.equal(response.status, 400);
     const body = (await response.json()) as { code?: string };
-    assert.equal(body.code, "app_slug_missing");
+    assert.equal(body.code, "app_not_found");
   } finally {
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;

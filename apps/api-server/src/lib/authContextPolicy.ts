@@ -12,9 +12,8 @@ export type AuthContextPolicy = {
 };
 
 export type AuthContextFailureReason =
-  | "app_slug_missing"
-  | "app_context_ambiguous"
   | "app_not_found"
+  | "app_context_unavailable"
   | "invalid_access_mode"
   | "session_group_conflict"
   | "admin_context_required";
@@ -27,7 +26,7 @@ export type AuthContextResolution =
       policy: AuthContextPolicy;
       app: App | null;
       canonicalAppResolved: boolean;
-      source: "request" | "origin" | "session-group-default";
+      source: "request" | "origin";
     }
   | {
       ok: false;
@@ -49,22 +48,6 @@ function parseAppSlugByOriginEnv(): Map<string, string> {
     } catch {
       continue;
     }
-  }
-  return mappings;
-}
-
-function parseDefaultAppSlugBySessionGroupEnv(): Map<string, string> {
-  const raw = process.env["SESSION_GROUP_APP_SLUGS"] ?? "";
-  const mappings = new Map<string, string>();
-  for (const entry of raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)) {
-    const [sessionGroup, appSlug] = entry
-      .split("=")
-      .map((value) => value.trim());
-    if (!sessionGroup || !appSlug) continue;
-    mappings.set(sessionGroup, appSlug.toLowerCase());
   }
   return mappings;
 }
@@ -103,10 +86,12 @@ export async function resolveAppContextForAuth(input: {
   origin?: string | null;
 }): Promise<AuthContextResolution> {
   const bodyAppSlug = getRequestedAppSlugFromRequest(input.req);
-  const explicitAppSlug =
+  const paramAppSlug =
     typeof input.appSlug === "string" && input.appSlug.trim()
       ? input.appSlug.trim().toLowerCase()
       : null;
+  const explicitAppSlug = bodyAppSlug ?? paramAppSlug;
+
   const origin = input.origin ?? null;
   let originAppSlug: string | null = null;
   if (origin) {
@@ -123,135 +108,36 @@ export async function resolveAppContextForAuth(input: {
       }
     }
   }
-  const derivedSessionGroup =
-    input.sessionGroup ??
-    input.req.resolvedSessionGroup ??
-    resolveSessionGroupFromOrigin(origin);
-  const defaultByGroup = parseDefaultAppSlugBySessionGroupEnv().get(derivedSessionGroup) ?? null;
 
-  const selected =
-    (bodyAppSlug
-      ? { source: "body" as const, appSlug: bodyAppSlug }
-      : null) ??
-    (explicitAppSlug
-      ? { source: "explicit" as const, appSlug: explicitAppSlug }
-      : null) ??
-    (originAppSlug
-      ? { source: "origin" as const, appSlug: originAppSlug }
-      : null) ??
-    (defaultByGroup
-      ? { source: "session-group-default" as const, appSlug: defaultByGroup }
-      : null);
-
-  if (!selected) {
-    return { ok: false, reason: "app_slug_missing" };
+  if (explicitAppSlug && originAppSlug && explicitAppSlug !== originAppSlug) {
+    return {
+      ok: false,
+      reason: "app_context_unavailable",
+      details: { explicitAppSlug, originAppSlug },
+    };
   }
 
-  const candidatesConflict = (
-    leftSlug: string | null,
-    leftApp: App | null,
-    rightSlug: string | null,
-    rightApp: App | null,
-  ): boolean => {
-    if (!leftSlug || !rightSlug) return false;
-    if (leftSlug === rightSlug) return false;
-    if (leftApp && rightApp) return leftApp.id !== rightApp.id;
-    return true;
-  };
+  const selectedAppSlug = explicitAppSlug ?? originAppSlug;
+  if (!selectedAppSlug) {
+    return { ok: false, reason: "app_not_found" };
+  }
 
   let selectedCanonicalApp: App | null = null;
   try {
-    selectedCanonicalApp = (await getAppBySlug(selected.appSlug)) ?? null;
+    selectedCanonicalApp = (await getAppBySlug(selectedAppSlug)) ?? null;
   } catch {
     selectedCanonicalApp = null;
-  }
-
-  let originCanonicalApp: App | null = null;
-  if (originAppSlug) {
-    try {
-      originCanonicalApp = (await getAppBySlug(originAppSlug)) ?? null;
-    } catch {
-      originCanonicalApp = null;
-    }
-  }
-  let defaultCanonicalApp: App | null = null;
-  if (defaultByGroup) {
-    try {
-      defaultCanonicalApp = (await getAppBySlug(defaultByGroup)) ?? null;
-    } catch {
-      defaultCanonicalApp = null;
-    }
-  }
-
-  const originConflicts = candidatesConflict(
-    selected.appSlug,
-    selectedCanonicalApp,
-    originAppSlug,
-    originCanonicalApp,
-  );
-  const defaultConflicts = candidatesConflict(
-    selected.appSlug,
-    selectedCanonicalApp,
-    defaultByGroup,
-    defaultCanonicalApp,
-  );
-
-  if (selected.source === "explicit" || selected.source === "body") {
-    const explicitOriginConflict =
-      Boolean(selectedCanonicalApp) &&
-      Boolean(originCanonicalApp) &&
-      selectedCanonicalApp!.id !== originCanonicalApp!.id;
-    const explicitDefaultConflict =
-      Boolean(selectedCanonicalApp) &&
-      Boolean(defaultCanonicalApp) &&
-      selectedCanonicalApp!.id !== defaultCanonicalApp!.id;
-
-    if (explicitOriginConflict) {
-      return {
-        ok: false,
-        reason: "app_context_ambiguous",
-        details: { explicitAppSlug: selected.appSlug, originAppSlug },
-      };
-    }
-    if (explicitDefaultConflict) {
-      return {
-        ok: false,
-        reason: "app_context_ambiguous",
-        details: { explicitAppSlug: selected.appSlug, defaultByGroup },
-      };
-    }
-  }
-  if (
-    selected.source === "origin" &&
-    candidatesConflict(
-      originAppSlug,
-      originCanonicalApp,
-      defaultByGroup,
-      defaultCanonicalApp,
-    )
-  ) {
-    return {
-      ok: false,
-      reason: "app_context_ambiguous",
-      details: { originAppSlug: selected.appSlug, defaultByGroup },
-    };
   }
 
   if (!selectedCanonicalApp) {
     return {
       ok: false,
       reason: "app_not_found",
-      details: { resolvedAppSlug: selected.appSlug, source: selected.source },
+      details: { resolvedAppSlug: selectedAppSlug },
     };
   }
 
-  const resolvedAppSlug = selected.appSlug;
-  const source: "request" | "origin" | "session-group-default" =
-    selected.source === "origin"
-      ? "origin"
-      : selected.source === "session-group-default"
-        ? "session-group-default"
-        : "request";
+  const source: "request" | "origin" = explicitAppSlug ? "request" : "origin";
 
   const app = selectedCanonicalApp;
   const policy = deriveAuthContextPolicy(app);
@@ -260,9 +146,14 @@ export async function resolveAppContextForAuth(input: {
     return {
       ok: false,
       reason: "invalid_access_mode",
-      details: { resolvedAppSlug },
+      details: { resolvedAppSlug: selectedAppSlug },
     };
   }
+
+  const derivedSessionGroup =
+    input.sessionGroup ??
+    input.req.resolvedSessionGroup ??
+    resolveSessionGroupFromOrigin(origin);
 
   const knownGroups = getKnownSessionGroups();
   const requestGroup = (derivedSessionGroup || "").trim();
@@ -274,7 +165,7 @@ export async function resolveAppContextForAuth(input: {
       details: {
         requestSessionGroup: requestGroup,
         policySessionGroup: policy.sessionGroup,
-        resolvedAppSlug,
+        resolvedAppSlug: selectedAppSlug,
       },
     };
   }
@@ -283,13 +174,13 @@ export async function resolveAppContextForAuth(input: {
     return {
       ok: false,
       reason: "admin_context_required",
-      details: { resolvedAppSlug, policySessionGroup: policy.sessionGroup },
+      details: { resolvedAppSlug: selectedAppSlug, policySessionGroup: policy.sessionGroup },
     };
   }
 
   return {
     ok: true,
-    resolvedAppSlug,
+    resolvedAppSlug: selectedAppSlug,
     sessionGroup: policy.sessionGroup,
     policy,
     app,
@@ -299,7 +190,6 @@ export async function resolveAppContextForAuth(input: {
 }
 
 export function mapAuthContextFailureToAuthErrorCode(reason: AuthContextFailureReason): string {
-  if (reason === "app_slug_missing") return "app_slug_missing";
   if (reason === "app_not_found") return "app_not_found";
   if (reason === "admin_context_required") return "access_denied";
   return "app_context_unavailable";

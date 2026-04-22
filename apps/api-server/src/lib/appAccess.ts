@@ -51,20 +51,34 @@ export async function getAppBySlug(appSlug: string | null | undefined) {
 
 export async function getAppSlugByOrigin(origin: string): Promise<string | null> {
   let normalizedHost: string | null = null;
+  let normalizedHostname: string | null = null;
   try {
-    normalizedHost = new URL(origin).host.toLowerCase();
+    const parsedOrigin = new URL(origin);
+    normalizedHost = parsedOrigin.host.toLowerCase();
+    normalizedHostname = parsedOrigin.hostname.toLowerCase();
   } catch {
     normalizedHost = null;
+    normalizedHostname = null;
   }
   if (!normalizedHost) return null;
 
-  const app = await db.query.appsTable.findFirst({
+  const appByHost = await db.query.appsTable.findFirst({
     where: and(eq(appsTable.domain, normalizedHost), eq(appsTable.isActive, true)),
     columns: {
       slug: true,
     },
   });
-  return app?.slug ?? null;
+  if (appByHost?.slug) return appByHost.slug;
+
+  if (!normalizedHostname || normalizedHostname === normalizedHost) return null;
+
+  const appByHostname = await db.query.appsTable.findFirst({
+    where: and(eq(appsTable.domain, normalizedHostname), eq(appsTable.isActive, true)),
+    columns: {
+      slug: true,
+    },
+  });
+  return appByHostname?.slug ?? null;
 }
 
 export async function canAccessApp(

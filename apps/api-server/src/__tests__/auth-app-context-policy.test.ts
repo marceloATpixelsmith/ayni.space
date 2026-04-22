@@ -20,7 +20,7 @@ function buildReq(seed: Record<string, unknown> = {}) {
   } as any;
 }
 
-test("resolveAppContextForAuth fails with app_slug_missing when no app context candidates are present", async () => {
+test("resolveAppContextForAuth fails with app_not_found when no app context candidates are present", async () => {
   const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
   const prevGroupMap = process.env["SESSION_GROUP_APP_SLUGS"];
   delete process.env["APP_SLUG_BY_ORIGIN"];
@@ -34,7 +34,7 @@ test("resolveAppContextForAuth fails with app_slug_missing when no app context c
     });
     assert.equal(result.ok, false);
     if (result.ok) throw new Error("Expected failed app context resolution");
-    assert.equal(result.reason, "app_slug_missing");
+    assert.equal(result.reason, "app_not_found");
   } finally {
     if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
@@ -43,21 +43,20 @@ test("resolveAppContextForAuth fails with app_slug_missing when no app context c
   }
 });
 
-test("resolveAppContextForAuth fails closed on conflicting origin and session-group defaults", async () => {
+test("resolveAppContextForAuth fails closed when explicit appSlug conflicts with trusted origin-derived appSlug", async () => {
   const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
   const prevGroupMap = process.env["SESSION_GROUP_APP_SLUGS"];
   process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=ayni";
-  process.env["SESSION_GROUP_APP_SLUGS"] = "default=shipibo";
 
   try {
     const result = await resolveAppContextForAuth({
-      req: buildReq(),
+      req: buildReq({ body: { appSlug: "shipibo" } }),
       origin: "http://localhost:5173",
       sessionGroup: "default",
     });
     assert.equal(result.ok, false);
     if (result.ok) throw new Error("Expected failed app context resolution");
-    assert.equal(result.reason, "app_context_ambiguous");
+    assert.equal(result.reason, "app_context_unavailable");
   } finally {
     if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
