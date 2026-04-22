@@ -151,6 +151,21 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
+  if (
+    explicitAppSlug &&
+    originAppSlug &&
+    explicitAppSlug !== originAppSlug
+  ) {
+    return {
+      ok: false,
+      reason: "app_context_unavailable",
+      details: {
+        explicitAppSlug,
+        originAppSlug,
+      },
+    };
+  }
+
   const selectedAppSlug = explicitAppSlug ?? originAppSlug ?? sessionGroupFallbackAppSlug;
   if (!selectedAppSlug) {
     return { ok: false, reason: "app_slug_missing" };
@@ -158,8 +173,15 @@ export async function resolveAppContextForAuth(input: {
 
   let selectedCanonicalApp: App | null = null;
   let canonicalLookupError: unknown = null;
+  const source: "request" | "origin" | "session_group" = explicitAppSlug
+    ? "request"
+    : originAppSlug
+      ? "origin"
+      : "session_group";
   try {
-    selectedCanonicalApp = (await getAppBySlug(selectedAppSlug)) ?? null;
+    selectedCanonicalApp = (await getAppBySlug(selectedAppSlug, {
+      allowOutageFallback: source !== "session_group",
+    })) ?? null;
   } catch (error) {
     canonicalLookupError = error;
   }
@@ -167,7 +189,7 @@ export async function resolveAppContextForAuth(input: {
   if (canonicalLookupError) {
     return {
       ok: false,
-      reason: "app_not_found",
+      reason: source === "session_group" ? "app_not_found" : "app_context_unavailable",
       details: {
         resolvedAppSlug: selectedAppSlug,
         lookupError:
@@ -185,12 +207,6 @@ export async function resolveAppContextForAuth(input: {
       details: { resolvedAppSlug: selectedAppSlug },
     };
   }
-
-  const source: "request" | "origin" | "session_group" = explicitAppSlug
-    ? "request"
-    : originAppSlug
-      ? "origin"
-      : "session_group";
 
   const app = selectedCanonicalApp;
   const policy = deriveAuthContextPolicy(app);
