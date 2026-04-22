@@ -132,6 +132,7 @@ test("password login prioritizes invitation continuation returnToPath over gener
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
       email: "user@example.com",
       password: "StrongPassword123!",
+      appSlug: "admin",
       returnToPath: "/invitations/test-token/accept",
     });
 
@@ -189,6 +190,7 @@ test("login returns mfa_challenge for users with active MFA factor", async () =>
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
       email: "user@example.com",
       password: "StrongPassword123!",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 202);
@@ -278,6 +280,7 @@ test("mfa-required login persists pending invitation continuation returnToPath i
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
       email: "user@example.com",
       password: "StrongPassword123!",
+      appSlug: "admin",
       returnToPath: "/invitations/test-token/accept",
     });
 
@@ -500,6 +503,7 @@ test("login fails closed to mfa_challenge when active factor lookup errors", asy
     const response = await performJsonRequest(app, "POST", "/api/auth/login", {
       email: "user@example.com",
       password: "StrongPassword123!",
+      appSlug: "admin",
     });
 
     assert.equal(response.status, 202);
@@ -655,7 +659,7 @@ test("admin MFA login regenerates to a new pending session id and preserves that
         cookie: cookieJar,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ email: "user@example.com", password: "StrongPassword123!" }),
+      body: JSON.stringify({ email: "user@example.com", password: "StrongPassword123!", appSlug: "admin" }),
     });
     assert.equal(loginResp.status, 202);
     const loginCookiePair = extractCookiePair(loginResp.headers.get("set-cookie"));
