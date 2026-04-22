@@ -1083,32 +1083,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnToPath: returnToPath ?? undefined,
   };
   const state = buildOAuthState(statePayload);
-  req.session.oauthState = state;
-  req.session.oauthStayLoggedIn = req.body?.stayLoggedIn === true;
-  req.session.oauthReturnTo = returnTo;
-  req.session.oauthReturnToPath = returnToPath ?? undefined;
-  req.session.oauthSessionGroup = oauthSessionGroup;
-  req.session.oauthAppSlug = appSlug;
-  logSuperadminTrace("OAUTH START", {
-    appSlug,
-    returnTo,
-    sessionGroup: oauthSessionGroup,
-    generatedStateHasAppSlug: true,
-  });
-  logSuperadminTrace("STATE CREATED", {
-    appSlug: statePayload.appSlug,
-    returnTo: statePayload.returnTo,
-    returnToPath: statePayload.returnToPath ?? null,
-    sessionGroup: statePayload.sessionGroup,
-  });
-  logVerboseTrace(
-    `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
-      `appSlug=${appSlug ?? "null"} ` +
-      `returnTo=${returnTo ?? "null"} ` +
-      `sessionGroup=${oauthSessionGroup ?? "null"}`,
-  );
-  logSessionCookieConfig();
-
   const configValidation = getGoogleConfigValidation();
   if (!configValidation.ok) {
     sendGoogleUrlError(
@@ -1150,6 +1124,32 @@ async function handleGoogleUrl(req: Request, res: Response) {
     );
     return;
   }
+
+  req.session.oauthState = state;
+  req.session.oauthStayLoggedIn = req.body?.stayLoggedIn === true;
+  req.session.oauthReturnTo = returnTo;
+  req.session.oauthReturnToPath = returnToPath ?? undefined;
+  req.session.oauthSessionGroup = oauthSessionGroup;
+  req.session.oauthAppSlug = appSlug;
+  logSuperadminTrace("OAUTH START", {
+    appSlug,
+    returnTo,
+    sessionGroup: oauthSessionGroup,
+    generatedStateHasAppSlug: true,
+  });
+  logSuperadminTrace("STATE CREATED", {
+    appSlug: statePayload.appSlug,
+    returnTo: statePayload.returnTo,
+    returnToPath: statePayload.returnToPath ?? null,
+    sessionGroup: statePayload.sessionGroup,
+  });
+  logVerboseTrace(
+    `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
+      `appSlug=${appSlug ?? "null"} ` +
+      `returnTo=${returnTo ?? "null"} ` +
+      `sessionGroup=${oauthSessionGroup ?? "null"}`,
+  );
+  logSessionCookieConfig();
 
   req.session.save((err: unknown) => {
     if (err) {
