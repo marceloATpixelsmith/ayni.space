@@ -1043,6 +1043,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const appContext = await resolveAppContextForAuth({
     req,
+    appSlug: firstQueryParam(req.query?.appSlug) ?? null,
     origin: returnTo,
     sessionGroup: req.resolvedSessionGroup ?? resolveSessionGroupFromOrigin(returnTo),
   });
@@ -1912,11 +1913,15 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
 async function resolveRequestedEmailPasswordAppContext(req: Request) {
   const origin = getRequestFrontendOrigin(req) ?? null;
-  const group = req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const bodyAppSlug =
+    typeof req.body?.appSlug === "string" && req.body.appSlug.trim()
+      ? req.body.appSlug.trim()
+      : null;
   return resolveAppContextForAuth({
     req,
+    appSlug: bodyAppSlug,
     origin,
-    sessionGroup: group,
+    sessionGroup: "",
   });
 }
 
@@ -2313,6 +2318,26 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   const password = String(req.body?.password ?? "");
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : null;
+  const providedAppSlug =
+    typeof req.body?.appSlug === "string" && req.body.appSlug.trim()
+      ? req.body.appSlug.trim().toLowerCase()
+      : "unknown";
+
+  if (!email || !password || !isStrongEnoughPassword(password)) {
+    await logSignupDecision(req, {
+      category: "validation_error",
+      reasonCode: "validation_failed",
+      email,
+      appSlug: providedAppSlug,
+      metadata: {
+        passwordProvided: Boolean(password),
+        emailProvided: Boolean(email),
+      },
+    });
+    res.status(400).json({ error: "Invalid signup input." });
+    return;
+  }
+
   const signupAppContext = await resolveRequestedEmailPasswordAppContext(req);
   if (!signupAppContext.ok) {
     sendAppContextResolutionError(
@@ -2322,21 +2347,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
     return;
   }
   const signupAppSlug = signupAppContext.resolvedAppSlug;
-
-  if (!email || !password || !isStrongEnoughPassword(password)) {
-    await logSignupDecision(req, {
-      category: "validation_error",
-      reasonCode: "validation_failed",
-      email,
-      appSlug: signupAppSlug,
-      metadata: {
-        passwordProvided: Boolean(password),
-        emailProvided: Boolean(email),
-      },
-    });
-    res.status(400).json({ error: "Invalid signup input." });
-    return;
-  }
 
   try {
     const signupApp = await getAppBySlug(signupAppSlug);
