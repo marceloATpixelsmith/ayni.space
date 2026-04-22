@@ -130,21 +130,44 @@ export async function resolveAppContextForAuth(input: {
   const origin = input.origin ?? null;
   const originMappings = parseAppSlugByOriginEnv();
   let trustedOriginAppSlug: string | null = null;
+  let dbOriginAppSlug: string | null = null;
   if (origin) {
     try {
       trustedOriginAppSlug = originMappings.get(new URL(origin).origin) ?? null;
     } catch {
       trustedOriginAppSlug = null;
     }
+    try {
+      dbOriginAppSlug = await getAppSlugByOrigin(origin);
+    } catch {
+      dbOriginAppSlug = null;
+    }
   }
 
-  if (explicitAppSlug && trustedOriginAppSlug && explicitAppSlug !== trustedOriginAppSlug) {
+  const originAppSlug = trustedOriginAppSlug ?? dbOriginAppSlug;
+
+  if (
+    trustedOriginAppSlug &&
+    dbOriginAppSlug &&
+    trustedOriginAppSlug !== dbOriginAppSlug
+  ) {
+    return {
+      ok: false,
+      reason: "app_context_unavailable",
+      details: {
+        trustedOriginAppSlug,
+        dbOriginAppSlug,
+      },
+    };
+  }
+
+  if (explicitAppSlug && originAppSlug && explicitAppSlug !== originAppSlug) {
     return {
       ok: false,
       reason: "app_context_unavailable",
       details: {
         explicitAppSlug,
-        originAppSlug: trustedOriginAppSlug,
+        originAppSlug,
       },
     };
   }
@@ -156,28 +179,8 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  let dbOriginAppSlug: string | null = null;
-  if (origin && !trustedOriginAppSlug && !explicitAppSlug) {
-    try {
-      dbOriginAppSlug = await getAppSlugByOrigin(origin);
-    } catch {
-      dbOriginAppSlug = null;
-    }
-  }
-
-  if (explicitAppSlug && dbOriginAppSlug && explicitAppSlug !== dbOriginAppSlug) {
-    return {
-      ok: false,
-      reason: "app_context_unavailable",
-      details: {
-        explicitAppSlug,
-        originAppSlug: dbOriginAppSlug,
-      },
-    };
-  }
-
   const selectedAppSlug =
-    explicitAppSlug ?? trustedOriginAppSlug ?? dbOriginAppSlug ?? sessionGroupFallbackAppSlug;
+    explicitAppSlug ?? originAppSlug ?? sessionGroupFallbackAppSlug;
   if (!selectedAppSlug) {
     return { ok: false, reason: "app_slug_missing" };
   }
