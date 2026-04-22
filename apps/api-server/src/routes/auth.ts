@@ -113,6 +113,32 @@ import {
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
 
+function deriveFrontendOriginForApp(app: { baseUrl?: string | null; domain?: string | null } | null): string | null {
+  if (!app) return null;
+
+  const baseUrl = typeof app.baseUrl === "string" ? app.baseUrl.trim() : "";
+  if (baseUrl) {
+    try {
+      return new URL(baseUrl).origin;
+    } catch {
+      // noop
+    }
+  }
+
+  const domain = typeof app.domain === "string" ? app.domain.trim().toLowerCase() : "";
+  if (!domain) return null;
+
+  try {
+    if (domain.startsWith("http://") || domain.startsWith("https://")) {
+      return new URL(domain).origin;
+    }
+    const protocol = domain.includes("localhost") || domain.startsWith("127.0.0.1") ? "http" : "https";
+    return `${protocol}://${domain}`;
+  } catch {
+    return null;
+  }
+}
+
 export const authRouteDeps = {
   exchangeCodeForUserFn: exchangeCodeForUser,
 };
@@ -1024,8 +1050,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const returnTo = getRequestFrontendOrigin(req);
-  if (!returnTo) {
+  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
+  const trustedRequestOrigin = getRequestFrontendOrigin(req);
+  if (!trustedRequestOrigin && !requestedAppSlug) {
     logGoogleUrlBranch(req, "origin_invalid", {
       turnstileVerificationPassed: Boolean(req.turnstileVerified),
     });
@@ -1044,20 +1071,23 @@ async function handleGoogleUrl(req: Request, res: Response) {
   const appContext = await resolveAppContextForAuth({
     req,
     appSlug: firstQueryParam(req.query?.appSlug) ?? null,
-    origin: returnTo,
-    sessionGroup: req.resolvedSessionGroup ?? resolveSessionGroupFromOrigin(returnTo),
+    origin: trustedRequestOrigin,
+    sessionGroup:
+      req.resolvedSessionGroup ??
+      req.session?.sessionGroup ??
+      resolveSessionGroupFromOrigin(trustedRequestOrigin),
   });
   if (!appContext.ok) {
     console.error("[auth/google/url] app context resolution failed", {
-      returnTo,
+      requestOrigin: trustedRequestOrigin,
       reason: appContext.reason,
       details: appContext.details ?? null,
       resolvedSessionGroup: req.resolvedSessionGroup ?? null,
-      originSessionGroup: resolveSessionGroupFromOrigin(returnTo),
-      requestAppSlug: getRequestedAppSlugFromRequest(req),
+      originSessionGroup: resolveSessionGroupFromOrigin(trustedRequestOrigin),
+      requestAppSlug: requestedAppSlug,
     });
     logAuthFailure(req, "google-url-app-context-failed", {
-      returnTo,
+      requestOrigin: trustedRequestOrigin,
       reason: appContext.reason,
     });
     sendGoogleUrlError(
@@ -1072,6 +1102,22 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
   const appSlug = appContext.resolvedAppSlug;
   const oauthSessionGroup = appContext.sessionGroup;
+  const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
+  if (!returnTo) {
+    logAuthFailure(req, "google-url-return-origin-unavailable", {
+      appSlug,
+      source: appContext.source,
+    });
+    sendGoogleUrlError(
+      req,
+      res,
+      400,
+      AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
+      "App context is required to start OAuth.",
+      "app_context_unavailable",
+    );
+    return;
+  }
 
   const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
 
