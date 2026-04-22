@@ -78,13 +78,6 @@ export function getRequestedAppSlugFromRequest(req: Request): string | null {
   const bodyAppSlug = firstQueryParam(req.body?.appSlug);
   if (bodyAppSlug && bodyAppSlug.trim()) return bodyAppSlug.trim().toLowerCase();
 
-  const queryAppSlug = firstQueryParam(req.query?.appSlug);
-  if (queryAppSlug && queryAppSlug.trim()) return queryAppSlug.trim().toLowerCase();
-
-  const sessionAppSlug =
-    typeof req.session?.appSlug === "string" ? req.session.appSlug.trim().toLowerCase() : "";
-  if (sessionAppSlug) return sessionAppSlug;
-
   return null;
 }
 
@@ -115,13 +108,24 @@ function deriveAuthContextPolicyFromSlug(appSlug: string): AuthContextPolicy {
   };
 }
 
+function isKnownAuthAppSlug(appSlug: string): boolean {
+  if (appSlug === "admin") return true;
+  if ([...parseAppSlugByOriginEnv().values()].includes(appSlug)) return true;
+  if ([...parseDefaultAppSlugBySessionGroupEnv().values()].includes(appSlug)) return true;
+  return false;
+}
+
 export async function resolveAppContextForAuth(input: {
   req: Request;
   appSlug?: string | null;
   sessionGroup?: string | null;
   origin?: string | null;
 }): Promise<AuthContextResolution> {
-  const requestedAppSlug = (input.appSlug ?? getRequestedAppSlugFromRequest(input.req))?.trim().toLowerCase() || null;
+  const bodyAppSlug = getRequestedAppSlugFromRequest(input.req);
+  const explicitAppSlug =
+    typeof input.appSlug === "string" && input.appSlug.trim()
+      ? input.appSlug.trim().toLowerCase()
+      : null;
   const origin = input.origin ?? null;
   let originAppSlug: string | null = null;
   if (origin) {
@@ -137,42 +141,87 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const defaultByGroup = parseDefaultAppSlugBySessionGroupEnv().get(derivedSessionGroup) ?? null;
 
-  const candidateEntries: Array<{ source: "request" | "origin" | "session-group-default"; appSlug: string }> = [];
-  if (requestedAppSlug) candidateEntries.push({ source: "request", appSlug: requestedAppSlug });
-  if (originAppSlug) candidateEntries.push({ source: "origin", appSlug: originAppSlug });
-  if (defaultByGroup) candidateEntries.push({ source: "session-group-default", appSlug: defaultByGroup });
+  const selected =
+    (bodyAppSlug
+      ? { source: "body" as const, appSlug: bodyAppSlug }
+      : null) ??
+    (explicitAppSlug
+      ? { source: "explicit" as const, appSlug: explicitAppSlug }
+      : null) ??
+    (originAppSlug
+      ? { source: "origin" as const, appSlug: originAppSlug }
+      : null) ??
+    (defaultByGroup
+      ? { source: "session-group-default" as const, appSlug: defaultByGroup }
+      : null);
 
-  const distinct = [...new Set(candidateEntries.map((entry) => entry.appSlug))];
-  if (distinct.length === 0) {
+  if (!selected) {
     return { ok: false, reason: "app_slug_missing" };
   }
 
-  if (distinct.length > 1) {
+  if (selected.source === "explicit") {
+    if (originAppSlug && originAppSlug !== selected.appSlug) {
+      return {
+        ok: false,
+        reason: "app_context_ambiguous",
+        details: { explicitAppSlug: selected.appSlug, originAppSlug },
+      };
+    }
+    if (defaultByGroup && defaultByGroup !== selected.appSlug) {
+      return {
+        ok: false,
+        reason: "app_context_ambiguous",
+        details: { explicitAppSlug: selected.appSlug, defaultByGroup },
+      };
+    }
+  }
+  if (
+    selected.source === "origin" &&
+    defaultByGroup &&
+    defaultByGroup !== selected.appSlug
+  ) {
     return {
       ok: false,
       reason: "app_context_ambiguous",
-      details: {
-        candidates: candidateEntries,
-      },
+      details: { originAppSlug: selected.appSlug, defaultByGroup },
     };
   }
 
-  const resolvedAppSlug = distinct[0]!;
-  const source = candidateEntries.find((entry) => entry.appSlug === resolvedAppSlug)?.source ?? "request";
+  const resolvedAppSlug = selected.appSlug;
+  const source: "request" | "origin" | "session-group-default" =
+    selected.source === "origin"
+      ? "origin"
+      : selected.source === "session-group-default"
+        ? "session-group-default"
+        : "request";
   let app: App | null = null;
   let policy: AuthContextPolicy | null = null;
   try {
     app = await getAppBySlug(resolvedAppSlug);
-    if (app) {
-      policy = deriveAuthContextPolicy(app);
-      if (!policy) {
-        return { ok: false, reason: "invalid_access_mode", details: { resolvedAppSlug } };
-      }
+    if (
+      !app &&
+      selected.source === "body" &&
+      !isKnownAuthAppSlug(resolvedAppSlug)
+    ) {
+      return {
+        ok: false,
+        reason: "app_not_found",
+        details: { resolvedAppSlug },
+      };
+    }
+    policy = app
+      ? deriveAuthContextPolicy(app)
+      : deriveAuthContextPolicyFromSlug(resolvedAppSlug);
+    if (!policy) {
+      return { ok: false, reason: "invalid_access_mode", details: { resolvedAppSlug } };
     }
   } catch {
-    app = null;
-  }
-  if (!policy) {
+    if (
+      selected.source === "body" &&
+      !isKnownAuthAppSlug(resolvedAppSlug)
+    ) {
+      return { ok: false, reason: "app_not_found", details: { resolvedAppSlug } };
+    }
     policy = deriveAuthContextPolicyFromSlug(resolvedAppSlug);
   }
 
