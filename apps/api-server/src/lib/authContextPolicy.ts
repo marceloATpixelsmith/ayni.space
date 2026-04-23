@@ -20,15 +20,13 @@ export type AuthContextFailureReason =
   | "admin_context_required";
 
 export type AuthContextResolution =
-    | {
+  | {
       ok: true;
       resolvedAppSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
       app: App | null;
       canonicalAppResolved: boolean;
-      explicitAppSlugProvided: boolean;
-      source: "request" | "origin" | "session_group";
     }
   | {
       ok: false;
@@ -70,14 +68,6 @@ function getBodyAppSlug(req: Request): string | null {
   return normalizeSlug(req.body?.appSlug);
 }
 
-function getQueryOrParamAppSlug(req: Request, explicitAppSlug?: string | null): string | null {
-  return (
-    normalizeSlug(explicitAppSlug) ??
-    normalizeSlug(req.query?.appSlug) ??
-    normalizeSlug(req.params?.appSlug)
-  );
-}
-
 function parseSessionGroupSlugMap(): Map<string, string> {
   const raw = process.env["SESSION_GROUP_APP_SLUGS"] ?? "";
   const mapping = new Map<string, string>();
@@ -101,7 +91,7 @@ function getSessionGroupFallbackAppSlug(sessionGroup: string | null | undefined)
 }
 
 export function getRequestedAppSlugFromRequest(req: Request): string | null {
-  return getBodyAppSlug(req) ?? getQueryOrParamAppSlug(req);
+  return getBodyAppSlug(req);
 }
 
 export function deriveAuthContextPolicy(appMetadata: Pick<App, "slug" | "accessMode" | "metadata">): AuthContextPolicy | null {
@@ -124,9 +114,7 @@ export async function resolveAppContextForAuth(input: {
   sessionGroup?: string | null;
   origin?: string | null;
 }): Promise<AuthContextResolution> {
-  const bodyAppSlug = getBodyAppSlug(input.req);
-  const queryOrParamAppSlug = getQueryOrParamAppSlug(input.req, input.appSlug);
-  const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
+  const explicitAppSlug = normalizeSlug(input.appSlug) ?? getBodyAppSlug(input.req);
 
   const origin = input.origin ?? null;
   const originMappings = parseAppSlugByOriginEnv();
@@ -225,7 +213,7 @@ export async function resolveAppContextForAuth(input: {
     input.req.session?.userId || input.req.session?.pendingUserId,
   );
   const enforceSessionGroupConflict =
-    source === "origin" || hasAuthenticatedSessionIdentity;
+    !explicitAppSlug && (source === "origin" || hasAuthenticatedSessionIdentity);
 
   if (
     hasRequestGroup &&
@@ -258,8 +246,6 @@ export async function resolveAppContextForAuth(input: {
     policy,
     app,
     canonicalAppResolved: Boolean(app),
-    explicitAppSlugProvided: Boolean(explicitAppSlug),
-    source,
   };
 }
 
