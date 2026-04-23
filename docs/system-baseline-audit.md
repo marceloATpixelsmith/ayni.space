@@ -54,7 +54,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 - **Final destination**: `/dashboard` if true superadmin, else `/login?error=access_denied`, via `resolveAuthenticatedPostAuthDestination()` and `getAccessDeniedRedirect()`.
 - **EXPECTED**: strict superadmin-only access.
 - **ACTUAL**: strict check enforced in backend flow + frontend route guard.
-- **MISMATCH / DRIFT**: none observed for implicit admin fallback in auth entry. Current implementation resolves app context via explicit appSlug/origin/session-group precedence, requires canonical app lookup, and fails closed with typed auth codes when unresolved.
+- **MISMATCH / DRIFT**: none observed for implicit admin fallback in auth entry. Current implementation resolves app context via explicit appSlug/origin/session-group precedence, requires canonical app lookup, and fails closed with typed `400` auth codes (`app_slug_missing`, `app_not_found`) when unresolved. Admin OAuth hardening in this surface requires explicit admin `appSlug` where policy-enforced, valid explicit admin `appSlug` continues to succeed, and non-admin flows are not treated as inheriting that same explicit-admin requirement.
 
 #### 2.2 Organization admin (org_owner/org_admin in organization app)
 - **Entry routes/pages**: `/login`, OAuth flow, invitation accept route, onboarding routes.
@@ -207,10 +207,10 @@ Schema source: `lib/db/src/schema/apps.ts`.
 |---|---|---|---|
 | `appAccess.ts` | `admin` slug default route `/dashboard`; else `/${appSlug}` | Route model drift if app routes differ | App-level route metadata/default route config |
 | `postAuthRedirect.ts` + frontend resolver | fallback `/dashboard`, onboarding paths fixed | Multi-app route divergence risk | App metadata route policy |
-| `routes/auth.ts` | host-based admin slug detection (`admin.ayni.space` / `admin.*`) | Environment/domain coupling | Explicit origin→app mapping only |
-| `routes/auth.ts` | password auth slug fallback returns `admin` when unresolved | Can mis-route or mis-apply superadmin policy | Required explicit app slug/session app binding |
+| `routes/auth.ts` | auth-entry app-context resolution precedence is explicit `appSlug` → trusted origin-derived context → session-group fallback | Candidate-source ordering drift risk if contracts diverge across layers | Keep precedence and failure-code mapping aligned with `resolveAppContextForAuth` contract (`app_slug_missing`, `app_not_found`) |
+| `routes/auth.ts` | fail-closed auth-entry mapping returns `400` with typed app-context errors when candidates are unresolved or canonical lookup is null | Client handling can regress if callers expect legacy status codes | Keep `sendAppContextResolutionError` as the single mapping surface (`app_slug_missing`, `app_not_found`) |
 | `lib/frontend-security resolveAuthenticatedNextStep()` | default destination fallback `/dashboard` | Non-admin apps may inherit admin-biased post-auth route | Backend-issued default-route metadata per app |
-| `sessionGroupCompatibility.ts` | slug `admin` => admin session group fallback | Hidden slug/session coupling | Canonical metadata `sessionGroup` required |
+| `sessionGroupCompatibility.ts` | session-group compatibility is metadata-driven, and auth-entry session-group fallback is only the last candidate source (no implicit admin fallback) | Context selection drift if metadata/session signals are inconsistent | Keep session-group fallback as terminal candidate only after explicit appSlug and origin-derived context |
 | `postAuthContinuation.ts` | invitation/event/client regex path typing | Path contract fragility, duplicates routing semantics | Explicit continuation type from caller + server-side allowlist registry |
 | `frontend-security deriveAppAuthRoutePolicy()` | fallback policy map (organization/solo/superadmin) | Frontend/back drift if backend policy changes | Always consume backend `authRoutePolicy` |
 | `App.tsx` + auth pages | static route guard redirects (`/login`, `/dashboard`, `/onboarding/...`) | Hard to support app-specific auth shells | App metadata routing map |
@@ -230,7 +230,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
 4. **Partial metadata adoption**
    - `apps.metadata` only used for optional `sessionGroup`; other behavior remains hardcoded.
 5. **Auth boundary leakage risk**
-   - `getRequestedEmailPasswordAppSlug()` defaulting to `admin` can apply admin profile rules outside intended app context.
+   - Auth entry must remain explicit and fail closed: `appSlug` is authoritative, origin-derived context is secondary, session-group fallback is last, and unresolved context maps to typed `400` auth errors (`app_slug_missing`, `app_not_found`) without implicit admin behavior.
 6. **Routing inconsistencies**
    - Multiple hardcoded `/dashboard` fallbacks across backend and frontend.
 7. **Invitation/auth continuation inconsistencies**
@@ -258,17 +258,17 @@ Schema source: `lib/db/src/schema/apps.ts`.
 
 ### BROKEN
 - No direct runtime consumer for `platform.apps.invitationEmailSubject` and `platform.apps.invitationEmailHtml`; schema fields are inert while email behavior is template-table-driven.
-- Password-login app resolution fallback to `admin` can create incorrect app-context decisions when slug/origin/session context is absent or ambiguous.
+- Auth entry now resolves context through explicit `appSlug` first, then origin-derived context, then session-group fallback, and fails closed with `400` typed errors (`app_slug_missing`, `app_not_found`) when unresolved; no implicit admin fallback applies.
 - Frontend fallback auth-route policy still fail-closes customer-registration affordances when backend `authRoutePolicy` metadata is absent, so metadata delivery remains a source-of-truth dependency.
 
 ### MISSING
 - No unified, single app-context endpoint contract consumed by both frontend route policy and backend auth resolution.
 - No metadata-driven default-route registry (still hardcoded `/dashboard` and slug path assumptions).
 - No fully implemented customer/client registration route flow despite continuation type support (`client_registration`, `event_registration`).
-- No comprehensive elimination of hardcoded slug/hostname assumptions (`admin` special-casing still present in multiple layers).
+- Remaining hardcoded route defaults (for example `/dashboard`) still represent drift risk, but auth-entry context resolution no longer depends on implicit admin slug/hostname assumptions.
 
 ## Inferred
-- The system is in an intermediate migration state from legacy hardcoded app/auth routing toward metadata-derived policy, but only partial layers have converged.
+- The system is in an intermediate migration state for routing/policy metadata convergence, while auth-entry context resolution is already hardened to explicit precedence and fail-closed typed `400` responses.
 
 ## Unclear
 - Whether inert `platform.apps` email override fields are planned for removal or reactivation.
