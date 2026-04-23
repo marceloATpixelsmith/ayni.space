@@ -1101,10 +1101,13 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
+  const hasForwardedHostContext =
+    typeof req.headers["x-forwarded-host"] === "string" &&
+    req.headers["x-forwarded-host"].trim().length > 0;
   if (
     appContext.policy.applyAdminPrivileges &&
-    appContext.source !== "request" &&
-    !requestedAppSlug
+    (appContext.source === "origin" || hasForwardedHostContext) &&
+    !appContext.explicitAppSlugProvided
   ) {
     logAuthFailure(req, "google-url-admin-explicit-appslug-required", {
       requestOrigin: trustedRequestOrigin,
