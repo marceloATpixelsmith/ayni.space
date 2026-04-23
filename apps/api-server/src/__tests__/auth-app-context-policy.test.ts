@@ -79,6 +79,42 @@ test("resolveAppContextForAuth prioritizes explicit appSlug over trusted origin-
   }
 });
 
+test("resolveAppContextForAuth allows explicit appSlug to override mismatched origin/session context", async () => {
+  const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
+  process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=admin";
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async (query?: unknown) => {
+    if (query && typeof query === "object" && "where" in (query as Record<string, unknown>)) {
+      return {
+        id: "shipibo-id",
+        slug: "shipibo",
+        accessMode: "organization",
+        metadata: {},
+        isActive: true,
+      };
+    }
+    return null;
+  });
+
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq({
+        body: { appSlug: "shipibo" },
+        session: { userId: "user-1", sessionGroup: "admin" },
+      }),
+      origin: "http://localhost:5173",
+      sessionGroup: "admin",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) throw new Error("Expected app context resolution to succeed");
+    assert.equal(result.resolvedAppSlug, "shipibo");
+    assert.equal(result.source, "request");
+  } finally {
+    restoreFindFirst();
+    if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
+    else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
+  }
+});
+
 test("resolveAppContextForAuth prefers trusted-origin mapping when canonical-origin slug differs", async () => {
   const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
   process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=ayni";
