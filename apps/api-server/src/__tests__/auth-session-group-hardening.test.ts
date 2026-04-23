@@ -375,7 +375,7 @@ test("non-admin oauth start still allows origin-derived app context without expl
   }
 });
 
-test("admin oauth start fails closed when explicit appSlug conflicts with origin mapping", async () => {
+test("admin oauth start honors explicit appSlug even when origin mapping differs", async () => {
   const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
   process.env["APP_SLUG_BY_ORIGIN"] = "http://admin.local=workspace";
 
@@ -394,9 +394,13 @@ test("admin oauth start fails closed when explicit appSlug conflicts with origin
         origin: "http://admin.local",
       },
     });
-    assert.equal(response.status, 400);
-    const body = (await response.json()) as { code?: string };
-    assert.equal(body.code, "app_context_unavailable");
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { url: string };
+    const state = new URL(body.url).searchParams.get("state");
+    assert.ok(state);
+    const segments = state.split(".");
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "admin");
   } finally {
     if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
