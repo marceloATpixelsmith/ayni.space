@@ -20,13 +20,14 @@ export type AuthContextFailureReason =
   | "admin_context_required";
 
 export type AuthContextResolution =
-  | {
+    | {
       ok: true;
       resolvedAppSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
       app: App | null;
       canonicalAppResolved: boolean;
+      explicitAppSlugProvided: boolean;
       source: "request" | "origin" | "session_group";
     }
   | {
@@ -276,6 +277,7 @@ export async function resolveAppContextForAuth(input: {
     policy,
     app,
     canonicalAppResolved: Boolean(app),
+    explicitAppSlugProvided: Boolean(explicitAppSlug),
     source,
   };
 }
