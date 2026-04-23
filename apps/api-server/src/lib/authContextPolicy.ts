@@ -127,7 +127,6 @@ export async function resolveAppContextForAuth(input: {
   const bodyAppSlug = getBodyAppSlug(input.req);
   const queryOrParamAppSlug = getQueryOrParamAppSlug(input.req, input.appSlug);
   const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
-  const hasExplicitAppSlug = Boolean(explicitAppSlug);
 
   const origin = input.origin ?? null;
   const originMappings = parseAppSlugByOriginEnv();
@@ -164,7 +163,7 @@ export async function resolveAppContextForAuth(input: {
   const originDerivedSessionGroup = resolveSessionGroupFromOrigin(origin);
   let selectedCanonicalApp: App | null = null;
   let canonicalLookupError: unknown = null;
-  const source: "request" | "origin" | "session_group" = hasExplicitAppSlug
+  const source: "request" | "origin" | "session_group" = explicitAppSlug
     ? "request"
     : (trustedOriginAppSlug ?? dbOriginAppSlug)
       ? "origin"
@@ -226,8 +225,7 @@ export async function resolveAppContextForAuth(input: {
     input.req.session?.userId || input.req.session?.pendingUserId,
   );
   const enforceSessionGroupConflict =
-    !hasExplicitAppSlug &&
-    (source === "origin" || hasAuthenticatedSessionIdentity);
+    source === "origin" || hasAuthenticatedSessionIdentity;
 
   if (
     hasRequestGroup &&
