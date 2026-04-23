@@ -100,6 +100,14 @@ function getSessionGroupFallbackAppSlug(sessionGroup: string | null | undefined)
   return normalizedGroup === SESSION_GROUPS.ADMIN ? "admin" : null;
 }
 
+function getSessionScopedAppSlug(req: Request): string | null {
+  const sessionAppSlug =
+    normalizeSlug(req.session?.appSlug) ??
+    normalizeSlug(req.session?.pendingAppSlug) ??
+    normalizeSlug(req.session?.oauthAppSlug);
+  return sessionAppSlug;
+}
+
 export function getRequestedAppSlugFromRequest(req: Request): string | null {
   return getBodyAppSlug(req) ?? getQueryOrParamAppSlug(req);
 }
@@ -178,7 +186,9 @@ export async function resolveAppContextForAuth(input: {
     input.req.resolvedSessionGroup ??
     input.req.session?.sessionGroup ??
     resolveSessionGroupFromOrigin(origin);
-  const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
+  const sessionScopedAppSlug = getSessionScopedAppSlug(input.req);
+  const sessionGroupFallbackAppSlug =
+    sessionScopedAppSlug ?? getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
   const selectedAppSlug =
     explicitAppSlug ?? originAppSlug ?? sessionGroupFallbackAppSlug;
@@ -253,7 +263,7 @@ export async function resolveAppContextForAuth(input: {
   ) {
     return {
       ok: false,
-      reason: policy.applyAdminPrivileges ? "admin_context_required" : "session_group_conflict",
+      reason: "session_group_conflict",
       details: {
         requestSessionGroup: requestGroup,
         policySessionGroup: policy.sessionGroup,

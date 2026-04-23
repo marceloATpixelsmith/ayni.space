@@ -191,10 +191,11 @@ function getRequestFrontendOrigin(req: Request): string | null {
     candidateOrigins.push(refererHeader.trim());
   }
 
-  const forwardedHost =
+  const forwardedHostRaw =
     typeof req.headers["x-forwarded-host"] === "string"
       ? req.headers["x-forwarded-host"].trim()
       : "";
+  const forwardedHost = forwardedHostRaw.split(",", 1)[0]?.trim() || "";
   const forwardedProtoRaw =
     typeof req.headers["x-forwarded-proto"] === "string"
       ? req.headers["x-forwarded-proto"].trim()
@@ -1101,9 +1102,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
+  const forwardedHostHeader = req.headers["x-forwarded-host"];
   const hasForwardedHostContext =
-    typeof req.headers["x-forwarded-host"] === "string" &&
-    req.headers["x-forwarded-host"].trim().length > 0;
+    typeof forwardedHostHeader === "string" &&
+    forwardedHostHeader.trim().length > 0;
   if (
     appContext.policy.applyAdminPrivileges &&
     (appContext.source === "origin" || hasForwardedHostContext) &&
