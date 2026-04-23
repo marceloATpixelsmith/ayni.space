@@ -238,14 +238,6 @@ function getRequestFrontendOrigin(req: Request): string | null {
     }
   }
 
-  for (const fallback of [forwardedHostOriginCandidate, hostOriginCandidate]) {
-    if (!fallback) continue;
-    try {
-      return new URL(fallback).origin;
-    } catch {
-      // noop
-    }
-  }
   return null;
 }
 
@@ -1083,7 +1075,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
+  const requestedAppSlug =
+    firstQueryParam(req.query?.appSlug) ?? getRequestedAppSlugFromRequest(req);
   const trustedRequestOrigin = getRequestFrontendOrigin(req);
   if (!trustedRequestOrigin && !requestedAppSlug) {
     logGoogleUrlBranch(req, "origin_invalid", {
@@ -1137,12 +1130,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
   if (
     appContext.policy.applyAdminPrivileges &&
     appSlug === "admin" &&
-    appContext.source === "origin" &&
-    !appContext.explicitAppSlugProvided
+    !requestedAppSlug
   ) {
     logAuthFailure(req, "google-url-admin-explicit-appslug-required", {
       requestOrigin: trustedRequestOrigin,
-      source: appContext.source,
       resolvedAppSlug: appSlug,
     });
     sendGoogleUrlError(
@@ -1153,7 +1144,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
       "App context is required to start OAuth.",
       "app_not_found",
       {
-        source: appContext.source,
         resolvedAppSlug: appSlug,
       },
     );
@@ -1165,7 +1155,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
   if (!returnTo) {
     logAuthFailure(req, "google-url-return-origin-unavailable", {
       appSlug,
-      source: appContext.source,
     });
     sendGoogleUrlError(
       req,
