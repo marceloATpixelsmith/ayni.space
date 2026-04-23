@@ -65,6 +65,31 @@ test("resolveAppContextForAuth fails closed when explicit appSlug conflicts with
   }
 });
 
+test("resolveAppContextForAuth fails closed when trusted-origin and canonical-origin app slugs conflict", async () => {
+  const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
+  process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=ayni";
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async (query?: unknown) => {
+    if (query && typeof query === "object" && "columns" in (query as Record<string, unknown>)) {
+      return { slug: "shipibo" };
+    }
+    return null;
+  });
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq(),
+      origin: "http://localhost:5173",
+      sessionGroup: "default",
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("Expected failed app context resolution");
+    assert.equal(result.reason, "app_context_unavailable");
+  } finally {
+    restoreFindFirst();
+    if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
+    else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
+  }
+});
+
 test("resolveAppContextForAuth fails closed when explicit body appSlug has no canonical app row", async () => {
   const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => null);
   const restoreSelect = patchProperty(db, "select", () => ({
@@ -86,6 +111,46 @@ test("resolveAppContextForAuth fails closed when explicit body appSlug has no ca
   } finally {
     restoreSelect();
     restoreFindFirst();
+  }
+});
+
+test("resolveAppContextForAuth maps canonical lookup exception from request source to app_context_unavailable", async () => {
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => {
+    throw new Error("boom");
+  });
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq({ body: { appSlug: "admin" } }),
+      origin: "http://localhost:5173",
+      sessionGroup: "default",
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("Expected failed app context resolution");
+    assert.equal(result.reason, "app_context_unavailable");
+  } finally {
+    restoreFindFirst();
+  }
+});
+
+test("resolveAppContextForAuth maps canonical lookup exception from session_group source to app_not_found", async () => {
+  const prevGroupMap = process.env["SESSION_GROUP_APP_SLUGS"];
+  process.env["SESSION_GROUP_APP_SLUGS"] = "default=workspace";
+  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => {
+    throw new Error("boom");
+  });
+  try {
+    const result = await resolveAppContextForAuth({
+      req: buildReq(),
+      sessionGroup: "default",
+      origin: null,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("Expected failed app context resolution");
+    assert.equal(result.reason, "app_not_found");
+  } finally {
+    restoreFindFirst();
+    if (prevGroupMap === undefined) delete process.env["SESSION_GROUP_APP_SLUGS"];
+    else process.env["SESSION_GROUP_APP_SLUGS"] = prevGroupMap;
   }
 });
 

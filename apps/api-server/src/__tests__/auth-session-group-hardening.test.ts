@@ -324,8 +324,48 @@ test("oauth start preserves login continuation path in oauth state payload", asy
     assert.ok(state);
     const segments = state.split(".");
     const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "workspace");
     assert.equal(payload.returnToPath, WORKSPACE_INVITATION_CONTINUATION_PATH);
+    assert.equal(payload.returnTo, "http://workspace.local");
   } finally {
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirect === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirect;
+  }
+});
+
+test("non-admin oauth start still allows origin-derived app context without explicit appSlug", async () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
+  const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
+  process.env["APP_SLUG_BY_ORIGIN"] = "http://workspace.local=workspace";
+  process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
+  process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
+  process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const response = await request(app, "/api/auth/google/url", {
+      method: "POST",
+      headers: {
+        origin: "http://workspace.local",
+      },
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { url: string };
+    const state = new URL(body.url).searchParams.get("state");
+    assert.ok(state);
+    const segments = state.split(".");
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "workspace");
+    assert.equal(payload.sessionGroup, "default");
+  } finally {
+    if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
+    else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];

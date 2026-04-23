@@ -391,11 +391,63 @@ test("google oauth url does not persist stayLoggedIn when canonical app lookup f
     );
 
     assert.equal(response.status, 400);
+    assert.notEqual(response.status, 404);
     assert.equal(response.body?.code, "app_not_found");
     assert.equal(state.session.oauthStayLoggedIn, undefined);
   } finally {
     restoreLookup();
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
     else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+  }
+});
+
+test("google oauth url fail-closed canonical app lookup happens before oauth config/session side effects", async () => {
+  const prevClientId = process.env["GOOGLE_CLIENT_ID"];
+  const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
+  const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
+  delete process.env["GOOGLE_CLIENT_ID"];
+  delete process.env["GOOGLE_CLIENT_SECRET"];
+  delete process.env["GOOGLE_REDIRECT_URI"];
+
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  process.env["TURNSTILE_ENABLED"] = "false";
+  const restoreLookup = mockCanonicalAppLookupAsNotFound();
+
+  const state: { session: Record<string, unknown> } = {
+    session: {
+      id: "oauth-ordering-session",
+      save: (cb?: (err?: unknown) => void) => cb?.(),
+      destroy: (cb?: (err?: unknown) => void) => cb?.(),
+      regenerate: (cb?: (err?: unknown) => void) => cb?.(),
+    },
+  };
+
+  const expressMod = await import("express");
+  const app = expressMod.default();
+  app.use(expressMod.default.json());
+  app.use((req, _res, next) => {
+    (req as unknown as { session: Record<string, unknown> }).session = state.session;
+    next();
+  });
+  app.use("/api/auth", authRouter);
+
+  try {
+    const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
+    assert.equal(response.status, 400);
+    assert.notEqual(response.status, 404);
+    assert.equal(response.body?.code, "app_not_found");
+    assert.equal(state.session.oauthState, undefined);
+    assert.equal(state.session.oauthReturnTo, undefined);
+    assert.equal(state.session.oauthAppSlug, undefined);
+  } finally {
+    restoreLookup();
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+    if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
+    else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
+    if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
+    else process.env["GOOGLE_CLIENT_SECRET"] = prevClientSecret;
+    if (prevRedirect === undefined) delete process.env["GOOGLE_REDIRECT_URI"];
+    else process.env["GOOGLE_REDIRECT_URI"] = prevRedirect;
   }
 });
