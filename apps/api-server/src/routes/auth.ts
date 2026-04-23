@@ -181,20 +181,30 @@ function attachAuthResponseDiagnostics(
 function getRequestFrontendOrigin(req: Request): string | null {
   const allowedOrigins = getAllowedOrigins();
   const candidateOrigins: string[] = [];
+  let forwardedHostOriginCandidate: string | null = null;
+  let hostOriginCandidate: string | null = null;
+  const pushOriginCandidate = (value: string | null | undefined) => {
+    if (!value) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    candidateOrigins.push(trimmed);
+  };
+
   const originHeader = req.headers["origin"];
   if (typeof originHeader === "string" && originHeader.trim()) {
-    candidateOrigins.push(originHeader.trim());
+    pushOriginCandidate(originHeader);
   }
 
   const refererHeader = req.headers["referer"];
   if (typeof refererHeader === "string" && refererHeader.trim()) {
-    candidateOrigins.push(refererHeader.trim());
+    pushOriginCandidate(refererHeader);
   }
 
-  const forwardedHost =
+  const forwardedHostRaw =
     typeof req.headers["x-forwarded-host"] === "string"
       ? req.headers["x-forwarded-host"].trim()
       : "";
+  const forwardedHost = forwardedHostRaw.split(",", 1)[0]?.trim() || "";
   const forwardedProtoRaw =
     typeof req.headers["x-forwarded-proto"] === "string"
       ? req.headers["x-forwarded-proto"].trim()
@@ -202,13 +212,36 @@ function getRequestFrontendOrigin(req: Request): string | null {
   const forwardedProto = forwardedProtoRaw.split(",", 1)[0]?.trim() || "";
   if (forwardedHost) {
     const proto = forwardedProto || "https";
-    candidateOrigins.push(`${proto}://${forwardedHost}`);
+    const candidate = `${proto}://${forwardedHost}`;
+    forwardedHostOriginCandidate = candidate;
+    pushOriginCandidate(candidate);
+  }
+
+  const hostHeaderRaw =
+    typeof req.headers["host"] === "string" ? req.headers["host"].trim() : "";
+  const hostHeader = hostHeaderRaw.split(",", 1)[0]?.trim() || "";
+  if (hostHeader) {
+    const proto =
+      forwardedProto ||
+      (req.protocol === "http" || req.protocol === "https" ? req.protocol : "https");
+    const candidate = `${proto}://${hostHeader}`;
+    hostOriginCandidate = candidate;
+    pushOriginCandidate(candidate);
   }
 
   for (const candidate of candidateOrigins) {
     try {
       const normalizedOrigin = new URL(candidate).origin;
       if (allowedOrigins.includes(normalizedOrigin)) return normalizedOrigin;
+    } catch {
+      // noop
+    }
+  }
+
+  for (const fallback of [forwardedHostOriginCandidate, hostOriginCandidate]) {
+    if (!fallback) continue;
+    try {
+      return new URL(fallback).origin;
     } catch {
       // noop
     }
@@ -1101,12 +1134,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
-  const hasForwardedHostContext =
-    typeof req.headers["x-forwarded-host"] === "string" &&
-    req.headers["x-forwarded-host"].trim().length > 0;
   if (
     appContext.policy.applyAdminPrivileges &&
-    (appContext.source === "origin" || hasForwardedHostContext) &&
+    appSlug === "admin" &&
+    appContext.source === "origin" &&
     !appContext.explicitAppSlugProvided
   ) {
     logAuthFailure(req, "google-url-admin-explicit-appslug-required", {

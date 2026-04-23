@@ -147,32 +147,6 @@ export async function resolveAppContextForAuth(input: {
 
   const originAppSlug = trustedOriginAppSlug ?? dbOriginAppSlug;
 
-  if (
-    trustedOriginAppSlug &&
-    dbOriginAppSlug &&
-    trustedOriginAppSlug !== dbOriginAppSlug
-  ) {
-    return {
-      ok: false,
-      reason: "app_context_unavailable",
-      details: {
-        trustedOriginAppSlug,
-        dbOriginAppSlug,
-      },
-    };
-  }
-
-  if (explicitAppSlug && originAppSlug && explicitAppSlug !== originAppSlug) {
-    return {
-      ok: false,
-      reason: "app_context_unavailable",
-      details: {
-        explicitAppSlug,
-        originAppSlug,
-      },
-    };
-  }
-
   const fallbackSessionGroup =
     input.sessionGroup ??
     input.req.resolvedSessionGroup ??
@@ -186,12 +160,19 @@ export async function resolveAppContextForAuth(input: {
     return { ok: false, reason: "app_slug_missing" };
   }
 
+  const originDerivedSessionGroup = resolveSessionGroupFromOrigin(origin);
   let selectedCanonicalApp: App | null = null;
   let canonicalLookupError: unknown = null;
   const source: "request" | "origin" | "session_group" = explicitAppSlug
     ? "request"
     : (trustedOriginAppSlug ?? dbOriginAppSlug)
       ? "origin"
+      : origin &&
+          sessionGroupFallbackAppSlug &&
+          fallbackSessionGroup &&
+          originDerivedSessionGroup &&
+          fallbackSessionGroup === originDerivedSessionGroup
+        ? "origin"
       : "session_group";
   try {
     selectedCanonicalApp = (await getAppBySlug(selectedAppSlug, {
