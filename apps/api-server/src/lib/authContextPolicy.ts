@@ -2,7 +2,7 @@ import type { Request } from "express";
 import type { App } from "@workspace/db";
 import { getAppBySlug, getAppSlugByOrigin } from "./appAccess.js";
 import { resolveNormalizedAccessProfile, type NormalizedAccessProfile } from "./appAccessProfile.js";
-import { getKnownSessionGroups, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
+import { resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
 import { resolveSessionGroupForApp } from "./sessionGroupCompatibility.js";
 
 export type AuthContextPolicy = {
@@ -225,49 +225,8 @@ export async function resolveAppContextForAuth(input: {
   if (!policy) {
     return {
       ok: false,
-      reason: "invalid_access_mode",
+      reason: "app_context_unavailable",
       details: { resolvedAppSlug },
-    };
-  }
-
-  const derivedSessionGroup =
-    fallbackSessionGroup;
-
-  const knownGroups = getKnownSessionGroups();
-  const requestGroup = (derivedSessionGroup || "").trim();
-  const hasRequestGroup = requestGroup.length > 0 && knownGroups.includes(requestGroup);
-  const hasAuthenticatedSessionIdentity = Boolean(
-    input.req.session?.userId || input.req.session?.pendingUserId,
-  );
-  const resolvedFromSessionGroupFallback = fallbackCandidateAppSlugs.includes(resolvedAppSlug);
-  const enforceSessionGroupConflict =
-    resolvedFromSessionGroupFallback &&
-    !canonicalCandidateAppSlugs.includes(resolvedAppSlug) &&
-    !explicitAppSlug &&
-    source === "session_group" &&
-    hasAuthenticatedSessionIdentity;
-
-  if (
-    hasRequestGroup &&
-    requestGroup !== policy.sessionGroup &&
-    enforceSessionGroupConflict
-  ) {
-    return {
-      ok: false,
-      reason: policy.applyAdminPrivileges ? "admin_context_required" : "session_group_conflict",
-      details: {
-        requestSessionGroup: requestGroup,
-        policySessionGroup: policy.sessionGroup,
-        resolvedAppSlug,
-      },
-    };
-  }
-
-  if (policy.applyAdminPrivileges && policy.sessionGroup !== SESSION_GROUPS.ADMIN) {
-    return {
-      ok: false,
-      reason: "admin_context_required",
-      details: { resolvedAppSlug, policySessionGroup: policy.sessionGroup },
     };
   }
 
@@ -277,7 +236,7 @@ export async function resolveAppContextForAuth(input: {
     sessionGroup: policy.sessionGroup,
     policy,
     app,
-    canonicalAppResolved: Boolean(app),
+    canonicalAppResolved: true,
     explicitAppSlugProvided: Boolean(explicitAppSlug),
     source,
   };
