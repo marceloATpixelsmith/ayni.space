@@ -38,48 +38,58 @@ if (allowedOrigins.length === 0) {
   console.warn("[startup] No allowed origins resolved at startup; runtime cache refresh may populate DB-backed values.");
 }
 void refreshRuntimeCache({ force: true });
-app.use(
-  cors((req, callback) => {
-    getEffectiveAllowedOrigins().then((parsedAllowedOrigins) => {
-    const rawAllowedOriginsEnv = parsedAllowedOrigins.join(",");
-    const requestOrigin = req.header("origin") ?? null;
-    const method = req.method;
-    const path = req.path;
+const corsMiddleware = cors((req, callback) => {
+  getEffectiveAllowedOrigins()
+    .then((parsedAllowedOrigins) => {
+      const rawAllowedOriginsEnv = parsedAllowedOrigins.join(",");
+      const requestOrigin = req.header("origin") ?? null;
+      const method = req.method;
+      const path = req.path;
 
-    infoVerboseTrace("[CORS-TRACE] ORIGIN CHECK", {
-      requestOrigin,
-      method,
-      path,
-      rawAllowedOriginsEnv,
-      parsedAllowedOrigins,
-    });
-
-    if (!requestOrigin || parsedAllowedOrigins.includes(requestOrigin)) {
-      infoVerboseTrace("[CORS-TRACE] ORIGIN ALLOWED", {
+      infoVerboseTrace("[CORS-TRACE] ORIGIN CHECK", {
         requestOrigin,
         method,
         path,
+        rawAllowedOriginsEnv,
+        parsedAllowedOrigins,
       });
-      callback(null, { origin: true, credentials: true });
+
+      if (!requestOrigin || parsedAllowedOrigins.includes(requestOrigin)) {
+        infoVerboseTrace("[CORS-TRACE] ORIGIN ALLOWED", {
+          requestOrigin,
+          method,
+          path,
+        });
+        callback(null, { origin: true, credentials: true });
+        return;
+      }
+
+      warnVerboseTrace("[CORS-TRACE] ORIGIN DENIED", {
+        requestOrigin,
+        method,
+        path,
+        rawAllowedOriginsEnv,
+        parsedAllowedOrigins,
+        reason: "Request origin is not in canonical platform.apps domain-derived set",
+      });
+
+      callback(new Error("Not allowed by CORS"));
+    })
+    .catch((error) => {
+      console.error("[CORS-TRACE] failed to resolve allowed origins", error);
+      callback(new Error("Not allowed by CORS"));
+    });
+});
+
+app.use((req, res, next) => {
+  corsMiddleware(req, res, (error?: Error) => {
+    if (error) {
+      res.status(400).json({ error: error.message });
       return;
     }
-
-    warnVerboseTrace("[CORS-TRACE] ORIGIN DENIED", {
-      requestOrigin,
-      method,
-      path,
-      rawAllowedOriginsEnv,
-      parsedAllowedOrigins,
-      reason: "Request origin is not in canonical platform.apps domain-derived set",
-    });
-
-    callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
-    }).catch((error) => {
-      console.error("[CORS-TRACE] failed to resolve allowed origins", error);
-      callback(new Error("Not allowed by CORS"), { origin: false, credentials: true });
-    });
-  })
-);
+    next();
+  });
+});
 
 // ── RAW BODY for Stripe webhook (must come before json middleware) ─────────────
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }));
