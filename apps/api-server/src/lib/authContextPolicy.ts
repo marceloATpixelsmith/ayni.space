@@ -185,7 +185,7 @@ export async function resolveAppContextForAuth(input: {
   if (canonicalLookupError) {
     return {
       ok: false,
-      reason: source === "session_group" ? "app_not_found" : "app_context_unavailable",
+      reason: "app_not_found",
       details: {
         resolvedAppSlug: selectedAppSlug,
         lookupError:
@@ -225,7 +225,7 @@ export async function resolveAppContextForAuth(input: {
     input.req.session?.userId || input.req.session?.pendingUserId,
   );
   const enforceSessionGroupConflict =
-    !explicitAppSlug && (source === "origin" || hasAuthenticatedSessionIdentity);
+    !explicitAppSlug && hasAuthenticatedSessionIdentity;
 
   if (
     hasRequestGroup &&
