@@ -1085,11 +1085,14 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const requestedAppSlug = getRequestedAppSlugFromRequest(req);
   const trustedRequestOrigin = getRequestFrontendOrigin(req);
-  if (!trustedRequestOrigin && !requestedAppSlug) {
+  if (!trustedRequestOrigin) {
     logGoogleUrlBranch(req, "origin_invalid", {
       turnstileVerificationPassed: Boolean(req.turnstileVerified),
+      requestedAppSlug,
     });
-    logAuthFailure(req, "google-url-origin-invalid");
+    logAuthFailure(req, "google-url-origin-invalid", {
+      requestedAppSlug,
+    });
     sendGoogleUrlError(
       req,
       res,
