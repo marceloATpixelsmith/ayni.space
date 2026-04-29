@@ -154,15 +154,19 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const selectedAppSlug =
-    explicitAppSlug ?? originAppSlug ?? sessionGroupFallbackAppSlug;
+  const candidateAppSlugs = [
+    explicitAppSlug,
+    originAppSlug,
+    sessionGroupFallbackAppSlug,
+  ].filter((value): value is string => Boolean(value));
+
+  const orderedCandidateAppSlugs = Array.from(new Set(candidateAppSlugs));
+  const selectedAppSlug = orderedCandidateAppSlugs[0] ?? null;
   if (!selectedAppSlug) {
     return { ok: false, reason: "app_slug_missing" };
   }
 
   const originDerivedSessionGroup = resolveSessionGroupFromOrigin(origin);
-  let selectedCanonicalApp: App | null = null;
-  let canonicalLookupError: unknown = null;
   const source: "request" | "origin" | "session_group" = explicitAppSlug
     ? "request"
     : (trustedOriginAppSlug ?? dbOriginAppSlug)
@@ -174,33 +178,42 @@ export async function resolveAppContextForAuth(input: {
           fallbackSessionGroup === originDerivedSessionGroup
         ? "origin"
       : "session_group";
-  try {
-    selectedCanonicalApp = (await getAppBySlug(selectedAppSlug, {
-      allowOutageFallback: true,
-    })) ?? null;
-  } catch (error) {
-    canonicalLookupError = error;
-  }
 
-  if (canonicalLookupError) {
-    return {
-      ok: false,
-      reason: "app_not_found",
-      details: {
-        resolvedAppSlug: selectedAppSlug,
-        lookupError:
-          canonicalLookupError instanceof Error
-            ? canonicalLookupError.message
-            : String(canonicalLookupError),
-      },
-    };
+  let selectedCanonicalApp: App | null = null;
+  let lastLookupError: unknown = null;
+  let resolvedAppSlug = selectedAppSlug;
+
+  for (const candidateSlug of orderedCandidateAppSlugs) {
+    resolvedAppSlug = candidateSlug;
+    try {
+      const canonicalApp = (await getAppBySlug(candidateSlug, {
+        allowOutageFallback: true,
+      })) ?? null;
+      if (canonicalApp) {
+        selectedCanonicalApp = canonicalApp;
+        break;
+      }
+    } catch (error) {
+      lastLookupError = error;
+    }
   }
 
   if (!selectedCanonicalApp) {
     return {
       ok: false,
       reason: "app_not_found",
-      details: { resolvedAppSlug: selectedAppSlug },
+      details: {
+        resolvedAppSlug,
+        attemptedAppSlugs: orderedCandidateAppSlugs,
+        ...(lastLookupError
+          ? {
+            lookupError:
+              lastLookupError instanceof Error
+                ? lastLookupError.message
+                : String(lastLookupError),
+          }
+          : {}),
+      },
     };
   }
 
@@ -211,7 +224,7 @@ export async function resolveAppContextForAuth(input: {
     return {
       ok: false,
       reason: "invalid_access_mode",
-      details: { resolvedAppSlug: selectedAppSlug },
+      details: { resolvedAppSlug },
     };
   }
 
@@ -240,7 +253,7 @@ export async function resolveAppContextForAuth(input: {
       details: {
         requestSessionGroup: requestGroup,
         policySessionGroup: policy.sessionGroup,
-        resolvedAppSlug: selectedAppSlug,
+        resolvedAppSlug,
       },
     };
   }
@@ -249,13 +262,13 @@ export async function resolveAppContextForAuth(input: {
     return {
       ok: false,
       reason: "admin_context_required",
-      details: { resolvedAppSlug: selectedAppSlug, policySessionGroup: policy.sessionGroup },
+      details: { resolvedAppSlug, policySessionGroup: policy.sessionGroup },
     };
   }
 
   return {
     ok: true,
-    resolvedAppSlug: selectedAppSlug,
+    resolvedAppSlug,
     sessionGroup: policy.sessionGroup,
     policy,
     app,
