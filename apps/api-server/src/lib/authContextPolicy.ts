@@ -225,7 +225,7 @@ export async function resolveAppContextForAuth(input: {
     input.req.session?.userId || input.req.session?.pendingUserId,
   );
   const enforceSessionGroupConflict =
-    source === "origin" || hasAuthenticatedSessionIdentity;
+    !explicitAppSlug && (source === "origin" || hasAuthenticatedSessionIdentity);
 
   if (
     hasRequestGroup &&
