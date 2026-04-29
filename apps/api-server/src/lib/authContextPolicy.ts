@@ -154,11 +154,13 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const candidateAppSlugs = [
-    explicitAppSlug,
-    originAppSlug,
-    sessionGroupFallbackAppSlug,
-  ].filter((value): value is string => Boolean(value));
+  const canonicalCandidateAppSlugs = [explicitAppSlug, originAppSlug].filter(
+    (value): value is string => Boolean(value),
+  );
+  const fallbackCandidateAppSlugs = [sessionGroupFallbackAppSlug].filter(
+    (value): value is string => Boolean(value),
+  );
+  const candidateAppSlugs = [...canonicalCandidateAppSlugs, ...fallbackCandidateAppSlugs];
 
   const orderedCandidateAppSlugs = Array.from(new Set(candidateAppSlugs));
   const selectedAppSlug = orderedCandidateAppSlugs[0] ?? null;
@@ -237,7 +239,10 @@ export async function resolveAppContextForAuth(input: {
   const hasAuthenticatedSessionIdentity = Boolean(
     input.req.session?.userId || input.req.session?.pendingUserId,
   );
+  const resolvedFromSessionGroupFallback = fallbackCandidateAppSlugs.includes(resolvedAppSlug);
   const enforceSessionGroupConflict =
+    resolvedFromSessionGroupFallback &&
+    !canonicalCandidateAppSlugs.includes(resolvedAppSlug) &&
     !explicitAppSlug &&
     source === "session_group" &&
     hasAuthenticatedSessionIdentity;
