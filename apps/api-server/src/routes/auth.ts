@@ -2031,23 +2031,23 @@ function sendOriginNotAllowedAuthError(res: Response) {
 }
 
 async function resolveRequestedEmailPasswordAppContext(req: Request) {
+  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
   const origin = getRequestFrontendOrigin(req) ?? null;
   const allowedOrigins = getAllowedOrigins();
-  if (!origin || !allowedOrigins.includes(origin)) {
+
+  if (!requestedAppSlug && (!origin || !allowedOrigins.includes(origin))) {
     return null;
   }
-  const bodyAppSlug =
-    typeof req.body?.appSlug === "string" && req.body.appSlug.trim()
-      ? req.body.appSlug.trim()
-      : null;
+
   return resolveAppContextForAuth({
     req,
-    appSlug: bodyAppSlug,
+    appSlug: requestedAppSlug,
     origin,
     sessionGroup:
       req.resolvedSessionGroup ??
       req.session?.sessionGroup ??
-      resolveSessionGroupFromOrigin(origin),
+      resolveSessionGroupFromOrigin(origin) ??
+      resolveSessionGroupFromAppSlug(requestedAppSlug),
   });
 }
 
