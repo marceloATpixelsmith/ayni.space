@@ -1085,7 +1085,11 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const requestedAppSlug = getRequestedAppSlugFromRequest(req);
   const trustedRequestOrigin = getRequestFrontendOrigin(req);
-  if (!trustedRequestOrigin) {
+  const allowedOrigins = getAllowedOrigins();
+  if (
+    !trustedRequestOrigin ||
+    !allowedOrigins.includes(trustedRequestOrigin)
+  ) {
     logGoogleUrlBranch(req, "origin_invalid", {
       turnstileVerificationPassed: Boolean(req.turnstileVerified),
       requestedAppSlug,
@@ -2019,8 +2023,19 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
+function sendOriginNotAllowedAuthError(res: Response) {
+  res.status(400).json({
+    error: "Request origin is missing or not allowed.",
+    code: "ORIGIN_NOT_ALLOWED",
+  });
+}
+
 async function resolveRequestedEmailPasswordAppContext(req: Request) {
   const origin = getRequestFrontendOrigin(req) ?? null;
+  const allowedOrigins = getAllowedOrigins();
+  if (!origin || !allowedOrigins.includes(origin)) {
+    return null;
+  }
   const bodyAppSlug =
     typeof req.body?.appSlug === "string" && req.body.appSlug.trim()
       ? req.body.appSlug.trim()
@@ -2450,6 +2465,10 @@ async function handlePasswordSignup(req: Request, res: Response) {
   }
 
   const signupAppContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!signupAppContext) {
+    sendOriginNotAllowedAuthError(res);
+    return;
+  }
   if (!signupAppContext.ok) {
     sendAppContextResolutionError(
       res,
@@ -2733,6 +2752,10 @@ async function handlePasswordLogin(req: Request, res: Response) {
   }
 
   const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!appContext) {
+    sendOriginNotAllowedAuthError(res);
+    return;
+  }
   if (!appContext.ok) {
     sendAppContextResolutionError(
       res,
@@ -2822,6 +2845,10 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
 async function handleForgotPassword(req: Request, res: Response) {
   const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  if (!appContext) {
+    sendOriginNotAllowedAuthError(res);
+    return;
+  }
   if (!appContext.ok) {
     sendAppContextResolutionError(
       res,
