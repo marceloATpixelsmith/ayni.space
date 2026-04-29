@@ -149,7 +149,7 @@ Schema source: `lib/db/src/schema/apps.ts`.
   - **Mode**: mixed; hardcoded `/dashboard`, hardcoded onboarding paths.
 - `routes/auth.ts`
   - **Consumes**: slug resolution, `accessMode`, staff/customer flags, `isActive` through `getAppBySlug`.
-  - **Mode**: mixed; metadata-based app lookup plus hardcoded admin origin/slug shortcuts.
+  - **Mode**: mixed; auth-entry context resolution is explicit appSlug first, origin-derived context second, session-group fallback last, and always requires canonical app lookup with no implicit admin fallback or hardcoded admin origin/slug shortcut authority.
 - `routes/apps.ts`
   - **Consumes**: many app fields to serialize metadata and authRoutePolicy.
   - **Mode**: metadata-driven API source for frontend app metadata.
@@ -258,7 +258,6 @@ Schema source: `lib/db/src/schema/apps.ts`.
 
 ### BROKEN
 - No direct runtime consumer for `platform.apps.invitationEmailSubject` and `platform.apps.invitationEmailHtml`; schema fields are inert while email behavior is template-table-driven.
-- Auth entry now resolves context through explicit `appSlug` first, then origin-derived context, then session-group fallback, and fails closed with `400` typed errors (`app_slug_missing`, `app_not_found`) when unresolved; no implicit admin fallback applies.
 - Frontend fallback auth-route policy still fail-closes customer-registration affordances when backend `authRoutePolicy` metadata is absent, so metadata delivery remains a source-of-truth dependency.
 
 ### MISSING
