@@ -42,14 +42,15 @@ const corsMiddleware = cors((req, callback) => {
   getEffectiveAllowedOrigins()
     .then((parsedAllowedOrigins) => {
       const rawAllowedOriginsEnv = parsedAllowedOrigins.join(",");
-      const requestOrigin = req.header("origin") ?? null;
+      const requestOriginHeader = req.headers.origin;
+      const requestOrigin = Array.isArray(requestOriginHeader)
+        ? requestOriginHeader[0] ?? null
+        : requestOriginHeader ?? null;
       const method = req.method;
-      const path = req.path;
 
       infoVerboseTrace("[CORS-TRACE] ORIGIN CHECK", {
         requestOrigin,
         method,
-        path,
         rawAllowedOriginsEnv,
         parsedAllowedOrigins,
       });
@@ -58,7 +59,6 @@ const corsMiddleware = cors((req, callback) => {
         infoVerboseTrace("[CORS-TRACE] ORIGIN ALLOWED", {
           requestOrigin,
           method,
-          path,
         });
         callback(null, { origin: true, credentials: true });
         return;
@@ -67,7 +67,6 @@ const corsMiddleware = cors((req, callback) => {
       warnVerboseTrace("[CORS-TRACE] ORIGIN DENIED", {
         requestOrigin,
         method,
-        path,
         rawAllowedOriginsEnv,
         parsedAllowedOrigins,
         reason: "Request origin is not in canonical platform.apps domain-derived set",
