@@ -249,6 +249,40 @@ function getRequestFrontendOrigin(req: Request): string | null {
   return null;
 }
 
+
+function deriveAuthContextRequestOrigin(req: Request): string | null {
+  const headerOrigin =
+    typeof req.headers["origin"] === "string"
+      ? req.headers["origin"].trim()
+      : "";
+  if (headerOrigin) return headerOrigin;
+
+  const forwardedHostRaw =
+    typeof req.headers["x-forwarded-host"] === "string"
+      ? req.headers["x-forwarded-host"].trim()
+      : "";
+  const forwardedHost = forwardedHostRaw.split(",", 1)[0]?.trim() ?? "";
+  const forwardedProtoRaw =
+    typeof req.headers["x-forwarded-proto"] === "string"
+      ? req.headers["x-forwarded-proto"].trim()
+      : "";
+  const forwardedProto = forwardedProtoRaw.split(",", 1)[0]?.trim() ?? "";
+  if (forwardedHost) {
+    const proto = forwardedProto || "https";
+    return `${proto}://${forwardedHost}`;
+  }
+
+  const hostRaw =
+    typeof req.headers["host"] === "string" ? req.headers["host"].trim() : "";
+  const host = hostRaw.split(",", 1)[0]?.trim() ?? "";
+  if (!host) return null;
+
+  const proto =
+    forwardedProto ||
+    (req.protocol === "http" || req.protocol === "https" ? req.protocol : "https");
+  return `${proto}://${host}`;
+}
+
 function getCurrentRequestSessionGroup(req: Request): string {
   const resolution = resolveSessionGroupForRequest(req, {
     failOnAmbiguous: true,
@@ -1083,7 +1117,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
+  const requestedAppSlug = firstQueryParam(req.query?.appSlug) ?? getRequestedAppSlugFromRequest(req);
   const trustedRequestOrigin = getRequestFrontendOrigin(req);
   const allowedOrigins = getAllowedOrigins();
   if (
@@ -2034,17 +2068,22 @@ async function resolveRequestedEmailPasswordAppContext(
   explicitAppSlug?: string | null,
 ) {
   const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
-  const origin = getRequestFrontendOrigin(req) ?? null;
+  const origin = deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+  const sessionGroup =
+    req.resolvedSessionGroup ??
+    req.session?.sessionGroup ??
+    resolveSessionGroupFromOrigin(origin) ??
+    resolveSessionGroupFromAppSlug(requestedAppSlug);
+
+  if (!requestedAppSlug && !origin && !sessionGroup) {
+    return { success: false, ok: false, errorCode: "app_slug_missing", reason: "app_slug_missing" } as const;
+  }
 
   return resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
     origin,
-    sessionGroup:
-      req.resolvedSessionGroup ??
-      req.session?.sessionGroup ??
-      resolveSessionGroupFromOrigin(origin) ??
-      resolveSessionGroupFromAppSlug(requestedAppSlug),
+    sessionGroup,
   });
 }
 
