@@ -154,9 +154,9 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const canonicalCandidateAppSlugs = [explicitAppSlug, originAppSlug].filter(
-    (value): value is string => Boolean(value),
-  );
+  const canonicalCandidateAppSlugs = explicitAppSlug
+    ? [explicitAppSlug]
+    : [originAppSlug].filter((value): value is string => Boolean(value));
   const fallbackCandidateAppSlugs = [sessionGroupFallbackAppSlug].filter(
     (value): value is string => Boolean(value),
   );
