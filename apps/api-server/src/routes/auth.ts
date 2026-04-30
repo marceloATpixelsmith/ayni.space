@@ -1124,10 +1124,11 @@ async function handleGoogleUrl(req: Request, res: Response) {
     requestOriginHeader ??
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
+  const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
   const appContext = await resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
-    origin: trustedRequestOrigin,
+    origin: resolverOrigin,
     sessionGroup:
       req.resolvedSessionGroup ??
       req.session?.sessionGroup ??
@@ -1135,15 +1136,15 @@ async function handleGoogleUrl(req: Request, res: Response) {
   });
   if (!appContext.success) {
     console.error("[auth/google/url] app context resolution failed", {
-      requestOrigin: trustedRequestOrigin,
+      requestOrigin: resolverOrigin,
       reason: appContext.reason,
       details: appContext.details ?? null,
       resolvedSessionGroup: req.resolvedSessionGroup ?? null,
-      originSessionGroup: resolveSessionGroupFromOrigin(trustedRequestOrigin),
+      originSessionGroup: resolveSessionGroupFromOrigin(resolverOrigin),
       requestAppSlug: requestedAppSlug,
     });
     logAuthFailure(req, "google-url-app-context-failed", {
-      requestOrigin: trustedRequestOrigin,
+      requestOrigin: resolverOrigin,
       reason: appContext.reason,
     });
     sendGoogleUrlError(
@@ -2043,7 +2044,10 @@ async function resolveRequestedEmailPasswordAppContext(
   explicitAppSlug?: string | null,
 ) {
   const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
-  const origin = deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+  const origin =
+    requestedAppSlug
+      ? null
+      : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
   const sessionGroup =
     req.resolvedSessionGroup ??
     req.session?.sessionGroup ??
