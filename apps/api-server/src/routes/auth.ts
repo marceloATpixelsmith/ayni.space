@@ -1110,7 +1110,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const appContext = await resolveAppContextForAuth({
     req,
-    appSlug: firstQueryParam(req.query?.appSlug) ?? null,
+    appSlug: requestedAppSlug,
     origin: trustedRequestOrigin,
     sessionGroup:
       req.resolvedSessionGroup ??
@@ -2035,9 +2035,6 @@ async function resolveRequestedEmailPasswordAppContext(
 ) {
   const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
   const origin = getRequestFrontendOrigin(req) ?? null;
-  if (!requestedAppSlug && !origin) {
-    return null;
-  }
 
   return resolveAppContextForAuth({
     req,
