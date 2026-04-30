@@ -128,6 +128,54 @@ export async function resolveAppContextForAuth(input: {
   const queryOrParamAppSlug = getQueryOrParamAppSlug(input.req, input.appSlug);
   const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
 
+
+  if (explicitAppSlug) {
+    try {
+      const explicitApp = (await getAppBySlug(explicitAppSlug, {
+        allowOutageFallback: true,
+      })) ?? null;
+      if (!explicitApp) {
+        return {
+          ok: false,
+          reason: "app_not_found",
+          details: {
+            resolvedAppSlug: explicitAppSlug,
+            attemptedAppSlugs: [explicitAppSlug],
+          },
+        };
+      }
+
+      const policy = deriveAuthContextPolicy(explicitApp);
+      if (!policy) {
+        return {
+          ok: false,
+          reason: "app_context_unavailable",
+          details: { resolvedAppSlug: explicitAppSlug },
+        };
+      }
+
+      return {
+        ok: true,
+        resolvedAppSlug: explicitAppSlug,
+        sessionGroup: policy.sessionGroup,
+        policy,
+        app: explicitApp,
+        canonicalAppResolved: true,
+        explicitAppSlugProvided: true,
+        source: "request",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: "app_not_found",
+        details: {
+          resolvedAppSlug: explicitAppSlug,
+          attemptedAppSlugs: [explicitAppSlug],
+          lookupError: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
   const origin = input.origin ?? null;
   const originMappings = parseAppSlugByOriginEnv();
   let trustedOriginAppSlug: string | null = null;
@@ -154,9 +202,7 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const canonicalCandidateAppSlugs = explicitAppSlug
-    ? [explicitAppSlug]
-    : [originAppSlug].filter((value): value is string => Boolean(value));
+  const canonicalCandidateAppSlugs = [originAppSlug].filter((value): value is string => Boolean(value));
   const fallbackCandidateAppSlugs = [sessionGroupFallbackAppSlug].filter(
     (value): value is string => Boolean(value),
   );
