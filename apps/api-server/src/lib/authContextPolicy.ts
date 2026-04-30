@@ -21,8 +21,10 @@ export type AuthContextFailureReason =
 
 export type AuthContextResolution =
     | {
+      success: true;
       ok: true;
       resolvedAppSlug: string;
+      appSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
       app: App | null;
@@ -31,7 +33,9 @@ export type AuthContextResolution =
       source: "request" | "origin" | "session_group";
     }
   | {
+      success: false;
       ok: false;
+      errorCode: AuthContextFailureReason;
       reason: AuthContextFailureReason;
       details?: Record<string, unknown>;
     };
@@ -136,7 +140,9 @@ export async function resolveAppContextForAuth(input: {
       })) ?? null;
       if (!explicitApp) {
         return {
+          success: false,
           ok: false,
+          errorCode: "app_not_found",
           reason: "app_not_found",
           details: {
             resolvedAppSlug: explicitAppSlug,
@@ -153,8 +159,10 @@ export async function resolveAppContextForAuth(input: {
         };
 
       return {
+        success: true,
         ok: true,
         resolvedAppSlug: explicitAppSlug,
+        appSlug: explicitApp.slug,
         sessionGroup: policy.sessionGroup,
         policy,
         app: explicitApp,
@@ -164,7 +172,9 @@ export async function resolveAppContextForAuth(input: {
       };
     } catch (error) {
       return {
+        success: false,
         ok: false,
+        errorCode: "app_not_found",
         reason: "app_not_found",
         details: {
           resolvedAppSlug: explicitAppSlug,
@@ -209,7 +219,7 @@ export async function resolveAppContextForAuth(input: {
   const orderedCandidateAppSlugs = Array.from(new Set(candidateAppSlugs));
   const selectedAppSlug = orderedCandidateAppSlugs[0] ?? null;
   if (!selectedAppSlug) {
-    return { ok: false, reason: "app_slug_missing" };
+    return { success: false, ok: false, errorCode: "app_slug_missing", reason: "app_slug_missing" };
   }
 
   const originDerivedSessionGroup = resolveSessionGroupFromOrigin(origin);
@@ -246,7 +256,9 @@ export async function resolveAppContextForAuth(input: {
 
   if (!selectedCanonicalApp) {
     return {
+      success: false,
       ok: false,
+      errorCode: "app_not_found",
       reason: "app_not_found",
       details: {
         resolvedAppSlug,
@@ -272,8 +284,10 @@ export async function resolveAppContextForAuth(input: {
     };
 
   return {
+    success: true,
     ok: true,
     resolvedAppSlug,
+    appSlug: app.slug,
     sessionGroup: policy.sessionGroup,
     policy,
     app,
