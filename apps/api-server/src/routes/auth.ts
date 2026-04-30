@@ -2081,7 +2081,7 @@ async function resolveRequestedEmailPasswordAppContext(
     resolveSessionGroupFromOrigin(origin) ??
     resolveSessionGroupFromAppSlug(requestedAppSlug);
 
-  if (!requestedAppSlug && !origin && !sessionGroup) {
+  if (!requestedAppSlug && !origin) {
     return { success: false, ok: false, errorCode: "app_slug_missing", reason: "app_slug_missing" } as const;
   }
 
