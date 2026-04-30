@@ -1124,30 +1124,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
     requestOriginHeader ??
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
-  const allowedOrigins = getAllowedOrigins();
-  const hasExplicitAppSlug = Boolean(requestedAppSlug);
-  const originIsAllowed =
-    trustedRequestOrigin !== null &&
-    allowedOrigins.includes(trustedRequestOrigin);
-  if (!hasExplicitAppSlug && !originIsAllowed) {
-    logGoogleUrlBranch(req, "origin_invalid", {
-      turnstileVerificationPassed: Boolean(req.turnstileVerified),
-      requestedAppSlug,
-    });
-    logAuthFailure(req, "google-url-origin-invalid", {
-      requestedAppSlug,
-    });
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      "ORIGIN_NOT_ALLOWED",
-      "Request origin is missing or not allowed.",
-      "origin_invalid",
-    );
-    return;
-  }
-
   const appContext = await resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
@@ -2062,13 +2038,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
   }
 }
 
-function sendOriginNotAllowedAuthError(res: Response) {
-  res.status(400).json({
-    error: "Request origin is missing or not allowed.",
-    code: "ORIGIN_NOT_ALLOWED",
-  });
-}
-
 async function resolveRequestedEmailPasswordAppContext(
   req: Request,
   explicitAppSlug?: string | null,
@@ -2080,10 +2049,6 @@ async function resolveRequestedEmailPasswordAppContext(
     req.session?.sessionGroup ??
     resolveSessionGroupFromOrigin(origin) ??
     resolveSessionGroupFromAppSlug(requestedAppSlug);
-
-  if (!requestedAppSlug && !origin) {
-    return { success: false, ok: false, errorCode: "app_slug_missing", reason: "app_slug_missing" } as const;
-  }
 
   return resolveAppContextForAuth({
     req,
@@ -2512,10 +2477,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
     req,
     requestedSignupAppSlug,
   );
-  if (!signupAppContext) {
-    sendOriginNotAllowedAuthError(res);
-    return;
-  }
   if (!signupAppContext.success) {
     sendAppContextResolutionError(
       res,
@@ -2800,10 +2761,6 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
   const loginAppSlug = firstQueryParam(req.body?.appSlug) ?? firstQueryParam(req.query?.appSlug) ?? null;
   const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
-  if (!appContext) {
-    sendOriginNotAllowedAuthError(res);
-    return;
-  }
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
@@ -2895,10 +2852,6 @@ async function handleForgotPassword(req: Request, res: Response) {
   const forgotPasswordAppSlug =
     firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
   const appContext = await resolveRequestedEmailPasswordAppContext(req, forgotPasswordAppSlug);
-  if (!appContext) {
-    sendOriginNotAllowedAuthError(res);
-    return;
-  }
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
