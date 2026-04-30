@@ -1140,6 +1140,30 @@ async function handleGoogleUrl(req: Request, res: Response) {
     );
     return;
   }
+  if (
+    appContext.policy.accessMode === "superadmin" &&
+    !appContext.explicitAppSlugProvided
+  ) {
+    logGoogleUrlBranch(req, "admin_app_slug_required", {
+      requestedAppSlug,
+      source: appContext.source,
+      resolvedAppSlug: appContext.resolvedAppSlug,
+    });
+    logAuthFailure(req, "google-url-admin-app-slug-required", {
+      requestedAppSlug,
+      source: appContext.source,
+      resolvedAppSlug: appContext.resolvedAppSlug,
+    });
+    sendGoogleUrlError(
+      req,
+      res,
+      400,
+      AUTH_ERROR_CODES.APP_NOT_FOUND,
+      "App context is required to start OAuth.",
+      "admin_context_required",
+    );
+    return;
+  }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
 
   const oauthSessionGroup = appContext.sessionGroup;
