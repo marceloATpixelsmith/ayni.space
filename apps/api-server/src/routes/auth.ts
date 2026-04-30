@@ -1117,8 +1117,13 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const requestedAppSlug = firstQueryParam(req.query?.appSlug) ?? getRequestedAppSlugFromRequest(req);
-  const trustedRequestOrigin = getRequestFrontendOrigin(req);
+  const requestedAppSlug = firstQueryParam(req.query?.appSlug) ?? null;
+  const requestOriginHeader =
+    typeof req.headers.origin === "string" ? req.headers.origin : null;
+  const trustedRequestOrigin =
+    requestOriginHeader ??
+    deriveAuthContextRequestOrigin(req) ??
+    getRequestFrontendOrigin(req);
   const allowedOrigins = getAllowedOrigins();
   if (
     !trustedRequestOrigin ||
@@ -2792,7 +2797,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const loginAppSlug = firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
+  const loginAppSlug = firstQueryParam(req.body?.appSlug) ?? firstQueryParam(req.query?.appSlug) ?? null;
   const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
   if (!appContext) {
     sendOriginNotAllowedAuthError(res);
