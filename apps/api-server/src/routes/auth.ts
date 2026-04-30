@@ -1139,7 +1139,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req,
       res,
       403,
-      AUTH_ERROR_CODES.ORIGIN_NOT_ALLOWED,
+      "ORIGIN_NOT_ALLOWED",
       "Origin is not allowed for this app.",
       "origin_not_allowed",
     );
@@ -2073,7 +2073,7 @@ async function resolveRequestedEmailPasswordAppContext(
   if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
     return {
       success: false as const,
-      reason: AUTH_ERROR_CODES.ORIGIN_NOT_ALLOWED,
+      reason: "ORIGIN_NOT_ALLOWED",
     };
   }
   const origin =
@@ -2112,6 +2112,14 @@ function buildMfaRequiredAuthResponse(mfaGate: {
       mfaGate.nextPath ??
       (mfaGate.nextStep === "mfa_enroll" ? "/mfa/enroll" : "/mfa/challenge"),
   };
+}
+
+function normalizeAuthContextFailureReason(reason: string): string {
+  if (reason === "ORIGIN_NOT_ALLOWED") return "ORIGIN_NOT_ALLOWED";
+  if (reason === "app_slug_missing") return "app_slug_missing";
+  if (reason === "app_not_found") return "app_not_found";
+  if (reason === "admin_context_required") return "access_denied";
+  return "app_context_unavailable";
 }
 
 function sendAppContextResolutionError(
@@ -2516,7 +2524,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
   if (!signupAppContext.success) {
     sendAppContextResolutionError(
       res,
-      mapAuthContextFailureToAuthErrorCode(signupAppContext.reason),
+      normalizeAuthContextFailureReason(signupAppContext.reason),
     );
     return;
   }
@@ -2800,7 +2808,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
-      mapAuthContextFailureToAuthErrorCode(appContext.reason),
+      normalizeAuthContextFailureReason(appContext.reason),
     );
     return;
   }
@@ -2891,7 +2899,7 @@ async function handleForgotPassword(req: Request, res: Response) {
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
-      mapAuthContextFailureToAuthErrorCode(appContext.reason),
+      normalizeAuthContextFailureReason(appContext.reason),
     );
     return;
   }
