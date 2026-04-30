@@ -1117,7 +1117,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req.session?.sessionGroup ??
       resolveSessionGroupFromOrigin(trustedRequestOrigin),
   });
-  if (!appContext.ok) {
+  if (!appContext.success) {
     console.error("[auth/google/url] app context resolution failed", {
       requestOrigin: trustedRequestOrigin,
       reason: appContext.reason,
@@ -2468,7 +2468,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
     sendOriginNotAllowedAuthError(res);
     return;
   }
-  if (!signupAppContext.ok) {
+  if (!signupAppContext.success) {
     sendAppContextResolutionError(
       res,
       mapAuthContextFailureToAuthErrorCode(signupAppContext.reason),
@@ -2755,7 +2755,7 @@ async function handlePasswordLogin(req: Request, res: Response) {
     sendOriginNotAllowedAuthError(res);
     return;
   }
-  if (!appContext.ok) {
+  if (!appContext.success) {
     sendAppContextResolutionError(
       res,
       mapAuthContextFailureToAuthErrorCode(appContext.reason),
@@ -2848,7 +2848,7 @@ async function handleForgotPassword(req: Request, res: Response) {
     sendOriginNotAllowedAuthError(res);
     return;
   }
-  if (!appContext.ok) {
+  if (!appContext.success) {
     sendAppContextResolutionError(
       res,
       mapAuthContextFailureToAuthErrorCode(appContext.reason),
