@@ -2029,12 +2029,13 @@ function sendOriginNotAllowedAuthError(res: Response) {
   });
 }
 
-async function resolveRequestedEmailPasswordAppContext(req: Request) {
-  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
+async function resolveRequestedEmailPasswordAppContext(
+  req: Request,
+  explicitAppSlug?: string | null,
+) {
+  const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
   const origin = getRequestFrontendOrigin(req) ?? null;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (!requestedAppSlug && (!origin || !allowedOrigins.includes(origin))) {
+  if (!requestedAppSlug && !origin) {
     return null;
   }
 
@@ -2463,7 +2464,12 @@ async function handlePasswordSignup(req: Request, res: Response) {
     return;
   }
 
-  const signupAppContext = await resolveRequestedEmailPasswordAppContext(req);
+  const requestedSignupAppSlug =
+    firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
+  const signupAppContext = await resolveRequestedEmailPasswordAppContext(
+    req,
+    requestedSignupAppSlug,
+  );
   if (!signupAppContext) {
     sendOriginNotAllowedAuthError(res);
     return;
@@ -2750,7 +2756,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  const loginAppSlug = firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
+  const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
   if (!appContext) {
     sendOriginNotAllowedAuthError(res);
     return;
@@ -2843,7 +2850,9 @@ async function handlePasswordLogin(req: Request, res: Response) {
 }
 
 async function handleForgotPassword(req: Request, res: Response) {
-  const appContext = await resolveRequestedEmailPasswordAppContext(req);
+  const forgotPasswordAppSlug =
+    firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
+  const appContext = await resolveRequestedEmailPasswordAppContext(req, forgotPasswordAppSlug);
   if (!appContext) {
     sendOriginNotAllowedAuthError(res);
     return;
