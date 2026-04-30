@@ -283,6 +283,21 @@ function deriveAuthContextRequestOrigin(req: Request): string | null {
   return `${proto}://${host}`;
 }
 
+function resolveExplicitRequestOrigin(req: Request): string | null {
+  const originHeader =
+    typeof req.headers["origin"] === "string" ? req.headers["origin"].trim() : "";
+  return originHeader || null;
+}
+
+function isOriginAllowedForAuth(origin: string): boolean {
+  try {
+    const normalizedOrigin = new URL(origin).origin;
+    return getAllowedOrigins().includes(normalizedOrigin);
+  } catch {
+    return false;
+  }
+}
+
 function getCurrentRequestSessionGroup(req: Request): string {
   const resolution = resolveSessionGroupForRequest(req, {
     failOnAmbiguous: true,
@@ -1118,10 +1133,20 @@ async function handleGoogleUrl(req: Request, res: Response) {
   }
 
   const requestedAppSlug = getRequestedAppSlugFromRequest(req);
-  const requestOriginHeader =
-    typeof req.headers.origin === "string" ? req.headers.origin : null;
+  const explicitOrigin = resolveExplicitRequestOrigin(req);
+  if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
+    sendGoogleUrlError(
+      req,
+      res,
+      403,
+      AUTH_ERROR_CODES.ORIGIN_NOT_ALLOWED,
+      "Origin is not allowed for this app.",
+      "origin_not_allowed",
+    );
+    return;
+  }
   const trustedRequestOrigin =
-    requestOriginHeader ??
+    explicitOrigin ??
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
@@ -2044,6 +2069,13 @@ async function resolveRequestedEmailPasswordAppContext(
   explicitAppSlug?: string | null,
 ) {
   const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
+  const explicitOrigin = resolveExplicitRequestOrigin(req);
+  if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
+    return {
+      success: false as const,
+      reason: AUTH_ERROR_CODES.ORIGIN_NOT_ALLOWED,
+    };
+  }
   const origin =
     requestedAppSlug
       ? null
