@@ -145,14 +145,12 @@ export async function resolveAppContextForAuth(input: {
         };
       }
 
-      const policy = deriveAuthContextPolicy(explicitApp);
-      if (!policy) {
-        return {
-          ok: false,
-          reason: "app_context_unavailable",
-          details: { resolvedAppSlug: explicitAppSlug },
+      const policy =
+        deriveAuthContextPolicy(explicitApp) ?? {
+          accessMode: "organization" as const,
+          sessionGroup: resolveSessionGroupForApp(explicitApp),
+          applyAdminPrivileges: false,
         };
-      }
 
       return {
         ok: true,
@@ -266,15 +264,12 @@ export async function resolveAppContextForAuth(input: {
   }
 
   const app = selectedCanonicalApp;
-  const policy = deriveAuthContextPolicy(app);
-
-  if (!policy) {
-    return {
-      ok: false,
-      reason: "app_context_unavailable",
-      details: { resolvedAppSlug },
+  const policy =
+    deriveAuthContextPolicy(app) ?? {
+      accessMode: "organization" as const,
+      sessionGroup: resolveSessionGroupForApp(app),
+      applyAdminPrivileges: false,
     };
-  }
 
   return {
     ok: true,
