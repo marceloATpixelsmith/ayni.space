@@ -1117,18 +1117,19 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const requestedAppSlug = firstQueryParam(req.query?.appSlug) ?? null;
+  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
   const requestOriginHeader =
     typeof req.headers.origin === "string" ? req.headers.origin : null;
   const trustedRequestOrigin =
     requestOriginHeader ??
-    deriveAuthContextRequestOrigin(req) ??
-    getRequestFrontendOrigin(req);
+    getRequestFrontendOrigin(req) ??
+    deriveAuthContextRequestOrigin(req);
   const allowedOrigins = getAllowedOrigins();
-  if (
-    !trustedRequestOrigin ||
-    !allowedOrigins.includes(trustedRequestOrigin)
-  ) {
+  const hasExplicitAppSlug = Boolean(requestedAppSlug);
+  const originIsAllowed =
+    trustedRequestOrigin !== null &&
+    allowedOrigins.includes(trustedRequestOrigin);
+  if (!hasExplicitAppSlug && !originIsAllowed) {
     logGoogleUrlBranch(req, "origin_invalid", {
       turnstileVerificationPassed: Boolean(req.turnstileVerified),
       requestedAppSlug,
