@@ -27,7 +27,7 @@ export type AuthContextResolution =
       appSlug: string;
       sessionGroup: string;
       policy: AuthContextPolicy;
-      app: App | null;
+      app: App;
       canonicalAppResolved: boolean;
       explicitAppSlugProvided: boolean;
       source: "request" | "origin" | "session_group";
@@ -135,10 +135,10 @@ export async function resolveAppContextForAuth(input: {
 
   if (explicitAppSlug) {
     try {
-      const explicitApp = (await getAppBySlug(explicitAppSlug, {
+      const resolvedApp = (await getAppBySlug(explicitAppSlug, {
         allowOutageFallback: true,
       })) ?? null;
-      if (!explicitApp) {
+      if (!resolvedApp) {
         return {
           success: false,
           ok: false,
@@ -152,9 +152,9 @@ export async function resolveAppContextForAuth(input: {
       }
 
       const policy =
-        deriveAuthContextPolicy(explicitApp) ?? {
+        deriveAuthContextPolicy(resolvedApp) ?? {
           accessMode: "organization" as const,
-          sessionGroup: resolveSessionGroupForApp(explicitApp),
+          sessionGroup: resolveSessionGroupForApp(resolvedApp),
           applyAdminPrivileges: false,
         };
 
@@ -162,10 +162,10 @@ export async function resolveAppContextForAuth(input: {
         success: true,
         ok: true,
         resolvedAppSlug: explicitAppSlug,
-        appSlug: explicitApp.slug,
+        appSlug: resolvedApp.slug,
         sessionGroup: policy.sessionGroup,
         policy,
-        app: explicitApp,
+        app: resolvedApp,
         canonicalAppResolved: true,
         explicitAppSlugProvided: true,
         source: "request",
@@ -275,11 +275,11 @@ export async function resolveAppContextForAuth(input: {
     };
   }
 
-  const app = selectedCanonicalApp;
+  const resolvedApp = selectedCanonicalApp;
   const policy =
-    deriveAuthContextPolicy(app) ?? {
+    deriveAuthContextPolicy(resolvedApp) ?? {
       accessMode: "organization" as const,
-      sessionGroup: resolveSessionGroupForApp(app),
+      sessionGroup: resolveSessionGroupForApp(resolvedApp),
       applyAdminPrivileges: false,
     };
 
@@ -287,10 +287,10 @@ export async function resolveAppContextForAuth(input: {
     success: true,
     ok: true,
     resolvedAppSlug,
-    appSlug: app.slug,
+    appSlug: resolvedApp.slug,
     sessionGroup: policy.sessionGroup,
     policy,
-    app,
+    app: resolvedApp,
     canonicalAppResolved: true,
     explicitAppSlugProvided: Boolean(explicitAppSlug),
     source,
