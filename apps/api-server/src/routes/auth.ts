@@ -1132,7 +1132,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const requestedAppSlug = getRequestedAppSlugFromRequest(req);
+  const queryAppSlug = firstQueryParam(req.query?.appSlug);
+  const requestedAppSlug = queryAppSlug ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
   if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
     sendGoogleUrlError(
@@ -2803,7 +2804,8 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const loginAppSlug = firstQueryParam(req.body?.appSlug) ?? firstQueryParam(req.query?.appSlug) ?? null;
+  const bodyAppSlug = firstQueryParam(req.body?.appSlug);
+  const loginAppSlug = bodyAppSlug ?? firstQueryParam(req.query?.appSlug) ?? null;
   const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
   if (!appContext.success) {
     sendAppContextResolutionError(
