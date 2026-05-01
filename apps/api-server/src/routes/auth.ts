@@ -1138,7 +1138,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sendGoogleUrlError(
       req,
       res,
-      403,
+      400,
       "ORIGIN_NOT_ALLOWED",
       "Origin is not allowed for this app.",
       "origin_not_allowed",
