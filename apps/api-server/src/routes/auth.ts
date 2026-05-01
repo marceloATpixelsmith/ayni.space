@@ -283,6 +283,12 @@ function deriveAuthContextRequestOrigin(req: Request): string | null {
   return `${proto}://${host}`;
 }
 
+function normalizeOptionalAppSlug(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function resolveExplicitRequestOrigin(req: Request): string | null {
   const originHeader =
     typeof req.headers["origin"] === "string" ? req.headers["origin"].trim() : "";
@@ -1132,8 +1138,12 @@ async function handleGoogleUrl(req: Request, res: Response) {
     });
   }
 
-  const queryAppSlug = firstQueryParam(req.query?.appSlug);
-  const requestedAppSlug = queryAppSlug ?? getRequestedAppSlugFromRequest(req);
+  const queryAppSlug =
+    req.query?.appSlug ??
+    req.query?.app_slug ??
+    undefined;
+  const requestedAppSlug =
+    normalizeOptionalAppSlug(queryAppSlug) ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
   if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
     sendGoogleUrlError(
@@ -2804,8 +2814,11 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const bodyAppSlug = firstQueryParam(req.body?.appSlug);
-  const loginAppSlug = bodyAppSlug ?? firstQueryParam(req.query?.appSlug) ?? null;
+  const bodyAppSlug =
+    req.body?.appSlug ??
+    req.body?.app_slug ??
+    undefined;
+  const loginAppSlug = normalizeOptionalAppSlug(bodyAppSlug);
   const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
   if (!appContext.success) {
     sendAppContextResolutionError(
