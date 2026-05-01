@@ -133,6 +133,7 @@ export async function resolveAppContextForAuth(input: {
   const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
 
 
+  // Explicit appSlug always takes precedence over origin- or session-derived candidates.
   if (explicitAppSlug) {
     try {
       const resolvedApp = (await getAppBySlug(explicitAppSlug, {
@@ -223,16 +224,14 @@ export async function resolveAppContextForAuth(input: {
   }
 
   const originDerivedSessionGroup = resolveSessionGroupFromOrigin(origin);
-  const source: "request" | "origin" | "session_group" = explicitAppSlug
-    ? "request"
-    : (trustedOriginAppSlug ?? dbOriginAppSlug)
+  const source: "origin" | "session_group" = (trustedOriginAppSlug ?? dbOriginAppSlug)
+    ? "origin"
+    : origin &&
+        sessionGroupFallbackAppSlug &&
+        fallbackSessionGroup &&
+        originDerivedSessionGroup &&
+        fallbackSessionGroup === originDerivedSessionGroup
       ? "origin"
-      : origin &&
-          sessionGroupFallbackAppSlug &&
-          fallbackSessionGroup &&
-          originDerivedSessionGroup &&
-          fallbackSessionGroup === originDerivedSessionGroup
-        ? "origin"
       : "session_group";
 
   let selectedCanonicalApp: App | null = null;
