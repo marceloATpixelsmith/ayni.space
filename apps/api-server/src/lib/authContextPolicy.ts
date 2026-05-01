@@ -202,7 +202,7 @@ export async function resolveAppContextForAuth(input: {
     }
   }
 
-  const originAppSlug = trustedOriginAppSlug ?? dbOriginAppSlug;
+  const originAppSlug = normalizeSlug(trustedOriginAppSlug ?? dbOriginAppSlug);
 
   const fallbackSessionGroup =
     input.sessionGroup ??
@@ -212,7 +212,7 @@ export async function resolveAppContextForAuth(input: {
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
   const canonicalCandidateAppSlugs = [originAppSlug].filter((value): value is string => Boolean(value));
-  const fallbackCandidateAppSlugs = [sessionGroupFallbackAppSlug].filter(
+  const fallbackCandidateAppSlugs = [normalizeSlug(sessionGroupFallbackAppSlug)].filter(
     (value): value is string => Boolean(value),
   );
   const candidateAppSlugs = [...canonicalCandidateAppSlugs, ...fallbackCandidateAppSlugs];
