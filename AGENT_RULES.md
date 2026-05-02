@@ -94,3 +94,15 @@ After making changes, report:
 ### Do not break
 - Destructive overwrite of `master` is acceptable only when explicitly owner-approved and implemented in check-gated workflow automation.
 - Do not remove governance workflows/CODEOWNERS without updating this section and matching docs.
+
+
+### 6) AUTH freeze (current phase)
+- AUTH is a protected/frozen subsystem.
+- Do not modify auth-critical files unless the task explicitly requires AUTH work.
+- Do not opportunistically improve or refactor auth in unrelated PRs.
+- Auth-critical files include:
+  - `apps/api-server/src/routes/auth.ts`, `apps/api-server/src/middlewares/requireAuth.ts`, `apps/api-server/src/middlewares/csrf.ts`, `apps/api-server/src/middlewares/turnstile.ts`
+  - `apps/api-server/src/lib/auth*.ts`, `apps/api-server/src/lib/session*.ts`, `apps/api-server/src/lib/mfa.ts`, `apps/api-server/src/lib/postAuth*.ts`
+  - `lib/frontend-security/**`, `lib/api-client-react/src/custom-fetch.ts`, `lib/auth-ui/**`, `apps/admin/src/pages/auth/**`
+  - auth/security regression tests and auth-related workflow/docs
+- Any explicit AUTH change must update tests + docs in the same PR and preserve `pnpm run test:auth-security-regression` (`Auth Security Regression Suite` / `auth-security-regression-suite`).

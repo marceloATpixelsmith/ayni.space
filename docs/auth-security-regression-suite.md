@@ -58,3 +58,34 @@
 ## Do not break
 - Any authentication/session/security behavior change must pass this suite before merge.
 - This suite is expected to fail if behavior regresses to single-cookie session handling, cross-group leakage, or non-group-scoped logout/denial flows.
+
+
+## AUTH freeze policy (current phase)
+- AUTH is a protected/frozen subsystem for the current phase.
+- Auth-critical files must not be changed unless the task explicitly requires AUTH work.
+- Unrelated tasks must not opportunistically modify auth redirects, MFA flow, session-group behavior, CSRF behavior, Turnstile behavior, app-context resolution, login/signup routing, invitation auth flow, or post-auth continuation behavior.
+
+### Auth-critical file groups
+- `apps/api-server/src/routes/auth.ts`
+- `apps/api-server/src/middlewares/requireAuth.ts`
+- `apps/api-server/src/middlewares/csrf.ts`
+- `apps/api-server/src/middlewares/turnstile.ts`
+- `apps/api-server/src/lib/auth*.ts`
+- `apps/api-server/src/lib/session*.ts`
+- `apps/api-server/src/lib/mfa.ts`
+- `apps/api-server/src/lib/postAuth*.ts`
+- `lib/frontend-security/**`
+- `lib/api-client-react/src/custom-fetch.ts`
+- `lib/auth-ui/**`
+- `apps/admin/src/pages/auth/**`
+- auth/security regression test files
+- auth-related workflow/docs
+
+### Required gate (must be preserved)
+- Workflow: `Auth Security Regression Suite`
+- Required job/check: `auth-security-regression-suite`
+- Command: `pnpm run test:auth-security-regression`
+
+### Change discipline when AUTH work is explicitly requested
+- Any auth change must update tests and docs in the same PR.
+- Do not remove or weaken existing auth/security regression coverage.

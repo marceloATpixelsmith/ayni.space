@@ -32,3 +32,17 @@
 - Keep code, migrations, `.env.example`, architecture docs, security docs, and operator-facing docs mutually consistent.
 - Material subsystem changes require a dedicated source-of-truth document when one does not already exist.
 - Final change summaries must include a `DOCS UPDATED` section listing each updated documentation file and why it changed.
+
+
+### AUTH freeze guardrail (current phase)
+- AUTH is frozen/protected for this phase unless a task explicitly says AUTH work is required.
+- During unrelated work, do not modify AUTH-critical files or behavior (redirects, MFA, session groups, CSRF, Turnstile, app-context resolution, login/signup routing, invitation auth flow, post-auth continuation).
+- AUTH-critical file groups include:
+  - `apps/api-server/src/routes/auth.ts`
+  - `apps/api-server/src/middlewares/requireAuth.ts`
+  - `apps/api-server/src/middlewares/csrf.ts`
+  - `apps/api-server/src/middlewares/turnstile.ts`
+  - `apps/api-server/src/lib/auth*.ts`, `apps/api-server/src/lib/session*.ts`, `apps/api-server/src/lib/mfa.ts`, `apps/api-server/src/lib/postAuth*.ts`
+  - `lib/frontend-security/**`, `lib/api-client-react/src/custom-fetch.ts`, `lib/auth-ui/**`, `apps/admin/src/pages/auth/**`
+  - auth/security regression tests and auth-related workflow/docs
+- If AUTH changes are explicitly requested, update docs + tests in the same PR and preserve `pnpm run test:auth-security-regression` (workflow `Auth Security Regression Suite`, check `auth-security-regression-suite`).
