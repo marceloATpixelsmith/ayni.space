@@ -321,10 +321,7 @@ function MfaEnrollContent() {
                 <div className="rounded border p-3 bg-white w-fit mx-auto">
                   <img
                     src={qrCodeUrl}
-                    alt={t(
-                      "mfa_enroll_qr_alt",
-                      "Two-step verification QR code",
-                    )}
+                    alt="Two-step verification QR code"
                     className="h-60 w-60"
                   />
                 </div>

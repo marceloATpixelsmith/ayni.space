@@ -51,8 +51,8 @@ function InvitationAcceptContent() {
               className="w-full"
             >
               {invitation.auth.status === "unauthenticated"
-                ? t("invitation_back_sign_in", "Back to sign in")
-                : t("invitation_back_dashboard", "Back to dashboard")}
+                ? "Back to sign in"
+                : "Back to dashboard"}
             </Button>
           </div>
         ) : null}
@@ -63,10 +63,7 @@ function InvitationAcceptContent() {
               onClick={invitation.startGoogleContinuation}
               disabled={invitation.auth.loginInFlight}
               loading={invitation.auth.loginInFlight}
-              idleLabel={t(
-                "invitation_google_continue_idle",
-                "Continue with Google",
-              )}
+              idleLabel="Continue with Google"
               loadingLabel={t(
                 "invitation_google_continue_loading",
                 "Starting Google sign-in...",
@@ -89,7 +86,7 @@ function InvitationAcceptContent() {
                   }
                   onBlur={invitation.markPasswordTouched}
                   className="w-full border rounded px-3 py-2"
-                  placeholder={t("invitation_password_placeholder", "Password")}
+                  placeholder="Password"
                   autoComplete="new-password"
                   aria-invalid={Boolean(invitation.passwordError)}
                   aria-describedby={
