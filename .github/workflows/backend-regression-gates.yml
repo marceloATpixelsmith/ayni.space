@@ -35,22 +35,23 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run backend-typecheck
         run: |
-          set +e
           mkdir -p ci-output
-          log_file="ci-output/backend-typecheck.log"
+          LOG_FILE="ci-output/backend-typecheck.log"
+          COMMAND="pnpm -w typecheck"
           {
-            echo "Failing command: pnpm -w typecheck"
+            echo "Failing command: $COMMAND"
             echo "----------------------------------------"
-          } > "$log_file"
-          set -o pipefail
-          pnpm -w typecheck 2>&1 | tee -a "$log_file"
-          status=${PIPESTATUS[0]}
-          echo "----------------------------------------" >> "$log_file"
-          echo "Exit code: $status" >> "$log_file"
-          if [ "$status" -ne 0 ]; then
-            cat "$log_file"
+          } > "$LOG_FILE"
+          set +e
+          $COMMAND 2>&1 | tee -a "$LOG_FILE"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "----------------------------------------" >> "$LOG_FILE"
+          echo "Exit code: $STATUS" >> "$LOG_FILE"
+          if [ "$STATUS" -ne 0 ]; then
+            node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit "$STATUS"
           fi
-          exit "$status"
       - name: Upload backend-typecheck failure log
         if: ${{ failure() && hashFiles('ci-output/backend-typecheck.log') != '' }}
         uses: actions/upload-artifact@v4
@@ -80,22 +81,23 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run backend-build-api
         run: |
-          set +e
           mkdir -p ci-output
-          log_file="ci-output/backend-build-api.log"
+          LOG_FILE="ci-output/backend-build-api.log"
+          COMMAND="pnpm --filter @workspace/api-server run build"
           {
-            echo "Failing command: pnpm --filter @workspace/api-server run build"
+            echo "Failing command: $COMMAND"
             echo "----------------------------------------"
-          } > "$log_file"
-          set -o pipefail
-          pnpm --filter @workspace/api-server run build 2>&1 | tee -a "$log_file"
-          status=${PIPESTATUS[0]}
-          echo "----------------------------------------" >> "$log_file"
-          echo "Exit code: $status" >> "$log_file"
-          if [ "$status" -ne 0 ]; then
-            cat "$log_file"
+          } > "$LOG_FILE"
+          set +e
+          $COMMAND 2>&1 | tee -a "$LOG_FILE"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "----------------------------------------" >> "$LOG_FILE"
+          echo "Exit code: $STATUS" >> "$LOG_FILE"
+          if [ "$STATUS" -ne 0 ]; then
+            node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit "$STATUS"
           fi
-          exit "$status"
       - name: Upload backend-build-api failure log
         if: ${{ failure() && hashFiles('ci-output/backend-build-api.log') != '' }}
         uses: actions/upload-artifact@v4
@@ -126,22 +128,23 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run backend-api-tests
         run: |
-          set +e
           mkdir -p ci-output
-          log_file="ci-output/backend-api-tests.log"
+          LOG_FILE="ci-output/backend-api-tests.log"
+          COMMAND="pnpm --filter @workspace/api-server run test:ci"
           {
-            echo "Failing command: pnpm --filter @workspace/api-server run test:ci"
+            echo "Failing command: $COMMAND"
             echo "----------------------------------------"
-          } > "$log_file"
-          set -o pipefail
-          pnpm --filter @workspace/api-server run test:ci 2>&1 | tee -a "$log_file"
-          status=${PIPESTATUS[0]}
-          echo "----------------------------------------" >> "$log_file"
-          echo "Exit code: $status" >> "$log_file"
-          if [ "$status" -ne 0 ]; then
-            cat "$log_file"
+          } > "$LOG_FILE"
+          set +e
+          $COMMAND 2>&1 | tee -a "$LOG_FILE"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "----------------------------------------" >> "$LOG_FILE"
+          echo "Exit code: $STATUS" >> "$LOG_FILE"
+          if [ "$STATUS" -ne 0 ]; then
+            node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit "$STATUS"
           fi
-          exit "$status"
       - name: Upload backend-api-tests failure log
         if: ${{ failure() && hashFiles('ci-output/backend-api-tests.log') != '' }}
         uses: actions/upload-artifact@v4
