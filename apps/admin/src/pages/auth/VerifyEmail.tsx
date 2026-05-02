@@ -65,9 +65,7 @@ function VerifyEmailContent() {
         });
         if (result?.nextPath || result?.mfaRequired) {
           setPhase("redirecting");
-          setMessage(
-            t("verify_email_redirecting", "Email verified. Redirecting..."),
-          );
+          setMessage("Email verified. Redirecting...");
           return;
         }
         setPhase("success");

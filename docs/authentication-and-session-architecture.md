@@ -172,9 +172,12 @@
 - Scope is intentionally presentation-only: `lib/auth-ui` primitives and static labels in admin `Login.tsx`/`Signup.tsx` plus safe display copy in `ForgotPassword.tsx`/`ResetPassword.tsx`.
 - Default locale is fixed to English (`en`); no runtime switching is implemented.
 - Safe-to-translate strings include only static display labels (titles, placeholders, button/link labels, divider text, and non-branching success/fallback status copy rendered to users).
+- Auth i18n is approved for display-only static copy; auth source-contract strings tied to flow control remain deferred.
 - Deferred strings (logic-bound) remain hardcoded and are intentionally not moved in this pass, including:
   - validation/error content emitted by shared auth/runtime logic (`lib/frontend-security/**`),
   - status/error messages tied to backend/auth response semantics,
   - route/path decisions, policy reasons, or state-machine text in orchestrators,
   - password requirement checklist copy sourced from validation helpers (`getMissingPasswordRequirements`).
+- Strings asserted by `apps/admin/src/__tests__/security-shell.contract.test.mjs` are locked source contracts and must remain hardcoded unless that contract test is intentionally updated in the same PR.
+- `apps/admin/src/pages/auth/VerifyEmail.tsx` redirect copy `Email verified. Redirecting...` is intentionally deferred from localization and must remain hardcoded as part of the security-shell contract.
 - This scaffolding must not be used to alter auth control flow, routing, API behavior, MFA/CSRF/Turnstile behavior, or session handling.
