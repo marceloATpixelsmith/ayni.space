@@ -78,7 +78,10 @@ function isCanonicalLookupOutage(error: unknown): boolean {
       if (
         message.includes("econnrefused") ||
         message.includes("connection") ||
-        message.includes("timeout")
+        message.includes("timeout") ||
+        message.includes("ssl/tls required") ||
+        message.includes("tls required") ||
+        message.includes("no pg_hba.conf entry")
       ) {
         return true;
       }
@@ -93,7 +96,7 @@ function isCanonicalLookupOutage(error: unknown): boolean {
       const code = typeof currentRecord["code"] === "string"
         ? currentRecord["code"].toLowerCase()
         : "";
-      if (code === "econnrefused" || code === "etimedout" || code === "econnreset") {
+      if (code === "econnrefused" || code === "etimedout" || code === "econnreset" || code === "28000") {
         return true;
       }
       queue.push(currentRecord["cause"]);
