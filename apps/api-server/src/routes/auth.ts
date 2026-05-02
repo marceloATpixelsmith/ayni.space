@@ -1145,7 +1145,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   const requestedAppSlug =
     normalizeOptionalAppSlug(queryAppSlug) ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
-  if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
+  if (!requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
     sendGoogleUrlError(
       req,
       res,
@@ -2081,7 +2081,7 @@ async function resolveRequestedEmailPasswordAppContext(
 ) {
   const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
-  if (explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
+  if (!requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
     return {
       success: false as const,
       reason: "ORIGIN_NOT_ALLOWED",
