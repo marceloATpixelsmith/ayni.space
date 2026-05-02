@@ -1,0 +1,112 @@
+name: Auth Freeze Guard
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'apps/api-server/src/routes/auth.ts'
+      - 'apps/api-server/src/middlewares/requireAuth.ts'
+      - 'apps/api-server/src/middlewares/csrf.ts'
+      - 'apps/api-server/src/middlewares/turnstile.ts'
+      - 'apps/api-server/src/lib/auth*.ts'
+      - 'apps/api-server/src/lib/session*.ts'
+      - 'apps/api-server/src/lib/mfa.ts'
+      - 'apps/api-server/src/lib/postAuth*.ts'
+      - 'lib/frontend-security/**'
+      - 'lib/api-client-react/src/custom-fetch.ts'
+      - 'lib/auth-ui/**'
+      - 'apps/admin/src/pages/auth/**'
+      - 'apps/api-server/src/**/__tests__/*auth*'
+      - 'apps/api-server/src/**/__tests__/*security*'
+      - '.github/workflows/auth-security-regression-suite.yml'
+      - 'docs/auth*'
+      - 'docs/auth-*.md'
+      - 'docs/authentication-and-session-architecture.md'
+      - 'docs/auth-security-regression-suite.md'
+      - 'docs/authorization-roles-and-access-model.md'
+      - 'docs/security-standards-and-non-negotiables.md'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  auth-freeze-guard:
+    name: auth-freeze-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block auth-surface edits without explicit approval marker
+        uses: actions/github-script@v7
+        env:
+          AUTH_MARKER: AUTH-CHANGE-APPROVED
+        with:
+          script: |
+            const marker = process.env.AUTH_MARKER;
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.setFailed('This workflow only supports pull_request events.');
+              return;
+            }
+
+            const body = (pr.body || '').toUpperCase();
+            const hasMarker = body.includes(marker);
+
+            if (hasMarker) {
+              core.info(`Approval marker present in PR body: ${marker}`);
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const protectedMatchers = [
+              /^apps\/api-server\/src\/routes\/auth\.ts$/,
+              /^apps\/api-server\/src\/middlewares\/(requireAuth|csrf|turnstile)\.ts$/,
+              /^apps\/api-server\/src\/lib\/auth[^/]*\.ts$/,
+              /^apps\/api-server\/src\/lib\/session[^/]*\.ts$/,
+              /^apps\/api-server\/src\/lib\/mfa\.ts$/,
+              /^apps\/api-server\/src\/lib\/postAuth[^/]*\.ts$/,
+              /^lib\/frontend-security\//,
+              /^lib\/api-client-react\/src\/custom-fetch\.ts$/,
+              /^lib\/auth-ui\//,
+              /^apps\/admin\/src\/pages\/auth\//,
+              /auth/i,
+              /security/i,
+            ];
+
+            const protectedFiles = files
+              .map((file) => file.filename)
+              .filter((filename) => {
+                if (
+                  filename === '.github/workflows/auth-security-regression-suite.yml' ||
+                  filename.startsWith('docs/auth') ||
+                  filename === 'docs/authentication-and-session-architecture.md' ||
+                  filename === 'docs/auth-security-regression-suite.md' ||
+                  filename === 'docs/authorization-roles-and-access-model.md' ||
+                  filename === 'docs/security-standards-and-non-negotiables.md'
+                ) {
+                  return true;
+                }
+
+                return protectedMatchers.some((rx) => rx.test(filename));
+              });
+
+            if (protectedFiles.length === 0) {
+              core.info('No protected auth files changed.');
+              return;
+            }
+
+            core.setFailed(
+              [
+                `AUTH freeze guard blocked this PR because protected auth files changed without marker \`${marker}\` in the PR body.`,
+                'Add the marker only when AUTH work is explicitly required for this PR.',
+                '',
+                'Protected files changed:',
+                ...protectedFiles.map((file) => `- ${file}`),
+              ].join('\n')
+            );

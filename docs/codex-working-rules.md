@@ -46,3 +46,4 @@
   - `lib/frontend-security/**`, `lib/api-client-react/src/custom-fetch.ts`, `lib/auth-ui/**`, `apps/admin/src/pages/auth/**`
   - auth/security regression tests and auth-related workflow/docs
 - If AUTH changes are explicitly requested, update docs + tests in the same PR and preserve `pnpm run test:auth-security-regression` (workflow `Auth Security Regression Suite`, check `auth-security-regression-suite`).
+- Protected-file automation: `.github/workflows/auth-freeze-guard.yml` blocks PRs that touch AUTH-critical paths unless PR body includes `AUTH-CHANGE-APPROVED`.

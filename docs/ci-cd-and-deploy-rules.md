@@ -17,6 +17,9 @@
 - PR governance workflows:
   - `.github/workflows/auto-rebase.yml` rebases `codex/*` PR branches onto latest `master`.
   - `.github/workflows/auto-merge.yml` enables rebase auto-merge for `codex/*` PRs targeting `master`.
+- AUTH freeze protected-file guard:
+  - `.github/workflows/auth-freeze-guard.yml` runs on PRs to `master` when auth-critical files, auth/security tests, auth docs, or auth workflow files are edited.
+  - It fails unless the PR body includes explicit marker `AUTH-CHANGE-APPROVED`, and reports changed protected paths when blocked.
 - Auth security regression workflow:
   - `.github/workflows/auth-security-regression-suite.yml` runs the dedicated auth/session/security integration suite on every PR to `master` and every push to `master` (no path filters).
   - Enforced command: `pnpm run test:auth-security-regression` (admin auth runtime routes + backend auth core, session-group/MFA-pending, journey orchestration, and invitation-MFA continuation tests).
