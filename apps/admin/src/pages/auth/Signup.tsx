@@ -18,9 +18,12 @@ import {
   AuthTurnstileSection,
   FieldValidationMessage,
   AuthStatusMessage,
+  AuthI18nProvider,
+  useAuthI18n,
 } from "@workspace/auth-ui";
 
-export default function Signup() {
+function SignupContent() {
+  const { t } = useAuthI18n();
   const { auth, turnstile } = useLoginRouteComposition();
   const [location, setLocation] = useLocation();
   const [email, setEmail] = React.useState("");
@@ -71,14 +74,14 @@ export default function Signup() {
 
   return (
     <AuthShell
-      title="Create account"
-      subtitle="Create your account to continue."
+      title={t("signup_title", "Create account")}
+      subtitle={t("signup_subtitle", "Create your account to continue.")}
     >
       <AuthFormMotion>
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
-            placeholder="Email"
+            placeholder={t("signup_email_placeholder", "Email")}
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -93,7 +96,7 @@ export default function Signup() {
 
           <PasswordInput
             className="w-full border rounded px-3 py-2"
-            placeholder="Password"
+            placeholder={t("signup_password_placeholder", "Password")}
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -125,7 +128,7 @@ export default function Signup() {
             onClick={onSubmit}
             disabled={disabledReasons.length > 0}
           >
-            Sign up with email
+            {t("signup_email_button", "Sign up with email")}
           </Button>
         </div>
 
@@ -137,12 +140,22 @@ export default function Signup() {
         />
         <AuthStatusMessage message={submit.error} tone="error" />
         <p className="text-sm text-muted-foreground text-center">
-          Already have an account?{" "}
+          {t("signup_has_account_label", "Already have an account?")}{" "}
           <Link href="/login" className="underline">
-            Sign in
+            {t("signup_sign_in_link", "Sign in")}
           </Link>
         </p>
       </AuthFormMotion>
     </AuthShell>
   );
 }
+
+
+export default function Signup() {
+  return (
+    <AuthI18nProvider>
+      <SignupContent />
+    </AuthI18nProvider>
+  );
+}
+
