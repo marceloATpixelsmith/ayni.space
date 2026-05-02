@@ -39,6 +39,7 @@ const job = process.env.GITHUB_JOB || 'N/A';
 const command = firstMatch([/Failing command:\s*(.+)/i]);
 const exitCode = firstMatch([/Exit code:\s*(\d+)/i]);
 const failingTest = firstMatch([
+  /AssertionError[^\n]*\n[^\n]*at\s+(src\/__tests__\/[\w\-./]+:\d+:\d+)/i,
   /✖\s+(.+)/,
   /×\s+(.+)/,
   /FAIL\s+(.+)/,
@@ -65,17 +66,38 @@ const expected = firstMatch([
 ]);
 
 const fileLine = firstMatch([
+  /(src\/__tests__\/[\w\-./]+:\d+:\d+)/,
   /(apps\/[\w\-/\.]+:\d+:\d+)/,
   /(lib\/[\w\-/\.]+:\d+:\d+)/,
   /(scripts\/[\w\-/\.]+:\d+:\d+)/,
   /((?:[A-Za-z]:)?[^\s:]+\.(?:ts|tsx|js|mjs|cjs|yml):\d+:\d+)/,
 ]);
 
-const likelyArea = fileLine !== 'N/A' ? fileLine.split(':')[0] : firstMatch([
-  /(apps\/api-server\/src\/[\w\-/\.]+)/,
-  /(lib\/[\w\-/\.]+)/,
-  /(scripts\/ci\/[\w\-/\.]+)/,
+
+
+const authContextLogLine = firstMatch([
+  /(\[auth\/google\/url\] app context resolution failed[^\n]*)/i,
+  /(\[auth\/login\] app context resolution failed[^\n]*)/i,
+  /(reason:\s*app_not_found[^\n]*)/i,
+  /(lookupError:[^\n]*SSL\/TLS required[^\n]*)/i,
 ]);
+
+const authContextLikelyFile = authContextLogLine !== 'N/A'
+  ? 'apps/api-server/src/lib/authContextPolicy.ts'
+  : 'N/A';
+
+const likelyArea = fileLine !== 'N/A'
+  ? fileLine.split(':')[0]
+  : authContextLikelyFile !== 'N/A'
+    ? authContextLikelyFile
+    : firstMatch([
+      /(apps\/api-server\/src\/routes\/auth\.ts)/,
+      /(apps\/api-server\/src\/lib\/authContextPolicy\.ts)/,
+      /(apps\/api-server\/src\/lib\/appAccess\.ts)/,
+      /(apps\/api-server\/src\/[\w\-/\.]+)/,
+      /(lib\/[\w\-/\.]+)/,
+      /(scripts\/ci\/[\w\-/\.]+)/,
+    ]);
 
 const relevance = /(AssertionError|ERR_PNPM|\bTS\d{4}\b|Type error|Error:|✖|×|FAIL|failed|Exit code|at\s+.+:\d+:\d+)/i;
 const relevantLines = safeLines.filter((line) => relevance.test(line));
@@ -93,6 +115,7 @@ const out = [
   `Actual: ${actual}`,
   `Expected: ${expected}`,
   `File/line: ${fileLine}`,
+  `Auth-context signal: ${authContextLogLine}`,
   `Likely source area: ${likelyArea}`,
   `Exit code: ${exitCode}`,
   'Relevant log excerpt:',
