@@ -13,7 +13,7 @@ function VerifyEmailContent() {
   const auth = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const [message, setMessage] = React.useState(
+  const [message, setMessage] = React.useState<string>(
     t("verify_email_check_inbox", "Check your inbox to verify your email."),
   );
   const [phase, setPhase] = React.useState<
@@ -65,9 +65,7 @@ function VerifyEmailContent() {
         });
         if (result?.nextPath || result?.mfaRequired) {
           setPhase("redirecting");
-          setMessage(
-            t("verify_email_redirecting", "Email verified. Redirecting..."),
-          );
+          setMessage("Email verified. Redirecting...");
           return;
         }
         setPhase("success");
