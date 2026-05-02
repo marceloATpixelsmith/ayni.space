@@ -88,3 +88,11 @@
 ## Do not break
 - Do not index docs that contradict `monorepo-overview.md`.
 - Do not remove required consistency sections from architecture docs.
+
+
+## Auth freeze policy (protected subsystem)
+- AUTH is currently a protected/frozen subsystem.
+- Do not edit auth-critical files unless the task explicitly requires AUTH work.
+- Do not opportunistically change auth redirects, MFA flow, session groups, CSRF, Turnstile, app-context resolution, login/signup routing, invitation auth flow, or post-auth continuation behavior during unrelated work.
+- Any AUTH change must update docs + tests in the same PR and preserve `pnpm run test:auth-security-regression`.
+- Required AUTH gate remains GitHub workflow `Auth Security Regression Suite`, check `auth-security-regression-suite`, command `pnpm run test:auth-security-regression`.

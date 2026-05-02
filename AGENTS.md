@@ -124,3 +124,33 @@ Before finalizing CI-related updates, confirm all are true:
 - Any backend summary aggregation behavior was validated against live `.github/workflows/backend-ci-summary.yml`.
 - Any claim about visible checks is labeled either YAML-confirmed only or live-run confirmed.
 - If summary behavior changed, artifact behavior was preserved unless explicitly requested otherwise.
+
+## 11) AUTH subsystem freeze policy (mandatory)
+
+AUTH is a protected/frozen subsystem for the current phase. Unless a task explicitly requires AUTH work, do not modify AUTH-critical files or behavior.
+
+### AUTH no-touch rule for unrelated work
+- Do not opportunistically improve, refactor, or "clean up" auth during unrelated tasks.
+- Do not change any of the following unless explicitly requested: auth redirects, MFA flow, session-group behavior, CSRF behavior, Turnstile behavior, app-context resolution, login/signup routing, invitation auth flow, or post-auth continuation behavior.
+
+### AUTH-critical file groups (frozen by default)
+- `apps/api-server/src/routes/auth.ts`
+- `apps/api-server/src/middlewares/requireAuth.ts`
+- `apps/api-server/src/middlewares/csrf.ts`
+- `apps/api-server/src/middlewares/turnstile.ts`
+- `apps/api-server/src/lib/auth*.ts`
+- `apps/api-server/src/lib/session*.ts`
+- `apps/api-server/src/lib/mfa.ts`
+- `apps/api-server/src/lib/postAuth*.ts`
+- `lib/frontend-security/**`
+- `lib/api-client-react/src/custom-fetch.ts`
+- `lib/auth-ui/**`
+- `apps/admin/src/pages/auth/**`
+- auth/security regression test files
+- auth-related workflow/docs
+
+### If AUTH changes are explicitly requested
+- Update tests and docs in the same PR.
+- Preserve and pass `pnpm run test:auth-security-regression`.
+- Treat GitHub workflow `Auth Security Regression Suite` and required check `auth-security-regression-suite` as mandatory for auth-related changes.
+
