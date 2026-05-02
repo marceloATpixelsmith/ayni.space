@@ -9,7 +9,7 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./apps/**\" --filter \"./scripts\" --if-present run typecheck",
     "dev": "pnpm --filter api-server dev",
     "test:api-regression": "pnpm --filter @workspace/api-server run test:regression",
-    "test:auth-security-regression": "pnpm --filter @workspace/frontend-security exec tsx --test src/__tests__/post-auth-resolver.test.ts src/__tests__/auth-flow-closure-regression.test.ts src/__tests__/turnstile-lifecycle.test.ts src/__tests__/csrf-requirement.test.ts src/__tests__/google-signin-error-mapping.test.ts && pnpm --filter @workspace/admin run test:auth-runtime && pnpm --filter @workspace/api-server exec tsx --test src/__tests__/auth-security-regression-suite.test.ts src/__tests__/auth-session-group-hardening.test.ts src/__tests__/auth-real-journey-routes.test.ts src/__tests__/invitation-password-mfa-routing.test.ts"
+    "test:auth-security-regression": "pnpm --filter @workspace/frontend-security exec tsx --test src/__tests__/post-auth-resolver.test.ts src/__tests__/auth-flow-closure-regression.test.ts src/__tests__/turnstile-lifecycle.test.ts src/__tests__/csrf-requirement.test.ts src/__tests__/google-signin-error-mapping.test.ts && pnpm --filter @workspace/admin run test:auth-runtime && pnpm --filter @workspace/api-server exec tsx --test src/__tests__/auth-security-regression-suite.test.ts src/__tests__/auth-session-group-hardening.test.ts src/__tests__/auth-real-journey-routes.test.ts src/__tests__/invitation-password-mfa-routing.test.ts src/__tests__/auth-entry-regression-guards.test.ts"
   },
   "private": true,
   "devDependencies": {

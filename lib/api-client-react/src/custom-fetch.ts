@@ -30,9 +30,7 @@ function isInvalidCsrfError(response: Response, data: unknown): boolean {
   if (response.status !== 403) return false;
   if (!data || typeof data !== "object") return false;
   const payload = data as Record<string, unknown>;
-  if (payload["code"] === "CSRF_INVALID") return true;
-  const error = payload["error"];
-  return typeof error === "string" && /csrf/i.test(error);
+  return payload["code"] === "CSRF_INVALID";
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
