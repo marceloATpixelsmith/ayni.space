@@ -71,14 +71,16 @@ function normalizeSlug(value: unknown): string | null {
 }
 
 function getBodyAppSlug(req: Request): string | null {
-  return normalizeSlug(req.body?.appSlug);
+  return normalizeSlug(req.body?.appSlug) ?? normalizeSlug(req.body?.app_slug);
 }
 
 function getQueryOrParamAppSlug(req: Request, explicitAppSlug?: string | null): string | null {
   return (
     normalizeSlug(explicitAppSlug) ??
     normalizeSlug(req.query?.appSlug) ??
-    normalizeSlug(req.params?.appSlug)
+    normalizeSlug(req.query?.app_slug) ??
+    normalizeSlug(req.params?.appSlug) ??
+    normalizeSlug(req.params?.app_slug)
   );
 }
 
