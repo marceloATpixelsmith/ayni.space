@@ -19,6 +19,7 @@ on:
       - 'apps/admin/src/pages/auth/**'
       - 'apps/api-server/src/**/__tests__/*auth*'
       - 'apps/api-server/src/**/__tests__/*security*'
+      - '.github/workflows/auth-freeze-guard.yml'
       - '.github/workflows/auth-security-regression-suite.yml'
       - 'docs/auth*'
       - 'docs/auth-*.md'
@@ -83,6 +84,7 @@ jobs:
               .map((file) => file.filename)
               .filter((filename) => {
                 if (
+                  filename === '.github/workflows/auth-freeze-guard.yml' ||
                   filename === '.github/workflows/auth-security-regression-suite.yml' ||
                   filename.startsWith('docs/auth') ||
                   filename === 'docs/authentication-and-session-architecture.md' ||
