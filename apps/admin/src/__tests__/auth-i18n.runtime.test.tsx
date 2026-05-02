@@ -9,6 +9,7 @@ function TranslationProbe() {
     <>
       <span data-testid="known">{t("login_title")}</span>
       <span data-testid="fallback">{t("signup_sign_in_link", "Fallback")}</span>
+      <span data-testid="missing">{t("unknown_key" as never, "Missing Fallback")}</span>
     </>
   );
 }
@@ -23,6 +24,7 @@ describe("auth i18n scaffolding", () => {
 
     expect(screen.getByTestId("known").textContent).toBe("Welcome");
     expect(screen.getByTestId("fallback").textContent).toBe("Sign in");
+    expect(screen.getByTestId("missing").textContent).toBe("Missing Fallback");
   });
 
   it("renders auth-ui primitive without missing key crash", () => {
