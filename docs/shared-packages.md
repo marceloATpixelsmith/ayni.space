@@ -12,7 +12,6 @@
 - `lib/api-client-react` (`@workspace/api-client-react`) is the active frontend API client/hooks layer used by `apps/admin` and `lib/frontend-security`.
 - `lib/api-zod` (`@workspace/api-zod`) is a shared schema/types layer with narrow active usage (notably API health route parsing).
 - `lib/frontend-security` (`@workspace/frontend-security`) is the active frontend auth/security layer used by admin app shell/routes.
-- `lib/frontend-security` now also owns the shared auth i18n runtime (`src/auth-i18n.tsx`) and English auth message catalog (`authEnMessages`), while `apps/admin` provides the provider wiring and `lib/auth-ui` consumes translation lookup via shared hooks.
 - `lib/frontend-observability` (`@workspace/frontend-observability`) is the active frontend monitoring layer used by `apps/admin` and wired in `apps/mockup-sandbox`.
 - `lib/auth-ui` (`@workspace/auth-ui`) is the active frontend auth UI shell/primitives runtime layer used by `apps/admin` auth routes.
   - `lib/auth-ui/src/AuthShell.tsx` is the only allowed `AuthShell` implementation in the repository.
