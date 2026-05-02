@@ -11,6 +11,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import React from "react";
 import {
   AuthProvider,
+  AuthI18nProvider,
+  authEnMessages,
   getLastAuthDebugEventSummary,
   useAuth,
   getDisallowedAuthRouteRedirect,
@@ -528,6 +530,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthI18nProvider messages={authEnMessages}>
       <MonitoringErrorBoundary app="admin" fallback={<AuthLoading />}>
         <AuthProvider>
           <TooltipProvider>
@@ -539,6 +542,7 @@ function App() {
           </TooltipProvider>
         </AuthProvider>
       </MonitoringErrorBoundary>
+          </AuthI18nProvider>
     </QueryClientProvider>
   );
 }
