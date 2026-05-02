@@ -680,12 +680,24 @@ test("login includes turnstile token when requesting oauth url", () => {
     "Login button should stay disabled until required turnstile token is present.",
   );
 
-  const signInButtonPosition = loginSource.indexOf("{auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"}");
+  const signInButtonPosition = loginSource.indexOf("<GoogleAuthButton");
   const turnstileWidgetPosition = loginSource.indexOf("<AuthTurnstileSection");
   assert.ok(signInButtonPosition >= 0 && turnstileWidgetPosition >= 0, "Login source should render both sign-in button and Turnstile widget.");
   assert.ok(
     signInButtonPosition < turnstileWidgetPosition,
     "Login page should render the sign-in button before the Turnstile widget.",
+  );
+
+  expectIncludes(
+    loginSource,
+    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}',
+    "Login Google sign-in button copy should use auth.loginInFlight plus translated keys/defaults.",
+  );
+
+  expectIncludes(
+    loginSource,
+    'loadingLabel={t("login_google_sign_in_loading", "Starting Google sign-in...")}',
+    "Login Google sign-in pending copy should be sourced through translated key/default.",
   );
 
   expectIncludes(
@@ -770,8 +782,8 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    "auth.loginInFlight ? \"Starting Google sign-in...\" : \"Sign in with Google\"",
-    "Login button copy should reflect pending OAuth URL request state.",
+    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}',
+    "Login button copy should reflect pending OAuth URL request state through i18n keys/defaults.",
   );
 });
 
@@ -1013,12 +1025,12 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 test("signup form only includes email + password and omits legacy fields", () => {
   expectIncludes(
     signupSource,
-    "placeholder=\"Email\"",
-    "Signup should include the email field.",
+    'placeholder={t("signup_email_placeholder", "Email")}',
+    "Signup should include the email field with i18n-backed placeholder/default copy.",
   );
   expectIncludes(
     signupSource,
-    "placeholder=\"Password\"",
+    'placeholder={t("signup_password_placeholder", "Password")}',
     "Signup should include the password field.",
   );
   expectNotIncludes(
