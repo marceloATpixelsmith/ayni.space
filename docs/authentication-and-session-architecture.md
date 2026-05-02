@@ -165,3 +165,15 @@
   - super admins (`platform.users.is_super_admin=true`),
   - org leadership roles mapped to real roles (`org_owner`, `org_admin`),
   - org client-registration pathways (organization apps with customer registration enabled).
+
+## Auth UI localization scaffolding (behavior-neutral first pass)
+
+- Auth UI translations now live in `lib/auth-ui/src/locales/en/auth.ts` and are consumed by a synchronous provider/hook in `lib/auth-ui/src/i18n.ts` (`AuthI18nProvider`, `useAuthI18n`).
+- Scope is intentionally presentation-only: `lib/auth-ui` primitives and static labels in admin `Login.tsx`/`Signup.tsx`.
+- Default locale is fixed to English (`en`); no runtime switching is implemented.
+- Safe-to-translate strings include only static display labels (titles, placeholders, button/link labels, divider text).
+- Deferred strings (logic-bound) remain hardcoded and are intentionally not moved in this pass, including:
+  - validation/error content emitted by shared auth/runtime logic (`lib/frontend-security/**`),
+  - status/error messages tied to backend/auth response semantics,
+  - route/path decisions, policy reasons, or state-machine text in orchestrators.
+- This scaffolding must not be used to alter auth control flow, routing, API behavior, MFA/CSRF/Turnstile behavior, or session handling.

@@ -18,9 +18,12 @@ import {
   AuthTurnstileSection,
   FieldValidationMessage,
   AuthStatusMessage,
+  AuthI18nProvider,
+  useAuthI18n,
 } from "@workspace/auth-ui";
 
-export default function Login() {
+function LoginContent() {
+  const { t } = useAuthI18n();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const [emailInput, setEmailInput] = React.useState("");
@@ -84,11 +87,11 @@ export default function Login() {
 
   return (
     <AuthShell
-      title="Welcome"
+      title={t("login_title", "Welcome")}
       subtitle={
         hideSignupAffordances
-          ? "Sign in to continue."
-          : "Sign in or create your account to continue."
+          ? t("login_subtitle_sign_in_only", "Sign in to continue.")
+          : t("login_subtitle_with_signup", "Sign in or create your account to continue.")
       }
     >
       <AuthFormMotion>
@@ -96,8 +99,8 @@ export default function Login() {
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
           loading={false}
-          idleLabel={auth.loginInFlight ? "Starting Google sign-in..." : "Sign in with Google"}
-          loadingLabel="Starting Google sign-in..."
+          idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}
+          loadingLabel={t("login_google_sign_in_loading", "Starting Google sign-in...")}
         />
 
         {!hideSignupAffordances ? (
@@ -107,8 +110,8 @@ export default function Login() {
             onClick={() => handleGoogleLogin("create_account")}
             disabled={disabledReasons.length > 0}
             loading={auth.loginInFlight}
-            idleLabel="Create account with Google"
-            loadingLabel="Starting account setup..."
+            idleLabel={t("login_google_create_account_idle", "Create account with Google")}
+            loadingLabel={t("login_google_create_account_loading", "Starting account setup...")}
           />
         ) : null}
 
@@ -117,7 +120,7 @@ export default function Login() {
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
-            placeholder="Email"
+            placeholder={t("login_email_placeholder", "Email")}
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             onBlur={emailValidation.markTouched}
@@ -127,7 +130,7 @@ export default function Login() {
           <FieldValidationMessage id="login-email-error" message={emailError} />
           <PasswordInput
             className="w-full border rounded px-3 py-2"
-            placeholder="Password"
+            placeholder={t("login_password_placeholder", "Password")}
             autoComplete="current-password"
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
@@ -143,15 +146,15 @@ export default function Login() {
               !turnstile.canSubmit
             }
           >
-            Sign in with email
+            {t("login_email_button", "Sign in with email")}
           </Button>
           <div className="text-sm flex justify-between">
             {!hideSignupAffordances ? (
-              <Link href="/signup">Create account</Link>
+              <Link href="/signup">{t("login_create_account_link", "Create account")}</Link>
             ) : (
               <span />
             )}
-            <Link href="/forgot-password">Forgot password?</Link>
+            <Link href="/forgot-password">{t("login_forgot_password_link", "Forgot password?")}</Link>
           </div>
         </div>
 
@@ -173,3 +176,13 @@ export default function Login() {
     </AuthShell>
   );
 }
+
+
+export default function Login() {
+  return (
+    <AuthI18nProvider>
+      <LoginContent />
+    </AuthI18nProvider>
+  );
+}
+
