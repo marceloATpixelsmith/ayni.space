@@ -30,12 +30,13 @@
 - Route-level auth journey coverage now includes explicit backend route chains for signup/verify-email/MFA/onboarding/dashboard, invitation accept branches (password/sign-in/google continuations), and forgot/reset-password bootstrap cleanup (`apps/api-server/src/__tests__/auth-real-journey-routes.test.ts`).
 - Backend session/MFA pending and continuation-precedence coverage is exercised in `apps/api-server/src/__tests__/auth-session-group-hardening.test.ts` and `apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts`.
 - Frontend auth runtime coverage now includes route-guard outcomes (unauthenticated, MFA-pending, onboarding, denied), login/signup branching, superadmin affordance hiding, and invitation continuation branch assertions (`apps/admin/src/__tests__/auth-routing.runtime.test.tsx`, `apps/admin/src/__tests__/invitation-flow.runtime.test.tsx`).
+- Shared frontend-security contracts are part of this suite and cover continuation precedence, session/MFA pending route resolution, CSRF requirement behavior, Turnstile lifecycle state, and stable auth/CSRF error-code mapping (`lib/frontend-security/src/__tests__/post-auth-resolver.test.ts`, `lib/frontend-security/src/__tests__/auth-flow-closure-regression.test.ts`, `lib/frontend-security/src/__tests__/csrf-requirement.test.ts`, `lib/frontend-security/src/__tests__/turnstile-lifecycle.test.ts`, `lib/frontend-security/src/__tests__/google-signin-error-mapping.test.ts`).
 
 ## Test location
 - `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts`
 
 ## How to run locally
-- From repository root (frontend auth route orchestration + backend auth hardening regression set):
+- From repository root (shared frontend-security + frontend auth routing + backend auth hardening regression set):
   - `pnpm run test:auth-security-regression`
 - Frontend runtime auth tests only:
   - `pnpm --filter @workspace/admin run test:auth-runtime`

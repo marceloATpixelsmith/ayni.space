@@ -51,7 +51,7 @@ type AuthContextValue = {
   csrfToken: string | null;
   csrfReady: boolean;
   loginInFlight: boolean;
-  refreshSession: (options?: { retryAfterDelay?: boolean }) => Promise<void>;
+  refreshSession: () => Promise<void>;
   loginWithGoogle: (
     turnstileToken?: string | null,
     intent?: "sign_in" | "create_account",
@@ -129,8 +129,6 @@ type ApiErrorPayload = {
 const OAUTH_START_STORAGE_KEY = "auth:oauth-started-at";
 const AUTH_TRANSITION_STORAGE_KEY = "auth:session-transition-at";
 const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
-const OAUTH_STARTUP_DELAY_MS = 120;
-const OAUTH_POST_REDIRECT_RETRY_DELAY_MS = 450;
 
 export function isMfaPendingStatus(status: AuthStatus): boolean {
   return (
@@ -679,14 +677,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchOrgMutation = useSwitchOrganization();
 
   const runAuthCheck = React.useCallback(
-    async (options?: { retryAfterDelay?: boolean }) => {
+    async () => {
       if (authCheckRef.current) {
         return authCheckRef.current;
       }
 
       const request = (async () => {
         logAuthDebug("auth_bootstrap_check_start", {
-          retryAfterDelay: Boolean(options?.retryAfterDelay),
+          retryAfterDelay: false,
         });
         const firstAttempt = await meQuery.refetch();
         const firstData = firstAttempt.data ?? null;
@@ -721,46 +719,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : null,
         });
 
-        if (!options?.retryAfterDelay || firstAttempt.data) {
-          return;
-        }
-
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, OAUTH_POST_REDIRECT_RETRY_DELAY_MS),
-        );
-        logAuthDebug("auth_bootstrap_check_start", { attempt: "retry" });
-        const retryAttempt = await meQuery.refetch();
-        const retryData = retryAttempt.data ?? null;
-        const retryUserId = retryData?.id ?? null;
-        const retryAllow = retryAttempt.isSuccess && Boolean(retryData);
-        const retryMfaClassification = retryData
-          ? classifyMfaPendingUser({
-              mfaPending: retryData.mfaPending,
-              mfaEnrolled: retryData.mfaEnrolled,
-              nextStep: retryData.nextStep,
-            })
-          : null;
-        logAuthDebug("auth_bootstrap_check_result", {
-          attempt: "retry",
-          userId: retryUserId,
-          allow: retryAllow,
-          authenticated:
-            retryData && "authenticated" in retryData
-              ? retryData.authenticated === true
-              : false,
-          mfaPending: retryData ? retryData.mfaPending === true : false,
-          mfaEnrolled: retryData ? retryData.mfaEnrolled === true : false,
-          nextStep: retryData?.nextStep ?? null,
-          bootstrapStatus: retryData?.mfaPending
-            ? (retryMfaClassification?.status ?? null)
-            : null,
-          needsEnrollment: retryData?.mfaPending
-            ? (retryMfaClassification?.needsEnrollment ?? null)
-            : null,
-          route: retryData?.mfaPending
-            ? (retryMfaClassification?.route ?? null)
-            : null,
-        });
       })();
 
       authCheckRef.current = request;
@@ -775,12 +733,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [meQuery],
   );
 
-  const refreshSession = React.useCallback(
-    async (options?: { retryAfterDelay?: boolean }) => {
-      await runAuthCheck({ retryAfterDelay: options?.retryAfterDelay });
-    },
-    [runAuthCheck],
-  );
+  const refreshSession = React.useCallback(async () => {
+    await runAuthCheck();
+  }, [runAuthCheck]);
 
   React.useEffect(() => {
     csrfTokenRef.current = csrfToken;
@@ -872,15 +827,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         Number.isFinite(authTransitionStartedAt) &&
         now - authTransitionStartedAt >= 0 &&
         now - authTransitionStartedAt <= OAUTH_GRACE_WINDOW_MS;
-      const shouldRetryAfterDelay =
-        recentlyStartedOauth || recentlyTransitionedAuth;
-
       try {
         logAuthDebug("auth_bootstrap_start", {});
-        await new Promise((resolve) =>
-          window.setTimeout(resolve, OAUTH_STARTUP_DELAY_MS),
-        );
-        await runAuthCheck({ retryAfterDelay: shouldRetryAfterDelay });
+        await runAuthCheck();
 
         if (recentlyStartedOauth) {
           window.sessionStorage.removeItem(OAUTH_START_STORAGE_KEY);
@@ -1143,12 +1092,12 @@ if (loginRequestRef.current) {
             ? "/mfa/enroll"
             : "/mfa/challenge";
         markAuthTransition();
-        await refreshSession({ retryAfterDelay: true });
+        await refreshSession();
         await refreshCsrfState();
         window.location.assign(target);
         return target;
       }
-      await refreshSession({ retryAfterDelay: true });
+      await refreshSession();
       return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
     },
     [markAuthTransition, refreshCsrfState, refreshSession],
@@ -1232,7 +1181,7 @@ if (loginRequestRef.current) {
           firstEndpoint: "/api/auth/me",
           reason: "mfa_required",
         });
-        await refreshSession({ retryAfterDelay: true });
+        await refreshSession();
         logAuthDebug("post_login_bootstrap_end", {
           firstEndpoint: "/api/auth/me",
           reason: "mfa_required",
@@ -1407,7 +1356,7 @@ if (loginRequestRef.current) {
           reason: "verify_email_response",
         });
         markAuthTransition();
-        await refreshSession({ retryAfterDelay: true });
+        await refreshSession();
         await refreshCsrfState();
         window.location.assign(target);
         return payload;
@@ -1419,12 +1368,12 @@ if (loginRequestRef.current) {
           reason: "verify_email_response",
         });
         markAuthTransition();
-        await refreshSession({ retryAfterDelay: true });
+        await refreshSession();
         await refreshCsrfState();
         window.location.assign(nextPath);
         return payload;
       }
-      await refreshSession({ retryAfterDelay: true });
+      await refreshSession();
       return payload;
     },
     [markAuthTransition, refreshCsrfState, refreshSession],
@@ -1480,7 +1429,7 @@ if (loginRequestRef.current) {
         reason: "post_auth_finalize",
       });
       markAuthTransition();
-      await refreshSession({ retryAfterDelay: true });
+      await refreshSession();
       await refreshCsrfState();
       window.location.assign(nextPath);
     },
@@ -1569,7 +1518,7 @@ if (loginRequestRef.current) {
         await finalizePostAuthNavigation(nextPath);
         return;
       }
-      await refreshSession({ retryAfterDelay: true });
+      await refreshSession();
       await refreshCsrfState();
     },
     [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
@@ -1615,7 +1564,7 @@ if (loginRequestRef.current) {
         await finalizePostAuthNavigation(nextPath);
         return;
       }
-      await refreshSession({ retryAfterDelay: true });
+      await refreshSession();
       await refreshCsrfState();
     },
     [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
