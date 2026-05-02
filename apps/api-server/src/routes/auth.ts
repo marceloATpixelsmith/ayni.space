@@ -2079,18 +2079,24 @@ async function resolveRequestedEmailPasswordAppContext(
   req: Request,
   explicitAppSlug?: string | null,
 ) {
-  const requestedAppSlug = explicitAppSlug ?? getRequestedAppSlugFromRequest(req);
-  const explicitOrigin = resolveExplicitRequestOrigin(req);
-  if (!requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
+  const normalizedExplicitAppSlug =
+    typeof explicitAppSlug === "string" && explicitAppSlug.trim().length > 0
+      ? explicitAppSlug.trim().toLowerCase()
+      : null;
+  const requestedAppSlug = normalizedExplicitAppSlug ?? getRequestedAppSlugFromRequest(req);
+
+  const origin =
+    requestedAppSlug
+      ? null
+      : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+
+  if (!requestedAppSlug && origin && !isOriginAllowedForAuth(origin)) {
     return {
       success: false as const,
       reason: "ORIGIN_NOT_ALLOWED",
     };
   }
-  const origin =
-    requestedAppSlug
-      ? null
-      : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+
   const sessionGroup =
     req.resolvedSessionGroup ??
     req.session?.sessionGroup ??
