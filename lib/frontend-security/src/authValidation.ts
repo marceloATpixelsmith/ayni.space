@@ -7,7 +7,7 @@ export function normalizeEmailInput(value: string): string {
 export function validateEmailInput(value: string): string | null {
   const normalized = normalizeEmailInput(value);
   if (!normalized) return "Email is required.";
-  if (!EMAIL_PATTERN.test(normalized)) return "Enter a valid email address.";
+  if (!EMAIL_PATTERN.test(normalized)) return "auth.validation.email.invalid";
   return null;
 }
 
