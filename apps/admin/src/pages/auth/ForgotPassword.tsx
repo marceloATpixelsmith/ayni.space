@@ -14,9 +14,12 @@ import {
   FieldValidationMessage,
   AuthFormMotion,
   AuthStatusMessage,
+  AuthI18nProvider,
+  useAuthI18n,
 } from "@workspace/auth-ui";
 
-export default function ForgotPassword() {
+function ForgotPasswordContent() {
+  const { t } = useAuthI18n();
   const auth = useAuth();
   const [email, setEmail] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
@@ -40,21 +43,33 @@ export default function ForgotPassword() {
         setMessage(
           result.resetToken
             ? `Test reset token: ${result.resetToken}`
-            : "If an account exists, a reset email has been sent.",
+            : t(
+                "forgot_password_success_generic",
+                "If an account exists, a reset email has been sent.",
+              ),
         );
       })
       .catch((error) => {
         setMessage(
           getAuthActionErrorMessage(
             error,
-            "Unable to submit forgot-password request.",
+            t(
+              "forgot_password_error_fallback",
+              "Unable to submit forgot-password request.",
+            ),
           ),
         );
       });
   };
 
   return (
-    <AuthShell title="Forgot password" subtitle="Enter your email and we'll send reset instructions.">
+    <AuthShell
+      title={t("forgot_password_title", "Forgot password")}
+      subtitle={t(
+        "forgot_password_subtitle",
+        "Enter your email and we'll send reset instructions.",
+      )}
+    >
       <AuthFormMotion>
         <div className="space-y-3">
           <input
@@ -62,7 +77,7 @@ export default function ForgotPassword() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onBlur={emailValidation.markTouched}
-            placeholder="Email"
+            placeholder={t("forgot_password_email_placeholder", "Email")}
             aria-invalid={Boolean(emailError)}
             aria-describedby={emailError ? "forgot-email-error" : undefined}
           />
@@ -72,13 +87,28 @@ export default function ForgotPassword() {
             onClick={handleSubmit}
             disabled={!email || Boolean(validateEmailInput(email)) || submitState.pending}
           >
-            {submitState.pending ? "Sending..." : "Send reset link"}
+            {submitState.pending
+              ? t("forgot_password_submit_loading", "Sending...")
+              : t("forgot_password_submit_idle", "Send reset link")}
           </Button>
         </div>
 
         <AuthStatusMessage message={message} />
-        <p className="mt-4 text-sm text-muted-foreground">Remembered your password? <Link href="/login" className="underline">Back to sign in</Link></p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {t("forgot_password_back_prompt", "Remembered your password?")}{" "}
+          <Link href="/login" className="underline">
+            {t("forgot_password_back_link", "Back to sign in")}
+          </Link>
+        </p>
       </AuthFormMotion>
     </AuthShell>
+  );
+}
+
+export default function ForgotPassword() {
+  return (
+    <AuthI18nProvider>
+      <ForgotPasswordContent />
+    </AuthI18nProvider>
   );
 }
