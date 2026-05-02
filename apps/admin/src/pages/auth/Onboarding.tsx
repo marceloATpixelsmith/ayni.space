@@ -31,7 +31,12 @@ import {
   captureApiFailure,
   getUserSafeErrorMessage,
 } from "@workspace/frontend-observability";
-import { AuthShell, AuthFormMotion } from "@workspace/auth-ui";
+import {
+  AuthShell,
+  AuthFormMotion,
+  AuthI18nProvider,
+  useAuthI18n,
+} from "@workspace/auth-ui";
 
 const formSchema = z.object({
   name: z.string().min(2, "Organization name must be at least 2 characters"),
@@ -44,7 +49,8 @@ const formSchema = z.object({
     ),
 });
 
-export default function Onboarding() {
+function OnboardingContent() {
+  const { t } = useAuthI18n();
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const turnstile = useTurnstileToken();
@@ -248,16 +254,24 @@ export default function Onboarding() {
         <AuthFormMotion>
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-foreground">
-              Complete your profile
+              {t("onboarding_user_title", "Complete your profile")}
             </h1>
             <p className="text-muted-foreground mt-2">
-              Tell us your name to continue to your dashboard.
+              {t(
+                "onboarding_user_subtitle",
+                "Tell us your name to continue to your dashboard.",
+              )}
             </p>
           </div>
           <Card className="p-8 shadow-xl shadow-black/5 border-border/50 space-y-4">
-            <Label className="text-sm font-semibold">Full name</Label>
+            <Label className="text-sm font-semibold">
+              {t("onboarding_user_full_name_label", "Full name")}
+            </Label>
             <Input
-              placeholder="Jane Doe"
+              placeholder={t(
+                "onboarding_user_full_name_placeholder",
+                "Jane Doe",
+              )}
               className="h-12"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
@@ -268,7 +282,9 @@ export default function Onboarding() {
               disabled={savingUserProfile || !fullName.trim()}
               onClick={submitUserOnboarding}
             >
-              {savingUserProfile ? "Saving..." : "Continue to Dashboard"}
+              {savingUserProfile
+                ? t("onboarding_user_save_loading", "Saving...")
+                : t("onboarding_user_continue_button", "Continue to Dashboard")}
             </Button>
           </Card>
         </AuthFormMotion>
@@ -375,5 +391,13 @@ export default function Onboarding() {
         </Card>
       </AuthFormMotion>
     </AuthShell>
+  );
+}
+
+export default function Onboarding() {
+  return (
+    <AuthI18nProvider>
+      <OnboardingContent />
+    </AuthI18nProvider>
   );
 }

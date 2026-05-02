@@ -79,3 +79,9 @@
 ## Do not break
 - Do not introduce app-local auth/session flows that bypass `lib/frontend-security`.
 - Do not decouple auth/session handling from `apps/api-server` middleware pipeline.
+
+
+## Auth localization scaffolding (display-only)
+
+- Added safe display-only auth i18n keys in `lib/auth-ui/src/locales/en/auth.ts` for Verify Email, MFA enroll/challenge, Invitation accept, and user onboarding labels/buttons/placeholders/headings.
+- Deferred (intentionally not localized in this pass): backend-returned error strings, validation messages tied to logic/state transitions, and MFA/continuation control-flow messaging to preserve behavior neutrality.
