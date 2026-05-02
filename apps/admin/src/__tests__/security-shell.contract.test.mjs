@@ -1117,6 +1117,8 @@ test("superadmin login hides signup affordances and blocks create-account intent
 });
 
 test("verify-email flow auto-continues and avoids manual sign-in-again UX", () => {
+  // Locked source contract: this redirecting message is intentionally NOT localized.
+  // If this string changes or moves to i18n, update this contract test in the same PR.
   expectIncludes(
     verifyEmailSource,
     "auth\n      .verifyEmail(token, appSlug || undefined)",
@@ -1126,6 +1128,16 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
     verifyEmailSource,
     "setMessage(\"Email verified. Redirecting...\");",
     "Verify-email should transition directly to continuation when backend returns next-step routing.",
+  );
+  expectIncludes(
+    verifyEmailSource,
+    "setMessage(\n          err instanceof Error\n            ? err.message",
+    "Verify-email must preserve backend-returned error message passthrough as a locked source contract.",
+  );
+  expectIncludes(
+    verifyEmailSource,
+    "setMessage(t(\"verify_email_verifying\", \"Verifying your email...\"));",
+    "Verify-email should preserve continuation-state messaging used by this source contract.",
   );
   expectNotIncludes(
     verifyEmailSource,
