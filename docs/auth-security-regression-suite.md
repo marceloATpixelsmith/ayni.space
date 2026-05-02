@@ -65,6 +65,8 @@
 - Auth-critical files must not be changed unless the task explicitly requires AUTH work.
 - Unrelated tasks must not opportunistically modify auth redirects, MFA flow, session-group behavior, CSRF behavior, Turnstile behavior, app-context resolution, login/signup routing, invitation auth flow, or post-auth continuation behavior.
 
+- AUTH freeze protected workflow files that require approval marker coverage are `.github/workflows/auth-freeze-guard.yml` and `.github/workflows/auth-security-regression-suite.yml`.
+
 ### Auth-critical file groups
 - `apps/api-server/src/routes/auth.ts`
 - `apps/api-server/src/middlewares/requireAuth.ts`
