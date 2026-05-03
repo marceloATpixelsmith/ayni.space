@@ -47,7 +47,7 @@ export function getLoginDisabledReasons(input: {
 
 export function useLoginRouteComposition() {
   const auth = useAuth();
-  const { metadata, resolutionError } = useCurrentPlatformAppMetadata();
+  const { metadata, resolutionError, diagnostic } = useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
 
   const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
@@ -58,6 +58,7 @@ export function useLoginRouteComposition() {
     turnstile,
     hideSignupAffordances,
     metadataResolutionError: resolutionError,
+    metadataResolutionDiagnostic: diagnostic,
   };
 }
 
@@ -66,7 +67,7 @@ export function useLoginRoutePolicy(options: {
   onRedirect: (path: string) => void;
 }) {
   const { search, onRedirect } = options;
-  const { auth, metadata, turnstile, hideSignupAffordances, metadataResolutionError } =
+  const { auth, metadata, turnstile, hideSignupAffordances, metadataResolutionError, metadataResolutionDiagnostic } =
     useLoginRouteComposition();
   const query = React.useMemo(
     () => new URLSearchParams(search),
@@ -75,7 +76,7 @@ export function useLoginRoutePolicy(options: {
   const nextPath = query.get("next");
   const accessError = getAuthErrorMessage(parseAuthErrorCode(query.get("error")));
   const metadataError = metadataResolutionError
-    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.`
+    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.${metadataResolutionDiagnostic ? ` [${metadataResolutionDiagnostic}]` : ""}`
     : null;
   const combinedAccessError = accessError ?? metadataError;
   const deniedCleanupAttemptedRef = React.useRef(false);
