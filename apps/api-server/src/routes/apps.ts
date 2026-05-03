@@ -56,8 +56,7 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
   };
 }
 
-// ── GET /apps ─────────────────────────────────────────────────────────────────
-router.get("/", async (_req, res) => {
+async function listAppsHandler(_req: import("express").Request, res: import("express").Response) {
   try {
     const apps = await db.query.appsTable.findMany({
       where: eq(appsTable.isActive, true),
@@ -80,8 +79,11 @@ router.get("/", async (_req, res) => {
     });
     res.status(500).json({ error: "Failed to load apps" });
   }
-});
+}
 
+// Support both router mount styles used by app/runtime (/api/apps) and isolated tests (/api).
+router.get("/", listAppsHandler);
+router.get("/apps", listAppsHandler);
 
 // ── GET /apps/slug/:appSlug/context ─────────────────────────────────────────
 router.get("/slug/:appSlug/context", requireAuth, async (req, res) => {
