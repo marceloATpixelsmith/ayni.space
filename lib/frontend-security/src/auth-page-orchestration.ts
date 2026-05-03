@@ -76,7 +76,7 @@ export function useLoginRoutePolicy(options: {
   const nextPath = query.get("next");
   const accessError = getAuthErrorMessage(parseAuthErrorCode(query.get("error")));
   const metadataError = metadataResolutionError
-    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.${metadataResolutionDiagnostic ? ` [${metadataResolutionDiagnostic}]` : ""}`
+    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.${metadataResolutionDiagnostic.message ? ` [${metadataResolutionDiagnostic.message}]` : ""}`
     : null;
   const combinedAccessError = accessError ?? metadataError;
   const deniedCleanupAttemptedRef = React.useRef(false);
