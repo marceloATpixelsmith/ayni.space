@@ -107,27 +107,53 @@ function isCanonicalLookupOutage(error: unknown): boolean {
   return false;
 }
 
+export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSelect {
+  return {
+    id: "test-app-admin",
+    slug: "admin",
+    name: "Admin",
+    domain: "admin.local",
+    accessMode: "organization",
+    isActive: true,
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    customerRegistrationEnabled: true,
+    staffInvitesEnabled: true,
+    metadata: { sessionGroup: "admin" },
+    baseUrl: null,
+    turnstileSiteKeyOverride: null,
+    description: null,
+    iconUrl: null,
+    transactionalFromEmail: null,
+    transactionalFromName: null,
+    transactionalReplyToEmail: null,
+    invitationEmailSubject: null,
+    invitationEmailHtml: null,
+  } satisfies typeof appsTable.$inferSelect;
+}
+
 function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSelect | null {
   if (!canUseTestCanonicalFallback(appSlug)) return null;
 
   const normalizedSlug = appSlug.trim().toLowerCase();
   if (!normalizedSlug) return null;
 
-  const inferredSessionGroup = normalizedSlug === "admin" ? "admin" : "default";
-  const inferredAccessMode = "organization";
+  if (normalizedSlug === "admin") {
+    return buildCanonicalTestFallbackAdminApp();
+  }
 
   return {
     id: `test-app-${normalizedSlug}`,
     slug: normalizedSlug,
     name: normalizedSlug,
     domain: `${normalizedSlug}.local`,
-    accessMode: inferredAccessMode,
+    accessMode: "organization",
     isActive: true,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     customerRegistrationEnabled: true,
     staffInvitesEnabled: true,
-    metadata: { sessionGroup: inferredSessionGroup },
+    metadata: { sessionGroup: "default" },
     baseUrl: null,
     turnstileSiteKeyOverride: null,
     description: null,
