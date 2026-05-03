@@ -273,11 +273,11 @@ test("METADATA NORMALIZATION: accessMode fallback preserves access-mode-driven s
     )) as typeof globalThis.fetch;
 
   const { fetchPlatformAppMetadataBySlug } = await import("../index");
-  const metadata = await fetchPlatformAppMetadataBySlug("tenant-app");
+  const resolved = await fetchPlatformAppMetadataBySlug("tenant-app");
 
-  assert.equal(metadata?.normalizedAccessProfile, "organization");
-  assert.equal(metadata?.authRoutePolicy?.allowCustomerRegistration, true);
-  assert.equal(metadata?.authRoutePolicy?.allowInvitations, true);
+  assert.equal(resolved.metadata?.normalizedAccessProfile, "organization");
+  assert.equal(resolved.metadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(resolved.metadata?.authRoutePolicy?.allowInvitations, true);
 
   globalThis.fetch = originalFetch;
 });
@@ -310,16 +310,36 @@ test("METADATA NORMALIZATION: stale authRoutePolicy cannot suppress organization
     )) as typeof globalThis.fetch;
 
   const { fetchPlatformAppMetadataBySlug } = await import("../index");
-  const orgMetadata = await fetchPlatformAppMetadataBySlug("org-app");
-  const soloMetadata = await fetchPlatformAppMetadataBySlug("solo-app");
+  const orgResolved = await fetchPlatformAppMetadataBySlug("org-app");
+  const soloResolved = await fetchPlatformAppMetadataBySlug("solo-app");
 
-  assert.equal(orgMetadata?.authRoutePolicy?.allowCustomerRegistration, true);
-  assert.equal(orgMetadata?.authRoutePolicy?.allowInvitations, true);
-  assert.equal(orgMetadata?.authRoutePolicy?.allowOnboarding, true);
+  assert.equal(orgResolved.metadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(orgResolved.metadata?.authRoutePolicy?.allowInvitations, true);
+  assert.equal(orgResolved.metadata?.authRoutePolicy?.allowOnboarding, true);
 
-  assert.equal(soloMetadata?.authRoutePolicy?.allowCustomerRegistration, true);
-  assert.equal(soloMetadata?.authRoutePolicy?.allowInvitations, false);
-  assert.equal(soloMetadata?.authRoutePolicy?.allowOnboarding, false);
+  assert.equal(soloResolved.metadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(soloResolved.metadata?.authRoutePolicy?.allowInvitations, false);
+  assert.equal(soloResolved.metadata?.authRoutePolicy?.allowOnboarding, false);
+
+  globalThis.fetch = originalFetch;
+});
+
+
+test("METADATA MATCHING: slug matching is exact after trimming and reports available slugs on miss", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify([{ slug: "admin-space", accessMode: "organization" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof globalThis.fetch;
+
+  const { fetchPlatformAppMetadataBySlug } = await import("../index");
+  const miss = await fetchPlatformAppMetadataBySlug("admin");
+  assert.equal(miss.metadata, null);
+  assert.deepEqual(miss.availableSlugs, ["admin-space"]);
+
+  const hit = await fetchPlatformAppMetadataBySlug(" admin-space ");
+  assert.equal(hit.metadata?.slug, "admin-space");
 
   globalThis.fetch = originalFetch;
 });

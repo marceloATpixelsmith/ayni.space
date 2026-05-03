@@ -596,7 +596,7 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
 }
 
 function normalizeSlug(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim();
 }
 
 export function resolveCurrentAppSlug(): string | null {
@@ -604,29 +604,38 @@ export function resolveCurrentAppSlug(): string | null {
   return configuredSlug.length > 0 ? configuredSlug : null;
 }
 
+export type PlatformAppMetadataResolution = {
+  metadata: PlatformAppMetadata | null;
+  requestedSlug: string;
+  availableSlugs: string[];
+};
+
 export async function fetchPlatformAppMetadataBySlug(
   appSlug: string,
-): Promise<PlatformAppMetadata | null> {
+): Promise<PlatformAppMetadataResolution> {
   const response = await secureApiFetch("/api/apps", { method: "GET" });
   if (!response.ok) {
-    return null;
+    return { metadata: null, requestedSlug: appSlug, availableSlugs: [] };
   }
 
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!Array.isArray(payload)) {
-    return null;
+    return { metadata: null, requestedSlug: appSlug, availableSlugs: [] };
   }
 
   const normalizedTargetSlug = normalizeSlug(appSlug);
+  const availableSlugs: string[] = [];
 
   for (const appCandidate of payload) {
     const normalized = normalizePlatformAppMetadata(appCandidate);
-    if (normalized && normalizeSlug(normalized.slug) === normalizedTargetSlug) {
-      return normalized;
+    if (!normalized) continue;
+    availableSlugs.push(normalized.slug);
+    if (normalizeSlug(normalized.slug) === normalizedTargetSlug) {
+      return { metadata: normalized, requestedSlug: appSlug, availableSlugs };
     }
   }
 
-  return null;
+  return { metadata: null, requestedSlug: appSlug, availableSlugs };
 }
 
 export function useCurrentPlatformAppMetadata(): {
@@ -641,6 +650,7 @@ export function useCurrentPlatformAppMetadata(): {
   );
   const [loading, setLoading] = React.useState(true);
   const [resolutionError, setResolutionError] = React.useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -648,6 +658,7 @@ export function useCurrentPlatformAppMetadata(): {
     if (!currentAppSlug) {
       setMetadata(null);
       setResolutionError("app_slug_missing");
+      setDiagnostic("requested slug is empty");
       setLoading(false);
       return () => {
         cancelled = true;
@@ -656,18 +667,22 @@ export function useCurrentPlatformAppMetadata(): {
 
     setLoading(true);
     setResolutionError(null);
+    setDiagnostic(null);
     fetchPlatformAppMetadataBySlug(currentAppSlug)
       .then((result) => {
         if (cancelled) return;
-        setMetadata(result);
-        if (!result) {
+        setMetadata(result.metadata);
+        if (!result.metadata) {
           setResolutionError("app_metadata_not_found");
+          const available = result.availableSlugs.length > 0 ? result.availableSlugs.join(", ") : "none";
+          setDiagnostic(`requested=${result.requestedSlug}; available=${available}`);
         }
       })
       .catch(() => {
         if (cancelled) return;
         setMetadata(null);
         setResolutionError("app_metadata_fetch_failed");
+        setDiagnostic(`requested=${currentAppSlug}; available=unknown`);
       })
       .finally(() => {
         if (cancelled) return;
@@ -679,7 +694,7 @@ export function useCurrentPlatformAppMetadata(): {
     };
   }, [currentAppSlug]);
 
-  return { currentAppSlug, metadata, loading, resolutionError };
+  return { currentAppSlug, metadata, loading, resolutionError, diagnostic };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

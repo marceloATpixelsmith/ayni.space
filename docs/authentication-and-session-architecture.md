@@ -76,6 +76,7 @@
 - Signup Turnstile audit context no longer hardcodes `admin` as fallback app slug when request/session app context is absent; metadata now records null app context instead of implicit admin assumptions (`apps/api-server/src/middlewares/turnstile.ts`).
 - Signup Turnstile audit context also no longer defaults unresolved session-group authority to `default`; when request/session group resolution is unavailable, metadata records `sessionGroup=null` to avoid hidden backend reassignment (`apps/api-server/src/middlewares/turnstile.ts`).
 
+- Frontend auth metadata lookup for login/signup fail-closed policy now uses exact slug matching (trimmed value equality, no alias fallback) against `/api/apps` rows and emits non-sensitive diagnostics when unresolved (`requested=<slug>; available=<slug list>`), so `app_metadata_not_found` can be traced directly to slug/config mismatch across Vite bootstrap slug (`VITE_APP_SLUG`), deployed frontend config, and `platform.apps.slug` data (`lib/frontend-security/src/index.tsx`, `lib/frontend-security/src/auth-page-orchestration.ts`).
 ## Inferred
 
 - Auth/session is designed as backend-authoritative with frontend providers/guards consuming backend session state.
