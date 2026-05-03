@@ -154,7 +154,13 @@ export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSel
   return buildCanonicalTestFallbackApp("admin", TEST_FALLBACK_APP_TEMPLATES["admin"]!);
 }
 
-function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSelect | null {
+export function getNormalizedAccessProfileForApp(app: Pick<typeof appsTable.$inferSelect, "slug" | "accessMode" | "metadata">) {
+  const normalized = resolveNormalizedAccessProfile(app);
+  if (app.slug.trim().toLowerCase() === "admin") return "organization" as const;
+  return normalized;
+}
+
+export function getTestFallbackApp(appSlug: string): typeof appsTable.$inferSelect | null {
   if (!canUseTestCanonicalFallback(appSlug)) return null;
 
   const normalizedSlug = appSlug.trim().toLowerCase();
@@ -200,13 +206,13 @@ export async function getAppBySlug(
     }
 
     if (process.env["NODE_ENV"] === "test") {
-      return buildTestFallbackAppBySlug(normalizedSlug);
+      return getTestFallbackApp(normalizedSlug);
     }
 
     return null;
   } catch (error) {
     const fallbackApp = options.allowOutageFallback !== false && isCanonicalLookupOutage(error)
-      ? buildTestFallbackAppBySlug(normalizedSlug)
+      ? getTestFallbackApp(normalizedSlug)
       : null;
     if (fallbackApp) {
       console.warn("[auth/access] canonical app lookup failed, using test fallback", {
