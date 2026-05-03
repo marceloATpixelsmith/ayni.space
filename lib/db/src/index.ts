@@ -2,35 +2,6 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg, { type PoolConfig } from "pg";
 import * as schema from "./schema";
 
-function shouldSkipCertificateValidation(databaseUrl: string, env: NodeJS.ProcessEnv): boolean
-{
-  try
-  {
-    const parsed = new URL(databaseUrl);
-    const sslMode = parsed.searchParams.get("sslmode")?.toLowerCase();
-
-    if (sslMode === "require" || sslMode === "no-verify")
-    {
-      return true;
-    }
-
-    if (sslMode === "verify-ca" || sslMode === "verify-full")
-    {
-      return false;
-    }
-
-    // Render-managed Postgres commonly presents a private/self-signed chain
-    // at runtime even when DATABASE_URL omits sslmode, so we default to
-    // encrypted/no-verify in that environment to prevent startup failures.
-    const isRenderRuntime = env.RENDER === "true" || env.RENDER_SERVICE_ID !== undefined;
-
-    return isRenderRuntime;
-  }
-  catch
-  {
-    return false;
-  }
-}
 const { Pool } = pg;
 
 if (!process.env.DATABASE_URL)
@@ -40,23 +11,37 @@ if (!process.env.DATABASE_URL)
   );
 }
 
-export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig
+function parseSslMode(databaseUrl: string): string | null
+{
+  try
+  {
+    return new URL(databaseUrl).searchParams.get("sslmode")?.toLowerCase() ?? null;
+  }
+  catch
+  {
+    return null;
+  }
+}
+
+function shouldUseSsl(env: NodeJS.ProcessEnv, sslMode: string | null): boolean
 {
   const nodeEnv = env.NODE_ENV ?? "development";
-  const isProduction = nodeEnv === "production";
+  const isProductionLike = nodeEnv === "production" || env.CI === "true";
+  if (isProductionLike) return true;
 
+  if (!sslMode) return false;
+  return sslMode !== "disable";
+}
+
+export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig
+{
   const databaseUrl = env.DATABASE_URL ?? "";
-  const productionSslConfig = shouldSkipCertificateValidation(databaseUrl, env)
-    ? { rejectUnauthorized: false }
-    : { rejectUnauthorized: true };
+  const sslMode = parseSslMode(databaseUrl);
+  const useSsl = shouldUseSsl(env, sslMode);
 
   return {
     connectionString: databaseUrl,
-    // Production keeps certificate validation enabled by default. We downgrade
-    // to encrypted/no-verify for explicit sslmode=require|no-verify or when
-    // running on Render-managed runtime where private/self-signed chains are
-    // expected unless sslmode explicitly opts into certificate verification.
-    ssl: isProduction ? productionSslConfig : false,
+    ssl: useSsl ? { rejectUnauthorized: true } : false,
   };
 }
 
