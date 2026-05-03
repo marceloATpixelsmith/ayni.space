@@ -268,13 +268,13 @@ test("shared route policy enforces normalized access-profile onboarding and invi
   );
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };",
+    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: true };",
     "Organization profile should allow onboarding and invitation routes.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };",
+    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };",
     "Solo profile should allow onboarding and customer-registration routes while still denying invitations.",
   );
 

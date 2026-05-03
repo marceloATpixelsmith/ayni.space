@@ -454,7 +454,7 @@ export async function requireCsrfToken(
 }
 
 export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
-export type AuthRouteKind = "onboarding" | "invitation";
+export type AuthRouteKind = "organizationOnboarding" | "invitation";
 
 export type PlatformAppMetadata = {
   slug: string;
@@ -480,30 +480,22 @@ export function deriveAppAuthRoutePolicy(
   }
 
   if (app.normalizedAccessProfile === "solo") {
-    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
-  }
-
-  if (app.authRoutePolicy && app.normalizedAccessProfile === "organization") {
-    return {
-      allowOnboarding: true,
-      allowInvitations: app.authRoutePolicy.allowInvitations,
-      allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
-    };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };
   }
 
   if (app.normalizedAccessProfile === "organization") {
-    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
+    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: true };
   }
 
   if (app.authRoutePolicy) {
     return {
-      allowOnboarding: true,
+      allowOnboarding: app.authRoutePolicy.allowOnboarding,
       allowInvitations: app.authRoutePolicy.allowInvitations,
       allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
     };
   }
 
-  return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
+  return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
 }
 
 export function isAuthRouteAllowed(
@@ -511,7 +503,7 @@ export function isAuthRouteAllowed(
   routeKind: AuthRouteKind,
 ): boolean {
   const policy = deriveAppAuthRoutePolicy(app);
-  return routeKind === "onboarding"
+  return routeKind === "organizationOnboarding"
     ? policy.allowOnboarding
     : policy.allowInvitations;
 }
@@ -620,12 +612,12 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
     return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
   if (input.normalizedAccessProfile === "solo") {
-    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };
   }
   return {
     allowOnboarding: true,
-    allowInvitations: input.staffInvitesEnabled,
-    allowCustomerRegistration: input.customerRegistrationEnabled,
+    allowInvitations: true,
+    allowCustomerRegistration: true,
   };
 }
 

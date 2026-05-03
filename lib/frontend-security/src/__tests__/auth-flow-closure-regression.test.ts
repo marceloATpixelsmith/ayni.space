@@ -21,7 +21,7 @@ test("SIGNUP/LOGIN BRANCHING: superadmin create-account affordances remain absen
 
   assert.equal(superadminPolicy.allowCustomerRegistration, false);
   assert.equal(superadminPolicy.allowInvitations, false);
-  assert.equal(orgPolicy.allowCustomerRegistration, false);
+  assert.equal(orgPolicy.allowCustomerRegistration, true);
   assert.equal(orgPolicy.allowInvitations, true);
 });
 
@@ -30,10 +30,10 @@ test("SOLO SIGNUP FLOW: fallback route policy keeps user-onboarding available wh
     slug: "solo-app",
     normalizedAccessProfile: "solo",
   });
-  assert.equal(soloPolicy.allowOnboarding, true);
+  assert.equal(soloPolicy.allowOnboarding, false);
   assert.equal(soloPolicy.allowCustomerRegistration, true);
   assert.equal(soloPolicy.allowInvitations, false);
-  assert.equal(isAuthRouteAllowed({ slug: "solo-app", normalizedAccessProfile: "solo" }, "onboarding"), true);
+  assert.equal(isAuthRouteAllowed({ slug: "solo-app", normalizedAccessProfile: "solo" }, "organizationOnboarding"), false);
   assert.equal(isAuthRouteAllowed({ slug: "solo-app", normalizedAccessProfile: "solo" }, "invitation"), false);
 });
 
