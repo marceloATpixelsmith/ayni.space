@@ -475,19 +475,23 @@ export function deriveAppAuthRoutePolicy(
     return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
-  if (app.authRoutePolicy) {
-    return app.authRoutePolicy;
-  }
-
-  if (app.normalizedAccessProfile === "organization") {
-    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
+  if (app.normalizedAccessProfile === "superadmin") {
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
   }
 
   if (app.normalizedAccessProfile === "solo") {
     return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
   }
 
-  return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+  if (app.authRoutePolicy) {
+    return {
+      allowOnboarding: true,
+      allowInvitations: app.authRoutePolicy.allowInvitations,
+      allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
+    };
+  }
+
+  return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
 }
 
 export function isAuthRouteAllowed(

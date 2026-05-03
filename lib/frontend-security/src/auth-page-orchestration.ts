@@ -50,9 +50,7 @@ export function useLoginRouteComposition() {
   const { metadata } = useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
 
-  const hideSignupAffordances =
-    metadata?.authRoutePolicy?.allowCustomerRegistration === false ||
-    metadata?.normalizedAccessProfile === "superadmin";
+  const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
 
   return {
     auth,
