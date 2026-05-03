@@ -256,3 +256,28 @@ test("stale-state safety and continuation validation stay fail-closed after auth
     );
   }
 });
+
+test("METADATA NORMALIZATION: accessMode fallback preserves access-mode-driven signup policy", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify([
+        {
+          slug: "tenant-app",
+          accessMode: "organization",
+          staffInvitesEnabled: true,
+          customerRegistrationEnabled: true,
+        },
+      ]),
+      { status: 200, headers: { "content-type": "application/json" } },
+    )) as typeof globalThis.fetch;
+
+  const { fetchPlatformAppMetadataBySlug } = await import("../index");
+  const metadata = await fetchPlatformAppMetadataBySlug("tenant-app");
+
+  assert.equal(metadata?.normalizedAccessProfile, "organization");
+  assert.equal(metadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(metadata?.authRoutePolicy?.allowInvitations, true);
+
+  globalThis.fetch = originalFetch;
+});

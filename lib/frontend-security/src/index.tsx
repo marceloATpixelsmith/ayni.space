@@ -539,12 +539,19 @@ function normalizePlatformAppMetadata(
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as Record<string, unknown>;
   if (typeof candidate["slug"] !== "string") return null;
-  if (
-    candidate["normalizedAccessProfile"] !== "superadmin" &&
-    candidate["normalizedAccessProfile"] !== "solo" &&
-    candidate["normalizedAccessProfile"] !== "organization"
-  )
-    return null;
+
+  const normalizedAccessProfile =
+    candidate["normalizedAccessProfile"] === "superadmin" ||
+    candidate["normalizedAccessProfile"] === "solo" ||
+    candidate["normalizedAccessProfile"] === "organization"
+      ? candidate["normalizedAccessProfile"]
+      : candidate["accessMode"] === "superadmin" ||
+          candidate["accessMode"] === "solo" ||
+          candidate["accessMode"] === "organization"
+        ? candidate["accessMode"]
+        : null;
+
+  if (!normalizedAccessProfile) return null;
 
   const authRoutePolicyCandidate = candidate["authRoutePolicy"];
   const authRoutePolicy =
@@ -572,13 +579,39 @@ function normalizePlatformAppMetadata(
         }
       : undefined;
 
+  const fallbackPolicy = getAuthRoutePolicyForNormalizedProfile({
+    normalizedAccessProfile,
+    staffInvitesEnabled:
+      candidate["staffInvitesEnabled"] === true,
+    customerRegistrationEnabled:
+      candidate["customerRegistrationEnabled"] === true,
+  });
+
   return {
     slug: candidate["slug"],
-    normalizedAccessProfile: candidate["normalizedAccessProfile"],
-    authRoutePolicy,
+    normalizedAccessProfile,
+    authRoutePolicy: authRoutePolicy ?? fallbackPolicy,
   };
 }
 
+
+function getAuthRoutePolicyForNormalizedProfile(input: {
+  normalizedAccessProfile: NormalizedAccessProfile;
+  staffInvitesEnabled: boolean;
+  customerRegistrationEnabled: boolean;
+}): AppAuthRoutePolicy {
+  if (input.normalizedAccessProfile === "superadmin") {
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+  }
+  if (input.normalizedAccessProfile === "solo") {
+    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
+  }
+  return {
+    allowOnboarding: true,
+    allowInvitations: input.staffInvitesEnabled,
+    allowCustomerRegistration: input.customerRegistrationEnabled,
+  };
+}
 
 export function resolveCurrentAppSlug(): string | null {
   const configuredSlug = getBootstrapAppSlug().trim();
