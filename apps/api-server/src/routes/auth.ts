@@ -250,6 +250,15 @@ function getRequestFrontendOrigin(req: Request): string | null {
 }
 
 
+function hasExplicitForwardedHost(req: Request): boolean {
+  const forwardedHostRaw =
+    typeof req.headers["x-forwarded-host"] === "string"
+      ? req.headers["x-forwarded-host"].trim()
+      : "";
+  const forwardedHost = forwardedHostRaw.split(",", 1)[0]?.trim() ?? "";
+  return forwardedHost.length > 0;
+}
+
 function deriveAuthContextRequestOrigin(req: Request): string | null {
   const headerOrigin =
     typeof req.headers["origin"] === "string"
@@ -1160,6 +1169,17 @@ async function handleGoogleUrl(req: Request, res: Response) {
     explicitOrigin ??
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
+  if (!requestedAppSlug && hasExplicitForwardedHost(req)) {
+    sendGoogleUrlError(
+      req,
+      res,
+      400,
+      "app_slug_missing",
+      "App context is required to start OAuth.",
+      "app_slug_missing",
+    );
+    return;
+  }
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
   const appContext = await resolveAppContextForAuth({
     req,
@@ -1983,14 +2003,14 @@ async function handleGoogleCallback(req: Request, res: Response) {
       logSuperadminTrace("J. CALLBACK EXIT", {
         redirectTo: getControlledAuthErrorRedirect(
           frontendBase,
-          "app_context_unavailable",
+          "access_denied",
         ),
         outcome: "deny",
         lastCompletedStep,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "app_context_unavailable"),
+        getControlledAuthErrorRedirect(frontendBase, "access_denied"),
       );
       return;
     }
@@ -2089,6 +2109,13 @@ async function resolveRequestedEmailPasswordAppContext(
     requestedAppSlug
       ? null
       : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+
+  if (!requestedAppSlug && hasExplicitForwardedHost(req)) {
+    return {
+      success: false as const,
+      reason: "app_slug_missing",
+    };
+  }
 
   if (!requestedAppSlug && origin && !isOriginAllowedForAuth(origin)) {
     return {
