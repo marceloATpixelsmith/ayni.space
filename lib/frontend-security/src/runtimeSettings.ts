@@ -33,7 +33,7 @@ let state: FrontendRuntimeSettings = {
   authDebug: false,
   sentryEnvironment: env.MODE ?? "development",
   sentryDsn: null,
-  turnstileSiteKey: null,
+  turnstileSiteKey: parseString(env.VITE_TURNSTILE_SITE_KEY, "") || null,
 };
 
 const subscribers = new Set<() => void>();
@@ -72,7 +72,7 @@ export function applyHydratedFrontendRuntimeSettings(patch: HydratedFrontendRunt
     authDebug: patch.authDebug,
     sentryEnvironment: patch.sentryEnvironment,
     sentryDsn: patch.sentryDsn,
-    turnstileSiteKey: patch.turnstileSiteKey,
+    turnstileSiteKey: patch.turnstileSiteKey ?? state.turnstileSiteKey,
     domain: patch.domain ?? state.domain,
     baseUrl: patch.baseUrl ?? state.baseUrl,
   });
