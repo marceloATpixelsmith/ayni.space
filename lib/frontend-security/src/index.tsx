@@ -454,7 +454,7 @@ export async function requireCsrfToken(
 }
 
 export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
-export type AuthRouteKind = "organizationOnboarding" | "invitation";
+export type AuthRouteKind = "onboarding" | "organizationOnboarding" | "invitation";
 
 export type PlatformAppMetadata = {
   slug: string;
@@ -503,7 +503,7 @@ export function isAuthRouteAllowed(
   routeKind: AuthRouteKind,
 ): boolean {
   const policy = deriveAppAuthRoutePolicy(app);
-  return routeKind === "organizationOnboarding"
+  return routeKind === "onboarding" || routeKind === "organizationOnboarding"
     ? policy.allowOnboarding
     : policy.allowInvitations;
 }
