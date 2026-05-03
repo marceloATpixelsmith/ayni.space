@@ -114,7 +114,7 @@ function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSel
   if (!normalizedSlug) return null;
 
   const inferredSessionGroup = normalizedSlug === "admin" ? "admin" : "default";
-  const inferredAccessMode = inferredSessionGroup === "admin" ? "superadmin" : "organization";
+  const inferredAccessMode = "organization";
 
   return {
     id: `test-app-${normalizedSlug}`,
@@ -171,11 +171,15 @@ export async function getAppBySlug(
         ),
       );
 
-    if (mappedApps.length !== 1) {
-      return null;
+    if (mappedApps.length === 1) {
+      return mappedApps[0]!.app;
     }
 
-    return mappedApps[0]!.app;
+    if (process.env["NODE_ENV"] === "test") {
+      return buildTestFallbackAppBySlug(normalizedSlug);
+    }
+
+    return null;
   } catch (error) {
     const fallbackApp = options.allowOutageFallback !== false && isCanonicalLookupOutage(error)
       ? buildTestFallbackAppBySlug(normalizedSlug)

@@ -169,6 +169,13 @@
       "when": 1777766400000,
       "tag": "20260503_admin_auth_metadata_alignment",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1777836592035,
+      "tag": "20260503_admin_app_contract_seed",
+      "breakpoints": true
     }
   ]
 }
