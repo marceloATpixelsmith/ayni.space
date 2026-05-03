@@ -164,7 +164,7 @@ export async function resolveAppContextForAuth(input: {
       return {
         success: true,
         ok: true,
-        resolvedAppSlug: explicitAppSlug,
+        resolvedApp.slug,
         appSlug: resolvedApp.slug,
         sessionGroup: policy.sessionGroup,
         policy,
@@ -287,7 +287,7 @@ export async function resolveAppContextForAuth(input: {
   return {
     success: true,
     ok: true,
-    resolvedAppSlug,
+    resolvedAppSlug: resolvedApp.slug,
     appSlug: resolvedApp.slug,
     sessionGroup: policy.sessionGroup,
     policy,
