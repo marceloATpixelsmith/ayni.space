@@ -162,6 +162,13 @@
       "when": 1776816000000,
       "tag": "20260421_canonical_app_config",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1777766400000,
+      "tag": "20260503_admin_auth_metadata_alignment",
+      "breakpoints": true
     }
   ]
 }
