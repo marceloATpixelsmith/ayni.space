@@ -595,8 +595,12 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
   };
 }
 
+function normalizeSlug(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function resolveCurrentAppSlug(): string | null {
-  const configuredSlug = getBootstrapAppSlug().trim();
+  const configuredSlug = normalizeSlug(getBootstrapAppSlug());
   return configuredSlug.length > 0 ? configuredSlug : null;
 }
 
@@ -613,9 +617,11 @@ export async function fetchPlatformAppMetadataBySlug(
     return null;
   }
 
+  const normalizedTargetSlug = normalizeSlug(appSlug);
+
   for (const appCandidate of payload) {
     const normalized = normalizePlatformAppMetadata(appCandidate);
-    if (normalized?.slug === appSlug) {
+    if (normalized && normalizeSlug(normalized.slug) === normalizedTargetSlug) {
       return normalized;
     }
   }
@@ -627,18 +633,21 @@ export function useCurrentPlatformAppMetadata(): {
   currentAppSlug: string | null;
   metadata: PlatformAppMetadata | null;
   loading: boolean;
+  resolutionError: string | null;
 } {
   const currentAppSlug = resolveCurrentAppSlug();
   const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(
     null,
   );
   const [loading, setLoading] = React.useState(true);
+  const [resolutionError, setResolutionError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
 
     if (!currentAppSlug) {
       setMetadata(null);
+      setResolutionError("app_slug_missing");
       setLoading(false);
       return () => {
         cancelled = true;
@@ -646,10 +655,19 @@ export function useCurrentPlatformAppMetadata(): {
     }
 
     setLoading(true);
+    setResolutionError(null);
     fetchPlatformAppMetadataBySlug(currentAppSlug)
       .then((result) => {
         if (cancelled) return;
         setMetadata(result);
+        if (!result) {
+          setResolutionError("app_metadata_not_found");
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMetadata(null);
+        setResolutionError("app_metadata_fetch_failed");
       })
       .finally(() => {
         if (cancelled) return;
@@ -661,7 +679,7 @@ export function useCurrentPlatformAppMetadata(): {
     };
   }, [currentAppSlug]);
 
-  return { currentAppSlug, metadata, loading };
+  return { currentAppSlug, metadata, loading, resolutionError };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

@@ -47,7 +47,7 @@ export function getLoginDisabledReasons(input: {
 
 export function useLoginRouteComposition() {
   const auth = useAuth();
-  const { metadata } = useCurrentPlatformAppMetadata();
+  const { metadata, resolutionError } = useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
 
   const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
@@ -57,6 +57,7 @@ export function useLoginRouteComposition() {
     metadata,
     turnstile,
     hideSignupAffordances,
+    metadataResolutionError: resolutionError,
   };
 }
 
@@ -65,7 +66,7 @@ export function useLoginRoutePolicy(options: {
   onRedirect: (path: string) => void;
 }) {
   const { search, onRedirect } = options;
-  const { auth, metadata, turnstile, hideSignupAffordances } =
+  const { auth, metadata, turnstile, hideSignupAffordances, metadataResolutionError } =
     useLoginRouteComposition();
   const query = React.useMemo(
     () => new URLSearchParams(search),
@@ -73,10 +74,14 @@ export function useLoginRoutePolicy(options: {
   );
   const nextPath = query.get("next");
   const accessError = getAuthErrorMessage(parseAuthErrorCode(query.get("error")));
+  const metadataError = metadataResolutionError
+    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.`
+    : null;
+  const combinedAccessError = accessError ?? metadataError;
   const deniedCleanupAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (!accessError) {
+    if (!combinedAccessError) {
       deniedCleanupAttemptedRef.current = false;
       return;
     }
@@ -85,7 +90,7 @@ export function useLoginRoutePolicy(options: {
 
     deniedCleanupAttemptedRef.current = true;
     void auth.logout();
-  }, [accessError, auth.status, auth.logout]);
+  }, [combinedAccessError, auth.status, auth.logout]);
 
   React.useEffect(() => {
     if (!isFullyAuthenticatedStatus(auth.status)) return;
@@ -106,7 +111,7 @@ export function useLoginRoutePolicy(options: {
     turnstile,
     hideSignupAffordances,
     nextPath,
-    accessError,
+    accessError: combinedAccessError,
   };
 }
 

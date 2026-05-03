@@ -31,6 +31,7 @@ const { authState, metadataState, resolveAuthenticatedNextStepMock } = vi.hoiste
         allowCustomerRegistration: false,
       },
     },
+    resolutionError: null,
   },
   resolveAuthenticatedNextStepMock: vi.fn(() => ({
     destination: "/dashboard",
@@ -73,7 +74,12 @@ vi.mock("@workspace/frontend-security", async (importOriginal) => {
 
 vi.mock("../pages/auth/Login", async () => {
   const { useLocation } = await import("wouter");
-  const { useAuth, resolveAuthenticatedNextStep } = await import("@workspace/frontend-security");
+  const {
+    useAuth,
+    resolveAuthenticatedNextStep,
+    useCurrentPlatformAppMetadata,
+    deriveAppAuthRoutePolicy,
+  } = await import("@workspace/frontend-security");
 
   return {
     default: () => {
@@ -92,7 +98,20 @@ vi.mock("../pages/auth/Login", async () => {
       }, [auth.status, auth.user, setLocation]);
 
       if (auth.status === "authenticated_fully") return null;
-      return <h1>Welcome</h1>;
+      const { metadata, resolutionError } = useCurrentPlatformAppMetadata();
+      const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+      return (
+        <>
+          <h1>Welcome</h1>
+          {!hideSignupAffordances ? <a href="/signup">Create account</a> : null}
+          {!hideSignupAffordances ? <button type="button">Create account with Google</button> : null}
+          {resolutionError ? (
+            <div>
+              {`Auth metadata unavailable (${resolutionError}). Sign-up options are hidden until app configuration is resolved.`}
+            </div>
+          ) : null}
+        </>
+      );
     },
   };
 });
@@ -202,6 +221,7 @@ describe("App auth routing runtime behavior", () => {
     authState.loginInFlight = false;
     metadataState.loading = false;
     metadataState.currentAppSlug = "admin";
+    metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "organization",
       authRoutePolicy: {
@@ -240,6 +260,7 @@ describe("App auth routing runtime behavior", () => {
 
 
   it("allows signup in solo mode even with stale metadata policy denying registration", async () => {
+    metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "solo",
       authRoutePolicy: {
@@ -255,6 +276,7 @@ describe("App auth routing runtime behavior", () => {
   });
 
   it("blocks signup in superadmin mode", async () => {
+    metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "superadmin",
       authRoutePolicy: {
@@ -271,6 +293,65 @@ describe("App auth routing runtime behavior", () => {
     expect(screen.queryByText("Create account")).toBeNull();
   });
 
+
+  it("shows create-account affordances on login for organization and solo profiles", async () => {
+    setPath("/login");
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Create account with Google" })).toBeTruthy();
+
+    cleanup();
+    metadataState.resolutionError = null;
+    metadataState.metadata = {
+      normalizedAccessProfile: "solo",
+      authRoutePolicy: {
+        allowInvitations: false,
+        allowCustomerRegistration: false,
+      },
+    };
+
+    setPath("/login");
+    render(<App />);
+    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Create account with Google" })).toBeTruthy();
+  });
+
+  it("hides create-account affordances for superadmin and shows metadata diagnostic when app slug has no match", async () => {
+    metadataState.resolutionError = null;
+    metadataState.metadata = {
+      normalizedAccessProfile: "superadmin",
+      authRoutePolicy: {
+        allowInvitations: false,
+        allowCustomerRegistration: false,
+      },
+    };
+
+    setPath("/login");
+    render(<App />);
+
+    await waitFor(() => expect(screen.queryByText("Create account")).toBeNull());
+    expect(screen.queryByRole("button", { name: "Create account with Google" })).toBeNull();
+
+    cleanup();
+    metadataState.currentAppSlug = "unknown-app";
+    metadataState.metadata = null;
+    metadataState.loading = false;
+    metadataState.resolutionError = "app_metadata_not_found";
+
+    setPath("/login");
+    render(<App />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Auth metadata unavailable (app_metadata_not_found). Sign-up options are hidden until app configuration is resolved.",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText("Create account")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create account with Google" })).toBeNull();
+  });
   it("routes MFA pending users to challenge when enrolled", async () => {
     authState.status = "authenticated_mfa_pending_enrolled";
     authState.user = { mfaPending: true, mfaEnrolled: true };
@@ -334,6 +415,7 @@ describe("App auth routing runtime behavior", () => {
 
 
   it("redirects organization onboarding route to /login for solo profile", async () => {
+    metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "solo",
       authRoutePolicy: {
@@ -350,6 +432,7 @@ describe("App auth routing runtime behavior", () => {
   });
 
   it("redirects organization onboarding route to /login for superadmin profile", async () => {
+    metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "superadmin",
       authRoutePolicy: {
