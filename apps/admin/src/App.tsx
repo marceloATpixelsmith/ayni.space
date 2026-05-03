@@ -462,7 +462,6 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />
@@ -519,6 +518,9 @@ function Router() {
 
       {/* Fail-closed aliases for legacy routes */}
       <Route path="/apps/:slug">{() => <ProtectedAppAccess><AuthRedirect to="/dashboard/apps" /></ProtectedAppAccess>}</Route>
+
+      {/* Root redirect route must stay after concrete auth/app routes to avoid prefix capture. */}
+      <Route path={"/"} nest component={Home} />
 
       <Route component={NotFound} />
     </Switch>
