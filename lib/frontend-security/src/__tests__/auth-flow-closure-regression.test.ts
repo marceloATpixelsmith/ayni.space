@@ -343,3 +343,25 @@ test("METADATA MATCHING: slug matching is exact after trimming and reports avail
 
   globalThis.fetch = originalFetch;
 });
+
+
+test("METADATA RESOLUTION: admin slug resolves organization auth metadata from /api/apps", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify([{ slug: "admin", accessMode: "organization", isActive: true }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as typeof globalThis.fetch;
+
+  const { fetchPlatformAppMetadataBySlug } = await import("../index");
+  const hit = await fetchPlatformAppMetadataBySlug("admin");
+  assert.equal(hit.metadata?.slug, "admin");
+  assert.equal(hit.metadata?.normalizedAccessProfile, "organization");
+  assert.deepEqual(hit.metadata?.authRoutePolicy, {
+    allowCustomerRegistration: true,
+    allowOnboarding: true,
+    allowInvitations: true,
+  });
+
+  globalThis.fetch = originalFetch;
+});
