@@ -9,8 +9,8 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
-import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute, buildCanonicalTestFallbackAdminApp } from "../lib/appAccess.js";
-import { resolveNormalizedAccessProfile, getAuthRoutePolicyForProfile } from "../lib/appAccessProfile.js";
+import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute, buildCanonicalTestFallbackAdminApp, getNormalizedAccessProfileForApp } from "../lib/appAccess.js";
+import { getAuthRoutePolicyForProfile } from "../lib/appAccessProfile.js";
 import { getFrontendRuntimeSettingsForApp } from "../lib/runtimeSettings.js";
 
 const router: IRouter = Router();
@@ -26,6 +26,7 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
   const plans = await db.query.appPlansTable.findMany({
     where: and(eq(appPlansTable.appId, app.id), eq(appPlansTable.isActive, true)),
   });
+  const normalizedAccessProfile = getNormalizedAccessProfileForApp(app);
   return {
     id: app.id,
     name: app.name,
@@ -33,12 +34,13 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
     domain: app.domain,
     baseUrl: app.baseUrl,
     turnstileSiteKeyOverride: app.turnstileSiteKeyOverride,
-    accessMode: app.accessMode,
+    accessMode: normalizedAccessProfile,
+    rawAccessMode: app.accessMode,
     staffInvitesEnabled: app.staffInvitesEnabled,
     customerRegistrationEnabled: app.customerRegistrationEnabled,
-    normalizedAccessProfile: resolveNormalizedAccessProfile(app),
-    authRoutePolicy: resolveNormalizedAccessProfile(app)
-      ? getAuthRoutePolicyForProfile(resolveNormalizedAccessProfile(app)!, {
+    normalizedAccessProfile,
+    authRoutePolicy: normalizedAccessProfile
+      ? getAuthRoutePolicyForProfile(normalizedAccessProfile, {
           staffInvitesEnabled: app.staffInvitesEnabled,
           customerRegistrationEnabled: app.customerRegistrationEnabled,
         })
