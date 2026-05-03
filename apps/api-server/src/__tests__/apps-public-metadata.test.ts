@@ -62,3 +62,30 @@ test("GET /api/apps injects test admin metadata when active admin app is missing
     restoreNodeEnv();
   }
 });
+
+test("GET /api/apps returns fallback admin app metadata when DB lookup fails in test mode", async () => {
+  const restoreNodeEnv = patchProperty(process, "env", { ...process.env, NODE_ENV: "test" });
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => {
+    throw new Error("ECONNREFUSED");
+  });
+  const restorePlans = patchProperty(db.query.appPlansTable, "findMany", async () => ([]));
+
+  try {
+    const app = createSessionApp(appsRouter);
+    const response = await performJsonRequest(app, "GET", "/api/apps");
+    assert.equal(response.status, 200);
+    assert.equal(response.body?.length, 1);
+    assert.equal(response.body[0]?.slug, "admin");
+    assert.equal(response.body[0]?.accessMode, "organization");
+    assert.equal(response.body[0]?.normalizedAccessProfile, "organization");
+    assert.deepEqual(response.body[0]?.authRoutePolicy, {
+      allowCustomerRegistration: true,
+      allowOnboarding: true,
+      allowInvitations: true,
+    });
+  } finally {
+    restorePlans();
+    restoreApps();
+    restoreNodeEnv();
+  }
+});

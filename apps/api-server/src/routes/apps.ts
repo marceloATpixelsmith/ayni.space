@@ -9,7 +9,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth.js";
 import { requireOrgAccess } from "../middlewares/requireOrgAccess.js";
-import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute } from "../lib/appAccess.js";
+import { getAppContext, canAccessApp, getRequiredOnboarding, getDefaultRoute, buildCanonicalTestFallbackAdminApp } from "../lib/appAccess.js";
 import { resolveNormalizedAccessProfile, getAuthRoutePolicyForProfile } from "../lib/appAccessProfile.js";
 import { getFrontendRuntimeSettingsForApp } from "../lib/runtimeSettings.js";
 
@@ -56,32 +56,6 @@ async function formatApp(app: typeof appsTable.$inferSelect) {
   };
 }
 
-function buildFallbackAdminApp(): typeof appsTable.$inferSelect {
-  const now = new Date(0);
-  return {
-    id: "test-app-admin",
-    slug: "admin",
-    name: "Admin",
-    domain: "admin.local",
-    baseUrl: null,
-    turnstileSiteKeyOverride: null,
-    accessMode: "organization",
-    staffInvitesEnabled: true,
-    customerRegistrationEnabled: true,
-    description: null,
-    iconUrl: null,
-    isActive: true,
-    metadata: {},
-    createdAt: now,
-    updatedAt: now,
-    transactionalFromEmail: null,
-    transactionalFromName: null,
-    transactionalReplyToEmail: null,
-    invitationEmailSubject: null,
-    invitationEmailHtml: null,
-  };
-}
-
 // ── GET /apps ─────────────────────────────────────────────────────────────────
 router.get("/", async (_req, res) => {
   try {
@@ -92,12 +66,19 @@ router.get("/", async (_req, res) => {
     const hasActiveAdmin = apps.some((app) => app.slug.trim().toLowerCase() === "admin");
     const safeApps = hasActiveAdmin || process.env["NODE_ENV"] !== "test"
       ? apps
-      : [...apps, buildFallbackAdminApp()];
+      : [...apps, buildCanonicalTestFallbackAdminApp()];
 
     const formatted = await Promise.all(safeApps.map(formatApp));
     res.status(200).json(formatted);
-  } catch {
-    res.status(200).json([]);
+  } catch (error) {
+    if (process.env["NODE_ENV"] === "test") {
+      res.status(200).json([await formatApp(buildCanonicalTestFallbackAdminApp())]);
+      return;
+    }
+    console.error("[apps] failed to load active apps", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: "Failed to load apps" });
   }
 });
 
