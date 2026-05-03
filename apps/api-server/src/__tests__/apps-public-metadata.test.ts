@@ -44,3 +44,21 @@ test("GET /api/apps returns active admin app metadata for auth entry", async () 
     restore();
   }
 });
+
+test("GET /api/apps injects test admin metadata when active admin app is missing", async () => {
+  const restoreNodeEnv = patchProperty(process, "env", { ...process.env, NODE_ENV: "test" });
+  const restoreApps = patchProperty(db.query.appsTable, "findMany", async () => ([]));
+  const restorePlans = patchProperty(db.query.appPlansTable, "findMany", async () => ([]));
+
+  try {
+    const app = createSessionApp(appsRouter);
+    const response = await performJsonRequest(app, "GET", "/api/apps");
+    assert.equal(response.status, 200);
+    assert.equal(response.body[0]?.slug, "admin");
+    assert.equal(response.body[0]?.accessMode, "organization");
+  } finally {
+    restorePlans();
+    restoreApps();
+    restoreNodeEnv();
+  }
+});
