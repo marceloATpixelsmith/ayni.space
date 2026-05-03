@@ -505,8 +505,13 @@ function Router() {
           return <MfaChallenge />;
         }}
       </Route>
-      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
-      <Route path="/onboarding/user">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="organizationOnboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/onboarding/user">{() => {
+        if (auth.status === "loading") return <AuthLoading />;
+        if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
+        if (isMfaPendingStatus(auth.status)) return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
+        return <Onboarding />;
+      }}</Route>
       <Route path="/onboarding">
         {() => <AuthRedirect to="/onboarding/organization" />}
       </Route>

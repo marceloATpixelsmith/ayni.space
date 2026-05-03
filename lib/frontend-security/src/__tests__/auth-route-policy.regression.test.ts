@@ -8,7 +8,7 @@ test("superadmin profile always fail-closes signup even if payload policy is per
     slug: "admin",
     normalizedAccessProfile: "superadmin",
     authRoutePolicy: {
-      allowOnboarding: true,
+      allowOnboarding: false,
       allowInvitations: true,
       allowCustomerRegistration: true,
     },
@@ -21,7 +21,7 @@ test("superadmin profile always fail-closes signup even if payload policy is per
   });
 });
 
-test("solo profile always allows signup even if payload policy is fail-closed", () => {
+test("solo profile enforces fixed signup/onboarding policy even if payload policy differs", () => {
   const policy = deriveAppAuthRoutePolicy({
     slug: "solo",
     normalizedAccessProfile: "solo",
@@ -33,18 +33,18 @@ test("solo profile always allows signup even if payload policy is fail-closed", 
   });
 
   assert.deepEqual(policy, {
-    allowOnboarding: true,
+    allowOnboarding: false,
     allowInvitations: false,
     allowCustomerRegistration: true,
   });
 });
 
-test("organization profile honors customer-registration toggle", () => {
+test("organization profile enforces fixed policy independent of payload toggles", () => {
   const enabledPolicy = deriveAppAuthRoutePolicy({
     slug: "org",
     normalizedAccessProfile: "organization",
     authRoutePolicy: {
-      allowOnboarding: true,
+      allowOnboarding: false,
       allowInvitations: true,
       allowCustomerRegistration: true,
     },
@@ -54,12 +54,20 @@ test("organization profile honors customer-registration toggle", () => {
     slug: "org",
     normalizedAccessProfile: "organization",
     authRoutePolicy: {
-      allowOnboarding: true,
+      allowOnboarding: false,
       allowInvitations: false,
       allowCustomerRegistration: false,
     },
   });
 
-  assert.equal(enabledPolicy.allowCustomerRegistration, true);
-  assert.equal(disabledPolicy.allowCustomerRegistration, false);
+  assert.deepEqual(enabledPolicy, {
+    allowOnboarding: true,
+    allowInvitations: true,
+    allowCustomerRegistration: true,
+  });
+  assert.deepEqual(disabledPolicy, {
+    allowOnboarding: true,
+    allowInvitations: true,
+    allowCustomerRegistration: true,
+  });
 });
