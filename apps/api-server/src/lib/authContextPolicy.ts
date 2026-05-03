@@ -138,13 +138,15 @@ export async function resolveAppContextForAuth(input: {
         allowOutageFallback: true,
       })) ?? null;
       if (canonicalApp) return { app: canonicalApp, lookupError: null, usedTestFallback: false };
-      if (process.env["NODE_ENV"] === "test") {
-        return { app: getTestFallbackApp(appSlug), lookupError: null, usedTestFallback: true };
+      const fallbackApp = getTestFallbackApp(appSlug);
+      if (fallbackApp) {
+        return { app: fallbackApp, lookupError: null, usedTestFallback: true };
       }
       return { app: null, lookupError: null, usedTestFallback: false };
     } catch (error) {
-      if (process.env["NODE_ENV"] === "test") {
-        return { app: getTestFallbackApp(appSlug), lookupError: error, usedTestFallback: true };
+      const fallbackApp = getTestFallbackApp(appSlug);
+      if (fallbackApp) {
+        return { app: fallbackApp, lookupError: error, usedTestFallback: true };
       }
       return { app: null, lookupError: error, usedTestFallback: false };
     }
