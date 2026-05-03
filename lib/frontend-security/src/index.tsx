@@ -483,6 +483,10 @@ export function deriveAppAuthRoutePolicy(
     return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
   }
 
+  if (app.normalizedAccessProfile === "organization") {
+    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
+  }
+
   if (app.authRoutePolicy) {
     return {
       allowOnboarding: true,
