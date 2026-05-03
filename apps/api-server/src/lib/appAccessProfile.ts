@@ -22,15 +22,15 @@ export function getAuthRoutePolicyForProfile(
   if (profile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: organizationCapabilities.staffInvitesEnabled,
-      // Customer registration APIs are not implemented yet; keep policy fail-closed.
-      allowCustomerRegistration: false,
+      allowInvitations: true,
+      allowCustomerRegistration: true,
     };
   }
 
   if (profile === "solo") {
-    return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false };
+    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };
   }
 
+  void organizationCapabilities;
   return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
 }

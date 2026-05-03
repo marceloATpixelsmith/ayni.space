@@ -238,6 +238,22 @@ describe("App auth routing runtime behavior", () => {
     await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
   });
 
+
+  it("allows signup in solo mode", async () => {
+    metadataState.metadata = {
+      normalizedAccessProfile: "solo",
+      authRoutePolicy: {
+        allowInvitations: false,
+        allowCustomerRegistration: true,
+      },
+    };
+
+    setPath("/signup");
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+  });
+
   it("blocks signup in superadmin mode", async () => {
     metadataState.metadata = {
       normalizedAccessProfile: "superadmin",
@@ -314,6 +330,39 @@ describe("App auth routing runtime behavior", () => {
 
     await waitFor(() => expect(window.location.pathname).toBe("/dashboard/invitations"));
     expect(screen.getByText("Invitations")).toBeTruthy();
+  });
+
+
+  it("redirects organization onboarding route to /login for solo profile", async () => {
+    metadataState.metadata = {
+      normalizedAccessProfile: "solo",
+      authRoutePolicy: {
+        allowInvitations: false,
+        allowCustomerRegistration: true,
+      },
+    };
+
+    setPath("/onboarding/organization");
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
+    expect(screen.getByText("Welcome")).toBeTruthy();
+  });
+
+  it("redirects organization onboarding route to /login for superadmin profile", async () => {
+    metadataState.metadata = {
+      normalizedAccessProfile: "superadmin",
+      authRoutePolicy: {
+        allowInvitations: false,
+        allowCustomerRegistration: false,
+      },
+    };
+
+    setPath("/onboarding/organization");
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
+    expect(screen.getByText("Welcome")).toBeTruthy();
   });
 
   it("preserves continuation through signup already-have-account branch and keeps onboarding precedence", async () => {
