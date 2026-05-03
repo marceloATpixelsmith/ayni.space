@@ -561,32 +561,6 @@ function normalizePlatformAppMetadata(
 
   if (!normalizedAccessProfile) return null;
 
-  const authRoutePolicyCandidate = candidate["authRoutePolicy"];
-  const authRoutePolicy =
-    authRoutePolicyCandidate &&
-    typeof authRoutePolicyCandidate === "object" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowOnboarding"
-    ] === "boolean" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowInvitations"
-    ] === "boolean" &&
-    typeof (authRoutePolicyCandidate as Record<string, unknown>)[
-      "allowCustomerRegistration"
-    ] === "boolean"
-      ? {
-          allowOnboarding: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowOnboarding"],
-          allowInvitations: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowInvitations"],
-          allowCustomerRegistration: (
-            authRoutePolicyCandidate as Record<string, boolean>
-          )["allowCustomerRegistration"],
-        }
-      : undefined;
-
   const fallbackPolicy = getAuthRoutePolicyForNormalizedProfile({
     normalizedAccessProfile,
     staffInvitesEnabled:
@@ -598,7 +572,7 @@ function normalizePlatformAppMetadata(
   return {
     slug: candidate["slug"],
     normalizedAccessProfile,
-    authRoutePolicy: authRoutePolicy ?? fallbackPolicy,
+    authRoutePolicy: fallbackPolicy,
   };
 }
 
