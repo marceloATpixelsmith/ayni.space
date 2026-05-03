@@ -130,6 +130,26 @@ export async function resolveAppContextForAuth(input: {
   sessionGroup?: string | null;
   origin?: string | null;
 }): Promise<AuthContextResolution> {
+  const resolveCanonicalOrTestFallbackApp = async (
+    appSlug: string,
+  ): Promise<{ app: App | null; lookupError: unknown | null }> => {
+    try {
+      const canonicalApp = (await getAppBySlug(appSlug, {
+        allowOutageFallback: true,
+      })) ?? null;
+      if (canonicalApp) return { app: canonicalApp, lookupError: null };
+      if (process.env["NODE_ENV"] === "test") {
+        return { app: getTestFallbackApp(appSlug), lookupError: null };
+      }
+      return { app: null, lookupError: null };
+    } catch (error) {
+      if (process.env["NODE_ENV"] === "test") {
+        return { app: getTestFallbackApp(appSlug), lookupError: error };
+      }
+      return { app: null, lookupError: error };
+    }
+  };
+
   const bodyAppSlug = getBodyAppSlug(input.req);
   const queryOrParamAppSlug = getQueryOrParamAppSlug(input.req, input.appSlug);
   const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
@@ -137,13 +157,9 @@ export async function resolveAppContextForAuth(input: {
 
   // Explicit appSlug always takes precedence over origin- or session-derived candidates.
   if (explicitAppSlug) {
-    try {
-      let resolvedApp = (await getAppBySlug(explicitAppSlug, {
-        allowOutageFallback: true,
-      })) ?? null;
-      if (!resolvedApp && process.env["NODE_ENV"] === "test") {
-        resolvedApp = getTestFallbackApp(explicitAppSlug);
-      }
+    {
+      const { app: resolvedApp, lookupError } =
+        await resolveCanonicalOrTestFallbackApp(explicitAppSlug);
       if (!resolvedApp) {
         return {
           success: false,
@@ -153,6 +169,14 @@ export async function resolveAppContextForAuth(input: {
           details: {
             resolvedAppSlug: explicitAppSlug,
             attemptedAppSlugs: [explicitAppSlug],
+            ...(lookupError
+              ? {
+                  lookupError:
+                    lookupError instanceof Error
+                      ? lookupError.message
+                      : String(lookupError),
+                }
+              : {}),
           },
         };
       }
@@ -175,42 +199,6 @@ export async function resolveAppContextForAuth(input: {
         canonicalAppResolved: true,
         explicitAppSlugProvided: true,
         source: "request",
-      };
-    } catch (error) {
-      if (process.env["NODE_ENV"] === "test") {
-        const fallbackApp = getTestFallbackApp(explicitAppSlug);
-        if (fallbackApp) {
-          const policy =
-            deriveAuthContextPolicy(fallbackApp) ?? {
-              accessMode: "organization" as const,
-              sessionGroup: resolveSessionGroupForApp(fallbackApp),
-              applyAdminPrivileges: false,
-            };
-
-          return {
-            success: true,
-            ok: true,
-            resolvedAppSlug: fallbackApp.slug,
-            appSlug: fallbackApp.slug,
-            sessionGroup: policy.sessionGroup,
-            policy,
-            app: fallbackApp,
-            canonicalAppResolved: true,
-            explicitAppSlugProvided: true,
-            source: "request",
-          };
-        }
-      }
-      return {
-        success: false,
-        ok: false,
-        errorCode: "app_not_found",
-        reason: "app_not_found",
-        details: {
-          resolvedAppSlug: explicitAppSlug,
-          attemptedAppSlugs: [explicitAppSlug],
-          lookupError: error instanceof Error ? error.message : String(error),
-        },
       };
     }
   }
@@ -269,26 +257,12 @@ export async function resolveAppContextForAuth(input: {
 
   for (const candidateSlug of orderedCandidateAppSlugs) {
     resolvedAppSlug = candidateSlug;
-    try {
-      let canonicalApp = (await getAppBySlug(candidateSlug, {
-        allowOutageFallback: true,
-      })) ?? null;
-      if (!canonicalApp && process.env["NODE_ENV"] === "test") {
-        canonicalApp = getTestFallbackApp(candidateSlug);
-      }
-      if (canonicalApp) {
-        selectedCanonicalApp = canonicalApp;
-        break;
-      }
-    } catch (error) {
-      lastLookupError = error;
-      if (process.env["NODE_ENV"] === "test") {
-        const fallbackApp = getTestFallbackApp(candidateSlug);
-        if (fallbackApp) {
-          selectedCanonicalApp = fallbackApp;
-          break;
-        }
-      }
+    const { app: canonicalOrFallbackApp, lookupError } =
+      await resolveCanonicalOrTestFallbackApp(candidateSlug);
+    if (lookupError) lastLookupError = lookupError;
+    if (canonicalOrFallbackApp) {
+      selectedCanonicalApp = canonicalOrFallbackApp;
+      break;
     }
   }
 

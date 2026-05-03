@@ -294,7 +294,7 @@ function deriveAuthContextRequestOrigin(req: Request): string | null {
 
 function normalizeOptionalAppSlug(value: unknown): string | null {
   if (value == null) return null;
-  const normalized = String(value).trim();
+  const normalized = String(value).trim().toLowerCase();
   return normalized.length > 0 ? normalized : null;
 }
 
