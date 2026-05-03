@@ -505,9 +505,7 @@ function Router() {
           return <MfaChallenge />;
         }}
       </Route>
-      <Route path="/onboarding/organization">
-        {() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}
-      </Route>
+      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
       <Route path="/onboarding/user">{() => {
         if (auth.status === "loading") return <AuthLoading />;
         if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
