@@ -132,21 +132,21 @@ export async function resolveAppContextForAuth(input: {
 }): Promise<AuthContextResolution> {
   const resolveCanonicalOrTestFallbackApp = async (
     appSlug: string,
-  ): Promise<{ app: App | null; lookupError: unknown | null }> => {
+  ): Promise<{ app: App | null; lookupError: unknown | null; usedTestFallback: boolean }> => {
     try {
       const canonicalApp = (await getAppBySlug(appSlug, {
         allowOutageFallback: true,
       })) ?? null;
-      if (canonicalApp) return { app: canonicalApp, lookupError: null };
+      if (canonicalApp) return { app: canonicalApp, lookupError: null, usedTestFallback: false };
       if (process.env["NODE_ENV"] === "test") {
-        return { app: getTestFallbackApp(appSlug), lookupError: null };
+        return { app: getTestFallbackApp(appSlug), lookupError: null, usedTestFallback: true };
       }
-      return { app: null, lookupError: null };
+      return { app: null, lookupError: null, usedTestFallback: false };
     } catch (error) {
       if (process.env["NODE_ENV"] === "test") {
-        return { app: getTestFallbackApp(appSlug), lookupError: error };
+        return { app: getTestFallbackApp(appSlug), lookupError: error, usedTestFallback: true };
       }
-      return { app: null, lookupError: error };
+      return { app: null, lookupError: error, usedTestFallback: false };
     }
   };
 
@@ -158,7 +158,7 @@ export async function resolveAppContextForAuth(input: {
   // Explicit appSlug always takes precedence over origin- or session-derived candidates.
   if (explicitAppSlug) {
     {
-      const { app: resolvedApp, lookupError } =
+      const { app: resolvedApp, lookupError, usedTestFallback } =
         await resolveCanonicalOrTestFallbackApp(explicitAppSlug);
       if (!resolvedApp) {
         return {
@@ -196,7 +196,7 @@ export async function resolveAppContextForAuth(input: {
         sessionGroup: policy.sessionGroup,
         policy,
         app: resolvedApp,
-        canonicalAppResolved: true,
+        canonicalAppResolved: !usedTestFallback,
         explicitAppSlugProvided: true,
         source: "request",
       };
@@ -252,16 +252,18 @@ export async function resolveAppContextForAuth(input: {
       : "session_group";
 
   let selectedCanonicalApp: App | null = null;
+  let selectedCanonicalLookupUsedFallback = false;
   let lastLookupError: unknown = null;
   let resolvedAppSlug = selectedAppSlug;
 
   for (const candidateSlug of orderedCandidateAppSlugs) {
     resolvedAppSlug = candidateSlug;
-    const { app: canonicalOrFallbackApp, lookupError } =
+    const { app: canonicalOrFallbackApp, lookupError, usedTestFallback } =
       await resolveCanonicalOrTestFallbackApp(candidateSlug);
     if (lookupError) lastLookupError = lookupError;
     if (canonicalOrFallbackApp) {
       selectedCanonicalApp = canonicalOrFallbackApp;
+      selectedCanonicalLookupUsedFallback = usedTestFallback;
       break;
     }
   }
@@ -303,7 +305,7 @@ export async function resolveAppContextForAuth(input: {
     sessionGroup: policy.sessionGroup,
     policy,
     app: resolvedApp,
-    canonicalAppResolved: true,
+    canonicalAppResolved: !selectedCanonicalLookupUsedFallback,
     explicitAppSlugProvided: Boolean(explicitAppSlug),
     source,
   };
