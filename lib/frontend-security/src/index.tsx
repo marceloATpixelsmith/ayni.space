@@ -462,6 +462,16 @@ export type PlatformAppMetadata = {
   authRoutePolicy?: AppAuthRoutePolicy;
 };
 
+export type PlatformAppMetadataDiagnostic = {
+  code:
+    | "app_metadata_not_found"
+    | "app_metadata_fetch_failed"
+    | "app_slug_missing"
+    | null;
+  requestedSlug: string | null;
+  message: string | null;
+};
+
 export type AppAuthRoutePolicy = {
   allowOnboarding: boolean;
   allowInvitations: boolean;
@@ -643,6 +653,7 @@ export function useCurrentPlatformAppMetadata(): {
   metadata: PlatformAppMetadata | null;
   loading: boolean;
   resolutionError: string | null;
+  diagnostic: PlatformAppMetadataDiagnostic;
 } {
   const currentAppSlug = resolveCurrentAppSlug();
   const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(
@@ -650,7 +661,11 @@ export function useCurrentPlatformAppMetadata(): {
   );
   const [loading, setLoading] = React.useState(true);
   const [resolutionError, setResolutionError] = React.useState<string | null>(null);
-  const [diagnostic, setDiagnostic] = React.useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = React.useState<PlatformAppMetadataDiagnostic>({
+    code: null,
+    requestedSlug: null,
+    message: null,
+  });
 
   React.useEffect(() => {
     let cancelled = false;
@@ -658,7 +673,11 @@ export function useCurrentPlatformAppMetadata(): {
     if (!currentAppSlug) {
       setMetadata(null);
       setResolutionError("app_slug_missing");
-      setDiagnostic("requested slug is empty");
+      setDiagnostic({
+        code: "app_slug_missing",
+        requestedSlug: null,
+        message: "requested slug is empty",
+      });
       setLoading(false);
       return () => {
         cancelled = true;
@@ -667,7 +686,7 @@ export function useCurrentPlatformAppMetadata(): {
 
     setLoading(true);
     setResolutionError(null);
-    setDiagnostic(null);
+    setDiagnostic({ code: null, requestedSlug: currentAppSlug, message: null });
     fetchPlatformAppMetadataBySlug(currentAppSlug)
       .then((result) => {
         if (cancelled) return;
@@ -675,14 +694,28 @@ export function useCurrentPlatformAppMetadata(): {
         if (!result.metadata) {
           setResolutionError("app_metadata_not_found");
           const available = result.availableSlugs.length > 0 ? result.availableSlugs.join(", ") : "none";
-          setDiagnostic(`requested=${result.requestedSlug}; available=${available}`);
+          setDiagnostic({
+            code: "app_metadata_not_found",
+            requestedSlug: result.requestedSlug,
+            message: `requested=${result.requestedSlug}; available=${available}`,
+          });
+        } else {
+          setDiagnostic({
+            code: null,
+            requestedSlug: result.requestedSlug,
+            message: null,
+          });
         }
       })
       .catch(() => {
         if (cancelled) return;
         setMetadata(null);
         setResolutionError("app_metadata_fetch_failed");
-        setDiagnostic(`requested=${currentAppSlug}; available=unknown`);
+        setDiagnostic({
+          code: "app_metadata_fetch_failed",
+          requestedSlug: currentAppSlug,
+          message: `requested=${currentAppSlug}; available=unknown`,
+        });
       })
       .finally(() => {
         if (cancelled) return;
