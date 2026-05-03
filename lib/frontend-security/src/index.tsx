@@ -483,6 +483,14 @@ export function deriveAppAuthRoutePolicy(
     return { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: true };
   }
 
+  if (app.authRoutePolicy && app.normalizedAccessProfile === "organization") {
+    return {
+      allowOnboarding: true,
+      allowInvitations: app.authRoutePolicy.allowInvitations,
+      allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
+    };
+  }
+
   if (app.normalizedAccessProfile === "organization") {
     return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: false };
   }
