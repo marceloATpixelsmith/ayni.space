@@ -28,7 +28,7 @@ const { authState, metadataState, resolveAuthenticatedNextStepMock } = vi.hoiste
       normalizedAccessProfile: "organization",
       authRoutePolicy: {
         allowInvitations: true,
-        allowCustomerRegistration: true,
+        allowCustomerRegistration: false,
       },
     },
   },
@@ -231,7 +231,7 @@ describe("App auth routing runtime behavior", () => {
     expect(screen.getByText("Welcome")).toBeTruthy();
   });
 
-  it("allows signup when route policy allows customer registration", async () => {
+  it("allows signup for organization even with stale metadata policy denying registration", async () => {
     setPath("/signup");
     render(<App />);
 
@@ -239,12 +239,12 @@ describe("App auth routing runtime behavior", () => {
   });
 
 
-  it("allows signup in solo mode", async () => {
+  it("allows signup in solo mode even with stale metadata policy denying registration", async () => {
     metadataState.metadata = {
       normalizedAccessProfile: "solo",
       authRoutePolicy: {
         allowInvitations: false,
-        allowCustomerRegistration: true,
+        allowCustomerRegistration: false,
       },
     };
 

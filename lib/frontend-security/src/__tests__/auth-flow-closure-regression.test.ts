@@ -281,3 +281,45 @@ test("METADATA NORMALIZATION: accessMode fallback preserves access-mode-driven s
 
   globalThis.fetch = originalFetch;
 });
+
+test("METADATA NORMALIZATION: stale authRoutePolicy cannot suppress organization/solo signup", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify([
+        {
+          slug: "org-app",
+          accessMode: "organization",
+          authRoutePolicy: {
+            allowOnboarding: false,
+            allowInvitations: false,
+            allowCustomerRegistration: false,
+          },
+        },
+        {
+          slug: "solo-app",
+          accessMode: "solo",
+          authRoutePolicy: {
+            allowOnboarding: false,
+            allowInvitations: false,
+            allowCustomerRegistration: false,
+          },
+        },
+      ]),
+      { status: 200, headers: { "content-type": "application/json" } },
+    )) as typeof globalThis.fetch;
+
+  const { fetchPlatformAppMetadataBySlug } = await import("../index");
+  const orgMetadata = await fetchPlatformAppMetadataBySlug("org-app");
+  const soloMetadata = await fetchPlatformAppMetadataBySlug("solo-app");
+
+  assert.equal(orgMetadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(orgMetadata?.authRoutePolicy?.allowInvitations, true);
+  assert.equal(orgMetadata?.authRoutePolicy?.allowOnboarding, true);
+
+  assert.equal(soloMetadata?.authRoutePolicy?.allowCustomerRegistration, true);
+  assert.equal(soloMetadata?.authRoutePolicy?.allowInvitations, false);
+  assert.equal(soloMetadata?.authRoutePolicy?.allowOnboarding, false);
+
+  globalThis.fetch = originalFetch;
+});
