@@ -107,19 +107,37 @@ function isCanonicalLookupOutage(error: unknown): boolean {
   return false;
 }
 
-export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSelect {
+type TestFallbackAppTemplate = {
+  accessMode: (typeof appsTable.$inferSelect)["accessMode"];
+  sessionGroup: string;
+};
+
+const TEST_FALLBACK_APP_TEMPLATES: Record<string, TestFallbackAppTemplate> = {
+  admin: { accessMode: "superadmin", sessionGroup: "admin" },
+  workspace: { accessMode: "organization", sessionGroup: "default" },
+  "workspace-solo": { accessMode: "solo", sessionGroup: "default" },
+  "org-open": { accessMode: "organization", sessionGroup: "default" },
+  "solo-app": { accessMode: "solo", sessionGroup: "default" },
+  ayni: { accessMode: "organization", sessionGroup: "default" },
+  shipibo: { accessMode: "organization", sessionGroup: "default" },
+};
+
+function buildCanonicalTestFallbackApp(
+  appSlug: string,
+  template: TestFallbackAppTemplate,
+): typeof appsTable.$inferSelect {
   return {
-    id: "test-app-admin",
-    slug: "admin",
-    name: "Admin",
-    domain: "admin.local",
-    accessMode: "organization",
+    id: `test-app-${appSlug}`,
+    slug: appSlug,
+    name: appSlug === "admin" ? "Admin" : appSlug,
+    domain: `${appSlug}.local`,
+    accessMode: template.accessMode,
     isActive: true,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     customerRegistrationEnabled: true,
     staffInvitesEnabled: true,
-    metadata: { sessionGroup: "admin" },
+    metadata: { sessionGroup: template.sessionGroup },
     baseUrl: null,
     turnstileSiteKeyOverride: null,
     description: null,
@@ -132,38 +150,18 @@ export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSel
   } satisfies typeof appsTable.$inferSelect;
 }
 
+export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSelect {
+  return buildCanonicalTestFallbackApp("admin", TEST_FALLBACK_APP_TEMPLATES["admin"]!);
+}
+
 function buildTestFallbackAppBySlug(appSlug: string): typeof appsTable.$inferSelect | null {
   if (!canUseTestCanonicalFallback(appSlug)) return null;
 
   const normalizedSlug = appSlug.trim().toLowerCase();
   if (!normalizedSlug) return null;
-
-  if (normalizedSlug === "admin") {
-    return buildCanonicalTestFallbackAdminApp();
-  }
-
-  return {
-    id: `test-app-${normalizedSlug}`,
-    slug: normalizedSlug,
-    name: normalizedSlug,
-    domain: `${normalizedSlug}.local`,
-    accessMode: "organization",
-    isActive: true,
-    createdAt: new Date(0),
-    updatedAt: new Date(0),
-    customerRegistrationEnabled: true,
-    staffInvitesEnabled: true,
-    metadata: { sessionGroup: "default" },
-    baseUrl: null,
-    turnstileSiteKeyOverride: null,
-    description: null,
-    iconUrl: null,
-    transactionalFromEmail: null,
-    transactionalFromName: null,
-    transactionalReplyToEmail: null,
-    invitationEmailSubject: null,
-    invitationEmailHtml: null,
-  } satisfies typeof appsTable.$inferSelect;
+  const template = TEST_FALLBACK_APP_TEMPLATES[normalizedSlug];
+  if (!template) return null;
+  return buildCanonicalTestFallbackApp(normalizedSlug, template);
 }
 
 type GetAppBySlugOptions = {
