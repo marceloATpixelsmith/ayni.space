@@ -11,6 +11,27 @@ process.env["GOOGLE_CLIENT_SECRET"] = "test-secret";
 process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/callback";
 process.env["APP_SLUG_BY_ORIGIN"] = "http://localhost:5173=workspace";
 
+
+const BASELINE_ENV_KEYS = [
+  "ALLOWED_ORIGINS",
+  "ADMIN_FRONTEND_ORIGINS",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_REDIRECT_URI",
+  "APP_SLUG_BY_ORIGIN",
+  "TURNSTILE_ENABLED",
+] as const;
+const baselineEnv = new Map<string, string | undefined>(
+  BASELINE_ENV_KEYS.map((key) => [key, process.env[key]]),
+);
+
+test.after(() => {
+  for (const [key, value] of baselineEnv) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
 const { default: authRouter } = await import("../routes/auth.js");
 const sessionLib = await import("../lib/session.js");
 const { csrfProtection, csrfTokenEndpoint } = await import("../middlewares/csrf.js");
