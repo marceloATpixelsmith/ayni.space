@@ -1048,95 +1048,6 @@ async function handleLogout(req: Request, res: Response) {
 
 async function handleGoogleUrl(req: Request, res: Response) {
   logGoogleUrlBranch(req, "request_received");
-
-  if (isTurnstileEnabled() && !req.turnstileVerified) {
-    const turnstileToken = getTurnstileToken(req);
-    if (!turnstileToken) {
-      logGoogleUrlBranch(req, "turnstile_missing_token", {
-        turnstileVerificationPassed: false,
-      });
-      logAuthFailure(req, "google-url-turnstile-missing");
-      sendGoogleUrlError(
-        req,
-        res,
-        403,
-        AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-        "Please complete the verification challenge.",
-        "csrf_invalid",
-      );
-      return;
-    }
-
-    const turnstileResult = await verifyTurnstileTokenDetailed(
-      turnstileToken,
-      req.ip,
-    );
-    if (!turnstileResult.ok) {
-      logGoogleUrlBranch(req, "turnstile_verification_failed", {
-        reason: turnstileResult.reason,
-        turnstileVerificationPassed: false,
-      });
-      logAuthFailure(req, "google-url-turnstile-invalid");
-      await logTurnstileVerificationResult(req, turnstileResult);
-      if (turnstileResult.reason === "missing-token") {
-        sendGoogleUrlError(
-          req,
-          res,
-          403,
-          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-          "Please complete the verification challenge.",
-          "csrf_invalid",
-        );
-        return;
-      }
-      if (turnstileResult.reason === "missing-secret") {
-        sendGoogleUrlError(
-          req,
-          res,
-          400,
-          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-          "Security verification failed. Please try again.",
-          "csrf_invalid",
-        );
-        return;
-      }
-      if (turnstileResult.reason === "verification-error") {
-        sendGoogleUrlError(
-          req,
-          res,
-          400,
-          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-          "Security verification failed. Please try again.",
-          "csrf_invalid",
-        );
-        return;
-      }
-      if (turnstileResult.reason === "token-expired") {
-        sendGoogleUrlError(
-          req,
-          res,
-          403,
-          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-          "Verification expired. Please complete the challenge again.",
-          "csrf_invalid",
-        );
-        return;
-      }
-      sendGoogleUrlError(
-        req,
-        res,
-        403,
-        AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
-        "Security verification failed. Please try again.",
-        "csrf_invalid",
-      );
-      return;
-    }
-    logGoogleUrlBranch(req, "turnstile_verification_passed", {
-      turnstileVerificationPassed: true,
-    });
-  }
-
   const queryAppSlug =
     req.query?.appSlug ??
     req.query?.app_slug ??
@@ -1232,6 +1143,33 @@ async function handleGoogleUrl(req: Request, res: Response) {
     return;
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
+  if (isTurnstileEnabled() && !req.turnstileVerified) {
+    const turnstileToken = getTurnstileToken(req);
+    if (!turnstileToken) {
+      logGoogleUrlBranch(req, "turnstile_missing_token", {
+        turnstileVerificationPassed: false,
+      });
+      logAuthFailure(req, "google-url-turnstile-missing");
+      sendGoogleUrlError(req, res, 403, AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE, "Please complete the verification challenge.", "csrf_invalid");
+      return;
+    }
+    const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
+    if (!turnstileResult.ok) {
+      logGoogleUrlBranch(req, "turnstile_verification_failed", {
+        reason: turnstileResult.reason,
+        turnstileVerificationPassed: false,
+      });
+      logAuthFailure(req, "google-url-turnstile-invalid");
+      await logTurnstileVerificationResult(req, turnstileResult);
+      if (turnstileResult.reason === "missing-secret" || turnstileResult.reason === "verification-error") {
+        sendGoogleUrlError(req, res, 400, AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE, "Security verification failed. Please try again.", "csrf_invalid");
+        return;
+      }
+      sendGoogleUrlError(req, res, 403, AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE, turnstileResult.reason === "token-expired" ? "Verification expired. Please complete the challenge again." : "Please complete the verification challenge.", "csrf_invalid");
+      return;
+    }
+    logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
+  }
 
   const oauthSessionGroup = appContext.sessionGroup;
   const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
@@ -2374,7 +2312,8 @@ async function beginMfaPendingSession(
     security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt,
   );
   const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
-  const mustChallenge = (mfaRequired || needsStepUp || hasFactor) && !trusted;
+  const mustChallenge =
+    (mfaRequired || needsStepUp || hasFactor || factorStateReadFailed) && !trusted;
 
   if (!mustChallenge && !needsEnrollment) {
     logAuthDebug(req, "mfa_gate_result", {

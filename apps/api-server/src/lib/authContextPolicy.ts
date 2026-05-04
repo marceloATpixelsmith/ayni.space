@@ -14,6 +14,7 @@ export type AuthContextPolicy = {
 export type AuthContextFailureReason =
   | "app_slug_missing"
   | "app_not_found"
+  | "ORIGIN_NOT_ALLOWED"
   | "app_context_unavailable"
   | "invalid_access_mode"
   | "session_group_conflict"
@@ -157,53 +158,6 @@ export async function resolveAppContextForAuth(input: {
   const explicitAppSlug = bodyAppSlug ?? queryOrParamAppSlug;
 
 
-  // Explicit appSlug always takes precedence over origin- or session-derived candidates.
-  if (explicitAppSlug) {
-    {
-      const { app: resolvedApp, lookupError, usedTestFallback } =
-        await resolveCanonicalOrTestFallbackApp(explicitAppSlug);
-      if (!resolvedApp) {
-        return {
-          success: false,
-          ok: false,
-          errorCode: "app_not_found",
-          reason: "app_not_found",
-          details: {
-            resolvedAppSlug: explicitAppSlug,
-            attemptedAppSlugs: [explicitAppSlug],
-            ...(lookupError
-              ? {
-                  lookupError:
-                    lookupError instanceof Error
-                      ? lookupError.message
-                      : String(lookupError),
-                }
-              : {}),
-          },
-        };
-      }
-
-      const policy =
-        deriveAuthContextPolicy(resolvedApp) ?? {
-          accessMode: "organization" as const,
-          sessionGroup: resolveSessionGroupForApp(resolvedApp),
-          applyAdminPrivileges: false,
-        };
-
-      return {
-        success: true,
-        ok: true,
-        resolvedAppSlug: resolvedApp.slug,
-        appSlug: resolvedApp.slug,
-        sessionGroup: policy.sessionGroup,
-        policy,
-        app: resolvedApp,
-        canonicalAppResolved: !usedTestFallback,
-        explicitAppSlugProvided: true,
-        source: "request",
-      };
-    }
-  }
   const origin = input.origin ?? null;
   const originMappings = parseAppSlugByOriginEnv();
   let trustedOriginAppSlug: string | null = null;
@@ -224,23 +178,6 @@ export async function resolveAppContextForAuth(input: {
   }
 
   const originAppSlug = normalizeSlug(trustedOriginAppSlug ?? dbOriginAppSlug);
-  if (origin && !originAppSlug) {
-    return {
-      success: false,
-      ok: false,
-      errorCode: dbOriginLookupError ? "app_context_unavailable" : "app_slug_missing",
-      reason: dbOriginLookupError ? "app_context_unavailable" : "app_slug_missing",
-      details: dbOriginLookupError
-        ? {
-            origin,
-            lookupError:
-              dbOriginLookupError instanceof Error
-                ? dbOriginLookupError.message
-                : String(dbOriginLookupError),
-          }
-        : { origin },
-    };
-  }
 
   const fallbackSessionGroup =
     input.sessionGroup ??
@@ -249,7 +186,10 @@ export async function resolveAppContextForAuth(input: {
     resolveSessionGroupFromOrigin(origin);
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
-  const canonicalCandidateAppSlugs = [originAppSlug].filter((value): value is string => Boolean(value));
+  const canonicalCandidateAppSlugs = [
+    explicitAppSlug,
+    originAppSlug,
+  ].filter((value): value is string => Boolean(value));
   const fallbackCandidateAppSlugs = origin
     ? []
     : [normalizeSlug(sessionGroupFallbackAppSlug)].filter(
@@ -292,11 +232,13 @@ export async function resolveAppContextForAuth(input: {
   }
 
   if (!selectedCanonicalApp) {
+    const failedFromExplicitRequest = Boolean(explicitAppSlug);
+    const failedFromOrigin = !failedFromExplicitRequest && Boolean(origin);
     return {
       success: false,
       ok: false,
-      errorCode: "app_not_found",
-      reason: "app_not_found",
+      errorCode: failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      reason: failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
       details: {
         resolvedAppSlug,
         attemptedAppSlugs: orderedCandidateAppSlugs,
@@ -337,6 +279,7 @@ export async function resolveAppContextForAuth(input: {
 export function mapAuthContextFailureToAuthErrorCode(reason: AuthContextFailureReason): string {
   if (reason === "app_slug_missing") return "app_slug_missing";
   if (reason === "app_not_found") return "app_not_found";
+  if (reason === "ORIGIN_NOT_ALLOWED") return "ORIGIN_NOT_ALLOWED";
   if (reason === "admin_context_required") return "access_denied";
   return "app_context_unavailable";
 }
