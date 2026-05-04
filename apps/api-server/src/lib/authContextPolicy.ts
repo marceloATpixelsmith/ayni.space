@@ -228,8 +228,8 @@ export async function resolveAppContextForAuth(input: {
     return {
       success: false,
       ok: false,
-      errorCode: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
-      reason: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      errorCode: dbOriginLookupError ? "app_context_unavailable" : "app_slug_missing",
+      reason: dbOriginLookupError ? "app_context_unavailable" : "app_slug_missing",
       details: dbOriginLookupError
         ? {
             origin,

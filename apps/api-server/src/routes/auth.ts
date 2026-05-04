@@ -684,48 +684,38 @@ async function handleMe(req: Request, res: Response) {
     req.session.pendingUserId.trim().length > 0
       ? req.session.pendingUserId.trim()
       : null;
+  const sessionUserId =
+    typeof req.session.userId === "string" && req.session.userId.trim().length > 0
+      ? req.session.userId.trim()
+      : authenticatedUser.id;
   const mfaLookupUserIds = Array.from(
     new Set(
       [
         pendingMfaUserId,
-        authenticatedUser.id,
-        typeof req.session.userId === "string" &&
-        req.session.userId.trim().length > 0
-          ? req.session.userId.trim()
-          : null,
-      ].filter(
-        (value): value is string =>
-          typeof value === "string" && value.length > 0,
-      ),
+        sessionUserId,
+      ].filter((value): value is string => typeof value === "string" && value.length > 0),
     ),
   );
 
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
   let mfaStateUserId = mfaLookupUserIds[0] ?? authenticatedUser.id;
-  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> =
-    [];
+  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> = [];
   for (const candidateUserId of mfaLookupUserIds) {
     try {
       const candidateEnrolled = await hasActiveMfaFactor(candidateUserId);
-      mfaLookupResults.push({
-        userId: candidateUserId,
-        hasActiveFactor: candidateEnrolled,
-      });
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: candidateEnrolled });
       if (candidateEnrolled) {
         mfaEnrolled = true;
         mfaStateUserId = candidateUserId;
         break;
       }
-      if (!mfaEnrolled) {
-        mfaStateUserId = candidateUserId;
-      }
+      mfaStateUserId = candidateUserId;
     } catch {
       mfaStateReadFailed = true;
-      mfaLookupResults.push({
-        userId: candidateUserId,
-        hasActiveFactor: false,
-      });
+      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: false });
+      mfaStateUserId = candidateUserId;
+      break;
     }
   }
 
@@ -1069,7 +1059,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        400,
+        403,
         AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
         "Please complete the verification challenge.",
         "csrf_invalid",
@@ -1092,7 +1082,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          400,
+          403,
           AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Please complete the verification challenge.",
           "csrf_invalid",
@@ -1125,7 +1115,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          400,
+          403,
           AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Verification expired. Please complete the challenge again.",
           "csrf_invalid",
@@ -1135,7 +1125,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        400,
+        403,
         AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
         "Security verification failed. Please try again.",
         "csrf_invalid",
