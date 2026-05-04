@@ -292,6 +292,21 @@ function deriveAuthContextRequestOrigin(req: Request): string | null {
   return `${proto}://${host}`;
 }
 
+function isCanonicalLookupOutageMessage(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("econnrefused") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("etimedout") ||
+    normalized.includes("timeout") ||
+    normalized.includes("tls") ||
+    normalized.includes("ssl") ||
+    normalized.includes("connection") ||
+    normalized.includes("no pg_hba.conf entry")
+  );
+}
+
 function normalizeOptionalAppSlug(value: unknown): string | null {
   if (value == null) return null;
   const normalized = String(value).trim().toLowerCase();
@@ -1086,15 +1101,29 @@ async function handleGoogleUrl(req: Request, res: Response) {
       );
       return;
     }
-    const allowOriginFallback = false;
-    if (allowOriginFallback) {
-      logGoogleUrlBranch(req, "app_context_fallback_allowed", {
+    const failedSlug = normalizeOptionalAppSlug(
+      requestedAppSlug ??
+        (typeof appContext.details?.["resolvedAppSlug"] === "string"
+          ? appContext.details["resolvedAppSlug"]
+          : null),
+    );
+    const lookupErrorMessage =
+      typeof appContext.details?.["lookupError"] === "string"
+        ? appContext.details["lookupError"]
+        : null;
+    const shouldAttemptOutageFallback =
+      appContext.reason === "app_not_found" &&
+      isCanonicalLookupOutageMessage(lookupErrorMessage) &&
+      (failedSlug === "workspace" || failedSlug === "admin");
+    if (shouldAttemptOutageFallback) {
+      logGoogleUrlBranch(req, "app_context_outage_fallback_allowed", {
         requestOrigin: resolverOrigin,
         reason: appContext.reason,
+        failedSlug,
       });
       const fallbackAppContext = await resolveAppContextForAuth({
         req,
-        appSlug: null,
+        appSlug: failedSlug,
         origin: null,
         sessionGroup:
           req.resolvedSessionGroup ??
@@ -1820,11 +1849,21 @@ async function handleGoogleCallback(req: Request, res: Response) {
       .set({ lastLoginAt: new Date() })
       .where(eq(usersTable.id, user.id));
 
+    let factorRoutingHint: MfaFactorRoutingHint = "no_active_factor";
+    try {
+      factorRoutingHint = (await hasActiveMfaFactor(user.id))
+        ? "has_active_factor"
+        : "no_active_factor";
+    } catch {
+      factorRoutingHint = "lookup_failed";
+    }
+
     const oauthMfaGate = await beginMfaPendingSession(
       req,
       user.id,
       activeAppSlug,
       oauthStayLoggedIn,
+      factorRoutingHint,
     );
     const oauthContinuation = resolvePostAuthContinuation({
       appSlug: activeAppSlug,
@@ -2287,6 +2326,8 @@ async function establishPasswordSession(
   });
 }
 
+type MfaFactorRoutingHint = "has_active_factor" | "no_active_factor" | "lookup_failed";
+
 type MfaStartResult =
   | { required: false }
   | {
@@ -2301,18 +2342,21 @@ async function beginMfaPendingSession(
   userId: string,
   appSlug: string,
   stayLoggedIn: boolean,
+  factorRoutingHint?: MfaFactorRoutingHint,
 ): Promise<MfaStartResult> {
   ensureAuthFlowId(req);
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
   const effectiveUserId = userId;
-  let hasFactor = false;
-  let factorStateReadFailed = false;
-  try {
-    hasFactor = await hasActiveMfaFactor(effectiveUserId);
-  } catch {
-    factorStateReadFailed = true;
+  let hasFactor = factorRoutingHint === "has_active_factor";
+  let factorStateReadFailed = factorRoutingHint === "lookup_failed";
+  if (!factorRoutingHint) {
+    try {
+      hasFactor = await hasActiveMfaFactor(effectiveUserId);
+    } catch {
+      factorStateReadFailed = true;
+    }
   }
   const trustedCookieToken =
     getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
