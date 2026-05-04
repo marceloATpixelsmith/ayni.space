@@ -687,12 +687,12 @@ async function handleMe(req: Request, res: Response) {
   const mfaLookupUserIds = Array.from(
     new Set(
       [
-        pendingMfaUserId,
         authenticatedUser.id,
         typeof req.session.userId === "string" &&
         req.session.userId.trim().length > 0
           ? req.session.userId.trim()
           : null,
+        pendingMfaUserId,
       ].filter(
         (value): value is string =>
           typeof value === "string" && value.length > 0,
