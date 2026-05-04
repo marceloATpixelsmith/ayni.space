@@ -687,8 +687,17 @@ async function handleMe(req: Request, res: Response) {
       ? req.session.userId.trim()
       : authenticatedUser.id;
   const mfaLookupUserIds: string[] = [];
-  if (pendingMfaUserId) mfaLookupUserIds.push(pendingMfaUserId);
-  if (sessionUserId && sessionUserId !== pendingMfaUserId) {
+  if (authenticatedUser.id) {
+    mfaLookupUserIds.push(authenticatedUser.id);
+  }
+  if (pendingMfaUserId && pendingMfaUserId !== authenticatedUser.id) {
+    mfaLookupUserIds.push(pendingMfaUserId);
+  }
+  if (
+    sessionUserId &&
+    sessionUserId !== authenticatedUser.id &&
+    sessionUserId !== pendingMfaUserId
+  ) {
     mfaLookupUserIds.push(sessionUserId);
   }
 
