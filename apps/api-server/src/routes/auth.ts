@@ -1043,6 +1043,49 @@ async function handleLogout(req: Request, res: Response) {
 
 async function handleGoogleUrl(req: Request, res: Response) {
   logGoogleUrlBranch(req, "request_received");
+  if (isTurnstileEnabled() && !req.turnstileVerified) {
+    const turnstileToken = getTurnstileToken(req);
+    if (!turnstileToken) {
+      logGoogleUrlBranch(req, "turnstile_missing_token", {
+        turnstileVerificationPassed: false,
+      });
+      logAuthFailure(req, "google-url-turnstile-missing");
+      sendGoogleUrlError(
+        req,
+        res,
+        403,
+        "TURNSTILE_MISSING_TOKEN",
+        "Please complete the verification challenge.",
+        "turnstile_missing_token",
+      );
+      return;
+    }
+    const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
+    if (!turnstileResult.ok) {
+      logGoogleUrlBranch(req, "turnstile_verification_failed", {
+        reason: turnstileResult.reason,
+        turnstileVerificationPassed: false,
+      });
+      logAuthFailure(req, "google-url-turnstile-invalid");
+      await logTurnstileVerificationResult(req, turnstileResult);
+      if (turnstileResult.reason === "missing-secret") {
+        sendGoogleUrlError(req, res, 503, "TURNSTILE_MISCONFIGURED", "Security verification is currently unavailable. Please try again later.", "turnstile_misconfigured");
+        return;
+      }
+      if (turnstileResult.reason === "verification-error") {
+        sendGoogleUrlError(req, res, 503, "TURNSTILE_UNAVAILABLE", "Security verification is currently unavailable. Please try again later.", "turnstile_unavailable");
+        return;
+      }
+      if (turnstileResult.reason === "token-expired") {
+        sendGoogleUrlError(req, res, 403, "TURNSTILE_TOKEN_EXPIRED", "Verification expired. Please complete the challenge again.", "turnstile_token_expired");
+        return;
+      }
+      sendGoogleUrlError(req, res, 403, "TURNSTILE_INVALID_TOKEN", "Security verification failed. Please try again.", "turnstile_invalid_token");
+      return;
+    }
+    req.turnstileVerified = true;
+    logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
+  }
   const queryAppSlug =
     req.query?.appSlug ??
     req.query?.app_slug ??
@@ -1154,49 +1197,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
       "app_context_unavailable",
     );
     return;
-  }
-  if (isTurnstileEnabled() && !req.turnstileVerified) {
-    const turnstileToken = getTurnstileToken(req);
-    if (!turnstileToken) {
-      logGoogleUrlBranch(req, "turnstile_missing_token", {
-        turnstileVerificationPassed: false,
-      });
-      logAuthFailure(req, "google-url-turnstile-missing");
-      sendGoogleUrlError(
-        req,
-        res,
-        403,
-        "TURNSTILE_MISSING_TOKEN",
-        "Please complete the verification challenge.",
-        "turnstile_missing_token",
-      );
-      return;
-    }
-    const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
-    if (!turnstileResult.ok) {
-      logGoogleUrlBranch(req, "turnstile_verification_failed", {
-        reason: turnstileResult.reason,
-        turnstileVerificationPassed: false,
-      });
-      logAuthFailure(req, "google-url-turnstile-invalid");
-      await logTurnstileVerificationResult(req, turnstileResult);
-      if (turnstileResult.reason === "missing-secret") {
-        sendGoogleUrlError(req, res, 503, "TURNSTILE_MISCONFIGURED", "Security verification is currently unavailable. Please try again later.", "turnstile_misconfigured");
-        return;
-      }
-      if (turnstileResult.reason === "verification-error") {
-        sendGoogleUrlError(req, res, 503, "TURNSTILE_UNAVAILABLE", "Security verification is currently unavailable. Please try again later.", "turnstile_unavailable");
-        return;
-      }
-      if (turnstileResult.reason === "token-expired") {
-        sendGoogleUrlError(req, res, 403, "TURNSTILE_TOKEN_EXPIRED", "Verification expired. Please complete the challenge again.", "turnstile_token_expired");
-        return;
-      }
-      sendGoogleUrlError(req, res, 403, "TURNSTILE_INVALID_TOKEN", "Security verification failed. Please try again.", "turnstile_invalid_token");
-      return;
-    }
-    req.turnstileVerified = true;
-    logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
   const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
