@@ -139,10 +139,6 @@ export async function resolveAppContextForAuth(input: {
         allowOutageFallback: true,
       })) ?? null;
       if (canonicalApp) return { app: canonicalApp, lookupError: null, usedTestFallback: false };
-      const fallbackApp = getTestFallbackApp(appSlug);
-      if (fallbackApp) {
-        return { app: fallbackApp, lookupError: null, usedTestFallback: true };
-      }
       return { app: null, lookupError: null, usedTestFallback: false };
     } catch (error) {
       const fallbackApp = getTestFallbackApp(appSlug);
