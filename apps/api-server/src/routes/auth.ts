@@ -1079,15 +1079,14 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        403,
+        400,
         "ORIGIN_NOT_ALLOWED",
         "Origin is not allowed for this app.",
         "disallowed_origin",
       );
       return;
     }
-    const isDevOrTest = process.env["NODE_ENV"] !== "production";
-    const allowOriginFallback = !requestedAppSlug && isDevOrTest;
+    const allowOriginFallback = false;
     if (allowOriginFallback) {
       logGoogleUrlBranch(req, "app_context_fallback_allowed", {
         requestOrigin: resolverOrigin,
@@ -1106,7 +1105,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          403,
+          400,
           mapAuthContextFailureToAuthErrorCode(fallbackAppContext.reason),
           "App context is required to start OAuth.",
           fallbackAppContext.reason,
@@ -1130,7 +1129,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        requestedAppSlug ? 400 : 403,
+        400,
         mapAuthContextFailureToAuthErrorCode(appContext.reason),
         "App context is required to start OAuth.",
         appContext.reason,
@@ -2051,7 +2050,7 @@ async function resolveRequestedEmailPasswordAppContext(
   const origin =
     requestedAppSlug
       ? null
-      : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
+      : getRequestFrontendOrigin(req) ?? deriveAuthContextRequestOrigin(req) ?? null;
 
   if (!requestedAppSlug && origin && !isOriginAllowedForAuth(origin)) {
     return {
