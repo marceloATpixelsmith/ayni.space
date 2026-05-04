@@ -1061,22 +1061,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
-  if (
-    !requestedAppSlug &&
-    hasExplicitForwardedHost(req) &&
-    resolveSessionGroupFromOrigin(trustedRequestOrigin) === SESSION_GROUPS.ADMIN
-  ) {
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      AUTH_ERROR_CODES.APP_SLUG_MISSING,
-      "App context is required to start OAuth.",
-      "app_slug_missing",
-    );
-    return;
-  }
-  const appContext = await resolveAppContextForAuth({
+  let appContext = await resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
     origin: resolverOrigin,
@@ -1094,58 +1079,64 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        400,
+        403,
         "ORIGIN_NOT_ALLOWED",
         "Origin is not allowed for this app.",
         "disallowed_origin",
       );
       return;
     }
-    console.error("[auth/google/url] app context resolution failed", {
-      requestOrigin: resolverOrigin,
-      reason: appContext.reason,
-      details: appContext.details ?? null,
-      resolvedSessionGroup: req.resolvedSessionGroup ?? null,
-      originSessionGroup: resolveSessionGroupFromOrigin(resolverOrigin),
-      requestAppSlug: requestedAppSlug,
-    });
-    logAuthFailure(req, "google-url-app-context-failed", {
-      requestOrigin: resolverOrigin,
-      reason: appContext.reason,
-    });
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      mapAuthContextFailureToAuthErrorCode(appContext.reason),
-      "App context is required to start OAuth.",
-      appContext.reason,
-    );
-    return;
-  }
-  if (
-    appContext.policy.accessMode === "superadmin" &&
-    !appContext.explicitAppSlugProvided
-  ) {
-    logGoogleUrlBranch(req, "admin_app_slug_required", {
-      requestedAppSlug,
-      source: appContext.source,
-      resolvedAppSlug: appContext.resolvedAppSlug,
-    });
-    logAuthFailure(req, "google-url-admin-app-slug-required", {
-      requestedAppSlug,
-      source: appContext.source,
-      resolvedAppSlug: appContext.resolvedAppSlug,
-    });
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      AUTH_ERROR_CODES.APP_SLUG_MISSING,
-      "App context is required to start OAuth.",
-      "admin_context_required",
-    );
-    return;
+    const isDevOrTest = process.env["NODE_ENV"] !== "production";
+    const allowOriginFallback = !requestedAppSlug && isDevOrTest;
+    if (allowOriginFallback) {
+      logGoogleUrlBranch(req, "app_context_fallback_allowed", {
+        requestOrigin: resolverOrigin,
+        reason: appContext.reason,
+      });
+      const fallbackAppContext = await resolveAppContextForAuth({
+        req,
+        appSlug: null,
+        origin: null,
+        sessionGroup:
+          req.resolvedSessionGroup ??
+          req.session?.sessionGroup ??
+          resolveSessionGroupFromOrigin(trustedRequestOrigin),
+      });
+      if (!fallbackAppContext.success) {
+        sendGoogleUrlError(
+          req,
+          res,
+          403,
+          mapAuthContextFailureToAuthErrorCode(fallbackAppContext.reason),
+          "App context is required to start OAuth.",
+          fallbackAppContext.reason,
+        );
+        return;
+      }
+      appContext = fallbackAppContext;
+    } else {
+      console.error("[auth/google/url] app context resolution failed", {
+        requestOrigin: resolverOrigin,
+        reason: appContext.reason,
+        details: appContext.details ?? null,
+        resolvedSessionGroup: req.resolvedSessionGroup ?? null,
+        originSessionGroup: resolveSessionGroupFromOrigin(resolverOrigin),
+        requestAppSlug: requestedAppSlug,
+      });
+      logAuthFailure(req, "google-url-app-context-failed", {
+        requestOrigin: resolverOrigin,
+        reason: appContext.reason,
+      });
+      sendGoogleUrlError(
+        req,
+        res,
+        requestedAppSlug ? 400 : 403,
+        mapAuthContextFailureToAuthErrorCode(appContext.reason),
+        "App context is required to start OAuth.",
+        appContext.reason,
+      );
+      return;
+    }
   }
   const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
   const oauthSessionGroup = appContext.sessionGroup;
