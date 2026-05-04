@@ -1050,17 +1050,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
   const requestedAppSlug =
     normalizeOptionalAppSlug(queryAppSlug) ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
-  if (!requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin)) {
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      "ORIGIN_NOT_ALLOWED",
-      "Origin is not allowed for this app.",
-      "disallowed_origin",
-    );
-    return;
-  }
+  const explicitOriginDisallowed =
+    !requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin);
   const trustedRequestOrigin =
     explicitOrigin ??
     getRequestFrontendOrigin(req) ??
@@ -1091,6 +1082,21 @@ async function handleGoogleUrl(req: Request, res: Response) {
       resolveSessionGroupFromOrigin(trustedRequestOrigin),
   });
   if (!appContext.success) {
+    if (explicitOriginDisallowed) {
+      logGoogleUrlBranch(req, "disallowed_origin", {
+        explicitOrigin,
+        reason: appContext.reason,
+      });
+      sendGoogleUrlError(
+        req,
+        res,
+        400,
+        "ORIGIN_NOT_ALLOWED",
+        "Origin is not allowed for this app.",
+        "disallowed_origin",
+      );
+      return;
+    }
     console.error("[auth/google/url] app context resolution failed", {
       requestOrigin: resolverOrigin,
       reason: appContext.reason,
