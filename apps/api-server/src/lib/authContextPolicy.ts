@@ -233,12 +233,14 @@ export async function resolveAppContextForAuth(input: {
 
   if (!selectedCanonicalApp) {
     const failedFromExplicitRequest = Boolean(explicitAppSlug);
-    const failedFromOrigin = !failedFromExplicitRequest && Boolean(origin);
+    const failedFromOrigin = !failedFromExplicitRequest && Boolean(originAppSlug);
     return {
       success: false,
       ok: false,
-      errorCode: failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
-      reason: failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      errorCode:
+        failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      reason:
+        failedFromOrigin && dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
       details: {
         resolvedAppSlug,
         attemptedAppSlugs: orderedCandidateAppSlugs,
