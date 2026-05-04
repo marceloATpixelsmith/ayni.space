@@ -208,6 +208,7 @@ export async function resolveAppContextForAuth(input: {
   const originMappings = parseAppSlugByOriginEnv();
   let trustedOriginAppSlug: string | null = null;
   let dbOriginAppSlug: string | null = null;
+  let dbOriginLookupError: unknown = null;
   if (origin) {
     try {
       trustedOriginAppSlug = originMappings.get(new URL(origin).origin) ?? null;
@@ -216,12 +217,30 @@ export async function resolveAppContextForAuth(input: {
     }
     try {
       dbOriginAppSlug = await getAppSlugByOrigin(origin);
-    } catch {
+    } catch (error) {
       dbOriginAppSlug = null;
+      dbOriginLookupError = error;
     }
   }
 
   const originAppSlug = normalizeSlug(trustedOriginAppSlug ?? dbOriginAppSlug);
+  if (origin && !originAppSlug) {
+    return {
+      success: false,
+      ok: false,
+      errorCode: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      reason: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      details: dbOriginLookupError
+        ? {
+            origin,
+            lookupError:
+              dbOriginLookupError instanceof Error
+                ? dbOriginLookupError.message
+                : String(dbOriginLookupError),
+          }
+        : { origin },
+    };
+  }
 
   const fallbackSessionGroup =
     input.sessionGroup ??
@@ -231,7 +250,9 @@ export async function resolveAppContextForAuth(input: {
   const sessionGroupFallbackAppSlug = getSessionGroupFallbackAppSlug(fallbackSessionGroup);
 
   const canonicalCandidateAppSlugs = [originAppSlug].filter((value): value is string => Boolean(value));
-  const fallbackCandidateAppSlugs = [normalizeSlug(sessionGroupFallbackAppSlug)].filter(
+  const fallbackCandidateAppSlugs = origin
+    ? []
+    : [normalizeSlug(sessionGroupFallbackAppSlug)].filter(
     (value): value is string => Boolean(value),
   );
   const candidateAppSlugs = [...canonicalCandidateAppSlugs, ...fallbackCandidateAppSlugs];
