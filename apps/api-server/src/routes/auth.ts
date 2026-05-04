@@ -1090,7 +1090,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       requestedAppSlug ??
         (typeof appContext.details?.["resolvedAppSlug"] === "string"
           ? appContext.details["resolvedAppSlug"]
-          : appContext.resolvedAppSlug ?? null),
+          : null),
     );
     const lookupErrorMessage =
       typeof appContext.details?.["lookupError"] === "string"
@@ -1100,26 +1100,26 @@ async function handleGoogleUrl(req: Request, res: Response) {
       failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
     const fallbackValidFromResolver =
       Boolean(fallbackEligibleSlug) &&
-      ((appContext.app != null && appContext.reason === "app_context_unavailable") ||
+      (appContext.reason === "app_context_unavailable" ||
         isCanonicalLookupOutageMessage(lookupErrorMessage));
 
-    if (fallbackValidFromResolver) {
-      logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
-        reason: appContext.reason,
-        failedSlug,
-      });
-      appContext = {
-        success: true,
-        app: appContext.app ?? null,
-        resolvedAppSlug: fallbackEligibleSlug,
-        origin: appContext.origin ?? resolverOrigin,
-        source: appContext.source,
+    if (fallbackValidFromResolver && fallbackEligibleSlug) {
+      const fallbackAppContext = await resolveAppContextForAuth({
+        req,
+        appSlug: fallbackEligibleSlug,
+        origin: null,
         sessionGroup:
-          appContext.sessionGroup ??
           req.resolvedSessionGroup ??
           req.session?.sessionGroup ??
           resolveSessionGroupFromOrigin(trustedRequestOrigin),
-      };
+      });
+      if (fallbackAppContext.success) {
+        logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
+          reason: appContext.reason,
+          failedSlug,
+        });
+        appContext = fallbackAppContext;
+      }
     }
   }
   if (!appContext.success) {
@@ -1142,7 +1142,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       requestedAppSlug ??
         (typeof appContext.details?.["resolvedAppSlug"] === "string"
           ? appContext.details["resolvedAppSlug"]
-          : appContext.resolvedAppSlug ?? null),
+          : null),
     );
     const lookupErrorMessage =
       typeof appContext.details?.["lookupError"] === "string"
