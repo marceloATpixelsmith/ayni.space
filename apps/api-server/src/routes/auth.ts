@@ -1220,7 +1220,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req,
       res,
       400,
-      AUTH_ERROR_CODES.APP_NOT_FOUND,
+      AUTH_ERROR_CODES.APP_SLUG_MISSING,
       "App context is required to start OAuth.",
       "admin_context_required",
     );

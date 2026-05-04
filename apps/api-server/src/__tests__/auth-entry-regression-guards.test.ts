@@ -18,6 +18,27 @@ process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/call
 process.env["APP_SLUG_BY_ORIGIN"] = "http://workspace.local=workspace,http://admin.local=admin";
 process.env["TURNSTILE_ENABLED"] = "false";
 
+
+const BASELINE_ENV_KEYS = [
+  "ALLOWED_ORIGINS",
+  "ADMIN_FRONTEND_ORIGINS",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_REDIRECT_URI",
+  "APP_SLUG_BY_ORIGIN",
+  "TURNSTILE_ENABLED",
+] as const;
+const baselineEnv = new Map<string, string | undefined>(
+  BASELINE_ENV_KEYS.map((key) => [key, process.env[key]]),
+);
+
+test.after(() => {
+  for (const [key, value] of baselineEnv) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
+
 const { default: authRouter } = await import("../routes/auth.js");
 const { db } = await import("@workspace/db");
 
