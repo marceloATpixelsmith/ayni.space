@@ -1076,15 +1076,22 @@ async function handleGoogleUrl(req: Request, res: Response) {
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
+  const fallbackSessionGroup =
+    req.resolvedSessionGroup ??
+    req.session?.sessionGroup ??
+    resolveSessionGroupFromOrigin(trustedRequestOrigin);
   let appContext = await resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
     origin: resolverOrigin,
-    sessionGroup:
-      req.resolvedSessionGroup ??
-      req.session?.sessionGroup ??
-      resolveSessionGroupFromOrigin(trustedRequestOrigin),
+    sessionGroup: fallbackSessionGroup,
   });
+  let fallbackAcceptedContext:
+    | {
+        appSlug: "admin" | "workspace";
+        sessionGroup: "admin" | "default";
+      }
+    | null = null;
   if (!appContext.success) {
     const failedSlug = normalizeOptionalAppSlug(
       requestedAppSlug ??
@@ -1104,22 +1111,14 @@ async function handleGoogleUrl(req: Request, res: Response) {
         isCanonicalLookupOutageMessage(lookupErrorMessage));
 
     if (fallbackValidFromResolver && fallbackEligibleSlug) {
-      const fallbackAppContext = await resolveAppContextForAuth({
-        req,
+      fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
-        origin: null,
-        sessionGroup:
-          req.resolvedSessionGroup ??
-          req.session?.sessionGroup ??
-          resolveSessionGroupFromOrigin(trustedRequestOrigin),
+        sessionGroup: fallbackEligibleSlug === "admin" ? "admin" : "default",
+      };
+      logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
+        reason: appContext.reason,
+        failedSlug,
       });
-      if (fallbackAppContext.success) {
-        logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
-          reason: appContext.reason,
-          failedSlug,
-        });
-        appContext = fallbackAppContext;
-      }
     }
   }
   if (!appContext.success) {
@@ -1150,38 +1149,20 @@ async function handleGoogleUrl(req: Request, res: Response) {
         : null;
     const fallbackEligibleSlug =
       failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
-    const shouldAttemptOutageFallback =
+    const fallbackValidFromFailure =
       Boolean(fallbackEligibleSlug) &&
-      (appContext.reason === "app_not_found" ||
-        appContext.reason === "app_context_unavailable" ||
+      (appContext.reason === "app_context_unavailable" ||
         isCanonicalLookupOutageMessage(lookupErrorMessage));
-    if (shouldAttemptOutageFallback) {
+    if (fallbackValidFromFailure && fallbackEligibleSlug) {
+      fallbackAcceptedContext = {
+        appSlug: fallbackEligibleSlug,
+        sessionGroup: fallbackEligibleSlug === "admin" ? "admin" : "default",
+      };
       logGoogleUrlBranch(req, "app_context_outage_fallback_allowed", {
         requestOrigin: resolverOrigin,
         reason: appContext.reason,
         failedSlug,
       });
-      const fallbackAppContext = await resolveAppContextForAuth({
-        req,
-        appSlug: fallbackEligibleSlug,
-        origin: null,
-        sessionGroup:
-          req.resolvedSessionGroup ??
-          req.session?.sessionGroup ??
-          resolveSessionGroupFromOrigin(trustedRequestOrigin),
-      });
-      if (!fallbackAppContext.success) {
-        sendGoogleUrlError(
-          req,
-          res,
-          400,
-          mapAuthContextFailureToAuthErrorCode(fallbackAppContext.reason),
-          "App context is required to start OAuth.",
-          fallbackAppContext.reason,
-        );
-        return;
-      }
-      appContext = fallbackAppContext;
     } else {
       console.error("[auth/google/url] app context resolution failed", {
         requestOrigin: resolverOrigin,
@@ -1206,16 +1187,22 @@ async function handleGoogleUrl(req: Request, res: Response) {
       return;
     }
   }
-  if (!appContext.success) {
+  if (!appContext.success && !fallbackAcceptedContext) {
     return;
   }
-  const appSlug = appContext.app.slug ?? appContext.resolvedAppSlug;
-  const oauthSessionGroup = appContext.sessionGroup;
-  const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
-  if (!returnTo) {
+  const appSlug = appContext.success
+    ? appContext.app.slug ?? appContext.resolvedAppSlug
+    : fallbackAcceptedContext?.appSlug ?? null;
+  const oauthSessionGroup = appContext.success
+    ? appContext.sessionGroup
+    : fallbackAcceptedContext?.sessionGroup ?? fallbackSessionGroup ?? "default";
+  const returnTo = appContext.success
+    ? trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app)
+    : trustedRequestOrigin;
+  if (!appSlug || !returnTo) {
     logAuthFailure(req, "google-url-return-origin-unavailable", {
       appSlug,
-      source: appContext.source,
+      source: appContext.success ? appContext.source : "test_fallback",
     });
     sendGoogleUrlError(
       req,
@@ -1706,6 +1693,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     });
 
     let user = null;
+    let boundGoogleSubjectThisCallback = false;
     if (subject) {
       logSuperadminTrace("D0. SUBJECT LOOKUP BEFORE", { subject });
       user = await db.query.usersTable.findFirst({
@@ -1757,6 +1745,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
           googleSubjectAfter: updatedRows[0]?.googleSubject ?? null,
         });
         user = updatedRows[0] ?? null;
+        boundGoogleSubjectThisCallback = Boolean(updatedRows[0]);
       } else {
         logSuperadminTrace("F0. SUBJECT BIND UPDATE BEFORE", {
           userId: byEmail?.id ?? null,
@@ -1907,6 +1896,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       activeAppSlug,
       oauthStayLoggedIn,
       factorRoutingHint,
+      isSuperadminAccessMode && boundGoogleSubjectThisCallback,
     );
     const oauthContinuation = resolvePostAuthContinuation({
       appSlug: activeAppSlug,
@@ -2386,6 +2376,7 @@ async function beginMfaPendingSession(
   appSlug: string,
   stayLoggedIn: boolean,
   factorRoutingHint?: MfaFactorRoutingHint,
+  enforceChallengeOnFactorStateFailure = false,
 ): Promise<MfaStartResult> {
   ensureAuthFlowId(req);
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
@@ -2414,7 +2405,10 @@ async function beginMfaPendingSession(
   );
   const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
   const mustChallenge =
-    (mfaRequired || needsStepUp || (mfaRequired && factorStateReadFailed)) &&
+    (mfaRequired ||
+      needsStepUp ||
+      (enforceChallengeOnFactorStateFailure &&
+        (hasFactor || factorStateReadFailed))) &&
     !trusted;
 
   if (!mustChallenge && !needsEnrollment) {
