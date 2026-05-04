@@ -1070,7 +1070,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         req,
         res,
         400,
-        AUTH_ERROR_CODES.CSRF_INVALID,
+        AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
         "Please complete the verification challenge.",
         "csrf_invalid",
       );
@@ -1093,7 +1093,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
           req,
           res,
           400,
-          AUTH_ERROR_CODES.CSRF_INVALID,
+          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Please complete the verification challenge.",
           "csrf_invalid",
         );
@@ -1104,7 +1104,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
           req,
           res,
           400,
-          AUTH_ERROR_CODES.CSRF_INVALID,
+          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Security verification failed. Please try again.",
           "csrf_invalid",
         );
@@ -1115,7 +1115,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
           req,
           res,
           400,
-          AUTH_ERROR_CODES.CSRF_INVALID,
+          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Security verification failed. Please try again.",
           "csrf_invalid",
         );
@@ -1126,7 +1126,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
           req,
           res,
           400,
-          AUTH_ERROR_CODES.CSRF_INVALID,
+          AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
           "Verification expired. Please complete the challenge again.",
           "csrf_invalid",
         );
@@ -1136,7 +1136,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         req,
         res,
         400,
-        AUTH_ERROR_CODES.CSRF_INVALID,
+        AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
         "Security verification failed. Please try again.",
         "csrf_invalid",
       );
@@ -1159,7 +1159,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req,
       res,
       400,
-      AUTH_ERROR_CODES.DISALLOWED_ORIGIN,
+      "ORIGIN_NOT_ALLOWED",
       "Origin is not allowed for this app.",
       "disallowed_origin",
     );
