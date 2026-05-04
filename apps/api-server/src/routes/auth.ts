@@ -674,28 +674,23 @@ async function handleMe(req: Request, res: Response) {
     return;
   }
 
-  const hasPendingMfaSession = Boolean(
-    req.session.pendingUserId || req.session.pendingMfaReason,
-  );
-
   const pendingMfaUserId =
-    hasPendingMfaSession &&
     typeof req.session.pendingUserId === "string" &&
     req.session.pendingUserId.trim().length > 0
       ? req.session.pendingUserId.trim()
       : null;
+  const hasPendingMfaSession = Boolean(
+    pendingMfaUserId || req.session.pendingMfaReason,
+  );
   const sessionUserId =
     typeof req.session.userId === "string" && req.session.userId.trim().length > 0
       ? req.session.userId.trim()
       : authenticatedUser.id;
-  const mfaLookupUserIds = Array.from(
-    new Set(
-      [
-        pendingMfaUserId,
-        sessionUserId,
-      ].filter((value): value is string => typeof value === "string" && value.length > 0),
-    ),
-  );
+  const mfaLookupUserIds: string[] = [];
+  if (pendingMfaUserId) mfaLookupUserIds.push(pendingMfaUserId);
+  if (sessionUserId && sessionUserId !== pendingMfaUserId) {
+    mfaLookupUserIds.push(sessionUserId);
+  }
 
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
