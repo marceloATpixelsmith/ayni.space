@@ -687,19 +687,14 @@ async function handleMe(req: Request, res: Response) {
       ? req.session.userId.trim()
       : authenticatedUser.id;
   const mfaLookupUserIds: string[] = [];
-  if (authenticatedUser.id) {
-    mfaLookupUserIds.push(authenticatedUser.id);
-  }
-  if (pendingMfaUserId && pendingMfaUserId !== authenticatedUser.id) {
-    mfaLookupUserIds.push(pendingMfaUserId);
-  }
-  if (
-    sessionUserId &&
-    sessionUserId !== authenticatedUser.id &&
-    sessionUserId !== pendingMfaUserId
-  ) {
-    mfaLookupUserIds.push(sessionUserId);
-  }
+  const appendMfaLookupUserId = (candidate: string | null | undefined) => {
+    if (!candidate) return;
+    if (mfaLookupUserIds.includes(candidate)) return;
+    mfaLookupUserIds.push(candidate);
+  };
+  appendMfaLookupUserId(pendingMfaUserId);
+  appendMfaLookupUserId(authenticatedUser.id);
+  appendMfaLookupUserId(sessionUserId);
 
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
