@@ -2368,11 +2368,7 @@ async function beginMfaPendingSession(
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
-  const effectiveUserId =
-    typeof req.session.pendingUserId === "string" &&
-    req.session.pendingUserId.trim().length > 0
-      ? req.session.pendingUserId.trim()
-      : userId;
+  const effectiveUserId = userId;
   let hasFactor = false;
   let factorStateReadFailed = false;
   try {
