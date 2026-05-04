@@ -1169,17 +1169,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
     explicitOrigin ??
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
-  if (!requestedAppSlug && hasExplicitForwardedHost(req)) {
-    sendGoogleUrlError(
-      req,
-      res,
-      400,
-      "app_slug_missing",
-      "App context is required to start OAuth.",
-      "app_slug_missing",
-    );
-    return;
-  }
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
   const appContext = await resolveAppContextForAuth({
     req,
@@ -2109,13 +2098,6 @@ async function resolveRequestedEmailPasswordAppContext(
     requestedAppSlug
       ? null
       : deriveAuthContextRequestOrigin(req) ?? getRequestFrontendOrigin(req) ?? null;
-
-  if (!requestedAppSlug && hasExplicitForwardedHost(req)) {
-    return {
-      success: false as const,
-      reason: "app_slug_missing",
-    };
-  }
 
   if (!requestedAppSlug && origin && !isOriginAllowedForAuth(origin)) {
     return {
@@ -3195,7 +3177,7 @@ async function handleVerifyEmail(req: Request, res: Response) {
 
 async function handleMfaEnrollStart(req: Request, res: Response) {
   ensureAuthFlowId(req);
-  const userId = req.session.userId ?? req.session.pendingUserId;
+  const userId = req.session.pendingUserId ?? req.session.userId;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -3285,7 +3267,7 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
 
 async function handleMfaEnrollVerify(req: Request, res: Response) {
   ensureAuthFlowId(req);
-  const userId = req.session.userId ?? req.session.pendingUserId;
+  const userId = req.session.pendingUserId ?? req.session.userId;
   const factorId = String(req.body?.factorId ?? "").trim();
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
