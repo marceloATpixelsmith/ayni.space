@@ -1069,10 +1069,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
       sendGoogleUrlError(
         req,
         res,
-        403,
-        "TURNSTILE_MISSING_TOKEN",
+        400,
+        AUTH_ERROR_CODES.CSRF_INVALID,
         "Please complete the verification challenge.",
-        "turnstile_missing_token",
+        "csrf_invalid",
       );
       return;
     }
@@ -1092,10 +1092,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          403,
-          "TURNSTILE_MISSING_TOKEN",
+          400,
+          AUTH_ERROR_CODES.CSRF_INVALID,
           "Please complete the verification challenge.",
-          "turnstile_missing_token",
+          "csrf_invalid",
         );
         return;
       }
@@ -1103,10 +1103,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          500,
-          "TURNSTILE_MISCONFIGURED",
-          "Turnstile verification is misconfigured. Please contact support.",
-          "turnstile_misconfigured",
+          400,
+          AUTH_ERROR_CODES.CSRF_INVALID,
+          "Security verification failed. Please try again.",
+          "csrf_invalid",
         );
         return;
       }
@@ -1114,10 +1114,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          503,
-          "TURNSTILE_UNAVAILABLE",
-          "Verification service is temporarily unavailable. Please try again.",
-          "turnstile_unavailable",
+          400,
+          AUTH_ERROR_CODES.CSRF_INVALID,
+          "Security verification failed. Please try again.",
+          "csrf_invalid",
         );
         return;
       }
@@ -1125,20 +1125,20 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sendGoogleUrlError(
           req,
           res,
-          403,
-          "TURNSTILE_TOKEN_EXPIRED",
+          400,
+          AUTH_ERROR_CODES.CSRF_INVALID,
           "Verification expired. Please complete the challenge again.",
-          "turnstile_token_expired",
+          "csrf_invalid",
         );
         return;
       }
       sendGoogleUrlError(
         req,
         res,
-        403,
-        "TURNSTILE_INVALID_TOKEN",
+        400,
+        AUTH_ERROR_CODES.CSRF_INVALID,
         "Security verification failed. Please try again.",
-        "turnstile_invalid_token",
+        "csrf_invalid",
       );
       return;
     }
@@ -1159,9 +1159,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
       req,
       res,
       400,
-      "ORIGIN_NOT_ALLOWED",
+      AUTH_ERROR_CODES.DISALLOWED_ORIGIN,
       "Origin is not allowed for this app.",
-      "origin_not_allowed",
+      "disallowed_origin",
     );
     return;
   }
@@ -1276,10 +1276,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sendGoogleUrlError(
       req,
       res,
-      500,
-      "OAUTH_CONFIG_MISSING",
+      400,
+      AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
       "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
-      "oauth_config_missing",
+      "app_context_unavailable",
       { configValidationPassed: false, ...configValidation },
     );
     return;
@@ -1292,10 +1292,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sendGoogleUrlError(
       req,
       res,
-      500,
-      "OAUTH_CONFIG_MISSING",
+      400,
+      AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
       "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
-      "oauth_config_missing",
+      "app_context_unavailable",
       { configValidationPassed: false },
     );
     return;
@@ -1305,10 +1305,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sendGoogleUrlError(
       req,
       res,
-      500,
-      "OAUTH_URL_INVALID",
+      400,
+      AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE,
       "Google OAuth URL generation failed.",
-      "oauth_url_generation_failed",
+      "app_context_unavailable",
     );
     return;
   }
@@ -2368,7 +2368,7 @@ async function beginMfaPendingSession(
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
-  const pendingUserId =
+  const effectiveUserId =
     typeof req.session.pendingUserId === "string" &&
     req.session.pendingUserId.trim().length > 0
       ? req.session.pendingUserId.trim()
@@ -2376,7 +2376,7 @@ async function beginMfaPendingSession(
   let hasFactor = false;
   let factorStateReadFailed = false;
   try {
-    hasFactor = await hasActiveMfaFactor(pendingUserId);
+    hasFactor = await hasActiveMfaFactor(effectiveUserId);
   } catch {
     factorStateReadFailed = true;
   }
@@ -2393,7 +2393,7 @@ async function beginMfaPendingSession(
   if (!mustChallenge && !needsEnrollment) {
     logAuthDebug(req, "mfa_gate_result", {
       userId,
-      pendingUserId,
+      pendingUserId: effectiveUserId,
       appSlug,
       required: false,
       mfaRequired,
@@ -2438,7 +2438,7 @@ async function beginMfaPendingSession(
 
   logAuthDebug(req, "mfa_gate_result", {
     userId,
-    pendingUserId,
+    pendingUserId: effectiveUserId,
     appSlug,
     required: true,
     mfaRequired,
