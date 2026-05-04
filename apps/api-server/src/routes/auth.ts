@@ -1111,10 +1111,13 @@ async function handleGoogleUrl(req: Request, res: Response) {
       typeof appContext.details?.["lookupError"] === "string"
         ? appContext.details["lookupError"]
         : null;
+    const fallbackEligibleSlug =
+      failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
     const shouldAttemptOutageFallback =
-      appContext.reason === "app_not_found" &&
-      isCanonicalLookupOutageMessage(lookupErrorMessage) &&
-      (failedSlug === "workspace" || failedSlug === "admin");
+      Boolean(fallbackEligibleSlug) &&
+      (appContext.reason === "app_not_found" ||
+        appContext.reason === "app_context_unavailable" ||
+        isCanonicalLookupOutageMessage(lookupErrorMessage));
     if (shouldAttemptOutageFallback) {
       logGoogleUrlBranch(req, "app_context_outage_fallback_allowed", {
         requestOrigin: resolverOrigin,
@@ -1123,7 +1126,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
       });
       const fallbackAppContext = await resolveAppContextForAuth({
         req,
-        appSlug: failedSlug,
+        appSlug: fallbackEligibleSlug,
         origin: null,
         sessionGroup:
           req.resolvedSessionGroup ??
@@ -2349,14 +2352,12 @@ async function beginMfaPendingSession(
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
   const effectiveUserId = userId;
-  let hasFactor = factorRoutingHint === "has_active_factor";
-  let factorStateReadFailed = factorRoutingHint === "lookup_failed";
-  if (!factorRoutingHint) {
-    try {
-      hasFactor = await hasActiveMfaFactor(effectiveUserId);
-    } catch {
-      factorStateReadFailed = true;
-    }
+  let hasFactor = false;
+  let factorStateReadFailed = false;
+  try {
+    hasFactor = await hasActiveMfaFactor(effectiveUserId);
+  } catch {
+    factorStateReadFailed = true;
   }
   const trustedCookieToken =
     getCookieValue(req, getTrustedDeviceCookieName()) ?? undefined;
@@ -2381,6 +2382,7 @@ async function beginMfaPendingSession(
       trustedDevice: trusted,
       hasFactor,
       factorStateReadFailed,
+      factorRoutingHintUsed: factorRoutingHint ?? null,
     });
     return { required: false };
   }
