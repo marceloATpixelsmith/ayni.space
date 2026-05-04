@@ -2,7 +2,7 @@ import type { Request } from "express";
 import type { App } from "@workspace/db";
 import { getAppBySlug, getAppSlugByOrigin, getTestFallbackApp } from "./appAccess.js";
 import { resolveNormalizedAccessProfile, type NormalizedAccessProfile } from "./appAccessProfile.js";
-import { resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
+import { getAllowedOrigins, resolveSessionGroupFromOrigin, SESSION_GROUPS } from "./sessionGroup.js";
 import { resolveSessionGroupForApp } from "./sessionGroupCompatibility.js";
 
 export type AuthContextPolicy = {
@@ -15,6 +15,7 @@ export type AuthContextFailureReason =
   | "app_slug_missing"
   | "app_not_found"
   | "app_context_unavailable"
+  | "ORIGIN_NOT_ALLOWED"
   | "invalid_access_mode"
   | "session_group_conflict"
   | "admin_context_required";
@@ -163,11 +164,14 @@ export async function resolveAppContextForAuth(input: {
       const { app: resolvedApp, lookupError, usedTestFallback } =
         await resolveCanonicalOrTestFallbackApp(explicitAppSlug);
       if (!resolvedApp) {
+        const failureCode: AuthContextFailureReason = lookupError
+          ? "app_context_unavailable"
+          : "app_not_found";
         return {
           success: false,
           ok: false,
-          errorCode: "app_not_found",
-          reason: "app_not_found",
+          errorCode: failureCode,
+          reason: failureCode,
           details: {
             resolvedAppSlug: explicitAppSlug,
             attemptedAppSlugs: [explicitAppSlug],
@@ -205,6 +209,30 @@ export async function resolveAppContextForAuth(input: {
     }
   }
   const origin = input.origin ?? null;
+
+  if (origin) {
+    try {
+      const normalizedOrigin = new URL(origin).origin;
+      if (!getAllowedOrigins().includes(normalizedOrigin)) {
+        return {
+          success: false,
+          ok: false,
+          errorCode: "ORIGIN_NOT_ALLOWED",
+          reason: "ORIGIN_NOT_ALLOWED",
+          details: { origin: normalizedOrigin },
+        };
+      }
+    } catch {
+      return {
+        success: false,
+        ok: false,
+        errorCode: "ORIGIN_NOT_ALLOWED",
+        reason: "ORIGIN_NOT_ALLOWED",
+        details: { origin },
+      };
+    }
+  }
+
   const originMappings = parseAppSlugByOriginEnv();
   let trustedOriginAppSlug: string | null = null;
   let dbOriginAppSlug: string | null = null;
@@ -228,8 +256,8 @@ export async function resolveAppContextForAuth(input: {
     return {
       success: false,
       ok: false,
-      errorCode: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
-      reason: dbOriginLookupError ? "app_context_unavailable" : "app_not_found",
+      errorCode: dbOriginLookupError ? "app_context_unavailable" : "ORIGIN_NOT_ALLOWED",
+      reason: dbOriginLookupError ? "app_context_unavailable" : "ORIGIN_NOT_ALLOWED",
       details: dbOriginLookupError
         ? {
             origin,
@@ -292,11 +320,14 @@ export async function resolveAppContextForAuth(input: {
   }
 
   if (!selectedCanonicalApp) {
+    const failureCode: AuthContextFailureReason = lastLookupError
+      ? "app_context_unavailable"
+      : "app_not_found";
     return {
       success: false,
       ok: false,
-      errorCode: "app_not_found",
-      reason: "app_not_found",
+      errorCode: failureCode,
+      reason: failureCode,
       details: {
         resolvedAppSlug,
         attemptedAppSlugs: orderedCandidateAppSlugs,
@@ -338,5 +369,6 @@ export function mapAuthContextFailureToAuthErrorCode(reason: AuthContextFailureR
   if (reason === "app_slug_missing") return "app_slug_missing";
   if (reason === "app_not_found") return "app_not_found";
   if (reason === "admin_context_required") return "access_denied";
+  if (reason === "ORIGIN_NOT_ALLOWED") return "ORIGIN_NOT_ALLOWED";
   return "app_context_unavailable";
 }
