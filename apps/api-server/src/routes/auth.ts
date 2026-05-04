@@ -1170,6 +1170,21 @@ async function handleGoogleUrl(req: Request, res: Response) {
     getRequestFrontendOrigin(req) ??
     deriveAuthContextRequestOrigin(req);
   const resolverOrigin = requestedAppSlug ? null : trustedRequestOrigin;
+  if (
+    !requestedAppSlug &&
+    hasExplicitForwardedHost(req) &&
+    resolveSessionGroupFromOrigin(trustedRequestOrigin) === SESSION_GROUPS.ADMIN
+  ) {
+    sendGoogleUrlError(
+      req,
+      res,
+      400,
+      AUTH_ERROR_CODES.APP_SLUG_MISSING,
+      "App context is required to start OAuth.",
+      "app_slug_missing",
+    );
+    return;
+  }
   const appContext = await resolveAppContextForAuth({
     req,
     appSlug: requestedAppSlug,
@@ -2353,10 +2368,15 @@ async function beginMfaPendingSession(
   const sessionIdBeforeRegenerate = req.sessionID ?? null;
   const activeOrgId = req.session.activeOrgId ?? null;
   const mfaRequired = await isMfaRequiredForUser(userId, activeOrgId);
+  const pendingUserId =
+    typeof req.session.pendingUserId === "string" &&
+    req.session.pendingUserId.trim().length > 0
+      ? req.session.pendingUserId.trim()
+      : userId;
   let hasFactor = false;
   let factorStateReadFailed = false;
   try {
-    hasFactor = await hasActiveMfaFactor(userId);
+    hasFactor = await hasActiveMfaFactor(pendingUserId);
   } catch {
     factorStateReadFailed = true;
   }
@@ -2368,11 +2388,12 @@ async function beginMfaPendingSession(
     security?.firstAuthAfterResetPending || security?.highRiskUntilMfaAt,
   );
   const needsEnrollment = mfaRequired && !factorStateReadFailed && !hasFactor;
-  const mustChallenge = (mfaRequired || needsStepUp) && !trusted;
+  const mustChallenge = (mfaRequired || needsStepUp || hasFactor) && !trusted;
 
   if (!mustChallenge && !needsEnrollment) {
     logAuthDebug(req, "mfa_gate_result", {
       userId,
+      pendingUserId,
       appSlug,
       required: false,
       mfaRequired,
@@ -2417,6 +2438,7 @@ async function beginMfaPendingSession(
 
   logAuthDebug(req, "mfa_gate_result", {
     userId,
+    pendingUserId,
     appSlug,
     required: true,
     mfaRequired,
