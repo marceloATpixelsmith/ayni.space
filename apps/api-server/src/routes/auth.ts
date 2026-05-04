@@ -1206,7 +1206,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
       return;
     }
   }
-  const appSlug = appContext.app?.slug ?? appContext.resolvedAppSlug;
+  if (!appContext.success) {
+    return;
+  }
+  const appSlug = appContext.app.slug ?? appContext.resolvedAppSlug;
   const oauthSessionGroup = appContext.sessionGroup;
   const returnTo = trustedRequestOrigin ?? deriveFrontendOriginForApp(appContext.app);
   if (!returnTo) {
