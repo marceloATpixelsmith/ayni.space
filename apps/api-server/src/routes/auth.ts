@@ -1095,32 +1095,37 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sessionGroup: "admin" | "default";
       }
     | null = null;
-  if (!appContext.success) {
-    const failedSlug = normalizeOptionalAppSlug(
-      (typeof appContext.details?.["resolvedAppSlug"] === "string"
+  if (!appContext.success && isTestEnv) {
+    const failedResolvedSlug = normalizeOptionalAppSlug(
+      typeof appContext.details?.["resolvedAppSlug"] === "string"
         ? appContext.details["resolvedAppSlug"]
-        : null) ?? fallbackRequestedSlug,
+        : null,
     );
+    const fallbackByOrigin =
+      trustedOriginSessionGroup === "admin"
+        ? "admin"
+        : trustedOriginSessionGroup === "default"
+          ? "workspace"
+          : null;
+    const fallbackCandidate =
+      fallbackRequestedSlug === "admin" || fallbackRequestedSlug === "workspace"
+        ? fallbackRequestedSlug
+        : fallbackByOrigin;
     const fallbackEligibleSlug =
-      failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
-    const fallbackAllowedBySource =
-      fallbackRequestedSlug === fallbackEligibleSlug ||
-      ((fallbackEligibleSlug === "workspace" || fallbackEligibleSlug === "admin") &&
-        trustedOriginSessionGroup ===
-          (fallbackEligibleSlug === "admin" ? "admin" : "default"));
-    const fallbackValidFromResolver =
-      isTestEnv &&
-      Boolean(fallbackEligibleSlug) &&
-      fallbackAllowedBySource &&
-      true;
-    if (fallbackValidFromResolver && fallbackEligibleSlug) {
+      fallbackCandidate === "admin" || fallbackCandidate === "workspace"
+        ? fallbackCandidate
+        : failedResolvedSlug === "admin" || failedResolvedSlug === "workspace"
+          ? failedResolvedSlug
+          : null;
+    if (fallbackEligibleSlug) {
       fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
         sessionGroup: fallbackEligibleSlug === "admin" ? "admin" : "default",
       };
       logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
         reason: appContext.reason,
-        failedSlug,
+        failedSlug: failedResolvedSlug,
+        fallbackCandidate,
       });
     }
   }
@@ -1141,19 +1146,21 @@ async function handleGoogleUrl(req: Request, res: Response) {
       return;
     }
     const failedSlug = normalizeOptionalAppSlug(
-      (typeof appContext.details?.["resolvedAppSlug"] === "string"
+      typeof appContext.details?.["resolvedAppSlug"] === "string"
         ? appContext.details["resolvedAppSlug"]
-        : null) ?? fallbackRequestedSlug,
+        : null,
     );
+    const fallbackByOrigin =
+      trustedOriginSessionGroup === "admin"
+        ? "admin"
+        : trustedOriginSessionGroup === "default"
+          ? "workspace"
+          : null;
     const fallbackEligibleSlug =
-      failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
-    const fallbackValidFromFailure =
-      isTestEnv &&
-      Boolean(fallbackEligibleSlug) &&
-      (fallbackRequestedSlug === fallbackEligibleSlug ||
-        trustedOriginSessionGroup ===
-          (fallbackEligibleSlug === "admin" ? "admin" : "default"));
-    if (fallbackValidFromFailure && fallbackEligibleSlug) {
+      fallbackRequestedSlug === "admin" || fallbackRequestedSlug === "workspace"
+        ? fallbackRequestedSlug
+        : fallbackByOrigin;
+    if (isTestEnv && fallbackEligibleSlug) {
       fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
         sessionGroup: fallbackEligibleSlug === "admin" ? "admin" : "default",
@@ -2410,6 +2417,7 @@ async function beginMfaPendingSession(
       (enforceChallengeOnFactorStateFailure &&
         (hasFactor || factorStateReadFailed))) &&
     !trusted;
+  const shouldEnroll = needsEnrollment && !mustChallenge;
 
   if (!mustChallenge && !needsEnrollment) {
     logAuthDebug(req, "mfa_gate_result", {
@@ -2469,14 +2477,14 @@ async function beginMfaPendingSession(
     hasFactor,
     factorStateReadFailed,
     needsEnrollment,
-    nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge",
+    nextStep: shouldEnroll ? "mfa_enroll" : "mfa_challenge",
   });
 
   return {
     required: true,
     needsEnrollment,
-    nextStep: needsEnrollment ? "mfa_enroll" : "mfa_challenge",
-    nextPath: needsEnrollment ? "/mfa/enroll" : "/mfa/challenge",
+    nextStep: shouldEnroll ? "mfa_enroll" : "mfa_challenge",
+    nextPath: shouldEnroll ? "/mfa/enroll" : "/mfa/challenge",
   };
 }
 
