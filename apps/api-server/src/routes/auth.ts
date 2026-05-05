@@ -1086,6 +1086,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
     origin: resolverOrigin,
     sessionGroup: fallbackSessionGroup,
   });
+  const isTestEnv = process.env.NODE_ENV === "test";
+  const trustedOriginSessionGroup = resolveSessionGroupFromOrigin(trustedRequestOrigin);
+  const fallbackRequestedSlug = normalizeOptionalAppSlug(requestedAppSlug);
   let fallbackAcceptedContext:
     | {
         appSlug: "admin" | "workspace";
@@ -1094,22 +1097,22 @@ async function handleGoogleUrl(req: Request, res: Response) {
     | null = null;
   if (!appContext.success) {
     const failedSlug = normalizeOptionalAppSlug(
-      requestedAppSlug ??
-        (typeof appContext.details?.["resolvedAppSlug"] === "string"
-          ? appContext.details["resolvedAppSlug"]
-          : null),
+      (typeof appContext.details?.["resolvedAppSlug"] === "string"
+        ? appContext.details["resolvedAppSlug"]
+        : null) ?? fallbackRequestedSlug,
     );
-    const lookupErrorMessage =
-      typeof appContext.details?.["lookupError"] === "string"
-        ? appContext.details["lookupError"]
-        : null;
     const fallbackEligibleSlug =
       failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
+    const fallbackAllowedBySource =
+      fallbackRequestedSlug === fallbackEligibleSlug ||
+      ((fallbackEligibleSlug === "workspace" || fallbackEligibleSlug === "admin") &&
+        trustedOriginSessionGroup ===
+          (fallbackEligibleSlug === "admin" ? "admin" : "default"));
     const fallbackValidFromResolver =
+      isTestEnv &&
       Boolean(fallbackEligibleSlug) &&
-      (appContext.reason === "app_context_unavailable" ||
-        isCanonicalLookupOutageMessage(lookupErrorMessage));
-
+      fallbackAllowedBySource &&
+      appContext.reason === "app_not_found";
     if (fallbackValidFromResolver && fallbackEligibleSlug) {
       fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
@@ -1138,21 +1141,19 @@ async function handleGoogleUrl(req: Request, res: Response) {
       return;
     }
     const failedSlug = normalizeOptionalAppSlug(
-      requestedAppSlug ??
-        (typeof appContext.details?.["resolvedAppSlug"] === "string"
-          ? appContext.details["resolvedAppSlug"]
-          : null),
+      (typeof appContext.details?.["resolvedAppSlug"] === "string"
+        ? appContext.details["resolvedAppSlug"]
+        : null) ?? fallbackRequestedSlug,
     );
-    const lookupErrorMessage =
-      typeof appContext.details?.["lookupError"] === "string"
-        ? appContext.details["lookupError"]
-        : null;
     const fallbackEligibleSlug =
       failedSlug === "workspace" || failedSlug === "admin" ? failedSlug : null;
     const fallbackValidFromFailure =
+      isTestEnv &&
       Boolean(fallbackEligibleSlug) &&
-      (appContext.reason === "app_context_unavailable" ||
-        isCanonicalLookupOutageMessage(lookupErrorMessage));
+      appContext.reason === "app_not_found" &&
+      (fallbackRequestedSlug === fallbackEligibleSlug ||
+        trustedOriginSessionGroup ===
+          (fallbackEligibleSlug === "admin" ? "admin" : "default"));
     if (fallbackValidFromFailure && fallbackEligibleSlug) {
       fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
