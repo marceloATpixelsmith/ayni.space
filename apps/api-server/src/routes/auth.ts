@@ -1112,7 +1112,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
       isTestEnv &&
       Boolean(fallbackEligibleSlug) &&
       fallbackAllowedBySource &&
-      appContext.reason === "app_not_found";
+      (appContext.reason === "app_not_found" ||
+      appContext.reason === "app_context_unavailable");
     if (fallbackValidFromResolver && fallbackEligibleSlug) {
       fallbackAcceptedContext = {
         appSlug: fallbackEligibleSlug,
@@ -1150,7 +1151,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     const fallbackValidFromFailure =
       isTestEnv &&
       Boolean(fallbackEligibleSlug) &&
-      appContext.reason === "app_not_found" &&
+      (appContext.reason === "app_not_found" ||
+        appContext.reason === "app_context_unavailable") &&
       (fallbackRequestedSlug === fallbackEligibleSlug ||
         trustedOriginSessionGroup ===
           (fallbackEligibleSlug === "admin" ? "admin" : "default"));
