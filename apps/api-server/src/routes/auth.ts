@@ -1896,7 +1896,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       activeAppSlug,
       oauthStayLoggedIn,
       factorRoutingHint,
-      isSuperadminAccessMode,
+      isSuperadminAccessMode && boundGoogleSubjectThisCallback,
     );
     const oauthContinuation = resolvePostAuthContinuation({
       appSlug: activeAppSlug,
