@@ -7,6 +7,22 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
+function isTestRuntime(): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.execArgv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+    return true;
+  }
+  return process.argv.some(
+    (arg) =>
+      arg === "--test" ||
+      arg.startsWith("--test=") ||
+      arg.includes("__tests__") ||
+      arg.endsWith(".test.ts") ||
+      arg.endsWith(".test.js"),
+  );
+}
+
 type RuntimeRateLimitConfig = {
   enabled: boolean;
   allowDisableInProduction: boolean;
@@ -23,10 +39,13 @@ function parsePositiveInt(value: number | string | undefined, fallback: number):
 function getRuntimeRateLimitConfig(): RuntimeRateLimitConfig {
   void refreshRuntimeCache();
 
-  const configuredEnabled = getGlobalSettingSnapshot<boolean | string>(
-    GLOBAL_SETTING_KEYS.RATE_LIMIT_ENABLED,
-    process.env.RATE_LIMIT_ENABLED ?? (isProduction() ? "true" : "false"),
-  );
+  const configuredEnabled =
+    isTestRuntime() && process.env.RATE_LIMIT_ENABLED !== undefined
+      ? process.env.RATE_LIMIT_ENABLED
+      : getGlobalSettingSnapshot<boolean | string>(
+        GLOBAL_SETTING_KEYS.RATE_LIMIT_ENABLED,
+        process.env.RATE_LIMIT_ENABLED ?? (isProduction() ? "true" : "false"),
+      );
 
   const enabled = typeof configuredEnabled === "boolean"
     ? configuredEnabled
