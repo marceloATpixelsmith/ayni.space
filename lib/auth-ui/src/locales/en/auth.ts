@@ -38,6 +38,69 @@ export const authEn = {
   reset_password_success_redirecting:
     "Password reset complete. Redirecting to login...",
   reset_password_error_fallback: "Unable to reset password.",
+  validation_email_required: "Email is required.",
+  validation_email_invalid: "Enter a valid email address.",
+  validation_password_min_length: "Password must be at least 8 characters.",
+  validation_password_letter: "Password must include at least 1 letter.",
+  validation_password_uppercase:
+    "Password must include at least 1 uppercase letter.",
+  validation_password_lowercase:
+    "Password must include at least 1 lowercase letter.",
+  validation_password_number: "Password must include at least 1 number.",
+  validation_password_special:
+    "Password must include at least 1 special character.",
+  auth_error_request_failed: "Request failed.",
+  auth_error_turnstile_required: "Please complete the verification challenge.",
+  auth_error_security_token_not_ready:
+    "Security token is not ready. Please wait a moment and try again.",
+  auth_error_security_token_not_ready_retry:
+    "Security token is not ready. Please try again.",
+  auth_error_security_token_refresh_invitation:
+    "Security token is not ready. Please refresh and try accepting the invitation again.",
+  auth_error_security_token_refresh_generic:
+    "Security token is not ready. Please refresh and try again.",
+  auth_error_security_token_refresh_sign_in:
+    "Security token is not ready. Please refresh and try signing in again.",
+  auth_error_security_token_refresh_signup:
+    "Security token is not ready. Please refresh and try creating your account again.",
+  auth_error_security_token_refresh_reset_password:
+    "Security token is not ready. Please refresh and try resetting your password again.",
+  auth_error_security_token_retry_verify_email:
+    "Security token is not ready. Please retry the verification link.",
+  auth_error_security_token_refresh_mfa_setup:
+    "Security token is not ready. Please refresh and try two-step verification setup again.",
+  auth_error_security_token_refresh_mfa:
+    "Security token is not ready. Please refresh and try two-step verification again.",
+  auth_error_security_token_refresh_recovery:
+    "Security token is not ready. Please refresh and try recovery again.",
+  login_error_verification_required:
+    "Please complete verification before continuing.",
+  login_error_network_unreachable:
+    "Unable to reach the sign-in service. Please verify network/CORS configuration and try again.",
+  login_error_google_start:
+    "Unable to start Google sign-in right now. Please try again.",
+  login_error_email_sign_in: "Unable to sign in.",
+  login_error_google_rate_limited: "Too many attempts. Please wait and retry.",
+  login_error_google_rate_retry_seconds:
+    " Please wait about {seconds} {unit} and retry.",
+  login_error_google_rate_retry_moment: " Please wait a moment and retry.",
+  login_error_google_verification_required:
+    "Verification required. Please complete the challenge.",
+  login_error_google_verification_expired:
+    "Verification expired. Please complete the challenge again.",
+  login_error_google_verification_failed:
+    "Verification failed. Please try again.",
+  login_error_google_verification_misconfigured:
+    "Verification is temporarily unavailable due to configuration. Please contact support.",
+  login_error_google_verification_unavailable:
+    "Verification service is temporarily unavailable. Please try again.",
+  login_error_google_config_unavailable:
+    "Sign-in is temporarily unavailable due to configuration. Please contact support.",
+  login_error_google_origin_not_allowed:
+    "Access origin is not allowed for sign-in.",
+  auth_error_app_context_missing:
+    "Application context is missing. Please reload and try again.",
+  signup_error_fallback: "Unable to sign up.",
 
   verify_email_title: "Verify your email",
   verify_email_subtitle:
@@ -51,6 +114,12 @@ export const authEn = {
   verify_email_redirecting: "Email verified. Redirecting...",
   verify_email_continuing: "Email verified. Continuing...",
   verify_email_failure_fallback: "Verification failed.",
+  verify_email_link_already_used: "This verification link was already used.",
+  verify_email_link_expired: "This verification link has expired.",
+  verify_email_link_invalid: "This verification link is invalid.",
+  verify_email_security_retry:
+    "Security check failed. Please retry the verification link.",
+  verify_email_unable: "Unable to verify email.",
   mfa_enroll_title: "Set up two-step verification",
   mfa_enroll_subtitle: "Add an authenticator app for extra account security.",
   mfa_enroll_preparing: "Preparing your authenticator setup…",
@@ -71,9 +140,16 @@ export const authEn = {
   mfa_enroll_manual_setup:
     "Manual setup option: Enter this setup key manually in your authenticator app:",
   mfa_enroll_code_placeholder: "6-digit code",
+  mfa_enroll_verify_fallback: "Unable to verify two-step verification code.",
+  mfa_enroll_verify_loading: "Verifying…",
+  mfa_enroll_verify_button: "Verify and activate two-step verification",
+  mfa_enroll_recovery_codes_label: "Recovery codes (save these now):",
+  mfa_enroll_continue_button: "Continue",
   mfa_challenge_title: "Two-step verification required",
   mfa_challenge_subtitle:
     "Enter the code from your authenticator app to continue.",
+  mfa_challenge_invalid_code: "Invalid two-step verification code.",
+  mfa_challenge_invalid_recovery_code: "Invalid recovery code.",
   mfa_challenge_remember_browser:
     "Remember this browser for 20 days (skip MFA challenge on this browser).",
   mfa_challenge_stay_logged_in:
@@ -83,6 +159,29 @@ export const authEn = {
   mfa_challenge_recovery_placeholder: "Recovery code",
   mfa_challenge_recovery_button: "Use recovery code",
   invitation_title: "Invitation",
+  invitation_preparing: "Preparing invitation acceptance...",
+  invitation_token_missing: "Invitation token is missing.",
+  invitation_checking_status: "Checking invitation status...",
+  invitation_resolve_error:
+    "We couldn't load this invitation right now. Please retry.",
+  invitation_resolve_state_error: "Unable to resolve invitation state.",
+  invitation_resolve_payload_incomplete:
+    "Invitation state payload was incomplete.",
+  invitation_terminal_expired: "This invitation has expired.",
+  invitation_terminal_accepted: "This invitation has already been accepted.",
+  invitation_terminal_revoked: "This invitation has been revoked.",
+  invitation_terminal_invalid: "This invitation is invalid.",
+  invitation_set_password_message: "Set your password to join this invitation.",
+  invitation_continue_message: "Continue to accept this invitation.",
+  invitation_complete_verification:
+    "Complete verification to accept this invitation.",
+  invitation_accepting: "Accepting invitation...",
+  invitation_accepted_redirecting: "Invitation accepted. Redirecting...",
+  invitation_destination_unresolved:
+    "Authenticated destination could not be resolved.",
+  invitation_accept_failed: "Failed to accept invitation.",
+  invitation_google_start_failed: "Unable to start Google sign-in.",
+  invitation_password_set_failed: "Failed to set password.",
   invitation_back_sign_in: "Back to sign in",
   invitation_back_dashboard: "Back to dashboard",
   invitation_google_continue_idle: "Continue with Google",

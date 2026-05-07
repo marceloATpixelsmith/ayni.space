@@ -1,3 +1,5 @@
+import { getAuthMessage } from "@workspace/auth-ui";
+
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizeEmailInput(value: string): string {
@@ -6,25 +8,26 @@ export function normalizeEmailInput(value: string): string {
 
 export function validateEmailInput(value: string): string | null {
   const normalized = normalizeEmailInput(value);
-  if (!normalized) return "Email is required.";
-  if (!EMAIL_PATTERN.test(normalized)) return "Enter a valid email address.";
+  if (!normalized) return getAuthMessage("validation_email_required");
+  if (!EMAIL_PATTERN.test(normalized))
+    return getAuthMessage("validation_email_invalid");
   return null;
 }
 
 export function getMissingPasswordRequirements(password: string): string[] {
   const missing: string[] = [];
   if (password.length < 8)
-    missing.push("Password must be at least 8 characters.");
+    missing.push(getAuthMessage("validation_password_min_length"));
   if (!/[A-Za-z]/.test(password))
-    missing.push("Password must include at least 1 letter.");
+    missing.push(getAuthMessage("validation_password_letter"));
   if (!/[A-Z]/.test(password))
-    missing.push("Password must include at least 1 uppercase letter.");
+    missing.push(getAuthMessage("validation_password_uppercase"));
   if (!/[a-z]/.test(password))
-    missing.push("Password must include at least 1 lowercase letter.");
+    missing.push(getAuthMessage("validation_password_lowercase"));
   if (!/\d/.test(password))
-    missing.push("Password must include at least 1 number.");
+    missing.push(getAuthMessage("validation_password_number"));
   if (!/[^A-Za-z0-9]/.test(password))
-    missing.push("Password must include at least 1 special character.");
+    missing.push(getAuthMessage("validation_password_special"));
   return missing;
 }
 

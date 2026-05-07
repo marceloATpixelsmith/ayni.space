@@ -1,10 +1,12 @@
 # 04 — Auth and Session Inventory
 
 ## Scope
+
 - Inventory auth/session architecture at the system level without adding policy details not present in `01`.
 - Canonical companion: `docs/authentication-and-session-architecture.md`.
 
 ## Confirmed
+
 - Login/signup route orchestration ownership now sits in shared `lib/frontend-security/src/auth-page-orchestration.ts` (`useLoginRoutePolicy`, `useLoginRouteActions`, `useSignupRoutePolicy`, `useSignupRouteActions`, `getLoginDisabledReasons`, `getSignupDisabledReasons`), with admin route files acting as thin composition pages over shared auth UI + shared auth logic.
 - Shared frontend auth form runtime helpers now centralize repeated interaction behavior across login/signup/forgot-password/invitation routes (`useEmailValidationInteraction`, `useAuthSubmitOrchestration`, and shared turnstile error/reset guards in `lib/frontend-security/src/auth-form-runtime.ts`), reducing app-local auth page glue while preserving existing UI flow contracts.
 - Auth contract boundaries are normalized across backend/shared frontend/admin page layers: access-denied handling now uses stable auth error codes + shared frontend message/path helpers (no page-local string contracts), and default post-auth destination fallback is centralized under explicit auth-layer constants (`packages/auth/src/index.ts`, `apps/api-server/src/lib/postAuthRedirect.ts`, `apps/api-server/src/routes/auth.ts`, `lib/frontend-security/src/index.tsx`, `apps/admin/src/pages/auth/Login.tsx`).
@@ -72,17 +74,29 @@
 - Turnstile signup audit metadata no longer defaults missing app context to `admin`; absent request/session app context is captured as null to avoid backend-side app/admin assumptions in security telemetry (`apps/api-server/src/middlewares/turnstile.ts`).
 
 ## Inferred
+
 - Session/auth is backend-authoritative, with frontend consuming session state via shared provider and API client.
 
 ## Unclear
+
 - Full auth provider roadmap and lifecycle policy documentation beyond current implementation files.
 
 ## Do not break
+
 - Do not introduce app-local auth/session flows that bypass `lib/frontend-security`.
 - Do not decouple auth/session handling from `apps/api-server` middleware pipeline.
 
-
 ## Auth localization scaffolding (display-only)
 
-- Added safe display-only auth i18n keys in `lib/auth-ui/src/locales/en/auth.ts` for Verify Email, MFA enroll/challenge, Invitation accept, and user onboarding labels/buttons/placeholders/headings.
-- Deferred (intentionally not localized in this pass): backend-returned error strings, validation messages tied to logic/state transitions, and MFA/continuation control-flow messaging to preserve behavior neutrality.
+- Auth i18n remains English-only and display-only: no language switcher, locale negotiation, Spanish copy, API response-shape change, route change, session/MFA/CSRF change, or redirect precedence change is introduced by this foundation.
+- Auth copy lives in `lib/auth-ui/src/locales/en/auth.ts`; `lib/auth-ui/src/i18n.tsx` exports both React helpers (`AuthI18nProvider`, `useAuthI18n`) and synchronous typed helpers (`getAuthMessage`, `formatAuthMessage`) so shared non-React auth logic can use the same key set without app-local translation hacks.
+- `lib/auth-ui` remains presentation-focused: shell/primitives, static auth labels, and the typed English copy catalog. It does not own auth state, routing, submit orchestration, CSRF/Turnstile decisions, MFA decisions, session handling, or API response interpretation.
+- `lib/frontend-security` remains the auth orchestration/runtime owner: route policy, auth actions, validation helpers, Turnstile/CSRF gating, invitation accept orchestration, MFA/session bootstrap, and post-auth continuation handling stay there, but user-facing fallback/validation/orchestration messages now resolve through the shared auth copy keys instead of scattered hardcoded English.
+- Admin auth pages stay thin composers over `@workspace/frontend-security` behavior and `@workspace/auth-ui` presentation. Page-local visible copy should use `useAuthI18n()` when it is auth UI copy; machine/debug/internal reason strings such as disabled-reason arrays, telemetry event names, auth-state enum values, and console diagnostics stay as code strings.
+- Backend-returned `payload.error` values may still be displayed as backend-authored user guidance when already part of an existing route contract; this PR does not change backend auth behavior or route response shapes.
+
+### Prompt 7 / Prompt 8 drift lock
+
+- Prompt 7 is now considered locked for the auth i18n foundation: shared auth UI copy, shared validation messages, shared auth action fallbacks, Turnstile/CSRF readiness guidance, invitation accept user-facing orchestration messages, MFA auth-page labels/fallbacks, and verify-email frontend fallback mapping all resolve through the typed English auth catalog while preserving current English wording.
+- Backend auth core, auth-entry response status contracts, Turnstile/rate-limit/origin fail-closed behavior, session-group isolation, pending MFA semantics, continuation precedence, invitation/session compatibility, and post-auth/onboarding synchronization remain protected by `pnpm run test:auth-security-regression` and its component suites (`apps/api-server/src/__tests__/auth-security-regression-suite.test.ts`, `auth-session-group-hardening.test.ts`, `auth-entry-regression-guards.test.ts`, `auth-logout-turnstile.test.ts`, frontend-security auth-flow tests, and admin auth runtime/security shell tests).
+- Known remaining localization follow-up belongs to later prompts: broader non-auth application copy, full locale switching/runtime language selection, non-English translations, backend-authored error payload localization, and any product-wide copy governance beyond the current auth English catalog.
