@@ -12,8 +12,24 @@ function isProduction(): boolean {
   return process.env["NODE_ENV"] === "production";
 }
 
+function isTestRuntime(): boolean {
+  if (process.env["NODE_ENV"] === "test") return true;
+  if (process.env["NODE_ENV"] === "production") return false;
+  if (process.execArgv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+    return true;
+  }
+  return process.argv.some(
+    (arg) =>
+      arg === "--test" ||
+      arg.startsWith("--test=") ||
+      arg.includes("__tests__") ||
+      arg.endsWith(".test.ts") ||
+      arg.endsWith(".test.js"),
+  );
+}
+
 function getConfiguredTurnstileEnabled(): boolean | string {
-  if (process.env["NODE_ENV"] === "test" && process.env["TURNSTILE_ENABLED"] !== undefined) {
+  if (isTestRuntime() && process.env["TURNSTILE_ENABLED"] !== undefined) {
     return process.env["TURNSTILE_ENABLED"];
   }
   return getGlobalSettingSnapshot<boolean | string>(
