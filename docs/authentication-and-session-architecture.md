@@ -77,6 +77,7 @@
 - Signup Turnstile audit context also no longer defaults unresolved session-group authority to `default`; when request/session group resolution is unavailable, metadata records `sessionGroup=null` to avoid hidden backend reassignment (`apps/api-server/src/middlewares/turnstile.ts`).
 
 - Frontend auth metadata lookup for login/signup fail-closed policy now uses exact slug matching (trimmed value equality, no alias fallback) against `/api/apps` rows and emits non-sensitive diagnostics when unresolved (`requested=<slug>; available=<slug list>`), so `app_metadata_not_found` can be traced directly to slug/config mismatch across Vite bootstrap slug (`VITE_APP_SLUG`), deployed frontend config, and `platform.apps.slug` data (`lib/frontend-security/src/index.tsx`, `lib/frontend-security/src/auth-page-orchestration.ts`).
+
 ## Inferred
 
 - Auth/session is designed as backend-authoritative with frontend providers/guards consuming backend session state.
@@ -171,15 +172,19 @@
 ## Auth UI localization scaffolding (behavior-neutral first pass)
 
 - Auth UI translations now live in `lib/auth-ui/src/locales/en/auth.ts` and are consumed by a synchronous provider/hook in `lib/auth-ui/src/i18n.tsx` (`AuthI18nProvider`, `useAuthI18n`).
-- Scope is intentionally presentation-only: `lib/auth-ui` primitives and static labels in admin `Login.tsx`/`Signup.tsx` plus safe display copy in `ForgotPassword.tsx`/`ResetPassword.tsx`.
+- The typed auth copy API is also synchronous (`getAuthMessage`, `formatAuthMessage`) so shared auth orchestration in `lib/frontend-security` can use the same English catalog outside React render paths.
+- Scope is intentionally display/user-message only: `lib/auth-ui` owns auth presentation primitives and the English copy catalog; `lib/frontend-security` owns route orchestration, validation, CSRF/Turnstile readiness, auth action fallback mapping, invitation runtime messaging, and post-auth/MFA/session decisions while resolving visible fallback text through auth copy keys.
 - Default locale is fixed to English (`en`); no runtime switching is implemented.
 - Safe-to-translate strings include only static display labels (titles, placeholders, button/link labels, divider text, and non-branching success/fallback status copy rendered to users).
-- Auth i18n is approved for display-only static copy; auth source-contract strings tied to flow control remain deferred.
-- Deferred strings (logic-bound) remain hardcoded and are intentionally not moved in this pass, including:
-  - validation/error content emitted by shared auth/runtime logic (`lib/frontend-security/**`),
-  - status/error messages tied to backend/auth response semantics,
-  - route/path decisions, policy reasons, or state-machine text in orchestrators,
-  - password requirement checklist copy sourced from validation helpers (`getMissingPasswordRequirements`).
-- Strings asserted by `apps/admin/src/__tests__/security-shell.contract.test.mjs` are locked source contracts and must remain hardcoded unless that contract test is intentionally updated in the same PR.
+- Auth i18n is approved for display/user-facing copy only; machine/debug/internal strings tied to flow control remain code strings, including route/path decisions, policy reason arrays, event names, state-machine enum values, and diagnostics.
+- Backend-authored `payload.error` display remains a backend route contract and is not localized in this pass. This avoids changing backend auth behavior or route response shapes.
+- Strings asserted by `apps/admin/src/__tests__/security-shell.contract.test.mjs` are locked source contracts; when a visible string moves behind an auth translation key, that contract test must be updated in the same PR to assert the key and preserved English fallback.
 - `apps/admin/src/pages/auth/VerifyEmail.tsx` redirect copy `Email verified. Redirecting...` is intentionally deferred from localization and must remain hardcoded as part of the security-shell contract.
 - This scaffolding must not be used to alter auth control flow, routing, API behavior, MFA/CSRF/Turnstile behavior, or session handling.
+
+## 2026-05-07 update — Final auth i18n foundation lock
+
+- Prompt 7 is considered locked at the auth frontend foundation layer: `validateEmailInput`, `validatePasswordInput`, `getMissingPasswordRequirements`, `ensureTurnstileReadyForSubmit`, shared auth action fallbacks, Google/verify-email frontend error mapping, invitation accept user-facing orchestration messages, and MFA auth-page fallbacks now use typed keys from `lib/auth-ui/src/locales/en/auth.ts`.
+- Prompt 8 documentation/regression lock is in place: `apps/admin/src/__tests__/auth-i18n.runtime.test.tsx` proves shared validation/runtime messages resolve through the auth catalog, and `apps/admin/src/__tests__/security-shell.contract.test.mjs` locks the visible English text through translation-key usage for the affected admin auth pages.
+- Protected behavior remains unchanged: no backend auth route response shape, session group, MFA, CSRF, Turnstile, app-context resolution, redirect precedence, onboarding/post-auth continuation, visual layout, env var, workflow, language-switching UI, or Spanish translation behavior changed.
+- Remaining later-prompt localization work: runtime locale selection, non-English translations, backend-authored error payload localization, and broader non-auth app copy are intentionally out of scope.

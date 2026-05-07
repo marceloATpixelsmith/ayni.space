@@ -1,4 +1,5 @@
 import React from "react";
+import { getAuthMessage } from "@workspace/auth-ui";
 import {
   AUTH_LOGIN_PATH,
   DEFAULT_POST_AUTH_PATH,
@@ -40,17 +41,21 @@ export function getLoginDisabledReasons(input: {
   if (input.loginInFlight) reasons.push("auth.loginInFlight");
   if (!input.csrfReady) reasons.push("!auth.csrfReady");
   if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady) reasons.push("turnstileEnabled&&!turnstileReady");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push("turnstileEnabled&&!turnstileToken");
+  if (input.turnstileEnabled && !input.turnstileReady)
+    reasons.push("turnstileEnabled&&!turnstileReady");
+  if (input.turnstileEnabled && !input.turnstileTokenPresent)
+    reasons.push("turnstileEnabled&&!turnstileToken");
   return reasons;
 }
 
 export function useLoginRouteComposition() {
   const auth = useAuth();
-  const { metadata, resolutionError, diagnostic } = useCurrentPlatformAppMetadata();
+  const { metadata, resolutionError, diagnostic } =
+    useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
 
-  const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+  const hideSignupAffordances =
+    !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
 
   return {
     auth,
@@ -67,14 +72,19 @@ export function useLoginRoutePolicy(options: {
   onRedirect: (path: string) => void;
 }) {
   const { search, onRedirect } = options;
-  const { auth, metadata, turnstile, hideSignupAffordances, metadataResolutionError, metadataResolutionDiagnostic } =
-    useLoginRouteComposition();
-  const query = React.useMemo(
-    () => new URLSearchParams(search),
-    [search],
-  );
+  const {
+    auth,
+    metadata,
+    turnstile,
+    hideSignupAffordances,
+    metadataResolutionError,
+    metadataResolutionDiagnostic,
+  } = useLoginRouteComposition();
+  const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
-  const accessError = getAuthErrorMessage(parseAuthErrorCode(query.get("error")));
+  const accessError = getAuthErrorMessage(
+    parseAuthErrorCode(query.get("error")),
+  );
   const metadataError = metadataResolutionError
     ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.${metadataResolutionDiagnostic.message ? ` [${metadataResolutionDiagnostic.message}]` : ""}`
     : null;
@@ -123,14 +133,21 @@ export function useSignupRoutePolicy(options: {
 }) {
   const { metadata, loading } = useCurrentPlatformAppMetadata();
   const metadataResolved = !loading;
-  const signupAllowed = deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+  const signupAllowed =
+    deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
   const signupPath = options.signupPath ?? "/signup";
 
   React.useEffect(() => {
     if (!metadataResolved || signupAllowed) return;
     if (options.locationPath !== signupPath) return;
     options.onRedirect("/login");
-  }, [metadataResolved, signupAllowed, options.locationPath, options.onRedirect, signupPath]);
+  }, [
+    metadataResolved,
+    signupAllowed,
+    options.locationPath,
+    options.onRedirect,
+    signupPath,
+  ]);
 
   return {
     metadataResolved,
@@ -179,9 +196,7 @@ export function useSignupRouteActions(options: {
 
   const handleSignup = React.useCallback(() => {
     if (!auth.csrfReady || !auth.csrfToken) {
-      submit.setError(
-        "Security token is not ready. Please wait a moment and try again.",
-      );
+      submit.setError(getAuthMessage("auth_error_security_token_not_ready"));
       return;
     }
     if (emailError) {
@@ -202,11 +217,7 @@ export function useSignupRouteActions(options: {
     const normalizedEmail = normalizeEmailInput(email);
     void submit
       .run(() =>
-        auth.signupWithPassword(
-          normalizedEmail,
-          password,
-          turnstile.token,
-        ),
+        auth.signupWithPassword(normalizedEmail, password, turnstile.token),
       )
       .then((result) => {
         onRedirect(
@@ -222,7 +233,7 @@ export function useSignupRouteActions(options: {
           error,
           turnstile,
           setError: submit.setError,
-          fallbackMessage: "Unable to sign up.",
+          fallbackMessage: getAuthMessage("signup_error_fallback"),
         });
       });
   }, [auth, email, emailError, onRedirect, password, submit, turnstile]);
@@ -269,7 +280,10 @@ export function useLoginRouteActions(options: {
       )
       .catch((error) => {
         setLoginError(
-          getAuthActionErrorMessage(error, "Unable to sign in."),
+          getAuthActionErrorMessage(
+            error,
+            getAuthMessage("login_error_email_sign_in"),
+          ),
         );
       });
   }, [
@@ -296,7 +310,7 @@ export function useLoginRouteActions(options: {
       setLoginError(null);
       const turnstileToken = options.turnstile.token;
       if (!turnstileToken) {
-        setLoginError("Please complete verification before continuing.");
+        setLoginError(getAuthMessage("login_error_verification_required"));
         return;
       }
       void submit
@@ -314,18 +328,21 @@ export function useLoginRouteActions(options: {
               /Failed to fetch|NetworkError|Load failed/i.test(error.message));
           handleTurnstileProtectedAuthError({
             error: maybeNetworkError
-              ? new Error(
-                  "Unable to reach the sign-in service. Please verify network/CORS configuration and try again.",
-                )
+              ? new Error(getAuthMessage("login_error_network_unreachable"))
               : error,
             turnstile: options.turnstile,
             setError: setLoginError,
-            fallbackMessage:
-              "Unable to start Google sign-in right now. Please try again.",
+            fallbackMessage: getAuthMessage("login_error_google_start"),
           });
         });
     },
-    [options.auth, options.hideSignupAffordances, options.nextPath, options.turnstile, submit],
+    [
+      options.auth,
+      options.hideSignupAffordances,
+      options.nextPath,
+      options.turnstile,
+      submit,
+    ],
   );
 
   return {
@@ -337,7 +354,13 @@ export function useLoginRouteActions(options: {
   };
 }
 
-type InvitationState = "valid" | "pending" | "invalid" | "expired" | "accepted" | "revoked";
+type InvitationState =
+  | "valid"
+  | "pending"
+  | "invalid"
+  | "expired"
+  | "accepted"
+  | "revoked";
 type InvitationTerminalState = Exclude<InvitationState, "pending" | "valid">;
 type EmailMode = "create_password" | "sign_in" | "none";
 type InvitationResolveResponse = {
@@ -352,14 +375,23 @@ type InvitationResolveResponse = {
 };
 
 function isInvitationState(value: unknown): value is InvitationState {
-  return value === "valid" || value === "pending" || value === "invalid" || value === "expired" || value === "accepted" || value === "revoked";
+  return (
+    value === "valid" ||
+    value === "pending" ||
+    value === "invalid" ||
+    value === "expired" ||
+    value === "accepted" ||
+    value === "revoked"
+  );
 }
 
 function isEmailMode(value: unknown): value is EmailMode {
   return value === "create_password" || value === "sign_in" || value === "none";
 }
 
-function isInvitationResolveResponse(value: unknown): value is InvitationResolveResponse {
+function isInvitationResolveResponse(
+  value: unknown,
+): value is InvitationResolveResponse {
   if (!value || typeof value !== "object") return false;
   const payload = value as Record<string, unknown>;
   const invitation = payload["invitation"];
@@ -376,17 +408,20 @@ function normalizeInvitationState(value: InvitationState): InvitationState {
 }
 
 function getTerminalInvitationMessage(state: InvitationTerminalState): string {
-  if (state === "expired") return "This invitation has expired.";
-  if (state === "accepted") return "This invitation has already been accepted.";
-  if (state === "revoked") return "This invitation has been revoked.";
-  return "This invitation is invalid.";
+  if (state === "expired") return getAuthMessage("invitation_terminal_expired");
+  if (state === "accepted")
+    return getAuthMessage("invitation_terminal_accepted");
+  if (state === "revoked") return getAuthMessage("invitation_terminal_revoked");
+  return getAuthMessage("invitation_terminal_invalid");
 }
 
 function getInvitationResolveApiUrl(token: string | undefined): string | null {
   if (!token) return null;
   const invitationResolvePath = `/invitations/${token}/resolve`;
-  const apiBase = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-    ?.VITE_API_BASE_URL?.trim() ?? "";
+  const apiBase =
+    (
+      import.meta as ImportMeta & { env?: Record<string, string | undefined> }
+    ).env?.VITE_API_BASE_URL?.trim() ?? "";
   if (!apiBase) return `/api${invitationResolvePath}`;
   const normalizedApiBase = apiBase.replace(/\/$/, "");
   const apiBaseIncludesApiPrefix = /\/api$/i.test(normalizedApiBase);
@@ -415,11 +450,17 @@ export function useInvitationAcceptRouteRuntime(options: {
   );
 
   const [status, setStatus] = React.useState<InvitationSubmitState>("idle");
-  const [message, setMessage] = React.useState("Preparing invitation acceptance...");
+  const [message, setMessage] = React.useState(
+    getAuthMessage("invitation_preparing"),
+  );
   const [submitError, setSubmitError] = React.useState<string | null>(null);
-  const [resolution, setResolution] = React.useState<InvitationResolveResponse | null>(null);
-  const [resolutionStatus, setResolutionStatus] = React.useState<InvitationResolutionState>("idle");
-  const [resolutionError, setResolutionError] = React.useState<string | null>(null);
+  const [resolution, setResolution] =
+    React.useState<InvitationResolveResponse | null>(null);
+  const [resolutionStatus, setResolutionStatus] =
+    React.useState<InvitationResolutionState>("idle");
+  const [resolutionError, setResolutionError] = React.useState<string | null>(
+    null,
+  );
   const [password, setPassword] = React.useState("");
   const [passwordTouched, setPasswordTouched] = React.useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = React.useState(false);
@@ -437,15 +478,21 @@ export function useInvitationAcceptRouteRuntime(options: {
     isValidPendingInvitation &&
     resolutionStatus === "ready";
   const shouldShowPasswordFields =
-    shouldShowInvitationChoices && resolutionAuth?.emailMode === "create_password";
+    shouldShowInvitationChoices &&
+    resolutionAuth?.emailMode === "create_password";
   const passwordError =
-    passwordTouched || passwordSubmitting ? validatePasswordInput(password) : null;
+    passwordTouched || passwordSubmitting
+      ? validatePasswordInput(password)
+      : null;
   const shouldShowPasswordFeedback = passwordTouched || password.length > 0;
   const missingPasswordRequirements = shouldShowPasswordFeedback
     ? getMissingPasswordRequirements(password)
     : [];
   const canSubmitPassword = Boolean(
-    shouldShowPasswordFields && password && !passwordError && turnstile.canSubmit,
+    shouldShowPasswordFields &&
+    password &&
+    !passwordError &&
+    turnstile.canSubmit,
   );
 
   React.useEffect(() => {
@@ -461,9 +508,13 @@ export function useInvitationAcceptRouteRuntime(options: {
     fetch(resolveApiUrl, { credentials: "include" })
       .then(async (response) => {
         const payload = await response.json().catch(() => null);
-        if (!response.ok) throw new Error("Unable to resolve invitation state.");
+        if (!response.ok) {
+          throw new Error(getAuthMessage("invitation_resolve_state_error"));
+        }
         if (!isInvitationResolveResponse(payload)) {
-          throw new Error("Invitation state payload was incomplete.");
+          throw new Error(
+            getAuthMessage("invitation_resolve_payload_incomplete"),
+          );
         }
         return payload;
       })
@@ -477,7 +528,9 @@ export function useInvitationAcceptRouteRuntime(options: {
         setResolution(null);
         setResolutionStatus("error");
         setResolutionError(
-          error instanceof Error ? error.message : "Unable to resolve invitation state.",
+          error instanceof Error
+            ? error.message
+            : getAuthMessage("invitation_resolve_state_error"),
         );
       });
 
@@ -489,7 +542,7 @@ export function useInvitationAcceptRouteRuntime(options: {
   React.useEffect(() => {
     if (!token) {
       setStatus("error");
-      setMessage("Invitation token is missing.");
+      setMessage(getAuthMessage("invitation_token_missing"));
       return;
     }
     if (auth.status === "loading") return;
@@ -509,14 +562,14 @@ export function useInvitationAcceptRouteRuntime(options: {
       inFlightRef.current = false;
       setStatus("idle");
       if (resolutionStatus === "loading") {
-        setMessage("Checking invitation status...");
+        setMessage(getAuthMessage("invitation_checking_status"));
       } else if (resolutionStatus === "error") {
         setStatus("error");
-        setMessage("We couldn't load this invitation right now. Please retry.");
+        setMessage(getAuthMessage("invitation_resolve_error"));
       } else if (resolutionAuth?.emailMode === "create_password") {
-        setMessage("Set your password to join this invitation.");
+        setMessage(getAuthMessage("invitation_set_password_message"));
       } else {
-        setMessage("Continue to accept this invitation.");
+        setMessage(getAuthMessage("invitation_continue_message"));
       }
       setSubmitError(null);
       return;
@@ -527,19 +580,20 @@ export function useInvitationAcceptRouteRuntime(options: {
       setStatus("idle");
       setMessage(
         turnstile.guidanceMessage ??
-          "Complete verification to accept this invitation.",
+          getAuthMessage("invitation_complete_verification"),
       );
       return;
     }
 
     const submissionKey = `${token}:${turnstile.token ?? ""}`;
-    if (inFlightRef.current || lastSubmittedRef.current === submissionKey) return;
+    if (inFlightRef.current || lastSubmittedRef.current === submissionKey)
+      return;
 
     let cancelled = false;
     inFlightRef.current = true;
     lastSubmittedRef.current = submissionKey;
     setStatus("working");
-    setMessage("Accepting invitation...");
+    setMessage(getAuthMessage("invitation_accepting"));
 
     auth
       .acceptInvitation(token, turnstile.token)
@@ -547,10 +601,10 @@ export function useInvitationAcceptRouteRuntime(options: {
         if (cancelled) return;
         inFlightRef.current = false;
         setStatus("done");
-        setMessage("Invitation accepted. Redirecting...");
+        setMessage(getAuthMessage("invitation_accepted_redirecting"));
         if (!nextPath) {
           setStatus("error");
-          setMessage("Authenticated destination could not be resolved.");
+          setMessage(getAuthMessage("invitation_destination_unresolved"));
           return;
         }
         window.setTimeout(() => onRedirect(nextPath), 900);
@@ -559,7 +613,9 @@ export function useInvitationAcceptRouteRuntime(options: {
         if (cancelled) return;
         setStatus("error");
         const typedError = error as Error & { code?: string };
-        setMessage(typedError.message || "Failed to accept invitation.");
+        setMessage(
+          typedError.message || getAuthMessage("invitation_accept_failed"),
+        );
         inFlightRef.current = false;
         if (typedError.code?.startsWith("TURNSTILE_")) {
           lastSubmittedRef.current = null;
@@ -589,18 +645,20 @@ export function useInvitationAcceptRouteRuntime(options: {
   const startGoogleContinuation = React.useCallback(() => {
     if (!continuationPath || auth.loginInFlight) return;
     if (turnstile.enabled && !turnstile.token) {
-      setSubmitError("Please complete the verification challenge.");
+      setSubmitError(getAuthMessage("auth_error_turnstile_required"));
       return;
     }
     setSubmitError(null);
-    auth.loginWithGoogle(turnstile.token, "sign_in", continuationPath).catch((error) => {
-      handleTurnstileProtectedAuthError({
-        error,
-        turnstile,
-        setError: setSubmitError,
-        fallbackMessage: "Unable to start Google sign-in.",
+    auth
+      .loginWithGoogle(turnstile.token, "sign_in", continuationPath)
+      .catch((error) => {
+        handleTurnstileProtectedAuthError({
+          error,
+          turnstile,
+          setError: setSubmitError,
+          fallbackMessage: getAuthMessage("invitation_google_start_failed"),
+        });
       });
-    });
   }, [auth, continuationPath, turnstile]);
   const loginContinuationPath = React.useMemo(() => {
     if (!continuationPath) return AUTH_LOGIN_PATH;
@@ -629,11 +687,11 @@ export function useInvitationAcceptRouteRuntime(options: {
       .then((nextPath) => {
         if (!nextPath) {
           setStatus("error");
-          setMessage("Authenticated destination could not be resolved.");
+          setMessage(getAuthMessage("invitation_destination_unresolved"));
           return;
         }
         setStatus("done");
-        setMessage("Invitation accepted. Redirecting...");
+        setMessage(getAuthMessage("invitation_accepted_redirecting"));
         window.setTimeout(() => onRedirect(nextPath), 900);
       })
       .catch((error) => {
@@ -642,7 +700,7 @@ export function useInvitationAcceptRouteRuntime(options: {
           error,
           turnstile,
           setError: setSubmitError,
-          fallbackMessage: "Failed to set password.",
+          fallbackMessage: getAuthMessage("invitation_password_set_failed"),
           resetWhenTurnstileErrorOnly: true,
         });
       })

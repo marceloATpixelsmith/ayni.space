@@ -34,7 +34,10 @@ function MfaChallengeContent() {
         setCodeError(
           err instanceof Error
             ? err.message
-            : "Invalid two-step verification code.",
+            : t(
+                "mfa_challenge_invalid_code",
+                "Invalid two-step verification code.",
+              ),
         ),
       );
   };
@@ -44,7 +47,12 @@ function MfaChallengeContent() {
       .completeMfaRecovery(recoveryCode, remember, stayLoggedIn)
       .catch((err) =>
         setRecoveryError(
-          err instanceof Error ? err.message : "Invalid recovery code.",
+          err instanceof Error
+            ? err.message
+            : t(
+                "mfa_challenge_invalid_recovery_code",
+                "Invalid recovery code.",
+              ),
         ),
       );
   };
@@ -66,8 +74,10 @@ function MfaChallengeContent() {
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
               />
-              Remember this browser for 20 days (skip MFA challenge on this
-              browser).
+              {t(
+                "mfa_challenge_remember_browser",
+                "Remember this browser for 20 days (skip MFA challenge on this browser).",
+              )}
             </label>
             <label className="text-sm flex items-center gap-2">
               <input
@@ -75,7 +85,10 @@ function MfaChallengeContent() {
                 checked={stayLoggedIn}
                 onChange={(e) => setStayLoggedIn(e.target.checked)}
               />
-              Keep this session signed in for up to 2 weeks.
+              {t(
+                "mfa_challenge_stay_logged_in",
+                "Keep this session signed in for up to 2 weeks.",
+              )}
             </label>
           </div>
           <input
@@ -92,7 +105,7 @@ function MfaChallengeContent() {
           />
           <FieldValidationMessage id="twostep-code-error" message={codeError} />
           <Button className="w-full" onClick={submitCode}>
-            Verify code
+            {t("mfa_challenge_verify_button", "Verify code")}
           </Button>
 
           <input
@@ -117,7 +130,7 @@ function MfaChallengeContent() {
             variant="secondary"
             onClick={submitRecovery}
           >
-            Use recovery code
+            {t("mfa_challenge_recovery_button", "Use recovery code")}
           </Button>
         </div>
       </AuthFormMotion>

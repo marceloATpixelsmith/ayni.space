@@ -6,4 +6,10 @@ export * from "./AuthTurnstileSection";
 export * from "./GoogleAuthButton";
 export * from "./AuthStatusMessage";
 
-export { AuthI18nProvider, useAuthI18n } from "./i18n";
+export {
+  AuthI18nProvider,
+  formatAuthMessage,
+  getAuthMessage,
+  useAuthI18n,
+} from "./i18n";
+export type { AuthMessageMap, AuthTranslationKey } from "./i18n";

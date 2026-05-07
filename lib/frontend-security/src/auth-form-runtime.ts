@@ -1,4 +1,5 @@
 import React from "react";
+import { getAuthMessage } from "@workspace/auth-ui";
 import type { useTurnstileToken } from "./turnstile";
 
 type TurnstileState = ReturnType<typeof useTurnstileToken>;
@@ -28,7 +29,7 @@ export function ensureTurnstileReadyForSubmit(
   turnstile: Pick<TurnstileState, "enabled" | "token">,
 ): string | null {
   if (turnstile.enabled && !turnstile.token) {
-    return "Please complete the verification challenge.";
+    return getAuthMessage("auth_error_turnstile_required");
   }
   return null;
 }
@@ -43,7 +44,7 @@ export function resetTurnstileOnFailure(
 
 export function getAuthActionErrorMessage(
   error: unknown,
-  fallback = "Request failed.",
+  fallback = getAuthMessage("auth_error_request_failed"),
 ): string {
   return error instanceof Error ? error.message : fallback;
 }
@@ -63,7 +64,7 @@ export function handleTurnstileProtectedAuthError(options: {
 }): void {
   const message = getAuthActionErrorMessage(
     options.error,
-    options.fallbackMessage ?? "Request failed.",
+    options.fallbackMessage ?? getAuthMessage("auth_error_request_failed"),
   );
   options.setError(message);
 
@@ -79,14 +80,16 @@ export function useAuthSubmitOrchestration() {
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const run = React.useCallback(async <T,>(task: () => Promise<T>) => {
+  const run = React.useCallback(async <T>(task: () => Promise<T>) => {
     setPending(true);
     setError(null);
     try {
       return await task();
     } catch (caught) {
       const message =
-        caught instanceof Error ? caught.message : "Request failed.";
+        caught instanceof Error
+          ? caught.message
+          : getAuthMessage("auth_error_request_failed");
       setError(message);
       throw caught;
     } finally {

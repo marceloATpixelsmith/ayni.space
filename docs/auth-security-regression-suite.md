@@ -1,10 +1,12 @@
 # Auth Security Regression Suite
 
 ## Scope
+
 - Permanent integration-level regression suite for authentication, session-group isolation, and security controls.
 - Defines required GitHub Actions check name and local execution contract.
 
 ## Confirmed
+
 - Backend auth core hardening coverage is included via `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts` (session-group isolation, denial cleanup, turnstile/rate-limit/origin fail-closed behavior, and stable CSRF/origin error-code contracts).
 - Password auth and OAuth start now fail closed via centralized app-context resolution (`resolveAppContextForAuth`) with no implicit `admin` fallback and no slug-only synthesized policy.
 - Auth-context candidate priority is fixed as: explicit `appSlug` (request body/query/param) → trusted origin/host-derived context (`APP_SLUG_BY_ORIGIN` then DB origin lookup) → session-group fallback mapping; explicit input is authoritative over mismatched origin/session-group hints (`apps/api-server/src/lib/authContextPolicy.ts`, `apps/api-server/src/__tests__/auth-app-context-policy.test.ts`).
@@ -33,11 +35,14 @@
 - Auth-entry contract guards are part of backend coverage via `apps/api-server/src/__tests__/auth-entry-regression-guards.test.ts` and are executed by `pnpm run test:auth-security-regression`.
 - Frontend auth runtime coverage now includes route-guard outcomes (unauthenticated, MFA-pending, onboarding, denied), login/signup branching, superadmin affordance hiding, and invitation continuation branch assertions (`apps/admin/src/__tests__/auth-routing.runtime.test.tsx`, `apps/admin/src/__tests__/invitation-flow.runtime.test.tsx`).
 - Shared frontend-security contracts are part of this suite and cover continuation precedence, session/MFA pending route resolution, CSRF requirement behavior, Turnstile lifecycle state, and stable auth/CSRF error-code mapping. CSRF retry/detection is code-based only (`code === "CSRF_INVALID"`) with no message-text fallback (`lib/frontend-security/src/__tests__/post-auth-resolver.test.ts`, `lib/frontend-security/src/__tests__/auth-flow-closure-regression.test.ts`, `lib/frontend-security/src/__tests__/csrf-requirement.test.ts`, `lib/frontend-security/src/__tests__/turnstile-lifecycle.test.ts`, `lib/frontend-security/src/__tests__/google-signin-error-mapping.test.ts`).
+- Auth i18n drift is covered by frontend tests: `apps/admin/src/__tests__/auth-i18n.runtime.test.tsx` verifies default English rendering and shared validation/runtime messages through typed auth translation keys, while `apps/admin/src/__tests__/security-shell.contract.test.mjs` locks key-based admin auth source contracts without changing visible English copy.
 
 ## Test location
+
 - `apps/api-server/src/__tests__/auth-security-regression-suite.test.ts`
 
 ## How to run locally
+
 - From repository root (shared frontend-security + frontend auth routing + backend auth hardening regression set):
   - `pnpm run test:auth-security-regression`
 - Frontend runtime auth tests only:
@@ -46,22 +51,26 @@
   - `pnpm --filter @workspace/api-server exec tsx --test src/__tests__/auth-security-regression-suite.test.ts src/__tests__/auth-session-group-hardening.test.ts src/__tests__/auth-real-journey-routes.test.ts src/__tests__/invitation-password-mfa-routing.test.ts src/__tests__/auth-entry-regression-guards.test.ts`
 
 ## Required GitHub check
+
 - Workflow name: `Auth Security Regression Suite`
 - Required job/check name for branch protection: `auth-security-regression-suite`
 
 ## Inferred
+
 - Running this suite on every PR and push to `master` prevents path-filter skips from bypassing auth/security validation.
 - The suite is designed to fail if behavior regresses toward single-cookie or cross-group-coupled session handling.
 
 ## Unclear
+
 - Whether additional future session groups beyond `default` and `admin` should be promoted into this same suite or split into app-specific suites.
 
 ## Do not break
+
 - Any authentication/session/security behavior change must pass this suite before merge.
 - This suite is expected to fail if behavior regresses to single-cookie session handling, cross-group leakage, or non-group-scoped logout/denial flows.
 
-
 ## AUTH freeze policy (current phase)
+
 - AUTH is a protected/frozen subsystem for the current phase.
 - Auth-critical files must not be changed unless the task explicitly requires AUTH work.
 - Unrelated tasks must not opportunistically modify auth redirects, MFA flow, session-group behavior, CSRF behavior, Turnstile behavior, app-context resolution, login/signup routing, invitation auth flow, or post-auth continuation behavior.
@@ -69,6 +78,7 @@
 - AUTH freeze protected workflow files that require approval marker coverage are `.github/workflows/auth-freeze-guard.yml` and `.github/workflows/auth-security-regression-suite.yml`.
 
 ### Auth-critical file groups
+
 - `apps/api-server/src/routes/auth.ts`
 - `apps/api-server/src/middlewares/requireAuth.ts`
 - `apps/api-server/src/middlewares/csrf.ts`
@@ -85,10 +95,12 @@
 - auth-related workflow/docs
 
 ### Required gate (must be preserved)
+
 - Workflow: `Auth Security Regression Suite`
 - Required job/check: `auth-security-regression-suite`
 - Command: `pnpm run test:auth-security-regression`
 
 ### Change discipline when AUTH work is explicitly requested
+
 - Any auth change must update tests and docs in the same PR.
 - Do not remove or weaken existing auth/security regression coverage.

@@ -9,21 +9,54 @@ const __dirname = path.dirname(__filename);
 const appPath = path.resolve(__dirname, "../App.tsx");
 const loginPath = path.resolve(__dirname, "../pages/auth/Login.tsx");
 const signupPath = path.resolve(__dirname, "../pages/auth/Signup.tsx");
-const resetPasswordPath = path.resolve(__dirname, "../pages/auth/ResetPassword.tsx");
-const accessDeniedPath = path.resolve(__dirname, "../pages/auth/accessDenied.ts");
-const authProviderPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/index.tsx");
-const sharedOrchestrationPath = path.resolve(__dirname, "../../../../lib/frontend-security/src/auth-page-orchestration.ts");
-const turnstilePath = path.resolve(__dirname, "../../../../lib/frontend-security/src/turnstile.tsx");
-const adminDashboardPath = path.resolve(__dirname, "../pages/admin/AdminDashboard.tsx");
+const resetPasswordPath = path.resolve(
+  __dirname,
+  "../pages/auth/ResetPassword.tsx",
+);
+const accessDeniedPath = path.resolve(
+  __dirname,
+  "../pages/auth/accessDenied.ts",
+);
+const authProviderPath = path.resolve(
+  __dirname,
+  "../../../../lib/frontend-security/src/index.tsx",
+);
+const sharedOrchestrationPath = path.resolve(
+  __dirname,
+  "../../../../lib/frontend-security/src/auth-page-orchestration.ts",
+);
+const turnstilePath = path.resolve(
+  __dirname,
+  "../../../../lib/frontend-security/src/turnstile.tsx",
+);
+const adminDashboardPath = path.resolve(
+  __dirname,
+  "../pages/admin/AdminDashboard.tsx",
+);
 const onboardingPath = path.resolve(__dirname, "../pages/auth/Onboarding.tsx");
-const invitationsDashboardPath = path.resolve(__dirname, "../pages/dashboard/Invitations.tsx");
-const invitationAcceptPath = path.resolve(__dirname, "../pages/auth/InvitationAccept.tsx");
+const invitationsDashboardPath = path.resolve(
+  __dirname,
+  "../pages/dashboard/Invitations.tsx",
+);
+const invitationAcceptPath = path.resolve(
+  __dirname,
+  "../pages/auth/InvitationAccept.tsx",
+);
 const mfaEnrollPath = path.resolve(__dirname, "../pages/auth/MfaEnroll.tsx");
-const mfaChallengePath = path.resolve(__dirname, "../pages/auth/MfaChallenge.tsx");
-const verifyEmailPath = path.resolve(__dirname, "../pages/auth/VerifyEmail.tsx");
+const mfaChallengePath = path.resolve(
+  __dirname,
+  "../pages/auth/MfaChallenge.tsx",
+);
+const verifyEmailPath = path.resolve(
+  __dirname,
+  "../pages/auth/VerifyEmail.tsx",
+);
 const adminSrcRoot = path.resolve(__dirname, "..");
 const authUiSrcRoot = path.resolve(__dirname, "../../../../lib/auth-ui/src");
-const sharedAuthShellPath = path.resolve(__dirname, "../../../../lib/auth-ui/src/AuthShell.tsx");
+const sharedAuthShellPath = path.resolve(
+  __dirname,
+  "../../../../lib/auth-ui/src/AuthShell.tsx",
+);
 
 const appSource = fs.readFileSync(appPath, "utf8");
 const loginSource = fs.readFileSync(loginPath, "utf8");
@@ -31,13 +64,22 @@ const signupSource = fs.readFileSync(signupPath, "utf8");
 const resetPasswordSource = fs.readFileSync(resetPasswordPath, "utf8");
 const accessDeniedSource = fs.readFileSync(accessDeniedPath, "utf8");
 const authProviderSource = fs.readFileSync(authProviderPath, "utf8");
-const sharedOrchestrationSource = fs.readFileSync(sharedOrchestrationPath, "utf8");
+const sharedOrchestrationSource = fs.readFileSync(
+  sharedOrchestrationPath,
+  "utf8",
+);
 const turnstileSource = fs.readFileSync(turnstilePath, "utf8");
-const appLayoutPath = path.resolve(__dirname, "../components/layout/AppLayout.tsx");
+const appLayoutPath = path.resolve(
+  __dirname,
+  "../components/layout/AppLayout.tsx",
+);
 const appLayoutSource = fs.readFileSync(appLayoutPath, "utf8");
 const adminDashboardSource = fs.readFileSync(adminDashboardPath, "utf8");
 const onboardingSource = fs.readFileSync(onboardingPath, "utf8");
-const invitationsDashboardSource = fs.readFileSync(invitationsDashboardPath, "utf8");
+const invitationsDashboardSource = fs.readFileSync(
+  invitationsDashboardPath,
+  "utf8",
+);
 const invitationAcceptSource = fs.readFileSync(invitationAcceptPath, "utf8");
 const mfaEnrollSource = fs.readFileSync(mfaEnrollPath, "utf8");
 const mfaChallengeSource = fs.readFileSync(mfaChallengePath, "utf8");
@@ -49,7 +91,10 @@ function expectIncludes(source, needle, message) {
 }
 
 function expectNotIncludes(source, needle, message) {
-  assert.ok(!source.includes(needle), `${message}\nUnexpected snippet: ${needle}`);
+  assert.ok(
+    !source.includes(needle),
+    `${message}\nUnexpected snippet: ${needle}`,
+  );
 }
 
 function collectFilePaths(rootDir, predicate) {
@@ -106,13 +151,13 @@ test("onboarding and invitation auth routes are centrally gated by app metadata"
 
   expectIncludes(
     appSource,
-    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {\n    console.info(\"[INVITATION-FLOW] allowing unauthenticated invitation route render\"",
+    'if (auth.status === "unauthenticated" && routeKind === "invitation") {\n    console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render"',
     "Invitation route should render pre-auth so invitation page controls the next step.",
   );
 
   expectIncludes(
     appSource,
-    "return <AuthRedirect to=\"/login\" />;",
+    'return <AuthRedirect to="/login" />;',
     "Allowed onboarding route should still route logged-out users to /login.",
   );
 });
@@ -137,13 +182,15 @@ test("invitation accept route remains reachable pre-auth and controls login cont
   );
 
   const invitationAllowBranch = appSource.indexOf(
-    "if (auth.status === \"unauthenticated\" && routeKind === \"invitation\") {",
+    'if (auth.status === "unauthenticated" && routeKind === "invitation") {',
   );
   const disallowedRouteBranch = appSource.indexOf(
     "if (!isAuthRouteAllowed(metadata, routeKind)) {",
   );
   assert.ok(
-    invitationAllowBranch !== -1 && disallowedRouteBranch !== -1 && invitationAllowBranch < disallowedRouteBranch,
+    invitationAllowBranch !== -1 &&
+      disallowedRouteBranch !== -1 &&
+      invitationAllowBranch < disallowedRouteBranch,
     "Invitation pre-auth allow branch must run before disallowed-route redirects to prevent plain /login bounce regressions.",
   );
 });
@@ -157,7 +204,7 @@ test("post-onboarding flow waits for auth refresh before navigating to canonical
 
   expectIncludes(
     onboardingSource,
-    "setLocation(\"/\");",
+    'setLocation("/");',
     "Onboarding completion fallback should use neutral root instead of hardcoded dashboard.",
   );
 });
@@ -193,8 +240,13 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
   );
   expectIncludes(
     invitationAcceptSource,
-    '{invitation.auth.status === "unauthenticated"\n                ? "Back to sign in"\n                : "Back to dashboard"}',
+    't("invitation_back_sign_in", "Back to sign in")',
     "Invitation resolve error fallback should send logged-out users back to sign in instead of dashboard.",
+  );
+  expectIncludes(
+    invitationAcceptSource,
+    't("invitation_back_dashboard", "Back to dashboard")',
+    "Invitation resolve error fallback should keep authenticated users on the neutral dashboard/root path.",
   );
   expectIncludes(
     invitationAcceptSource,
@@ -260,27 +312,26 @@ test("invitation dashboard submits first and last name and refreshes pending inv
 });
 
 test("shared route policy enforces normalized access-profile onboarding and invitation rules", () => {
-
   expectIncludes(
     authProviderSource,
-    'authRoutePolicy?: AppAuthRoutePolicy;',
+    "authRoutePolicy?: AppAuthRoutePolicy;",
     "Platform app metadata should carry backend auth-route policy for onboarding/invitation gating.",
   );
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"organization\") {\n    return { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: true };",
+    'if (app.normalizedAccessProfile === "organization") {\n    return {\n      allowOnboarding: true,\n      allowInvitations: true,\n      allowCustomerRegistration: true,',
     "Organization profile should allow onboarding and invitation routes.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (app.normalizedAccessProfile === \"solo\") {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };",
+    'if (app.normalizedAccessProfile === "solo") {\n    return {\n      allowOnboarding: false,\n      allowInvitations: false,\n      allowCustomerRegistration: true,',
     "Solo profile should allow onboarding and customer-registration routes while still denying invitations.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (!app) {\n    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };",
+    "if (!app) {\n    return {\n      allowOnboarding: false,\n      allowInvitations: false,\n      allowCustomerRegistration: false,",
     "Missing app metadata should fail closed and deny onboarding/invitations.",
   );
 });
@@ -288,7 +339,7 @@ test("shared route policy enforces normalized access-profile onboarding and invi
 test("disallowed route redirects are explicit and avoid blank fallthrough states", () => {
   expectIncludes(
     authProviderSource,
-    "if (app?.normalizedAccessProfile === \"superadmin\") {",
+    'if (app?.normalizedAccessProfile === "superadmin") {',
     "Disallowed-route redirect helper should branch explicitly for superadmin-only apps.",
   );
 
@@ -326,13 +377,13 @@ test("dashboard routes are app-access gated (not blanket superadmin-only)", () =
 
   expectIncludes(
     appSource,
-    "if (appAccess?.normalizedAccessProfile === \"superadmin\") {\n    return <AdminDashboard section={section} />;",
+    'if (appAccess?.normalizedAccessProfile === "superadmin") {\n    return <AdminDashboard section={section} />;',
     "Superadmin app profile should still render the superadmin dashboard component.",
   );
 
   expectIncludes(
     appSource,
-    "case \"overview\":\n      return <DashboardHome />;",
+    'case "overview":\n      return <DashboardHome />;',
     "Organization-access users should render organization dashboard routes under /dashboard.",
   );
 });
@@ -354,7 +405,7 @@ test("auth debug overlay supports collapse/expand, persistence, and keyboard acc
 
   expectIncludes(
     appSource,
-    "window.localStorage.getItem(storageKey) === \"true\"",
+    'window.localStorage.getItem(storageKey) === "true"',
     "Auth debug overlay should restore collapsed state from localStorage on load.",
   );
 
@@ -366,19 +417,19 @@ test("auth debug overlay supports collapse/expand, persistence, and keyboard acc
 
   expectIncludes(
     appSource,
-    "if (event.key === \" \" || event.key === \"Enter\") {",
+    'if (event.key === " " || event.key === "Enter") {',
     "Auth debug overlay toggle should support keyboard activation with Enter and Space.",
   );
 
   expectIncludes(
     appSource,
-    "aria-expanded=\"false\"",
+    'aria-expanded="false"',
     "Collapsed auth debug toggle should expose collapsed accessibility state.",
   );
 
   expectIncludes(
     appSource,
-    "aria-expanded=\"true\"",
+    'aria-expanded="true"',
     "Expanded auth debug toggle should expose expanded accessibility state.",
   );
 
@@ -424,7 +475,7 @@ test("super-admin users are sent to /dashboard after login", () => {
 test("protected authenticated non-super-admin users are routed to login with access error", () => {
   expectIncludes(
     appSource,
-    "if (appAccess?.normalizedAccessProfile === \"superadmin\" && !auth.user?.isSuperAdmin) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;",
+    'if (appAccess?.normalizedAccessProfile === "superadmin" && !auth.user?.isSuperAdmin) {\n    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;',
     "Protected routes must route authenticated non-super-admin users to /login with access error for superadmin apps.",
   );
 
@@ -444,11 +495,10 @@ test("superadmin-only dashboard component remains fail-closed", () => {
 
   expectIncludes(
     accessDeniedSource,
-    'return buildAdminAccessDeniedLoginPath();',
+    "return buildAdminAccessDeniedLoginPath();",
     "Access denied helper should remain shared and stable.",
   );
 });
-
 
 test("direct protected-route access fail-closes to login with access error", () => {
   expectIncludes(
@@ -459,7 +509,7 @@ test("direct protected-route access fail-closes to login with access error", () 
 
   expectNotIncludes(
     appSource,
-    "<Route path=\"/unauthorized\"",
+    '<Route path="/unauthorized"',
     "Admin router must not define a standalone /unauthorized page.",
   );
 });
@@ -473,7 +523,7 @@ test("login screen has stable inline access-denied message state", () => {
 
   expectIncludes(
     loginSource,
-    "role=\"alert\"",
+    'role="alert"',
     "Login page should render inline alert text for access errors.",
   );
 
@@ -516,11 +566,10 @@ test("superadmin access_denied login performs fail-closed local cleanup and allo
   );
 });
 
-
 test("logout fail-closed behavior clears UI auth immediately", () => {
   expectIncludes(
     authProviderSource,
-    'setSessionRevoked(true);',
+    "setSessionRevoked(true);",
     "Logout should immediately revoke client auth state.",
   );
 
@@ -586,7 +635,7 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     appLayoutSource,
-    "await auth.logout();\n      setLocation(\"/login\");",
+    'await auth.logout();\n      setLocation("/login");',
     "Logout flow must navigate to /login only after logout resolves.",
   );
 
@@ -598,7 +647,7 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     adminDashboardSource,
-    "await auth.logout();\n    setLocation(\"/login\");",
+    'await auth.logout();\n    setLocation("/login");',
     "Super-admin dashboard logout should also navigate to /login after logout completes.",
   );
 
@@ -616,7 +665,7 @@ test("logout fail-closed behavior clears UI auth immediately", () => {
 
   expectIncludes(
     authProviderSource,
-    "if (meQuery.isError || !meQuery.data) return \"unauthenticated\";",
+    'if (meQuery.isError || !meQuery.data) return "unauthenticated";',
     "Bootstrap/query errors must fail closed to unauthenticated.",
   );
 });
@@ -639,9 +688,7 @@ test("google oauth url is requested only on explicit login intent", () => {
     "loginRequestRef.current = request;",
     "Auth provider must track in-flight login requests.",
   );
-
 });
-
 
 test("login includes turnstile token when requesting oauth url", () => {
   expectIncludes(
@@ -652,37 +699,40 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    "onClick={() => handleGoogleLogin(\"sign_in\")}",
+    'onClick={() => handleGoogleLogin("sign_in")}',
     "Login should invoke shared Google login action that includes token and continuation handling.",
   );
 
   expectIncludes(
     authProviderSource,
-    "method: \"POST\"",
+    'method: "POST"',
     "OAuth URL request should be a POST enforced through central public route policy.",
   );
 
   expectIncludes(
     sharedOrchestrationSource,
-    "if (!input.csrfReady) reasons.push(\"!auth.csrfReady\");",
+    'if (!input.csrfReady) reasons.push("!auth.csrfReady");',
     "Login button should stay disabled until CSRF bootstrap is complete.",
   );
 
   expectIncludes(
     sharedOrchestrationSource,
-    "if (!input.csrfTokenPresent) reasons.push(\"!auth.csrfToken\");",
+    'if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");',
     "Login button should stay disabled until a CSRF token is available.",
   );
 
   expectIncludes(
     sharedOrchestrationSource,
-    "if (input.turnstileEnabled && !input.turnstileTokenPresent) reasons.push(\"turnstileEnabled&&!turnstileToken\");",
+    'if (input.turnstileEnabled && !input.turnstileTokenPresent)\n    reasons.push("turnstileEnabled&&!turnstileToken");',
     "Login button should stay disabled until required turnstile token is present.",
   );
 
   const signInButtonPosition = loginSource.indexOf("<GoogleAuthButton");
   const turnstileWidgetPosition = loginSource.indexOf("<AuthTurnstileSection");
-  assert.ok(signInButtonPosition >= 0 && turnstileWidgetPosition >= 0, "Login source should render both sign-in button and Turnstile widget.");
+  assert.ok(
+    signInButtonPosition >= 0 && turnstileWidgetPosition >= 0,
+    "Login source should render both sign-in button and Turnstile widget.",
+  );
   assert.ok(
     signInButtonPosition < turnstileWidgetPosition,
     "Login page should render the sign-in button before the Turnstile widget.",
@@ -702,7 +752,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     authProviderSource,
-    "\"cf-turnstile-response\": normalizedTurnstileToken",
+    '"cf-turnstile-response": normalizedTurnstileToken',
     "OAuth URL request should include Turnstile token in request body for backend verification.",
   );
 
@@ -716,19 +766,19 @@ test("login includes turnstile token when requesting oauth url", () => {
 test("frontend maps known google sign-in failure categories to specific user guidance", () => {
   expectIncludes(
     authProviderSource,
-    "if (payload?.code === \"TURNSTILE_MISSING_TOKEN\") return \"Verification required. Please complete the challenge.\";",
+    'return getAuthMessage("login_error_google_verification_required");',
     "Frontend should map missing turnstile token to verification required message.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (payload?.code === \"ORIGIN_NOT_ALLOWED\") return \"Access origin is not allowed for sign-in.\";",
+    'return getAuthMessage("login_error_google_origin_not_allowed");',
     "Frontend should map disallowed origin responses to explicit origin guidance.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (payload?.code === \"OAUTH_CONFIG_MISSING\" || payload?.code === \"OAUTH_URL_INVALID\")",
+    'payload?.code === "OAUTH_CONFIG_MISSING" ||\n    payload?.code === "OAUTH_URL_INVALID"',
     "Frontend should map oauth configuration failures to configuration-specific guidance.",
   );
 });
@@ -736,7 +786,7 @@ test("frontend maps known google sign-in failure categories to specific user gui
 test("admin layout no longer enforces org onboarding as an access prerequisite", () => {
   expectNotIncludes(
     appLayoutSource,
-    "setLocation(\"/onboarding\")",
+    'setLocation("/onboarding")',
     "Super-admin layout should not redirect to onboarding based on org state.",
   );
 
@@ -750,13 +800,13 @@ test("admin layout no longer enforces org onboarding as an access prerequisite",
 test("session revalidates on browser restore/navigation visibility", () => {
   expectIncludes(
     authProviderSource,
-    "window.addEventListener(\"pageshow\", handlePageShow);",
+    'window.addEventListener("pageshow", handlePageShow);',
     "Auth provider should revalidate session when a page is restored via back/forward cache.",
   );
 
   expectIncludes(
     authProviderSource,
-    "document.addEventListener(\"visibilitychange\", handleVisibilityChange);",
+    'document.addEventListener("visibilitychange", handleVisibilityChange);',
     "Auth provider should revalidate session when the tab becomes visible again.",
   );
 
@@ -802,7 +852,7 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
 
   expectIncludes(
     turnstileSource,
-    "if (existing.getAttribute(SCRIPT_LOADED_ATTR) === \"true\") {\n      return Promise.resolve();\n    }",
+    'if (existing.getAttribute(SCRIPT_LOADED_ATTR) === "true") {\n      return Promise.resolve();\n    }',
     "Turnstile loader should resolve immediately when script tag already finished loading.",
   );
 
@@ -850,13 +900,13 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
 
   expectIncludes(
     turnstileSource,
-    "() => <div ref={setContainerNode} className=\"min-h-16 w-full\" />",
+    '() => <div ref={setContainerNode} className="min-h-16 w-full" />',
     "Turnstile widget should use callback ref state so container mount triggers render flow.",
   );
 
   expectIncludes(
     turnstileSource,
-    "console.info(\"[turnstile] state\", {",
+    'console.info("[turnstile] state", {',
     "Turnstile hook should log runtime readiness and callback transitions for refresh diagnostics.",
   );
 });
@@ -890,19 +940,19 @@ test("mfa enrollment bootstraps csrf before enrollment start and verify", () => 
 
   expectIncludes(
     authProviderSource,
-    "\"Security token is not ready. Please refresh and try two-step verification setup again.\"",
+    'getAuthMessage("auth_error_security_token_refresh_mfa_setup")',
     "Two-step setup should surface explicit bootstrap retry guidance.",
   );
 
   expectIncludes(
     authProviderSource,
-    "\"Security token is not ready. Please refresh and try two-step verification again.\"",
+    'getAuthMessage("auth_error_security_token_refresh_mfa")',
     "Two-step verification should surface explicit bootstrap retry guidance.",
   );
 
   expectIncludes(
     authProviderSource,
-    "if (response.status === 409 && payload?.nextStep === \"mfa_challenge\") {",
+    'if (response.status === 409 && payload?.nextStep === "mfa_challenge") {',
     "MFA enrollment bootstrap should fail closed back to challenge when backend indicates the account is already enrolled.",
   );
 
@@ -928,13 +978,13 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
 
   expectIncludes(
     mfaEnrollSource,
-    "alt=\"Two-step verification QR code\"",
+    'alt={t(\n                      "mfa_enroll_qr_alt",\n                      "Two-step verification QR code",',
     "Two-step enrollment should render a QR image as the primary setup UI.",
   );
 
   expectIncludes(
     mfaEnrollSource,
-    "Manual setup option: Enter this setup key manually in your",
+    "mfa_enroll_manual_setup",
     "Two-step enrollment should preserve manual setup key fallback.",
   );
 
@@ -944,7 +994,6 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
     "Two-step enrollment should show initialization state instead of immediate error.",
   );
 });
-
 
 test("auth password forms use shared password visibility toggle component", () => {
   expectIncludes(
@@ -981,7 +1030,7 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     loginSource,
-    "handleGoogleLogin(\"sign_in\")",
+    'handleGoogleLogin("sign_in")',
     "Google auth initiation should run through shared login action runtime on login screen.",
   );
 
@@ -1053,7 +1102,7 @@ test("signup form only includes email + password and omits legacy fields", () =>
 test("invitation acceptance keeps first-time password creation and omits confirm-password", () => {
   expectIncludes(
     invitationAcceptSource,
-    "idleLabel=\"Continue with Google\"",
+    'idleLabel={t(\n                "invitation_google_continue_idle",\n                "Continue with Google",',
     "Invitation page should keep a direct Google continuation action.",
   );
   expectIncludes(
@@ -1068,12 +1117,12 @@ test("invitation acceptance keeps first-time password creation and omits confirm
   );
   expectIncludes(
     invitationAcceptSource,
-    "placeholder=\"Password\"",
+    'placeholder={t("invitation_password_placeholder", "Password")}',
     "Invitation page should keep password-first setup without adding a second confirmation input.",
   );
   expectIncludes(
     invitationAcceptSource,
-    "\"Set password and join\"",
+    '"Set password and join"',
     "Invitation page should support direct password creation without redirecting through generic login.",
   );
   expectNotIncludes(
@@ -1088,7 +1137,7 @@ test("invitation acceptance keeps first-time password creation and omits confirm
   );
   expectNotIncludes(
     invitationAcceptSource,
-    "setLocation(\"/login\")",
+    'setLocation("/login")',
     "Invitation acceptance should not force a generic login redirect during first-time password setup.",
   );
   expectNotIncludes(
@@ -1106,7 +1155,7 @@ test("superadmin login hides signup affordances and blocks create-account intent
   );
   expectIncludes(
     loginSource,
-    "onClick={() => handleGoogleLogin(\"create_account\")}",
+    'onClick={() => handleGoogleLogin("create_account")}',
     "Login should route create-account OAuth intent through shared action policy in superadmin mode.",
   );
   expectIncludes(
@@ -1126,7 +1175,7 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
   );
   expectIncludes(
     verifyEmailSource,
-    "setMessage(\"Email verified. Redirecting...\");",
+    'setMessage("Email verified. Redirecting...");',
     "Verify-email should transition directly to continuation when backend returns next-step routing.",
   );
   expectIncludes(
@@ -1136,7 +1185,7 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
   );
   expectIncludes(
     verifyEmailSource,
-    "setMessage(t(\"verify_email_verifying\", \"Verifying your email...\"));",
+    'setMessage(t("verify_email_verifying", "Verifying your email..."));',
     "Verify-email should preserve continuation-state messaging used by this source contract.",
   );
   expectNotIncludes(
@@ -1159,7 +1208,7 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
 test("mfa enrollment includes first-code instruction and consistent recovery-code surfacing", () => {
   expectIncludes(
     mfaEnrollSource,
-    "Enter the <strong>first code</strong> generated by your",
+    "mfa_enroll_step_enter_first_code_emphasis",
     "MFA enrollment instructions must explicitly ask for the first authenticator code.",
   );
   expectIncludes(
@@ -1174,11 +1223,10 @@ test("mfa enrollment includes first-code instruction and consistent recovery-cod
   );
 });
 
-
 test("auth provider forwards stay-logged-in and turnstile payloads for password auth endpoints", () => {
   expectIncludes(
     authProviderSource,
-    'returnToPath: normalizedReturnToPath',
+    "returnToPath: normalizedReturnToPath",
     "Password login request should include sanitized continuation path handoff.",
   );
 
@@ -1190,13 +1238,13 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
 
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ code, rememberDevice, stayLoggedIn })',
+    "body: JSON.stringify({ code, rememberDevice, stayLoggedIn })",
     "MFA challenge request should include stay-logged-in intent.",
   );
 
   expectIncludes(
     authProviderSource,
-    'body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn })',
+    "body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn })",
     "MFA recovery request should include stay-logged-in intent.",
   );
 
@@ -1208,11 +1256,10 @@ test("auth provider forwards stay-logged-in and turnstile payloads for password 
 
   expectIncludes(
     authProviderSource,
-    '"Security token is not ready. Please refresh and try creating your account again."',
+    'getAuthMessage("auth_error_security_token_refresh_signup")',
     "Signup should emit explicit CSRF readiness guidance when bootstrap has not completed.",
   );
 });
-
 
 test("login and signup pages compose shared auth-ui runtime primitives", () => {
   expectIncludes(
@@ -1264,7 +1311,9 @@ test("login and signup pages compose shared auth-ui runtime primitives", () => {
 
 test("auth shell primitives are owned only by shared auth-ui layer", () => {
   const localPrimitiveFiles = collectFilePaths(adminSrcRoot, (filePath) =>
-    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(filePath),
+    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(
+      filePath,
+    ),
   );
 
   assert.deepEqual(
@@ -1274,8 +1323,12 @@ test("auth shell primitives are owned only by shared auth-ui layer", () => {
   );
 
   const sharedPrimitiveFiles = collectFilePaths(authUiSrcRoot, (filePath) =>
-    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(filePath),
-  ).map((filePath) => path.relative(authUiSrcRoot, filePath).replaceAll("\\", "/"));
+    /(AuthShell|AuthMethodDivider|FieldValidationMessage|GoogleAuthButton|AuthFormMotion|AuthTurnstileSection)\.tsx$/.test(
+      filePath,
+    ),
+  ).map((filePath) =>
+    path.relative(authUiSrcRoot, filePath).replaceAll("\\", "/"),
+  );
 
   assert.deepEqual(
     sharedPrimitiveFiles.sort(),
@@ -1291,14 +1344,17 @@ test("auth shell primitives are owned only by shared auth-ui layer", () => {
   );
 
   const repoRoot = path.resolve(__dirname, "../../../../");
-  const authShellImplementationMatches = collectFilePaths(repoRoot, (filePath) => {
-    if (!filePath.endsWith(".tsx")) {
-      return false;
-    }
+  const authShellImplementationMatches = collectFilePaths(
+    repoRoot,
+    (filePath) => {
+      if (!filePath.endsWith(".tsx")) {
+        return false;
+      }
 
-    const fileSource = fs.readFileSync(filePath, "utf8");
-    return fileSource.includes("export function AuthShell(");
-  }).map((filePath) => path.relative(repoRoot, filePath).replaceAll("\\", "/"));
+      const fileSource = fs.readFileSync(filePath, "utf8");
+      return fileSource.includes("export function AuthShell(");
+    },
+  ).map((filePath) => path.relative(repoRoot, filePath).replaceAll("\\", "/"));
 
   assert.deepEqual(
     authShellImplementationMatches,
