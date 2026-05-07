@@ -1111,40 +1111,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
         sessionGroup: "admin" | "default";
       }
     | null = null;
-  if (!appContext.success && isTestEnv) {
-    const failedResolvedSlug = normalizeOptionalAppSlug(
-      typeof appContext.details?.["resolvedAppSlug"] === "string"
-        ? appContext.details["resolvedAppSlug"]
-        : null,
-    );
-    const fallbackByOrigin =
-      trustedOriginSessionGroup === "admin"
-        ? "admin"
-        : trustedOriginSessionGroup === "default"
-          ? "workspace"
-          : null;
-    const fallbackCandidate =
-      fallbackRequestedSlug === "admin" || fallbackRequestedSlug === "workspace"
-        ? fallbackRequestedSlug
-        : fallbackByOrigin;
-    const fallbackEligibleSlug =
-      fallbackCandidate === "admin" || fallbackCandidate === "workspace"
-        ? fallbackCandidate
-        : failedResolvedSlug === "admin" || failedResolvedSlug === "workspace"
-          ? failedResolvedSlug
-          : null;
-    if (fallbackEligibleSlug) {
-      fallbackAcceptedContext = {
-        appSlug: fallbackEligibleSlug,
-        sessionGroup: fallbackEligibleSlug === "admin" ? "admin" : "default",
-      };
-      logGoogleUrlBranch(req, "app_context_resolver_fallback_accepted", {
-        reason: appContext.reason,
-        failedSlug: failedResolvedSlug,
-        fallbackCandidate,
-      });
-    }
-  }
   if (!appContext.success) {
     if (explicitOriginDisallowed) {
       logGoogleUrlBranch(req, "disallowed_origin", {
@@ -1167,11 +1133,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
         : null,
     );
     const fallbackByOrigin =
-      trustedOriginSessionGroup === "admin"
-        ? "admin"
-        : trustedOriginSessionGroup === "default"
-          ? "workspace"
-          : null;
+      trustedOriginSessionGroup === "default" ? "workspace" : null;
     const fallbackEligibleSlug =
       fallbackRequestedSlug === "admin" || fallbackRequestedSlug === "workspace"
         ? fallbackRequestedSlug
