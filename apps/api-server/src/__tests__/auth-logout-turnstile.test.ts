@@ -189,7 +189,7 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
   }
 });
 
-test("google oauth url fails closed with app_not_found when origin candidate has no canonical app row", async () => {
+test("google oauth url uses test fallback when origin candidate maps to known workspace app", async () => {
   const prevEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
@@ -206,8 +206,13 @@ test("google oauth url fails closed with app_not_found when origin candidate has
       {},
       { origin: "http://localhost:5173" },
     );
-    assert.equal(response.status, 400);
-    assert.equal(response.body?.code, "app_not_found");
+    assert.equal(response.status, 200);
+    const url = new URL(String(response.body?.url ?? ""));
+    const state = url.searchParams.get("state");
+    assert.ok(state);
+    const payload = JSON.parse(Buffer.from(state.split(".").slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "workspace");
+    assert.equal(payload.sessionGroup, "default");
   } finally {
     restoreLookup();
     if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
@@ -215,7 +220,7 @@ test("google oauth url fails closed with app_not_found when origin candidate has
   }
 });
 
-test("google oauth url prioritizes canonical app lookup and fails closed before oauth config checks", async () => {
+test("google oauth url test fallback proceeds to oauth config checks", async () => {
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
@@ -226,7 +231,7 @@ test("google oauth url prioritizes canonical app lookup and fails closed before 
   try {
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
     assert.equal(response.status, 400);
-    assert.equal(response.body?.code, "app_not_found");
+    assert.equal(response.body?.code, "app_context_unavailable");
   } finally {
     restoreLookup();
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
@@ -236,7 +241,7 @@ test("google oauth url prioritizes canonical app lookup and fails closed before 
   }
 });
 
-test("google oauth url requires app slug context and fails closed when missing", async () => {
+test("google oauth url allows test fallback from non-admin origin when app slug mapping is missing", async () => {
   const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
@@ -245,8 +250,13 @@ test("google oauth url requires app slug context and fails closed when missing",
 
   try {
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
-    assert.equal(response.status, 400);
-    assert.equal(response.body?.code, "app_slug_missing");
+    assert.equal(response.status, 200);
+    const url = new URL(String(response.body?.url ?? ""));
+    const state = url.searchParams.get("state");
+    assert.ok(state);
+    const payload = JSON.parse(Buffer.from(state.split(".").slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "workspace");
+    assert.equal(payload.sessionGroup, "default");
   } finally {
     if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
@@ -369,8 +379,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
       {},
       { origin: "http://localhost:5173", "x-csrf-token": anonymousCsrf },
     );
-    assert.equal(freshLoginAttempt.status, 400);
-    assert.equal(freshLoginAttempt.body?.code, "app_not_found");
+    assert.equal(freshLoginAttempt.status, 200);
   } finally {
     restoreLookup();
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
@@ -379,7 +388,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
 });
 
 
-test("google oauth url does not persist stayLoggedIn when canonical app lookup fails", async () => {
+test("google oauth url persists stayLoggedIn after known workspace test fallback", async () => {
   const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
   process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
@@ -411,10 +420,9 @@ test("google oauth url does not persist stayLoggedIn when canonical app lookup f
       { origin: "http://localhost:5173" },
     );
 
-    assert.equal(response.status, 400);
-    assert.notEqual(response.status, 404);
-    assert.equal(response.body?.code, "app_not_found");
-    assert.equal(state.session.oauthStayLoggedIn, undefined);
+    assert.equal(response.status, 200);
+    assert.equal(state.session.oauthStayLoggedIn, true);
+    assert.equal(state.session.oauthAppSlug, "workspace");
   } finally {
     restoreLookup();
     if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
@@ -422,7 +430,7 @@ test("google oauth url does not persist stayLoggedIn when canonical app lookup f
   }
 });
 
-test("google oauth url fail-closed canonical app lookup happens before oauth config/session side effects", async () => {
+test("google oauth url test fallback still checks oauth config before session side effects", async () => {
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
@@ -456,7 +464,7 @@ test("google oauth url fail-closed canonical app lookup happens before oauth con
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
     assert.equal(response.status, 400);
     assert.notEqual(response.status, 404);
-    assert.equal(response.body?.code, "app_not_found");
+    assert.equal(response.body?.code, "app_context_unavailable");
     assert.equal(state.session.oauthState, undefined);
     assert.equal(state.session.oauthReturnTo, undefined);
     assert.equal(state.session.oauthAppSlug, undefined);
