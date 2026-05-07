@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import express, { type RequestHandler } from "express";
 import cors from "cors";
 
-import { createMountedSessionApp, ensureTestDatabaseEnv, patchProperty } from "./helpers.js";
+import {
+  createMountedSessionApp,
+  ensureTestDatabaseEnv,
+  forceTurnstileDisabledForTest,
+  patchProperty,
+} from "./helpers.js";
 
 ensureTestDatabaseEnv();
 process.env["SESSION_SECRET"] ??= "test-session-secret";
@@ -204,21 +209,27 @@ test("PART 3B: admin callback app-context outage fails closed with redirect (no 
 });
 
 test("PART 3C: admin oauth start embeds appSlug in state payload", async () => {
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
-  const resp = await request(app, "/api/auth/google/url?appSlug=admin", "POST", {
-    origin: "http://admin.local",
-  });
-  assert.equal(resp.status, 200);
-  const body = (await resp.json()) as { url: string };
-  const redirectUrl = new URL(body.url);
-  const state = redirectUrl.searchParams.get("state");
-  assert.ok(state);
-  const segments = state.split(".");
-  assert.equal(segments[0], "admin");
-  const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
-  assert.equal(payload.appSlug, "admin");
-  assert.equal(payload.returnTo, "http://admin.local");
-  assert.equal(payload.sessionGroup, "admin");
+  const restoreTurnstile = forceTurnstileDisabledForTest();
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const resp = await request(app, "/api/auth/google/url?appSlug=admin", "POST", {
+      origin: "http://admin.local",
+    });
+    assert.equal(resp.status, 200);
+    const body = (await resp.json()) as { url: string };
+    const redirectUrl = new URL(body.url);
+    const state = redirectUrl.searchParams.get("state");
+    assert.ok(state);
+    const segments = state.split(".");
+    assert.equal(segments[0], "admin");
+    const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
+    assert.equal(payload.appSlug, "admin");
+    assert.equal(payload.returnTo, "http://admin.local");
+    assert.equal(payload.sessionGroup, "admin");
+  } finally {
+    restoreTurnstile();
+  }
 });
 
 test("PART 3D: malformed oauth state fails closed without 500", async () => {
