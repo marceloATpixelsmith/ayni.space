@@ -119,6 +119,25 @@ export function patchProperty<T extends object, K extends keyof T>(target: T, ke
   };
 }
 
+export function forceTurnstileDisabledForTest(): RestoreFn {
+  const previousEnabled = process.env["TURNSTILE_ENABLED"];
+  const previousAllowDisable = process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"];
+
+  process.env["TURNSTILE_ENABLED"] = "false";
+  process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"] = "true";
+
+  return () => {
+    if (previousEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = previousEnabled;
+
+    if (previousAllowDisable === undefined) {
+      delete process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"];
+    } else {
+      process.env["TURNSTILE_ALLOW_DISABLE_IN_PRODUCTION"] = previousAllowDisable;
+    }
+  };
+}
+
 export function ensureTestDatabaseEnv() {
   process.env["DATABASE_URL"] ??= "postgres://postgres:postgres@localhost:5432/ayni_test";
 }

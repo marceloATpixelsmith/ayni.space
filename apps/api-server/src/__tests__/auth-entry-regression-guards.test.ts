@@ -6,7 +6,13 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { createMountedSessionApp, ensureTestDatabaseEnv, patchProperty, performJsonRequest } from "./helpers.js";
+import {
+  createMountedSessionApp,
+  ensureTestDatabaseEnv,
+  forceTurnstileDisabledForTest,
+  patchProperty,
+  performJsonRequest,
+} from "./helpers.js";
 
 ensureTestDatabaseEnv();
 
@@ -49,25 +55,52 @@ function tlsLookupError() {
 }
 
 test("oauth start: explicit appSlug and origin mapping contracts remain locked", async () => {
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+  const restoreTurnstile = forceTurnstileDisabledForTest();
 
-  const explicitWorkspace = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-  assert.equal(explicitWorkspace.status, 200);
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
 
-  const explicitAdminDifferentOrigin = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=admin", undefined, { origin: "http://workspace.local" });
-  assert.equal(explicitAdminDifferentOrigin.status, 200);
+    const explicitWorkspace = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
+    assert.equal(explicitWorkspace.status, 200);
 
-  const originDerived = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://workspace.local" });
-  assert.equal(originDerived.status, 200);
+    const explicitAdminDifferentOrigin = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=admin", undefined, { origin: "http://workspace.local" });
+    assert.equal(explicitAdminDifferentOrigin.status, 200);
 
-  const disallowed = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://disallowed.local" });
-  assert.equal(disallowed.status, 400);
-  assert.equal(disallowed.body?.code, "ORIGIN_NOT_ALLOWED");
+    const originDerived = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://workspace.local" });
+    assert.equal(originDerived.status, 200);
+
+    const disallowed = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://disallowed.local" });
+    assert.equal(disallowed.status, 400);
+    assert.equal(disallowed.body?.code, "ORIGIN_NOT_ALLOWED");
+  } finally {
+    restoreTurnstile();
+  }
+});
+
+test("oauth start test isolation does not inherit ambient Turnstile enforcement", async () => {
+  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
+  const prevTurnstileSecret = process.env["TURNSTILE_SECRET_KEY"];
+  process.env["TURNSTILE_ENABLED"] = "true";
+  delete process.env["TURNSTILE_SECRET_KEY"];
+  const restoreTurnstile = forceTurnstileDisabledForTest();
+
+  try {
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+    const response = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
+    assert.equal(response.status, 200);
+  } finally {
+    restoreTurnstile();
+    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
+    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
+    if (prevTurnstileSecret === undefined) delete process.env["TURNSTILE_SECRET_KEY"];
+    else process.env["TURNSTILE_SECRET_KEY"] = prevTurnstileSecret;
+  }
 });
 
 test("canonical lookup TLS outage: test mode fallback allowed, production fails closed", async () => {
   const prevNodeEnv = process.env["NODE_ENV"];
   const prevRateLimitEnabled = process.env["RATE_LIMIT_ENABLED"];
+  const restoreTurnstile = forceTurnstileDisabledForTest();
   const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => { throw tlsLookupError(); });
 
   try {
@@ -81,8 +114,10 @@ test("canonical lookup TLS outage: test mode fallback allowed, production fails 
     const oauthProd = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
     assert.ok(oauthProd.status >= 500);
     assert.notEqual(oauthProd.status, 200);
+    assert.notEqual(oauthProd.status, 403);
   } finally {
     restoreFindFirst();
+    restoreTurnstile();
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = prevNodeEnv;
     if (prevRateLimitEnabled === undefined) delete process.env["RATE_LIMIT_ENABLED"]; else process.env["RATE_LIMIT_ENABLED"] = prevRateLimitEnabled;
   }
