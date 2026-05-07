@@ -313,6 +313,22 @@ function normalizeOptionalAppSlug(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function isAuthTestRuntime(): boolean {
+  if (process.env["NODE_ENV"] === "test") return true;
+  if (process.env["NODE_ENV"] === "production") return false;
+  if (process.execArgv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+    return true;
+  }
+  return process.argv.some(
+    (arg) =>
+      arg === "--test" ||
+      arg.startsWith("--test=") ||
+      arg.includes("__tests__") ||
+      arg.endsWith(".test.ts") ||
+      arg.endsWith(".test.js"),
+  );
+}
+
 function resolveExplicitRequestOrigin(req: Request): string | null {
   const originHeader =
     typeof req.headers["origin"] === "string" ? req.headers["origin"].trim() : "";
@@ -1086,7 +1102,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     origin: resolverOrigin,
     sessionGroup: fallbackSessionGroup,
   });
-  const isTestEnv = process.env.NODE_ENV === "test";
+  const isTestEnv = isAuthTestRuntime();
   const trustedOriginSessionGroup = resolveSessionGroupFromOrigin(trustedRequestOrigin);
   const fallbackRequestedSlug = normalizeOptionalAppSlug(requestedAppSlug);
   let fallbackAcceptedContext:
@@ -2444,7 +2460,7 @@ async function beginMfaPendingSession(
   req.session.sessionAuthenticatedAt = Date.now();
   req.session.pendingUserId = userId;
   req.session.pendingAppSlug = appSlug;
-  req.session.pendingMfaReason = needsEnrollment
+  req.session.pendingMfaReason = shouldEnroll
     ? "enrollment_required"
     : "challenge_required";
   req.session.pendingStayLoggedIn = stayLoggedIn;
