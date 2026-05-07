@@ -12,9 +12,19 @@ function isProduction(): boolean {
   return process.env["NODE_ENV"] === "production";
 }
 
+function getConfiguredTurnstileEnabled(): boolean | string {
+  if (process.env["NODE_ENV"] === "test" && process.env["TURNSTILE_ENABLED"] !== undefined) {
+    return process.env["TURNSTILE_ENABLED"];
+  }
+  return getGlobalSettingSnapshot<boolean | string>(
+    GLOBAL_SETTING_KEYS.TURNSTILE_ENABLED,
+    process.env["TURNSTILE_ENABLED"] ?? (isProduction() ? "true" : "false"),
+  );
+}
+
 export function isTurnstileEnabled(): boolean {
   void refreshRuntimeCache();
-  const configured = String(getGlobalSettingSnapshot<boolean | string>(GLOBAL_SETTING_KEYS.TURNSTILE_ENABLED, process.env["TURNSTILE_ENABLED"] ?? (isProduction() ? "true" : "false"))).trim().toLowerCase();
+  const configured = String(getConfiguredTurnstileEnabled()).trim().toLowerCase();
   // Production-safe default: ON unless explicitly disabled and force-override is set.
   if (configured === "true") return true;
   if (configured === "false") {
