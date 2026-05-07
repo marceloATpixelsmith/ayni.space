@@ -76,5 +76,14 @@ describe("auth i18n scaffolding", () => {
     expect(ensureTurnstileReadyForSubmit({ enabled: true, token: null })).toBe(
       getAuthMessage("auth_error_turnstile_required"),
     );
+    expect(getAuthMessage("turnstile_retrying")).toBe(
+      "Verification failed. Please wait a few seconds while we retry.",
+    );
+    expect(getAuthMessage("login_error_invalid_credentials")).toBe(
+      "Invalid email or password.",
+    );
+    expect(getAuthMessage("onboarding_org_title")).toBe(
+      "Set up your workspace",
+    );
   });
 });

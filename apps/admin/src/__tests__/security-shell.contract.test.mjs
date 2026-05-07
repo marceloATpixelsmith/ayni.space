@@ -909,6 +909,18 @@ test("turnstile script loader is idempotent and recovers widget mount after refr
     'console.info("[turnstile] state", {',
     "Turnstile hook should log runtime readiness and callback transitions for refresh diagnostics.",
   );
+
+  expectIncludes(
+    turnstileSource,
+    'getAuthMessage("turnstile_retrying")',
+    "Turnstile visible retry guidance should resolve through the shared auth translation catalog.",
+  );
+
+  expectIncludes(
+    authProviderSource,
+    'getAuthMessage("login_error_invalid_credentials")',
+    "Shared auth-provider password fallback copy should resolve through the shared auth translation catalog.",
+  );
 });
 
 test("app-access snapshot allows organization users into dashboard after onboarding", () => {
@@ -1166,8 +1178,6 @@ test("superadmin login hides signup affordances and blocks create-account intent
 });
 
 test("verify-email flow auto-continues and avoids manual sign-in-again UX", () => {
-  // Locked source contract: this redirecting message is intentionally NOT localized.
-  // If this string changes or moves to i18n, update this contract test in the same PR.
   expectIncludes(
     verifyEmailSource,
     "auth\n      .verifyEmail(token, appSlug || undefined)",
@@ -1175,8 +1185,8 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
   );
   expectIncludes(
     verifyEmailSource,
-    'setMessage("Email verified. Redirecting...");',
-    "Verify-email should transition directly to continuation when backend returns next-step routing.",
+    't("verify_email_redirecting", "Email verified. Redirecting...")',
+    "Verify-email redirecting copy should resolve through the auth i18n catalog while preserving English text.",
   );
   expectIncludes(
     verifyEmailSource,

@@ -1213,7 +1213,8 @@ if (loginRequestRef.current) {
       };
       if (!response.ok) {
         const error = new Error(
-          payload?.error ?? "Failed to set password for invitation.",
+          payload?.error ??
+            getAuthMessage("invitation_password_set_failed_sentence"),
         ) as Error & { code?: string; status?: number };
         error.code = payload?.code;
         error.status = response.status;
@@ -1287,10 +1288,12 @@ if (loginRequestRef.current) {
         });
         if (payload?.code === "POST_AUTH_DESTINATION_UNRESOLVED") {
           throw new Error(
-            "We could not complete sign-in routing safely. Please sign in again.",
+            getAuthMessage("login_error_post_auth_destination_unresolved"),
           );
         }
-        throw new Error(payload?.error ?? "Invalid email or password.");
+        throw new Error(
+          payload?.error ?? getAuthMessage("login_error_invalid_credentials"),
+        );
       }
       logAuthDebug("login_response_received", {
         ok: true,
@@ -1409,7 +1412,9 @@ if (loginRequestRef.current) {
         resetToken?: string;
       } & ApiErrorPayload;
       if (!response.ok)
-        throw new Error(payload?.error ?? "Unable to process request.");
+        throw new Error(
+          payload?.error ?? getAuthMessage("auth_error_process_request"),
+        );
       return { resetToken: payload?.resetToken };
     },
     [refreshCsrfState],
@@ -1435,7 +1440,9 @@ if (loginRequestRef.current) {
         .json()
         .catch(() => null)) as ApiErrorPayload;
       if (!response.ok)
-        throw new Error(payload?.error ?? "Unable to reset password.");
+        throw new Error(
+          payload?.error ?? getAuthMessage("reset_password_error_fallback"),
+        );
       await refreshSession();
     },
     [refreshCsrfState, refreshSession],
@@ -1543,10 +1550,10 @@ if (loginRequestRef.current) {
         });
         markAuthTransition();
         window.location.assign("/mfa/challenge");
-        throw new Error("Redirecting to two-step verification challenge.");
+        throw new Error(getAuthMessage("mfa_enroll_redirecting_challenge"));
       }
       throw new Error(
-        payload?.error ?? "Unable to start two-step verification setup.",
+        payload?.error ?? getAuthMessage("mfa_enroll_init_error_fallback"),
       );
     }
     logAuthDebug("mfa_screen_mode_selected", {
@@ -1593,15 +1600,13 @@ if (loginRequestRef.current) {
       } & ApiErrorPayload;
       if (!response.ok)
         throw new Error(
-          payload?.error ?? "Unable to verify two-step verification setup.",
+          payload?.error ?? getAuthMessage("mfa_enroll_verify_fallback"),
         );
       if (
         !Array.isArray(payload?.recoveryCodes) ||
         payload.recoveryCodes.length === 0
       ) {
-        throw new Error(
-          "Two-step verification was activated, but recovery codes were not returned. Please contact support before continuing.",
-        );
+        throw new Error(getAuthMessage("mfa_enroll_recovery_codes_missing"));
       }
       const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
       if (nextPath) {
@@ -1644,8 +1649,7 @@ if (loginRequestRef.current) {
       });
       if (!response.ok)
         throw new Error(
-          payload?.error ??
-            "Unable to complete two-step verification challenge.",
+          payload?.error ?? getAuthMessage("mfa_challenge_complete_error"),
         );
       const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
       if (nextPath) {
@@ -1691,7 +1695,7 @@ if (loginRequestRef.current) {
       });
       if (!response.ok)
         throw new Error(
-          payload?.error ?? "Unable to complete two-step recovery.",
+          payload?.error ?? getAuthMessage("mfa_recovery_complete_error"),
         );
       const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
       if (nextPath) {

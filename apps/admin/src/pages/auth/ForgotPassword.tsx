@@ -19,7 +19,7 @@ import {
 } from "@workspace/auth-ui";
 
 function ForgotPasswordContent() {
-  const { t } = useAuthI18n();
+  const { format, t } = useAuthI18n();
   const auth = useAuth();
   const [email, setEmail] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
@@ -42,7 +42,11 @@ function ForgotPasswordContent() {
       .then((result) => {
         setMessage(
           result.resetToken
-            ? `Test reset token: ${result.resetToken}`
+            ? format(
+                "forgot_password_test_reset_token",
+                { token: result.resetToken },
+                "Test reset token: {token}",
+              )
             : t(
                 "forgot_password_success_generic",
                 "If an account exists, a reset email has been sent.",
@@ -81,11 +85,18 @@ function ForgotPasswordContent() {
             aria-invalid={Boolean(emailError)}
             aria-describedby={emailError ? "forgot-email-error" : undefined}
           />
-          <FieldValidationMessage id="forgot-email-error" message={emailError} />
+          <FieldValidationMessage
+            id="forgot-email-error"
+            message={emailError}
+          />
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={!email || Boolean(validateEmailInput(email)) || submitState.pending}
+            disabled={
+              !email ||
+              Boolean(validateEmailInput(email)) ||
+              submitState.pending
+            }
           >
             {submitState.pending
               ? t("forgot_password_submit_loading", "Sending...")

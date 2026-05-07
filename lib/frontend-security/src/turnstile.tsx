@@ -1,5 +1,9 @@
 import React from "react";
-import { isAuthDebugEnabledRuntime, useFrontendRuntimeSettings } from "./runtimeSettings";
+import { getAuthMessage } from "@workspace/auth-ui";
+import {
+  isAuthDebugEnabledRuntime,
+  useFrontendRuntimeSettings,
+} from "./runtimeSettings";
 
 declare global {
   interface Window {
@@ -56,13 +60,13 @@ export function deriveTurnstileUiState(input: {
 
   const guidanceMessage =
     status === "loading"
-      ? "Loading security check…"
+      ? getAuthMessage("turnstile_loading")
       : status === "retrying"
-        ? "Verification failed. Please wait a few seconds while we retry."
+        ? getAuthMessage("turnstile_retrying")
         : status === "expired"
-          ? "Security check expired. Please complete the new verification challenge."
+          ? getAuthMessage("turnstile_expired")
           : status === "error"
-            ? "Verification failed. Please wait a few seconds while we retry."
+            ? getAuthMessage("turnstile_retrying")
             : null;
 
   const canSubmit = input.ready && input.tokenPresent;
@@ -96,7 +100,7 @@ function ensureScript(): Promise<void> {
         "error",
         () => {
           turnstileScriptPromise = null;
-          reject(new Error("Failed to load Turnstile script."));
+          reject(new Error(getAuthMessage("turnstile_script_load_failed")));
         },
         { once: true },
       );
@@ -122,7 +126,7 @@ function ensureScript(): Promise<void> {
     };
     script.onerror = () => {
       turnstileScriptPromise = null;
-      reject(new Error("Failed to load Turnstile script."));
+      reject(new Error(getAuthMessage("turnstile_script_load_failed")));
     };
     document.head.appendChild(script);
   });
@@ -220,18 +224,14 @@ export function useTurnstileToken() {
           },
           "expired-callback": () => {
             setToken(null);
-            setError(
-              "Security check expired. Please complete the new verification challenge.",
-            );
+            setError(getAuthMessage("turnstile_expired"));
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, expired: true }));
             if (authDebug) console.info("[turnstile] callback expired");
           },
           "error-callback": () => {
             setToken(null);
-            setError(
-              "Verification failed. Please wait a few seconds while we retry.",
-            );
+            setError(getAuthMessage("turnstile_retrying"));
             setRetrying(true);
             setCallbackState((previous) => ({ ...previous, error: true }));
             if (authDebug) console.info("[turnstile] callback error");
@@ -242,7 +242,9 @@ export function useTurnstileToken() {
       .catch((err) => {
         setReady(false);
         setError(
-          err instanceof Error ? err.message : "Turnstile script error.",
+          err instanceof Error
+            ? err.message
+            : getAuthMessage("turnstile_script_error"),
         );
       });
 

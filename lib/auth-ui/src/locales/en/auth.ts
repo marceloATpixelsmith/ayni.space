@@ -73,6 +73,10 @@ export const authEn = {
     "Security token is not ready. Please refresh and try two-step verification again.",
   auth_error_security_token_refresh_recovery:
     "Security token is not ready. Please refresh and try recovery again.",
+  auth_error_metadata_unavailable:
+    "Auth metadata unavailable ({reason}). Sign-up options are hidden until app configuration is resolved.",
+  auth_error_metadata_unavailable_with_detail:
+    "Auth metadata unavailable ({reason}). Sign-up options are hidden until app configuration is resolved. [{detail}]",
   login_error_verification_required:
     "Please complete verification before continuing.",
   login_error_network_unreachable:
@@ -98,9 +102,13 @@ export const authEn = {
     "Sign-in is temporarily unavailable due to configuration. Please contact support.",
   login_error_google_origin_not_allowed:
     "Access origin is not allowed for sign-in.",
+  login_error_post_auth_destination_unresolved:
+    "We could not complete sign-in routing safely. Please sign in again.",
+  login_error_invalid_credentials: "Invalid email or password.",
   auth_error_app_context_missing:
     "Application context is missing. Please reload and try again.",
   signup_error_fallback: "Unable to sign up.",
+  auth_error_process_request: "Unable to process request.",
 
   verify_email_title: "Verify your email",
   verify_email_subtitle:
@@ -127,6 +135,8 @@ export const authEn = {
     "Unable to start two-step verification setup.",
   mfa_enroll_session_inactive:
     "Your session is no longer active. Please sign in again.",
+  mfa_enroll_redirecting_challenge:
+    "Redirecting to two-step verification challenge.",
   mfa_enroll_retry_setup: "Retry setup",
   mfa_enroll_step_download_app:
     "Download an authenticator app (Google Authenticator, 1Password, Authy, etc.).",
@@ -141,6 +151,8 @@ export const authEn = {
     "Manual setup option: Enter this setup key manually in your authenticator app:",
   mfa_enroll_code_placeholder: "6-digit code",
   mfa_enroll_verify_fallback: "Unable to verify two-step verification code.",
+  mfa_enroll_recovery_codes_missing:
+    "Two-step verification was activated, but recovery codes were not returned. Please contact support before continuing.",
   mfa_enroll_verify_loading: "Verifying…",
   mfa_enroll_verify_button: "Verify and activate two-step verification",
   mfa_enroll_recovery_codes_label: "Recovery codes (save these now):",
@@ -150,6 +162,9 @@ export const authEn = {
     "Enter the code from your authenticator app to continue.",
   mfa_challenge_invalid_code: "Invalid two-step verification code.",
   mfa_challenge_invalid_recovery_code: "Invalid recovery code.",
+  mfa_challenge_complete_error:
+    "Unable to complete two-step verification challenge.",
+  mfa_recovery_complete_error: "Unable to complete two-step recovery.",
   mfa_challenge_remember_browser:
     "Remember this browser for 20 days (skip MFA challenge on this browser).",
   mfa_challenge_stay_logged_in:
@@ -182,6 +197,8 @@ export const authEn = {
   invitation_accept_failed: "Failed to accept invitation.",
   invitation_google_start_failed: "Unable to start Google sign-in.",
   invitation_password_set_failed: "Failed to set password.",
+  invitation_password_set_failed_sentence:
+    "Failed to set password for invitation.",
   invitation_back_sign_in: "Back to sign in",
   invitation_back_dashboard: "Back to dashboard",
   invitation_google_continue_idle: "Continue with Google",
@@ -197,4 +214,39 @@ export const authEn = {
   onboarding_user_full_name_placeholder: "Jane Doe",
   onboarding_user_save_loading: "Saving...",
   onboarding_user_continue_button: "Continue to Dashboard",
+  onboarding_org_name_min_length:
+    "Organization name must be at least 2 characters",
+  onboarding_org_slug_min_length: "Slug must be at least 2 characters",
+  onboarding_org_slug_format:
+    "Slug must contain only lowercase letters, numbers, and hyphens",
+  onboarding_org_created_success: "Organization created successfully",
+  onboarding_security_token_not_ready: "Security token not ready",
+  onboarding_org_create_failed: "Failed to create organization",
+  onboarding_retry_moment: "Please try again in a moment.",
+  onboarding_submit_wait: "Please wait a moment and try submitting again.",
+  onboarding_complete_verification: "Complete verification",
+  onboarding_org_turnstile_required:
+    "Please complete Turnstile verification before creating an organization.",
+  onboarding_user_name_required: "Name is required",
+  onboarding_user_name_required_description:
+    "Please enter your full name to continue.",
+  onboarding_user_save_failed: "Failed to save profile",
+  onboarding_user_save_error: "Unable to save your profile.",
+  onboarding_org_title: "Set up your workspace",
+  onboarding_org_subtitle:
+    "Create an organization to start using apps and inviting your team.",
+  onboarding_org_name_label: "Organization Name",
+  onboarding_org_name_placeholder: "Acme Corp",
+  onboarding_org_slug_label: "Workspace URL",
+  onboarding_org_slug_prefix: "app.platform.com/",
+  onboarding_org_slug_placeholder: "acme-corp",
+  onboarding_org_create_loading: "Creating...",
+  turnstile_loading: "Loading security check…",
+  turnstile_retrying:
+    "Verification failed. Please wait a few seconds while we retry.",
+  turnstile_expired:
+    "Security check expired. Please complete the new verification challenge.",
+  turnstile_script_load_failed: "Failed to load Turnstile script.",
+  turnstile_script_error: "Turnstile script error.",
+  forgot_password_test_reset_token: "Test reset token: {token}",
 } as const;

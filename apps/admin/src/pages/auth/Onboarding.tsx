@@ -35,18 +35,16 @@ import {
   AuthShell,
   AuthFormMotion,
   AuthI18nProvider,
+  getAuthMessage,
   useAuthI18n,
 } from "@workspace/auth-ui";
 
 const formSchema = z.object({
-  name: z.string().min(2, "Organization name must be at least 2 characters"),
+  name: z.string().min(2, getAuthMessage("onboarding_org_name_min_length")),
   slug: z
     .string()
-    .min(2, "Slug must be at least 2 characters")
-    .regex(
-      /^[a-z0-9-]+$/,
-      "Slug must contain only lowercase letters, numbers, and hyphens",
-    ),
+    .min(2, getAuthMessage("onboarding_org_slug_min_length"))
+    .regex(/^[a-z0-9-]+$/, getAuthMessage("onboarding_org_slug_format")),
 });
 
 function OnboardingContent() {
@@ -87,9 +85,9 @@ function OnboardingContent() {
   const { mutate: createOrg, isPending } = useCreateOrganization({
     mutation: {
       onSuccess: async () => {
-        toast({ title: "Organization created successfully" });
+        toast({ title: t("onboarding_org_created_success") });
         if (!auth.csrfReady || !auth.csrfToken) {
-          throw new Error("Security token not ready");
+          throw new Error(t("onboarding_security_token_not_ready"));
         }
         const nextResponse = await secureApiFetch(
           "/api/auth/post-onboarding/next-path",
@@ -131,10 +129,10 @@ function OnboardingContent() {
         });
 
         toast({
-          title: "Failed to create organization",
+          title: t("onboarding_org_create_failed"),
           description: getUserSafeErrorMessage(
             error,
-            "Please try again in a moment.",
+            t("onboarding_retry_moment"),
           ),
           variant: "destructive",
         });
@@ -146,8 +144,8 @@ function OnboardingContent() {
     if (isUserOnboarding) return;
     if (!auth.csrfReady || !auth.csrfToken) {
       toast({
-        title: "Security token not ready",
-        description: "Please wait a moment and try submitting again.",
+        title: t("onboarding_security_token_not_ready"),
+        description: t("onboarding_submit_wait"),
         variant: "destructive",
       });
       return;
@@ -155,9 +153,8 @@ function OnboardingContent() {
 
     if (turnstile.enabled && !turnstile.token) {
       toast({
-        title: "Complete verification",
-        description:
-          "Please complete Turnstile verification before creating an organization.",
+        title: t("onboarding_complete_verification"),
+        description: t("onboarding_org_turnstile_required"),
         variant: "destructive",
       });
       return;
@@ -181,16 +178,16 @@ function OnboardingContent() {
   const submitUserOnboarding = React.useCallback(async () => {
     if (!fullName.trim()) {
       toast({
-        title: "Name is required",
-        description: "Please enter your full name to continue.",
+        title: t("onboarding_user_name_required"),
+        description: t("onboarding_user_name_required_description"),
         variant: "destructive",
       });
       return;
     }
     if (!auth.csrfReady || !auth.csrfToken) {
       toast({
-        title: "Security token not ready",
-        description: "Please wait a moment and try submitting again.",
+        title: t("onboarding_security_token_not_ready"),
+        description: t("onboarding_submit_wait"),
         variant: "destructive",
       });
       return;
@@ -211,7 +208,7 @@ function OnboardingContent() {
         error?: string;
       } | null;
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Unable to save your profile.");
+        throw new Error(payload?.error ?? t("onboarding_user_save_error"));
       }
       const nextResponse = await secureApiFetch(
         "/api/auth/post-onboarding/next-path",
@@ -234,17 +231,17 @@ function OnboardingContent() {
       }
     } catch (error) {
       toast({
-        title: "Failed to save profile",
+        title: t("onboarding_user_save_failed"),
         description: getUserSafeErrorMessage(
           error,
-          "Please try again in a moment.",
+          t("onboarding_retry_moment"),
         ),
         variant: "destructive",
       });
     } finally {
       setSavingUserProfile(false);
     }
-  }, [auth, fullName, queryClient, setLocation, toast]);
+  }, [auth, fullName, queryClient, setLocation, t, toast]);
 
   if (isLoading || !user) return null;
 
@@ -300,10 +297,10 @@ function OnboardingContent() {
             <Building2 className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-3xl font-bold text-foreground">
-            Set up your workspace
+            {t("onboarding_org_title")}
           </h1>
           <p className="text-muted-foreground mt-2">
-            Create an organization to start using apps and inviting your team.
+            {t("onboarding_org_subtitle")}
           </p>
         </div>
 
@@ -316,11 +313,11 @@ function OnboardingContent() {
                 render={({ field }) => (
                   <FormItem>
                     <Label className="text-sm font-semibold">
-                      Organization Name
+                      {t("onboarding_org_name_label")}
                     </Label>
                     <FormControl>
                       <Input
-                        placeholder="Acme Corp"
+                        placeholder={t("onboarding_org_name_placeholder")}
                         className="h-12"
                         {...field}
                       />
@@ -336,15 +333,15 @@ function OnboardingContent() {
                 render={({ field }) => (
                   <FormItem>
                     <Label className="text-sm font-semibold">
-                      Workspace URL
+                      {t("onboarding_org_slug_label")}
                     </Label>
                     <FormControl>
                       <div className="flex">
                         <span className="inline-flex items-center px-4 rounded-l-md border border-r-0 border-input bg-muted text-muted-foreground text-sm font-medium">
-                          app.platform.com/
+                          {t("onboarding_org_slug_prefix")}
                         </span>
                         <Input
-                          placeholder="acme-corp"
+                          placeholder={t("onboarding_org_slug_placeholder")}
                           className="h-12 rounded-l-none"
                           {...field}
                         />
@@ -366,10 +363,10 @@ function OnboardingContent() {
                 }
               >
                 {isPending ? (
-                  "Creating..."
+                  t("onboarding_org_create_loading")
                 ) : (
                   <>
-                    Continue to Dashboard{" "}
+                    {t("onboarding_user_continue_button")}{" "}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </>
                 )}

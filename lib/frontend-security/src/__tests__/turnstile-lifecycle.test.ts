@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { getAuthMessage } from "@workspace/auth-ui";
 import { deriveTurnstileUiState } from "../turnstile";
 
 test("turnstile reports retrying guidance after callback error", () => {
@@ -16,7 +17,7 @@ test("turnstile reports retrying guidance after callback error", () => {
   });
 
   assert.equal(result.status, "error");
-  assert.equal(result.guidanceMessage, "Verification failed. Please wait a few seconds while we retry.");
+  assert.equal(result.guidanceMessage, getAuthMessage("turnstile_retrying"));
   assert.equal(result.canSubmit, false);
 });
 
@@ -32,7 +33,7 @@ test("turnstile reports expired guidance and blocks submit until token exists", 
     retrying: false,
   });
   assert.equal(expired.status, "expired");
-  assert.equal(expired.guidanceMessage, "Security check expired. Please complete the new verification challenge.");
+  assert.equal(expired.guidanceMessage, getAuthMessage("turnstile_expired"));
   assert.equal(expired.canSubmit, false);
 
   const recovered = deriveTurnstileUiState({
@@ -49,4 +50,3 @@ test("turnstile reports expired guidance and blocks submit until token exists", 
   assert.equal(recovered.guidanceMessage, null);
   assert.equal(recovered.canSubmit, true);
 });
-
