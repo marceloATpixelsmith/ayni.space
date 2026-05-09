@@ -94,6 +94,7 @@ test("oauth start test isolation does not inherit ambient Turnstile enforcement"
 test("canonical lookup TLS outage: test mode fallback allowed, production fails closed", async () => {
   const prevNodeEnv = process.env["NODE_ENV"];
   const prevRateLimitEnabled = process.env["RATE_LIMIT_ENABLED"];
+  const prevRateLimitAllowDisable = process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"];
   const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => { throw tlsLookupError(); });
 
   try {
@@ -107,14 +108,17 @@ test("canonical lookup TLS outage: test mode fallback allowed, production fails 
 
     process.env["NODE_ENV"] = "production";
     process.env["RATE_LIMIT_ENABLED"] = "false";
+    process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"] = "true";
     const oauthProd = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-    assert.ok(oauthProd.status >= 500);
+    assert.equal(oauthProd.status, 400);
+    assert.equal(oauthProd.body?.code, "app_not_found");
     assert.notEqual(oauthProd.status, 200);
     assert.notEqual(oauthProd.status, 403);
   } finally {
     restoreFindFirst();
     if (prevNodeEnv === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = prevNodeEnv;
     if (prevRateLimitEnabled === undefined) delete process.env["RATE_LIMIT_ENABLED"]; else process.env["RATE_LIMIT_ENABLED"] = prevRateLimitEnabled;
+    if (prevRateLimitAllowDisable === undefined) delete process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"]; else process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"] = prevRateLimitAllowDisable;
   }
 });
 
