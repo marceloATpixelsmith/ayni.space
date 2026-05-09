@@ -7,7 +7,6 @@ import type { RequestHandler } from "express";
 import {
   createMountedSessionApp,
   ensureTestDatabaseEnv,
-  forceTurnstileDisabledForTest,
   patchProperty,
 } from "./helpers.js";
 
@@ -255,7 +254,6 @@ test("admin oauth start requires explicit admin appSlug and emits oauth-state tr
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
   const prevTraceVerbose = process.env["BACKEND_TRACE_VERBOSE"];
-  const restoreTurnstile = forceTurnstileDisabledForTest();
   process.env["BACKEND_TRACE_VERBOSE"] = "1";
   process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
   process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
@@ -267,7 +265,7 @@ test("admin oauth start requires explicit admin appSlug and emits oauth-state tr
   ];
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { turnstileVerified: true });
     const response = await request(app, "/api/auth/google/url?appSlug=admin", {
       method: "POST",
       headers: {
@@ -293,7 +291,6 @@ test("admin oauth start requires explicit admin appSlug and emits oauth-state tr
     assert.match(oauthStateTrace, /sessionGroup=admin/);
   } finally {
     for (const undo of restore.reverse()) undo();
-    restoreTurnstile();
     if (prevTraceVerbose === undefined) delete process.env["BACKEND_TRACE_VERBOSE"];
     else process.env["BACKEND_TRACE_VERBOSE"] = prevTraceVerbose;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
@@ -309,13 +306,12 @@ test("oauth start preserves login continuation path in oauth state payload", asy
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
-  const restoreTurnstile = forceTurnstileDisabledForTest();
   process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
   process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
   process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { turnstileVerified: true });
     const response = await request(app, "/api/auth/google/url?appSlug=workspace", {
       method: "POST",
       headers: {
@@ -336,7 +332,6 @@ test("oauth start preserves login continuation path in oauth state payload", asy
     assert.equal(payload.returnToPath, WORKSPACE_INVITATION_CONTINUATION_PATH);
     assert.equal(payload.returnTo, "http://workspace.local");
   } finally {
-    restoreTurnstile();
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
@@ -351,14 +346,13 @@ test("non-admin oauth start still allows origin-derived app context without expl
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
   const prevOriginMap = process.env["APP_SLUG_BY_ORIGIN"];
-  const restoreTurnstile = forceTurnstileDisabledForTest();
   process.env["APP_SLUG_BY_ORIGIN"] = "http://workspace.local=workspace";
   process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
   process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
   process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { turnstileVerified: true });
     const response = await request(app, "/api/auth/google/url", {
       method: "POST",
       headers: {
@@ -374,7 +368,6 @@ test("non-admin oauth start still allows origin-derived app context without expl
     assert.equal(payload.appSlug, "workspace");
     assert.equal(payload.sessionGroup, "default");
   } finally {
-    restoreTurnstile();
     if (prevOriginMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevOriginMap;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
@@ -388,7 +381,6 @@ test("non-admin oauth start still allows origin-derived app context without expl
 
 test("admin oauth start honors explicit appSlug even when origin mapping differs", async () => {
   const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
-  const restoreTurnstile = forceTurnstileDisabledForTest();
   process.env["APP_SLUG_BY_ORIGIN"] = "http://admin.local=workspace";
 
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
@@ -399,7 +391,7 @@ test("admin oauth start honors explicit appSlug even when origin mapping differs
   process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { turnstileVerified: true });
     const response = await request(app, "/api/auth/google/url?appSlug=admin", {
       method: "POST",
       headers: {
@@ -414,7 +406,6 @@ test("admin oauth start honors explicit appSlug even when origin mapping differs
     const payload = JSON.parse(Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"));
     assert.equal(payload.appSlug, "admin");
   } finally {
-    restoreTurnstile();
     if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
@@ -430,13 +421,12 @@ test("admin oauth start fails closed without explicit appSlug when using forward
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
   const prevClientSecret = process.env["GOOGLE_CLIENT_SECRET"];
   const prevRedirect = process.env["GOOGLE_REDIRECT_URI"];
-  const restoreTurnstile = forceTurnstileDisabledForTest();
   process.env["GOOGLE_CLIENT_ID"] = "test-google-client-id";
   process.env["GOOGLE_CLIENT_SECRET"] = "test-google-client-secret";
   process.env["GOOGLE_REDIRECT_URI"] = "http://api.local/api/auth/google/callback";
 
   try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }]);
+    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { turnstileVerified: true });
     const response = await request(app, "/api/auth/google/url", {
       method: "POST",
       headers: {
@@ -448,7 +438,6 @@ test("admin oauth start fails closed without explicit appSlug when using forward
     const body = (await response.json()) as { code?: string };
     assert.equal(body.code, "app_slug_missing");
   } finally {
-    restoreTurnstile();
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];

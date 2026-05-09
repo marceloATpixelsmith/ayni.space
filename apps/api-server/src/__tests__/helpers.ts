@@ -4,6 +4,7 @@ type SessionShape = {
   userId?: string;
   activeOrgId?: string;
   id?: string;
+  turnstileVerified?: boolean;
   destroy?: (cb?: (err?: unknown) => void) => void;
   save?: (cb?: (err?: unknown) => void) => void;
   regenerate?: (cb?: (err?: unknown) => void) => void;
@@ -55,6 +56,9 @@ export function createMountedSessionApp(mounts: Array<{ path: string; router: Ro
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
+    if (session.turnstileVerified === true) {
+      (req as unknown as { turnstileVerified: boolean }).turnstileVerified = true;
+    }
     (req as unknown as { session: SessionShape }).session = {
       id: "test-session-id",
       destroy: ((cb?: (err?: unknown) => void) => {
