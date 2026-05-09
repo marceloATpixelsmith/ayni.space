@@ -190,13 +190,12 @@ test("google oauth url endpoint fails closed without valid turnstile token", asy
 });
 
 test("google oauth url uses test fallback when origin candidate maps to known workspace app", async () => {
-  const prevEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   try {
     const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
       save: (cb?: (err?: unknown) => void) => cb?.(),
+      turnstileVerified: true,
     });
 
     const response = await requestJson(
@@ -215,18 +214,17 @@ test("google oauth url uses test fallback when origin candidate maps to known wo
     assert.equal(payload.sessionGroup, "default");
   } finally {
     restoreLookup();
-    if (prevEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevEnabled;
   }
 });
 
 test("google oauth url test fallback proceeds to oauth config checks", async () => {
   const prevClientId = process.env["GOOGLE_CLIENT_ID"];
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   delete process.env["GOOGLE_CLIENT_ID"];
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    save: (cb?: (err?: unknown) => void) => cb?.(),
+    turnstileVerified: true,
+  });
 
   try {
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
@@ -236,17 +234,16 @@ test("google oauth url test fallback proceeds to oauth config checks", async () 
     restoreLookup();
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
 
 test("google oauth url allows test fallback from non-admin origin when app slug mapping is missing", async () => {
   const prevMap = process.env["APP_SLUG_BY_ORIGIN"];
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   delete process.env["APP_SLUG_BY_ORIGIN"];
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    save: (cb?: (err?: unknown) => void) => cb?.(),
+    turnstileVerified: true,
+  });
 
   try {
     const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://localhost:5173" });
@@ -260,8 +257,6 @@ test("google oauth url allows test fallback from non-admin origin when app slug 
   } finally {
     if (prevMap === undefined) delete process.env["APP_SLUG_BY_ORIGIN"];
     else process.env["APP_SLUG_BY_ORIGIN"] = prevMap;
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
 
@@ -287,23 +282,17 @@ test("forgot password fails closed when app slug context is missing", async () =
 });
 
 test("google oauth url rejects disallowed origins with explicit error code", async () => {
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], { save: (cb?: (err?: unknown) => void) => cb?.() });
+  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
+    save: (cb?: (err?: unknown) => void) => cb?.(),
+    turnstileVerified: true,
+  });
 
-  try {
-    const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://evil.example" });
-    assert.equal(response.status, 400);
-    assert.equal(response.body?.code, "ORIGIN_NOT_ALLOWED");
-  } finally {
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
-  }
+  const response = await requestJson(app, "POST", "/api/auth/google/url", {}, { origin: "http://evil.example" });
+  assert.equal(response.status, 400);
+  assert.equal(response.body?.code, "ORIGIN_NOT_ALLOWED");
 });
 
 test("csrf lifecycle after logout requires a fresh token for immediate login", async () => {
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   type MutableSession = {
@@ -341,6 +330,7 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
     const app = expressMod.default();
     app.use(expressMod.default.json());
     app.use((req, _res, next) => {
+      (req as unknown as { turnstileVerified: boolean }).turnstileVerified = true;
       (req as unknown as { session: MutableSession }).session = state.session;
       next();
     });
@@ -382,15 +372,11 @@ test("csrf lifecycle after logout requires a fresh token for immediate login", a
     assert.equal(freshLoginAttempt.status, 200);
   } finally {
     restoreLookup();
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
 
 
 test("google oauth url persists stayLoggedIn after known workspace test fallback", async () => {
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   const state: { session: Record<string, unknown> } = {
@@ -406,6 +392,7 @@ test("google oauth url persists stayLoggedIn after known workspace test fallback
   const app = expressMod.default();
   app.use(expressMod.default.json());
   app.use((req, _res, next) => {
+    (req as unknown as { turnstileVerified: boolean }).turnstileVerified = true;
     (req as unknown as { session: Record<string, unknown> }).session = state.session;
     next();
   });
@@ -425,8 +412,6 @@ test("google oauth url persists stayLoggedIn after known workspace test fallback
     assert.equal(state.session.oauthAppSlug, "workspace");
   } finally {
     restoreLookup();
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
   }
 });
 
@@ -438,8 +423,6 @@ test("google oauth url test fallback still checks oauth config before session si
   delete process.env["GOOGLE_CLIENT_SECRET"];
   delete process.env["GOOGLE_REDIRECT_URI"];
 
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  process.env["TURNSTILE_ENABLED"] = "false";
   const restoreLookup = mockCanonicalAppLookupAsNotFound();
 
   const state: { session: Record<string, unknown> } = {
@@ -455,6 +438,7 @@ test("google oauth url test fallback still checks oauth config before session si
   const app = expressMod.default();
   app.use(expressMod.default.json());
   app.use((req, _res, next) => {
+    (req as unknown as { turnstileVerified: boolean }).turnstileVerified = true;
     (req as unknown as { session: Record<string, unknown> }).session = state.session;
     next();
   });
@@ -470,8 +454,6 @@ test("google oauth url test fallback still checks oauth config before session si
     assert.equal(state.session.oauthAppSlug, undefined);
   } finally {
     restoreLookup();
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
     if (prevClientId === undefined) delete process.env["GOOGLE_CLIENT_ID"];
     else process.env["GOOGLE_CLIENT_ID"] = prevClientId;
     if (prevClientSecret === undefined) delete process.env["GOOGLE_CLIENT_SECRET"];
