@@ -3,21 +3,21 @@ import { getPostAuthRedirectPath } from "./postAuthRedirect.js";
 import { buildAccessDeniedLoginPath } from "@workspace/auth";
 import type { NormalizedAccessProfile } from "./appAccessProfile.js";
 
-type PostAuthIntent = "sign_in" | "create_account";
+export type PostAuthIntent = "sign_in" | "create_account";
 
-type PostAuthAppContext = {
+type CanonicalPostAuthAppContext = NonNullable<
+  Awaited<ReturnType<typeof getAppContext>>
+>;
+
+type SuperadminPostAuthAppContext = {
   canAccess: boolean;
   requiredOnboarding: "none" | "organization" | "user";
-  normalizedAccessProfile: NormalizedAccessProfile;
-  app?: {
-    customerRegistrationEnabled?: boolean | null;
-  } | null;
-  appAccess?: {
-    accessStatus?: string | null;
-  } | null;
-  activeOrg?: unknown | null;
-  orgMembership?: unknown | null;
+  normalizedAccessProfile: "superadmin";
 };
+
+type ResolvedPostAuthAppContext =
+  | CanonicalPostAuthAppContext
+  | SuperadminPostAuthAppContext;
 
 export type PostAuthFlowDecision = {
   appSlug: string;
@@ -26,6 +26,26 @@ export type PostAuthFlowDecision = {
   normalizedAccessProfile: NormalizedAccessProfile;
   destination: string;
 };
+
+function hasExistingOrganizationOrDirectAppAccess(
+  context: ResolvedPostAuthAppContext,
+): boolean {
+  if (!("activeOrg" in context)) {
+    return false;
+  }
+
+  return Boolean(context.activeOrg || context.orgMembership || context.appAccess);
+}
+
+function allowsOrganizationCustomerRegistration(
+  context: ResolvedPostAuthAppContext,
+): boolean {
+  if (!("app" in context)) {
+    return false;
+  }
+
+  return context.app.customerRegistrationEnabled === true;
+}
 
 export async function resolvePostAuthFlowDecision(params: {
   userId: string;
@@ -42,7 +62,7 @@ export async function resolvePostAuthFlowDecision(params: {
     authIntent = "sign_in",
   } = params;
 
-  const context: PostAuthAppContext | null =
+  const context: ResolvedPostAuthAppContext | null =
     normalizedAccessProfile === "superadmin"
       ? {
           canAccess: Boolean(isSuperAdmin),
@@ -53,42 +73,37 @@ export async function resolvePostAuthFlowDecision(params: {
 
   if (!context) return null;
 
-  const hasExistingOrganizationOrAppAccess = Boolean(
-    context.activeOrg ||
-      context.orgMembership ||
-      context.appAccess?.accessStatus === "active",
-  );
   const shouldRequireOrganizationOnboardingForGoogleCreateAccount =
     authIntent === "create_account" &&
     normalizedAccessProfile === "organization" &&
     context.normalizedAccessProfile === "organization" &&
-    context.app?.customerRegistrationEnabled === true &&
-    !hasExistingOrganizationOrAppAccess;
+    allowsOrganizationCustomerRegistration(context) &&
+    !hasExistingOrganizationOrDirectAppAccess(context);
 
-  const effectiveContext: PostAuthAppContext =
+  const effectiveRequiredOnboarding =
     shouldRequireOrganizationOnboardingForGoogleCreateAccount
-      ? {
-          ...context,
-          canAccess: true,
-          requiredOnboarding: "organization",
-        }
-      : context;
+      ? "organization"
+      : context.requiredOnboarding;
+  const effectiveCanAccess =
+    shouldRequireOrganizationOnboardingForGoogleCreateAccount
+      ? true
+      : context.canAccess;
 
   const destination =
-    effectiveContext.canAccess || effectiveContext.requiredOnboarding !== "none"
+    effectiveCanAccess || effectiveRequiredOnboarding !== "none"
       ? getPostAuthRedirectPath({
           appSlug,
           isSuperAdmin,
-          normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
-          requiredOnboarding: effectiveContext.requiredOnboarding,
+          normalizedAccessProfile: context.normalizedAccessProfile,
+          requiredOnboarding: effectiveRequiredOnboarding,
         })
       : buildAccessDeniedLoginPath();
 
   return {
     appSlug,
-    canAccess: effectiveContext.canAccess,
-    requiredOnboarding: effectiveContext.requiredOnboarding,
-    normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
+    canAccess: effectiveCanAccess,
+    requiredOnboarding: effectiveRequiredOnboarding,
+    normalizedAccessProfile: context.normalizedAccessProfile,
     destination,
   };
 }
