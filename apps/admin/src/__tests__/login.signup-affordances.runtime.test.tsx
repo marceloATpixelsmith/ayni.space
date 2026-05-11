@@ -7,6 +7,21 @@ const routeState = vi.hoisted(() => ({
   hideSignupAffordances: false,
 }));
 
+const authMessages = vi.hoisted(() => ({
+  login_title: "Welcome",
+  login_subtitle_with_signup: "Sign in or create your account to continue.",
+  login_subtitle_sign_in_only: "Sign in to continue.",
+  login_google_sign_in_idle: "Sign in with Google",
+  login_google_sign_in_loading: "Starting Google sign-in...",
+  login_google_create_account_idle: "Create account with Google",
+  login_google_create_account_loading: "Starting account setup...",
+  login_email_placeholder: "Email",
+  login_password_placeholder: "Password",
+  login_email_button: "Sign in with email",
+  login_forgot_password_link: "Forgot password?",
+  login_create_account_link: "Create account",
+}));
+
 vi.mock("wouter", () => ({
   Link: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
   useLocation: () => ["/login", vi.fn()],
@@ -31,7 +46,9 @@ vi.mock("@workspace/auth-ui", () => ({
   FieldValidationMessage: () => null,
   AuthStatusMessage: () => null,
   AuthI18nProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useAuthI18n: () => ({ t: (_: string, fallback: string) => fallback }),
+  useAuthI18n: () => ({
+    t: (key: keyof typeof authMessages, fallback?: string) => authMessages[key] ?? fallback ?? key,
+  }),
 }));
 
 vi.mock("@workspace/frontend-security", () => ({
