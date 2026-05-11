@@ -16,7 +16,7 @@ test("GET /api/apps returns active admin app metadata for auth entry", async () 
       domain: "admin.example.com",
       baseUrl: "https://admin.example.com",
       turnstileSiteKeyOverride: null,
-      accessMode: "organization",
+      accessMode: "superadmin",
       staffInvitesEnabled: true,
       customerRegistrationEnabled: true,
       description: null,
@@ -32,12 +32,12 @@ test("GET /api/apps returns active admin app metadata for auth entry", async () 
     assert.equal(response.status, 200);
     assert.equal(Array.isArray(response.body), true);
     assert.equal(response.body[0]?.slug, "admin");
-    assert.equal(response.body[0]?.accessMode, "organization");
-    assert.equal(response.body[0]?.normalizedAccessProfile, "organization");
+    assert.equal(response.body[0]?.accessMode, "superadmin");
+    assert.equal(response.body[0]?.normalizedAccessProfile, "superadmin");
     assert.deepEqual(response.body[0]?.authRoutePolicy, {
-      allowCustomerRegistration: true,
-      allowOnboarding: true,
-      allowInvitations: true,
+      allowCustomerRegistration: false,
+      allowOnboarding: false,
+      allowInvitations: false,
     });
   } finally {
     restorePlans();
@@ -55,7 +55,8 @@ test("GET /api/apps injects test admin metadata when active admin app is missing
     const response = await performJsonRequest(app, "GET", "/api/apps");
     assert.equal(response.status, 200);
     assert.equal(response.body[0]?.slug, "admin");
-    assert.equal(response.body[0]?.accessMode, "organization");
+    assert.equal(response.body[0]?.accessMode, "superadmin");
+    assert.equal(response.body[0]?.normalizedAccessProfile, "superadmin");
   } finally {
     restorePlans();
     restoreApps();
@@ -76,12 +77,12 @@ test("GET /api/apps returns fallback admin app metadata when DB lookup fails in 
     assert.equal(response.status, 200);
     assert.equal(response.body?.length, 1);
     assert.equal(response.body[0]?.slug, "admin");
-    assert.equal(response.body[0]?.accessMode, "organization");
-    assert.equal(response.body[0]?.normalizedAccessProfile, "organization");
+    assert.equal(response.body[0]?.accessMode, "superadmin");
+    assert.equal(response.body[0]?.normalizedAccessProfile, "superadmin");
     assert.deepEqual(response.body[0]?.authRoutePolicy, {
-      allowCustomerRegistration: true,
-      allowOnboarding: true,
-      allowInvitations: true,
+      allowCustomerRegistration: false,
+      allowOnboarding: false,
+      allowInvitations: false,
     });
   } finally {
     restorePlans();
