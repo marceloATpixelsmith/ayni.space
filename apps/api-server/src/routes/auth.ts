@@ -1405,6 +1405,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   req.session.oauthReturnToPath = returnToPath ?? undefined;
   req.session.oauthSessionGroup = oauthSessionGroup;
   req.session.oauthAppSlug = appSlug;
+  req.session.oauthIntent = oauthIntent;
   logSuperadminTrace("OAUTH START", {
     appSlug,
     returnTo,
@@ -1631,6 +1632,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
     delete req.session.oauthStayLoggedIn;
+    delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
