@@ -1405,7 +1405,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
   req.session.oauthReturnToPath = returnToPath ?? undefined;
   req.session.oauthSessionGroup = oauthSessionGroup;
   req.session.oauthAppSlug = appSlug;
-  req.session.oauthIntent = oauthIntent;
   logSuperadminTrace("OAUTH START", {
     appSlug,
     returnTo,
@@ -1632,7 +1631,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
     delete req.session.oauthStayLoggedIn;
-    delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
@@ -2082,6 +2080,29 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
+    if (
+      oauthIntent === "create_account" &&
+      normalizedAccessProfile === "organization" &&
+      app.customerRegistrationEnabled === true
+    ) {
+      logSuperadminTrace("H. ACCESS PROFILE DECISION", {
+        appSlug: activeAppSlug,
+        accessMode: app?.accessMode ?? null,
+        normalizedAccessProfile,
+        allow: true,
+        denyReason: null,
+        googleIntent: oauthIntent,
+        forcedDestination: "/onboarding/organization",
+      });
+      logSuperadminTrace("J. CALLBACK EXIT", {
+        redirectTo: `${frontendBase}/onboarding/organization`,
+        outcome: "allow_google_create_account_onboarding",
+        lastCompletedStep,
+      });
+      res.redirect(`${frontendBase}/onboarding/organization`);
+      return;
+    }
+
     const effectiveContext = await resolvePostAuthFlowDecision({
       userId: user.id,
       appSlug: activeAppSlug,
@@ -2121,15 +2142,8 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    const createAccountOrganizationOnboardingPath =
-      oauthIntent === "create_account" &&
-      effectiveContext.normalizedAccessProfile === "organization" &&
-      app.customerRegistrationEnabled === true
-        ? "/onboarding/organization"
-        : null;
     const onboardingRequired =
-      effectiveContext.requiredOnboarding === "organization" ||
-      Boolean(createAccountOrganizationOnboardingPath);
+      effectiveContext.requiredOnboarding === "organization";
     if (!effectiveContext.canAccess && !onboardingRequired) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
@@ -2160,15 +2174,13 @@ async function handleGoogleCallback(req: Request, res: Response) {
       requiredOnboarding: effectiveContext.requiredOnboarding,
       canAccess: effectiveContext.canAccess,
     });
-    const finalDestination =
-      createAccountOrganizationOnboardingPath ??
-      (await resolveNextPathForEstablishedSession(
-        req,
-        user.id,
-        activeAppSlug,
-        oauthContinuation,
-        "post_auth",
-      ));
+    const finalDestination = await resolveNextPathForEstablishedSession(
+      req,
+      user.id,
+      activeAppSlug,
+      oauthContinuation,
+      "post_auth",
+    );
     if (!finalDestination) {
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(
