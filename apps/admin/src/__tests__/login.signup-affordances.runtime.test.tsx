@@ -1,6 +1,6 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import Login from "../pages/auth/Login";
 
 const routeState = vi.hoisted(() => ({
@@ -116,6 +116,21 @@ vi.mock("@workspace/frontend-security", () => ({
 }));
 
 describe("Login signup affordance gating", () => {
+  beforeEach(() => {
+    routeState.hideSignupAffordances = false;
+    routeState.loginPageVisibility = {
+      allowGoogleLogin: true,
+      allowEmailLogin: true,
+      allowForgotPassword: true,
+      allowCreateAccount: true,
+    };
+    routeState.accessError = null;
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders Google sign-in only for superadmin policy", () => {
     routeState.hideSignupAffordances = true;
     routeState.loginPageVisibility = {
