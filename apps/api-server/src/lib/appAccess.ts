@@ -155,9 +155,7 @@ export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSel
 }
 
 export function getNormalizedAccessProfileForApp(app: Pick<typeof appsTable.$inferSelect, "slug" | "accessMode" | "metadata">) {
-  const normalized = resolveNormalizedAccessProfile(app);
-  if (app.slug.trim().toLowerCase() === "admin") return "organization" as const;
-  return normalized;
+  return resolveNormalizedAccessProfile(app);
 }
 
 export function getTestFallbackApp(appSlug: string): typeof appsTable.$inferSelect | null {
