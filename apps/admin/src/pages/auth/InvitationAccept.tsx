@@ -28,7 +28,7 @@ function InvitationAcceptContent() {
 
   return (
     <AuthShell
-      title={t("invitation_title", "Invitation")}
+      title={t("invitation_title")}
       subtitle={
         invitation.shouldShowInvitationChoices ? undefined : invitation.message
       }
@@ -51,8 +51,8 @@ function InvitationAcceptContent() {
               className="w-full"
             >
               {invitation.auth.status === "unauthenticated"
-                ? t("invitation_back_sign_in", "Back to sign in")
-                : t("invitation_back_dashboard", "Back to dashboard")}
+                ? t("invitation_back_sign_in")
+                : t("invitation_back_dashboard")}
             </Button>
           </div>
         ) : null}
@@ -63,24 +63,15 @@ function InvitationAcceptContent() {
               onClick={invitation.startGoogleContinuation}
               disabled={invitation.auth.loginInFlight}
               loading={invitation.auth.loginInFlight}
-              idleLabel={t(
-                "invitation_google_continue_idle",
-                "Continue with Google",
-              )}
-              loadingLabel={t(
-                "invitation_google_continue_loading",
-                "Starting Google sign-in...",
-              )}
+              idleLabel={t("invitation_google_continue_idle")}
+              loadingLabel={t("invitation_google_continue_loading")}
             />
 
             {invitation.shouldShowPasswordFields ? (
               <>
                 <AuthMethodDivider />
                 <p className="text-sm text-foreground">
-                  {t(
-                    "invitation_password_create_prompt",
-                    "Create a password to log in",
-                  )}
+                  {t("invitation_password_create_prompt")}
                 </p>
                 <PasswordInput
                   value={invitation.password}
@@ -89,7 +80,7 @@ function InvitationAcceptContent() {
                   }
                   onBlur={invitation.markPasswordTouched}
                   className="w-full border rounded px-3 py-2"
-                  placeholder={t("invitation_password_placeholder", "Password")}
+                  placeholder={t("invitation_password_placeholder")}
                   autoComplete="new-password"
                   aria-invalid={Boolean(invitation.passwordError)}
                   aria-describedby={
@@ -124,18 +115,15 @@ function InvitationAcceptContent() {
                   }
                 >
                   {invitation.passwordSubmitting
-                    ? t("invitation_password_submitting", "Setting password...")
-                    : t("invitation_password_submit", "Set password and join")}
+                    ? t("invitation_password_submitting")
+                    : t("invitation_password_submit")}
                 </Button>
               </>
             ) : null}
             {invitation.shouldShowEmailSignInOption ? (
               <Button asChild variant="secondary" className="w-full">
                 <Link href={invitation.loginContinuationPath}>
-                  {t(
-                    "invitation_email_sign_in_option",
-                    "Sign in with email/password",
-                  )}
+                  {t("invitation_email_sign_in_option")}
                 </Link>
               </Button>
             ) : null}

@@ -33,21 +33,21 @@ function ResetPasswordContent() {
       return;
     }
     auth.resetPassword(token, password).then(() => {
-      setMessage(t("reset_password_success_redirecting", "Password reset complete. Redirecting to login..."));
+      setMessage(t("reset_password_success_redirecting"));
       setTimeout(() => setLocation("/login"), 800);
-    }).catch((err) => setMessage(err instanceof Error ? err.message : t("reset_password_error_fallback", "Unable to reset password.")));
+    }).catch((err) => setMessage(err instanceof Error ? err.message : t("reset_password_error_fallback")));
   };
 
   return (
     <AuthShell
-      title={t("reset_password_title", "Reset password")}
-      subtitle={t("reset_password_subtitle", "Create a new strong password to secure your account.")}
+      title={t("reset_password_title")}
+      subtitle={t("reset_password_subtitle")}
     >
       <AuthFormMotion>
         <div className="space-y-3">
-          <PasswordInput className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setPasswordTouched(true)} placeholder={t("reset_password_new_password_placeholder", "New password")} autoComplete="new-password" aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? "reset-password-error" : undefined} />
+          <PasswordInput className="w-full border rounded px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setPasswordTouched(true)} placeholder={t("reset_password_new_password_placeholder")} autoComplete="new-password" aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? "reset-password-error" : undefined} />
           <FieldValidationMessage id="reset-password-error" message={passwordError} />
-          <Button className="w-full" onClick={submit}>{t("reset_password_submit_button", "Reset password")}</Button>
+          <Button className="w-full" onClick={submit}>{t("reset_password_submit_button")}</Button>
         </div>
         <AuthStatusMessage message={message} />
       </AuthFormMotion>

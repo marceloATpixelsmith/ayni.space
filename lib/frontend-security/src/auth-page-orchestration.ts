@@ -1,5 +1,5 @@
 import React from "react";
-import { getAuthMessage } from "@workspace/auth-ui";
+import { formatAuthMessage, getAuthMessage } from "@workspace/auth-ui";
 import {
   AUTH_LOGIN_PATH,
   DEFAULT_POST_AUTH_PATH,
@@ -86,7 +86,12 @@ export function useLoginRoutePolicy(options: {
     parseAuthErrorCode(query.get("error")),
   );
   const metadataError = metadataResolutionError
-    ? `Auth metadata unavailable (${metadataResolutionError}). Sign-up options are hidden until app configuration is resolved.${metadataResolutionDiagnostic.message ? ` [${metadataResolutionDiagnostic.message}]` : ""}`
+    ? formatAuthMessage("auth_metadata_unavailable", {
+        reason: metadataResolutionError,
+        diagnostic: metadataResolutionDiagnostic.message
+          ? ` [${metadataResolutionDiagnostic.message}]`
+          : "",
+      })
     : null;
   const combinedAccessError = accessError ?? metadataError;
   const deniedCleanupAttemptedRef = React.useRef(false);

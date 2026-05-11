@@ -29,7 +29,9 @@ export const authEn = {
   forgot_password_back_link: "Back to sign in",
   forgot_password_success_generic:
     "If an account exists, a reset email has been sent.",
+  forgot_password_test_reset_token: "Test reset token: {token}",
   forgot_password_error_fallback: "Unable to submit forgot-password request.",
+  forgot_password_process_error: "Unable to process request.",
   reset_password_title: "Reset password",
   reset_password_subtitle:
     "Create a new strong password to secure your account.",
@@ -80,6 +82,9 @@ export const authEn = {
   login_error_google_start:
     "Unable to start Google sign-in right now. Please try again.",
   login_error_email_sign_in: "Unable to sign in.",
+  login_error_invalid_credentials: "Invalid email or password.",
+  login_error_routing_unresolved:
+    "We could not complete sign-in routing safely. Please sign in again.",
   login_error_google_rate_limited: "Too many attempts. Please wait and retry.",
   login_error_google_rate_retry_seconds:
     " Please wait about {seconds} {unit} and retry.",
@@ -100,6 +105,8 @@ export const authEn = {
     "Access origin is not allowed for sign-in.",
   auth_error_app_context_missing:
     "Application context is missing. Please reload and try again.",
+  auth_metadata_unavailable:
+    "Auth metadata unavailable ({reason}). Sign-up options are hidden until app configuration is resolved.{diagnostic}",
   signup_error_fallback: "Unable to sign up.",
 
   verify_email_title: "Verify your email",
@@ -145,6 +152,10 @@ export const authEn = {
   mfa_enroll_verify_button: "Verify and activate two-step verification",
   mfa_enroll_recovery_codes_label: "Recovery codes (save these now):",
   mfa_enroll_continue_button: "Continue",
+  mfa_enroll_redirecting_challenge:
+    "Redirecting to two-step verification challenge.",
+  mfa_enroll_recovery_codes_missing:
+    "Two-step verification was activated, but recovery codes were not returned. Please contact support before continuing.",
   mfa_challenge_title: "Two-step verification required",
   mfa_challenge_subtitle:
     "Enter the code from your authenticator app to continue.",
@@ -158,6 +169,16 @@ export const authEn = {
   mfa_challenge_verify_button: "Verify code",
   mfa_challenge_recovery_placeholder: "Recovery code",
   mfa_challenge_recovery_button: "Use recovery code",
+  mfa_challenge_complete_fallback:
+    "Unable to complete two-step verification challenge.",
+  mfa_recovery_complete_fallback: "Unable to complete two-step recovery.",
+  turnstile_loading: "Loading security check…",
+  turnstile_retrying:
+    "Verification failed. Please wait a few seconds while we retry.",
+  turnstile_expired:
+    "Security check expired. Please complete the new verification challenge.",
+  turnstile_script_load_failed: "Failed to load Turnstile script.",
+  turnstile_script_error: "Turnstile script error.",
   invitation_title: "Invitation",
   invitation_preparing: "Preparing invitation acceptance...",
   invitation_token_missing: "Invitation token is missing.",
@@ -197,4 +218,30 @@ export const authEn = {
   onboarding_user_full_name_placeholder: "Jane Doe",
   onboarding_user_save_loading: "Saving...",
   onboarding_user_continue_button: "Continue to Dashboard",
+  onboarding_org_name_min: "Organization name must be at least 2 characters",
+  onboarding_org_slug_min: "Slug must be at least 2 characters",
+  onboarding_org_slug_format:
+    "Slug must contain only lowercase letters, numbers, and hyphens",
+  onboarding_org_created: "Organization created successfully",
+  onboarding_org_security_token_not_ready: "Security token not ready",
+  onboarding_org_failed_create: "Failed to create organization",
+  onboarding_org_retry_later: "Please try again in a moment.",
+  onboarding_org_complete_verification: "Complete verification",
+  onboarding_org_turnstile_required:
+    "Please complete Turnstile verification before creating an organization.",
+  onboarding_user_name_required: "Name is required",
+  onboarding_user_name_required_description:
+    "Please enter your full name to continue.",
+  onboarding_user_save_failed: "Failed to save profile",
+  onboarding_user_save_error: "Unable to save your profile.",
+  onboarding_org_title: "Set up your workspace",
+  onboarding_org_subtitle:
+    "Create an organization to start using apps and inviting your team.",
+  onboarding_org_name_label: "Organization Name",
+  onboarding_org_name_placeholder: "Acme Corp",
+  onboarding_org_url_label: "Workspace URL",
+  onboarding_org_url_prefix: "app.platform.com/",
+  onboarding_org_slug_placeholder: "acme-corp",
+  onboarding_org_creating: "Creating...",
+  onboarding_org_continue_button: "Continue to Dashboard",
 } as const;
