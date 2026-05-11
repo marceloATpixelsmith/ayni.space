@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { createHmac, randomUUID, timingSafeEqual } from "crypto";
+import { randomUUID } from "crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   appsTable,
@@ -408,46 +408,6 @@ function encodeOAuthStatePayload(payload: OAuthStatePayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
-function getOAuthStateSigningSecret(): string {
-  return (
-    process.env["SESSION_SECRET"] ??
-    process.env["OAUTH_STATE_SIGNING_SECRET"] ??
-    "test-oauth-state-signing-secret"
-  );
-}
-
-function signOAuthStatePayload(encodedPayload: string): string {
-  return createHmac("sha256", getOAuthStateSigningSecret())
-    .update(encodedPayload)
-    .digest("base64url");
-}
-
-function isValidOAuthStateSignature(
-  encodedPayload: string,
-  signature: string | null | undefined,
-): boolean {
-  if (!signature) return false;
-
-  const expectedSignature = signOAuthStatePayload(encodedPayload);
-  const expectedBuffer = Buffer.from(expectedSignature);
-  const candidateBuffer = Buffer.from(signature);
-
-  if (expectedBuffer.length !== candidateBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(expectedBuffer, candidateBuffer);
-}
-
-function hasValidOAuthStateSignature(state: string): boolean {
-  const segments = state.split(".");
-  if (segments.length < 4) return false;
-
-  const signature = segments.at(-1);
-  const encodedPayload = segments.slice(2, -1).join(".");
-  return isValidOAuthStateSignature(encodedPayload, signature);
-}
-
 function decodeOAuthStatePayload(
   encodedPayload: string,
 ): OAuthStatePayload | null {
@@ -488,9 +448,7 @@ function decodeOAuthStatePayload(
 }
 
 function buildOAuthState(payload: OAuthStatePayload): string {
-  const encodedPayload = encodeOAuthStatePayload(payload);
-  const signature = signOAuthStatePayload(encodedPayload);
-  return `${payload.sessionGroup}.${payload.nonce}.${encodedPayload}.${signature}`;
+  return `${payload.sessionGroup}.${payload.nonce}.${encodeOAuthStatePayload(payload)}`;
 }
 
 function parseOAuthState(
@@ -499,17 +457,7 @@ function parseOAuthState(
   if (!state) return null;
   const segments = state.split(".");
   if (segments.length < 3) return null;
-
-  const hasSignature = segments.length >= 4;
-  const encodedPayload = hasSignature
-    ? segments.slice(2, -1).join(".")
-    : segments.slice(2).join(".");
-  const signature = hasSignature ? segments.at(-1) : null;
-
-  if (hasSignature && !isValidOAuthStateSignature(encodedPayload, signature)) {
-    return null;
-  }
-
+  const encodedPayload = segments.slice(2).join(".");
   const payload = decodeOAuthStatePayload(encodedPayload);
   if (!payload) return null;
   if (payload.sessionGroup !== segments[0]) return null;
@@ -523,16 +471,9 @@ function parseOAuthStateReturnTo(
   if (!state) return null;
   const segments = state.split(".");
   if (segments.length < 3) return null;
-  const hasSignature = segments.length >= 4;
-  const encodedPayload = hasSignature
-    ? segments.slice(2, -1).join(".")
-    : segments.slice(2).join(".");
-  if (hasSignature && !isValidOAuthStateSignature(encodedPayload, segments.at(-1))) {
-    return null;
-  }
   try {
     const payload = JSON.parse(
-      Buffer.from(encodedPayload, "base64url").toString("utf8"),
+      Buffer.from(segments.slice(2).join("."), "base64url").toString("utf8"),
     ) as Record<string, unknown>;
     if (
       typeof payload["returnTo"] !== "string" ||
@@ -550,11 +491,7 @@ function validateOAuthCallbackState(
   state: string,
   expectedState: unknown,
 ): { valid: true; stateContext: OAuthStateContext } | { valid: false } {
-  const hasMatchingSessionState =
-    typeof expectedState === "string" && state === expectedState;
-  const hasTrustedSignedState = hasValidOAuthStateSignature(state);
-
-  if (!hasMatchingSessionState && !hasTrustedSignedState) {
+  if (typeof expectedState !== "string" || state !== expectedState) {
     return { valid: false };
   }
 
@@ -1468,6 +1405,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
   req.session.oauthReturnToPath = returnToPath ?? undefined;
   req.session.oauthSessionGroup = oauthSessionGroup;
   req.session.oauthAppSlug = appSlug;
+  req.session.oauthIntent = oauthIntent;
   logSuperadminTrace("OAUTH START", {
     appSlug,
     returnTo,
@@ -1694,6 +1632,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     delete req.session.oauthSessionGroup;
     delete req.session.oauthAppSlug;
     delete req.session.oauthStayLoggedIn;
+    delete req.session.oauthIntent;
 
     if (!oauthReturnTo) {
       logAuthFailure(req, "google-callback-missing-return-origin");
@@ -2143,7 +2082,6 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-
     const effectiveContext = await resolvePostAuthFlowDecision({
       userId: user.id,
       appSlug: activeAppSlug,
@@ -2183,28 +2121,20 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
-    const shouldRequireGoogleCreateAccountOrganizationOnboarding =
+    const createAccountOrganizationOnboardingPath =
       oauthIntent === "create_account" &&
       effectiveContext.normalizedAccessProfile === "organization" &&
-      app.customerRegistrationEnabled === true &&
-      effectiveContext.requiredOnboarding === "none";
-
-    const postAuthFlowDecision = shouldRequireGoogleCreateAccountOrganizationOnboarding
-      ? {
-          ...effectiveContext,
-          canAccess: true,
-          requiredOnboarding: "organization" as const,
-          destination: "/onboarding/organization",
-        }
-      : effectiveContext;
-
+      app.customerRegistrationEnabled === true
+        ? "/onboarding/organization"
+        : null;
     const onboardingRequired =
-      postAuthFlowDecision.requiredOnboarding === "organization";
-    if (!postAuthFlowDecision.canAccess && !onboardingRequired) {
+      effectiveContext.requiredOnboarding === "organization" ||
+      Boolean(createAccountOrganizationOnboardingPath);
+    if (!effectiveContext.canAccess && !onboardingRequired) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
         accessMode: app?.accessMode ?? null,
-        normalizedAccessProfile: postAuthFlowDecision.normalizedAccessProfile,
+        normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
         allow: false,
         denyReason: "app_context_denied",
       });
@@ -2220,36 +2150,25 @@ async function handleGoogleCallback(req: Request, res: Response) {
     logSuperadminTrace("H. ACCESS PROFILE DECISION", {
       appSlug: activeAppSlug,
       accessMode: app?.accessMode ?? null,
-      normalizedAccessProfile: postAuthFlowDecision.normalizedAccessProfile,
+      normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       allow: true,
       denyReason: null,
-      googleIntent: oauthIntent,
-      forcedOnboarding:
-        shouldRequireGoogleCreateAccountOrganizationOnboarding
-          ? "organization"
-          : null,
     });
     infoVerboseTrace("[auth/google/callback] post-auth app requirements", {
       appSlug: activeAppSlug,
       appId: app.id,
-      requiredOnboarding: postAuthFlowDecision.requiredOnboarding,
-      canAccess: postAuthFlowDecision.canAccess,
-      googleIntent: oauthIntent,
+      requiredOnboarding: effectiveContext.requiredOnboarding,
+      canAccess: effectiveContext.canAccess,
     });
-    const finalDestination = shouldRequireGoogleCreateAccountOrganizationOnboarding
-      ? resolveAuthenticatedPostAuthDestination({
-          continuation: oauthContinuation,
-          flowDecision: postAuthFlowDecision,
-          stage: "post_auth",
-          currentAppSlug: activeAppSlug,
-        })
-      : await resolveNextPathForEstablishedSession(
-          req,
-          user.id,
-          activeAppSlug,
-          oauthContinuation,
-          "post_auth",
-        );
+    const finalDestination =
+      createAccountOrganizationOnboardingPath ??
+      (await resolveNextPathForEstablishedSession(
+        req,
+        user.id,
+        activeAppSlug,
+        oauthContinuation,
+        "post_auth",
+      ));
     if (!finalDestination) {
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
       res.redirect(
