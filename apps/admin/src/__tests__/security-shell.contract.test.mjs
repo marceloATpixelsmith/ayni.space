@@ -747,7 +747,7 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}',
+    'idleLabel={\n              auth.loginInFlight\n                ? t("login_google_sign_in_loading")\n                : t("login_google_sign_in_idle")\n            }',
     "Login Google sign-in button copy should use auth.loginInFlight plus translated keys.",
   );
 
@@ -839,7 +839,7 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}',
+    'idleLabel={\n              auth.loginInFlight\n                ? t("login_google_sign_in_loading")\n                : t("login_google_sign_in_idle")\n            }',
     "Login button copy should reflect pending OAuth URL request state through i18n keys.",
   );
 });
@@ -1167,8 +1167,13 @@ test("superadmin login hides signup affordances and blocks create-account intent
   );
   expectIncludes(
     loginSource,
-    "{!hideSignupAffordances ? (",
-    "Signup affordances should be conditionally hidden in superadmin mode.",
+    "{loginPageVisibility.allowCreateAccount ? (",
+    "Signup affordances should be conditionally hidden by shared login visibility policy.",
+  );
+  expectIncludes(
+    loginSource,
+    "{loginPageVisibility.allowEmailLogin ? (",
+    "Email/password auth UI should be conditionally hidden by shared login visibility policy.",
   );
 });
 

@@ -1,6 +1,12 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import App from "../App";
 
 type AuthStateMock = {
@@ -12,59 +18,74 @@ type AuthStateMock = {
   loginInFlight: boolean;
 };
 
-const { authState, metadataState, resolveAuthenticatedNextStepMock } = vi.hoisted(() => ({
-  authState: {
-    status: "unauthenticated",
-    user: null,
-    authBootstrapping: false,
-    csrfToken: "csrf",
-    csrfReady: true,
-    loginInFlight: false,
-  } satisfies AuthStateMock,
-  metadataState: {
-    loading: false,
-    currentAppSlug: "admin",
-    metadata: {
-      normalizedAccessProfile: "organization",
-      authRoutePolicy: {
-        allowInvitations: true,
-        allowCustomerRegistration: false,
+const { authState, metadataState, resolveAuthenticatedNextStepMock } =
+  vi.hoisted(() => ({
+    authState: {
+      status: "unauthenticated",
+      user: null,
+      authBootstrapping: false,
+      csrfToken: "csrf",
+      csrfReady: true,
+      loginInFlight: false,
+    } satisfies AuthStateMock,
+    metadataState: {
+      loading: false,
+      currentAppSlug: "admin",
+      metadata: {
+        normalizedAccessProfile: "organization",
+        authRoutePolicy: {
+          allowInvitations: true,
+          allowCustomerRegistration: false,
+        },
       },
+      resolutionError: null,
     },
-    resolutionError: null,
-  },
-  resolveAuthenticatedNextStepMock: vi.fn(() => ({
-    destination: "/dashboard",
-    reason: "default",
-  })),
-}));
+    resolveAuthenticatedNextStepMock: vi.fn(() => ({
+      destination: "/dashboard",
+      reason: "default",
+    })),
+  }));
 
 vi.mock("@workspace/frontend-observability", () => ({
-  MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 vi.mock("@workspace/frontend-security", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@workspace/frontend-security")>();
+  const actual =
+    await importOriginal<typeof import("@workspace/frontend-security")>();
   return {
     ...actual,
-    AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    AuthProvider: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
     useAuth: () => authState,
     useCurrentPlatformAppMetadata: () => metadataState,
     getLastAuthDebugEventSummary: () => null,
     getDisallowedAuthRouteRedirect: () => "/login",
     getMfaPendingRoute: (status: string) =>
-      status === "authenticated_mfa_pending_enrolled" ? "/mfa/challenge" : "/mfa/enroll",
+      status === "authenticated_mfa_pending_enrolled"
+        ? "/mfa/challenge"
+        : "/mfa/enroll",
     isAuthDebugEnabled: () => false,
     isMfaPendingStatus: (status: string) =>
       status === "authenticated_mfa_pending_enrolled" ||
       status === "authenticated_mfa_pending_unenrolled",
     isAuthRouteAllowed: (
-      metadata: { authRoutePolicy?: { allowInvitations?: boolean; allowCustomerRegistration?: boolean } } | null,
+      metadata: {
+        authRoutePolicy?: {
+          allowInvitations?: boolean;
+          allowCustomerRegistration?: boolean;
+        };
+      } | null,
       routeKind: string,
     ) => {
       if (!metadata?.authRoutePolicy) return true;
-      if (routeKind === "signup") return metadata.authRoutePolicy.allowCustomerRegistration !== false;
-      if (routeKind === "invitation") return metadata.authRoutePolicy.allowInvitations !== false;
+      if (routeKind === "signup")
+        return metadata.authRoutePolicy.allowCustomerRegistration !== false;
+      if (routeKind === "invitation")
+        return metadata.authRoutePolicy.allowInvitations !== false;
       return true;
     },
     logAuthDebug: () => undefined,
@@ -99,15 +120,19 @@ vi.mock("../pages/auth/Login", async () => {
 
       if (auth.status === "authenticated_fully") return null;
       const { metadata, resolutionError } = useCurrentPlatformAppMetadata();
-      const hideSignupAffordances = !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+      const hideSignupAffordances =
+        !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
       return (
         <>
           <h1>Welcome</h1>
           {!hideSignupAffordances ? <a href="/signup">Create account</a> : null}
-          {!hideSignupAffordances ? <button type="button">Create account with Google</button> : null}
+          {!hideSignupAffordances ? (
+            <button type="button">Create account with Google</button>
+          ) : null}
           {resolutionError ? (
             <div>
-              {`Auth metadata unavailable (${resolutionError}). Sign-up options are hidden until app configuration is resolved.`}
+              We could not load the sign-in configuration. Please try again
+              later.
             </div>
           ) : null}
         </>
@@ -117,16 +142,15 @@ vi.mock("../pages/auth/Login", async () => {
 });
 vi.mock("../pages/auth/Signup", async () => {
   const { useLocation } = await import("wouter");
-  const {
-    useCurrentPlatformAppMetadata,
-    deriveAppAuthRoutePolicy,
-  } = await import("@workspace/frontend-security");
+  const { useCurrentPlatformAppMetadata, deriveAppAuthRoutePolicy } =
+    await import("@workspace/frontend-security");
 
   return {
     default: () => {
       const [location, setLocation] = useLocation();
       const { metadata, loading } = useCurrentPlatformAppMetadata();
-      const signupAllowed = deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+      const signupAllowed =
+        deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
 
       React.useEffect(() => {
         if (loading || signupAllowed) return;
@@ -204,7 +228,9 @@ vi.mock("../components/ui/toaster", () => ({
   Toaster: () => null,
 }));
 vi.mock("../components/ui/tooltip", () => ({
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 function setPath(path: string) {
@@ -255,9 +281,10 @@ describe("App auth routing runtime behavior", () => {
     setPath("/signup");
     render(<App />);
 
-    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Create account")).toBeTruthy(),
+    );
   });
-
 
   it("allows signup in solo mode even with stale metadata policy denying registration", async () => {
     metadataState.resolutionError = null;
@@ -272,7 +299,9 @@ describe("App auth routing runtime behavior", () => {
     setPath("/signup");
     render(<App />);
 
-    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Create account")).toBeTruthy(),
+    );
   });
 
   it("blocks signup in superadmin mode", async () => {
@@ -293,13 +322,16 @@ describe("App auth routing runtime behavior", () => {
     expect(screen.queryByText("Create account")).toBeNull();
   });
 
-
   it("shows create-account affordances on login for organization and solo profiles", async () => {
     setPath("/login");
     render(<App />);
 
-    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Create account with Google" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByText("Create account")).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Create account with Google" }),
+    ).toBeTruthy();
 
     cleanup();
     metadataState.resolutionError = null;
@@ -313,11 +345,15 @@ describe("App auth routing runtime behavior", () => {
 
     setPath("/login");
     render(<App />);
-    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Create account with Google" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByText("Create account")).toBeTruthy(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Create account with Google" }),
+    ).toBeTruthy();
   });
 
-  it("hides create-account affordances for superadmin and shows metadata diagnostic when app slug has no match", async () => {
+  it("hides create-account affordances for superadmin and shows safe metadata failure when app slug has no match", async () => {
     metadataState.resolutionError = null;
     metadataState.metadata = {
       normalizedAccessProfile: "superadmin",
@@ -330,8 +366,12 @@ describe("App auth routing runtime behavior", () => {
     setPath("/login");
     render(<App />);
 
-    await waitFor(() => expect(screen.queryByText("Create account")).toBeNull());
-    expect(screen.queryByRole("button", { name: "Create account with Google" })).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByText("Create account")).toBeNull(),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Create account with Google" }),
+    ).toBeNull();
 
     cleanup();
     metadataState.currentAppSlug = "unknown-app";
@@ -345,12 +385,17 @@ describe("App auth routing runtime behavior", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "Auth metadata unavailable (app_metadata_not_found). Sign-up options are hidden until app configuration is resolved.",
+          "We could not load the sign-in configuration. Please try again later.",
         ),
       ).toBeTruthy(),
     );
+    expect(screen.queryByText(/app_metadata_not_found/)).toBeNull();
+    expect(screen.queryByText(/requested=/)).toBeNull();
+    expect(screen.queryByText(/available=/)).toBeNull();
     expect(screen.queryByText("Create account")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Create account with Google" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Create account with Google" }),
+    ).toBeNull();
   });
   it("routes MFA pending users to challenge when enrolled", async () => {
     authState.status = "authenticated_mfa_pending_enrolled";
@@ -359,7 +404,9 @@ describe("App auth routing runtime behavior", () => {
     setPath("/dashboard");
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe("/mfa/challenge"));
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/mfa/challenge"),
+    );
     expect(screen.getByText("Continue")).toBeTruthy();
   });
 
@@ -390,7 +437,9 @@ describe("App auth routing runtime behavior", () => {
     setPath("/dashboard");
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe("/onboarding/organization"));
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/onboarding/organization"),
+    );
   });
 
   it("fails closed in solo mode for onboarding and invitations", async () => {
@@ -409,10 +458,11 @@ describe("App auth routing runtime behavior", () => {
     setPath("/dashboard/invitations");
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe("/dashboard/invitations"));
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/dashboard/invitations"),
+    );
     expect(screen.getByText("Invitations")).toBeTruthy();
   });
-
 
   it("redirects organization onboarding route to /login for solo profile", async () => {
     metadataState.resolutionError = null;
@@ -452,8 +502,12 @@ describe("App auth routing runtime behavior", () => {
     setPath("/signup?next=/dashboard/apps");
     const view = render(<App />);
 
-    await waitFor(() => expect(screen.getByText("Create account")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Already have an account" }));
+    await waitFor(() =>
+      expect(screen.getByText("Create account")).toBeTruthy(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Already have an account" }),
+    );
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
     expect(window.location.search).toBe("?next=/dashboard/apps");
 
@@ -485,6 +539,8 @@ describe("App auth routing runtime behavior", () => {
         }),
       ),
     );
-    await waitFor(() => expect(window.location.pathname).toBe("/onboarding/organization"));
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/onboarding/organization"),
+    );
   });
 });

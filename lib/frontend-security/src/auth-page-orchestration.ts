@@ -1,5 +1,5 @@
 import React from "react";
-import { formatAuthMessage, getAuthMessage } from "@workspace/auth-ui";
+import { getAuthMessage } from "@workspace/auth-ui";
 import {
   AUTH_LOGIN_PATH,
   DEFAULT_POST_AUTH_PATH,
@@ -48,19 +48,57 @@ export function getLoginDisabledReasons(input: {
   return reasons;
 }
 
+export type LoginPageVisibilityPolicy = {
+  allowGoogleLogin: boolean;
+  allowEmailLogin: boolean;
+  allowForgotPassword: boolean;
+  allowCreateAccount: boolean;
+};
+
+export function deriveLoginPageVisibilityPolicy(
+  metadata: Parameters<typeof deriveAppAuthRoutePolicy>[0],
+): LoginPageVisibilityPolicy {
+  if (!metadata) {
+    return {
+      allowGoogleLogin: false,
+      allowEmailLogin: false,
+      allowForgotPassword: false,
+      allowCreateAccount: false,
+    };
+  }
+
+  if (metadata.normalizedAccessProfile === "superadmin") {
+    return {
+      allowGoogleLogin: true,
+      allowEmailLogin: false,
+      allowForgotPassword: false,
+      allowCreateAccount: false,
+    };
+  }
+
+  return {
+    allowGoogleLogin: true,
+    allowEmailLogin: true,
+    allowForgotPassword: true,
+    allowCreateAccount:
+      deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration,
+  };
+}
+
 export function useLoginRouteComposition() {
   const auth = useAuth();
   const { metadata, resolutionError, diagnostic } =
     useCurrentPlatformAppMetadata();
   const turnstile = useTurnstileToken();
 
-  const hideSignupAffordances =
-    !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+  const loginPageVisibility = deriveLoginPageVisibilityPolicy(metadata);
+  const hideSignupAffordances = !loginPageVisibility.allowCreateAccount;
 
   return {
     auth,
     metadata,
     turnstile,
+    loginPageVisibility,
     hideSignupAffordances,
     metadataResolutionError: resolutionError,
     metadataResolutionDiagnostic: diagnostic,
@@ -76,9 +114,9 @@ export function useLoginRoutePolicy(options: {
     auth,
     metadata,
     turnstile,
+    loginPageVisibility,
     hideSignupAffordances,
     metadataResolutionError,
-    metadataResolutionDiagnostic,
   } = useLoginRouteComposition();
   const query = React.useMemo(() => new URLSearchParams(search), [search]);
   const nextPath = query.get("next");
@@ -86,12 +124,7 @@ export function useLoginRoutePolicy(options: {
     parseAuthErrorCode(query.get("error")),
   );
   const metadataError = metadataResolutionError
-    ? formatAuthMessage("auth_metadata_unavailable", {
-        reason: metadataResolutionError,
-        diagnostic: metadataResolutionDiagnostic.message
-          ? ` [${metadataResolutionDiagnostic.message}]`
-          : "",
-      })
+    ? getAuthMessage("auth_metadata_unavailable")
     : null;
   const combinedAccessError = accessError ?? metadataError;
   const deniedCleanupAttemptedRef = React.useRef(false);
@@ -125,6 +158,7 @@ export function useLoginRoutePolicy(options: {
     auth,
     metadata,
     turnstile,
+    loginPageVisibility,
     hideSignupAffordances,
     nextPath,
     accessError: combinedAccessError,
@@ -253,7 +287,7 @@ export function useLoginRouteActions(options: {
   auth: ReturnType<typeof useAuth>;
   turnstile: ReturnType<typeof useTurnstileToken>;
   nextPath: string | null;
-  hideSignupAffordances: boolean;
+  allowCreateAccount: boolean;
   email: string;
   password: string;
   emailError: string | null;
@@ -304,7 +338,7 @@ export function useLoginRouteActions(options: {
   const handleGoogleLogin = React.useCallback(
     (intent: "sign_in" | "create_account") => {
       if (options.auth.loginInFlight) return;
-      if (options.hideSignupAffordances && intent === "create_account") return;
+      if (!options.allowCreateAccount && intent === "create_account") return;
 
       const turnstileError = ensureTurnstileReadyForSubmit(options.turnstile);
       if (turnstileError) {
@@ -343,7 +377,7 @@ export function useLoginRouteActions(options: {
     },
     [
       options.auth,
-      options.hideSignupAffordances,
+      options.allowCreateAccount,
       options.nextPath,
       options.turnstile,
       submit,

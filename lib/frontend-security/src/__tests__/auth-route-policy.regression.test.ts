@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveAppAuthRoutePolicy } from "../index";
+import {
+  deriveAppAuthRoutePolicy,
+  deriveLoginPageVisibilityPolicy,
+} from "../index";
 
 test("superadmin profile always fail-closes signup even if payload policy is permissive", () => {
   const policy = deriveAppAuthRoutePolicy({
@@ -69,5 +72,58 @@ test("organization profile enforces fixed policy independent of payload toggles"
     allowOnboarding: true,
     allowInvitations: true,
     allowCustomerRegistration: true,
+  });
+});
+
+test("login page visibility allows only Google for superadmin profile", () => {
+  const visibility = deriveLoginPageVisibilityPolicy({
+    slug: "admin",
+    normalizedAccessProfile: "superadmin",
+  });
+
+  assert.deepEqual(visibility, {
+    allowGoogleLogin: true,
+    allowEmailLogin: false,
+    allowForgotPassword: false,
+    allowCreateAccount: false,
+  });
+});
+
+test("login page visibility enables all auth affordances for organization profile", () => {
+  const visibility = deriveLoginPageVisibilityPolicy({
+    slug: "admin",
+    normalizedAccessProfile: "organization",
+  });
+
+  assert.deepEqual(visibility, {
+    allowGoogleLogin: true,
+    allowEmailLogin: true,
+    allowForgotPassword: true,
+    allowCreateAccount: true,
+  });
+});
+
+test("login page visibility enables all auth affordances for solo profile", () => {
+  const visibility = deriveLoginPageVisibilityPolicy({
+    slug: "solo",
+    normalizedAccessProfile: "solo",
+  });
+
+  assert.deepEqual(visibility, {
+    allowGoogleLogin: true,
+    allowEmailLogin: true,
+    allowForgotPassword: true,
+    allowCreateAccount: true,
+  });
+});
+
+test("login page visibility fail-closes when metadata is unavailable", () => {
+  const visibility = deriveLoginPageVisibilityPolicy(null);
+
+  assert.deepEqual(visibility, {
+    allowGoogleLogin: false,
+    allowEmailLogin: false,
+    allowForgotPassword: false,
+    allowCreateAccount: false,
   });
 });
