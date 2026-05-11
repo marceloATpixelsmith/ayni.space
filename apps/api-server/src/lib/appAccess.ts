@@ -393,7 +393,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     if (!canAccess) {
       if (app.customerRegistrationEnabled) {
         canAccess = true;
-        requiredOnboarding = "organization";
+        requiredOnboarding = user.name?.trim() ? "none" : "user";
       } else {
         requiredOnboarding = "organization";
       }
