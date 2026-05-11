@@ -99,6 +99,16 @@ export function getSecurityConfig(): SecurityConfig {
         category: "PUBLIC",
         disableTurnstileReason: "CSRF bootstrap endpoint must stay machine-accessible.",
       },
+
+      //FIX: LOGIN METADATA BOOTSTRAP MUST REMAIN PUBLIC
+      //THE FRONTEND LOGIN FLOW REQUIRES ANONYMOUS ACCESS TO /api/apps
+      //TO RESOLVE APP METADATA AND AUTH VISIBILITY POLICY.
+      {
+        method: "GET",
+        pattern: /^\/api\/apps\/?$/,
+        category: "PUBLIC",
+      },
+
       {
         method: "GET",
         pattern: /^\/api\/monitoring\/config\/?$/,
@@ -144,6 +154,7 @@ export function getSecurityConfig(): SecurityConfig {
         pattern: /^\/debug-sentry\/?$/,
         category: "INTERNAL",
       },
+
       // ADMIN prefix
       {
         method: "*",
@@ -157,6 +168,7 @@ export function getSecurityConfig(): SecurityConfig {
         category: "ADMIN",
         rateLimit: { type: "default", options: { keyPrefix: "platform" } },
       },
+
       // AUTH scope paths that are authenticated but sensitive
       {
         method: "POST",
@@ -164,12 +176,14 @@ export function getSecurityConfig(): SecurityConfig {
         category: "AUTHENTICATED",
         rateLimit: { type: "auth", options: { keyPrefix: "auth-logout", max: 15 } },
       },
+
       ...PRIVILEGED_ROUTE_RULES.map((entry) => ({
         method: entry.method,
         pattern: entry.pattern,
         category: "ADMIN" as const,
         rateLimit: { type: "default" as const, options: { keyPrefix: "admin-privileged" } },
       })),
+
       {
         method: "*",
         pattern: /^\/api\/users(\/|$)/,
@@ -246,12 +260,15 @@ export function createSecurityEnforcementMiddleware(deps: Parameters<typeof turn
     }
 
     let index = 0;
+
     const run = () => {
       const current = handlers[index++];
+
       if (!current) {
         next();
         return;
       }
+
       current(req, res, run);
     };
 
