@@ -32,11 +32,17 @@ function LoginContent() {
     value: emailInput,
     validate: validateEmailInput,
   });
-  const { auth, turnstile, hideSignupAffordances, nextPath, accessError } =
-    useLoginRoutePolicy({
-      search,
-      onRedirect: setLocation,
-    });
+  const {
+    auth,
+    turnstile,
+    loginPageVisibility,
+    hideSignupAffordances,
+    nextPath,
+    accessError,
+  } = useLoginRoutePolicy({
+    search,
+    onRedirect: setLocation,
+  });
 
   const disabledReasons = React.useMemo(
     () =>
@@ -66,7 +72,7 @@ function LoginContent() {
       auth,
       turnstile,
       nextPath,
-      hideSignupAffordances,
+      allowCreateAccount: loginPageVisibility.allowCreateAccount,
       email: emailInput,
       password: passwordInput,
       emailError,
@@ -95,15 +101,21 @@ function LoginContent() {
       }
     >
       <AuthFormMotion>
-        <GoogleAuthButton
-          onClick={() => handleGoogleLogin("sign_in")}
-          disabled={disabledReasons.length > 0}
-          loading={false}
-          idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}
-          loadingLabel={t("login_google_sign_in_loading")}
-        />
+        {loginPageVisibility.allowGoogleLogin ? (
+          <GoogleAuthButton
+            onClick={() => handleGoogleLogin("sign_in")}
+            disabled={disabledReasons.length > 0}
+            loading={false}
+            idleLabel={
+              auth.loginInFlight
+                ? t("login_google_sign_in_loading")
+                : t("login_google_sign_in_idle")
+            }
+            loadingLabel={t("login_google_sign_in_loading")}
+          />
+        ) : null}
 
-        {!hideSignupAffordances ? (
+        {loginPageVisibility.allowCreateAccount ? (
           <GoogleAuthButton
             variant="outline"
             className="mt-3"
@@ -115,48 +127,60 @@ function LoginContent() {
           />
         ) : null}
 
-        <AuthMethodDivider />
+        {loginPageVisibility.allowGoogleLogin &&
+        loginPageVisibility.allowEmailLogin ? (
+          <AuthMethodDivider />
+        ) : null}
 
-        <div className="space-y-3">
-          <input
-            className="w-full border rounded px-3 py-2"
-            placeholder={t("login_email_placeholder")}
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            onBlur={emailValidation.markTouched}
-            aria-invalid={Boolean(emailError)}
-            aria-describedby={emailError ? "login-email-error" : undefined}
-          />
-          <FieldValidationMessage id="login-email-error" message={emailError} />
-          <PasswordInput
-            className="w-full border rounded px-3 py-2"
-            placeholder={t("login_password_placeholder")}
-            autoComplete="current-password"
-            value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)}
-          />
-          <Button
-            className="w-full"
-            onClick={onPasswordLogin}
-            disabled={
-              auth.loginInFlight ||
-              !emailInput ||
-              !passwordInput ||
-              Boolean(validateEmailInput(emailInput)) ||
-              !turnstile.canSubmit
-            }
-          >
-            {t("login_email_button")}
-          </Button>
-          <div className="text-sm flex justify-between">
-            {!hideSignupAffordances ? (
-              <Link href="/signup">{t("login_create_account_link")}</Link>
-            ) : (
-              <span />
-            )}
-            <Link href="/forgot-password">{t("login_forgot_password_link")}</Link>
+        {loginPageVisibility.allowEmailLogin ? (
+          <div className="space-y-3">
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder={t("login_email_placeholder")}
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              onBlur={emailValidation.markTouched}
+              aria-invalid={Boolean(emailError)}
+              aria-describedby={emailError ? "login-email-error" : undefined}
+            />
+            <FieldValidationMessage
+              id="login-email-error"
+              message={emailError}
+            />
+            <PasswordInput
+              className="w-full border rounded px-3 py-2"
+              placeholder={t("login_password_placeholder")}
+              autoComplete="current-password"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value)}
+            />
+            <Button
+              className="w-full"
+              onClick={onPasswordLogin}
+              disabled={
+                auth.loginInFlight ||
+                !emailInput ||
+                !passwordInput ||
+                Boolean(validateEmailInput(emailInput)) ||
+                !turnstile.canSubmit
+              }
+            >
+              {t("login_email_button")}
+            </Button>
+            <div className="text-sm flex justify-between">
+              {loginPageVisibility.allowCreateAccount ? (
+                <Link href="/signup">{t("login_create_account_link")}</Link>
+              ) : (
+                <span />
+              )}
+              {loginPageVisibility.allowForgotPassword ? (
+                <Link href="/forgot-password">
+                  {t("login_forgot_password_link")}
+                </Link>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <AuthTurnstileSection
           enabled={turnstile.enabled}
@@ -176,7 +200,6 @@ function LoginContent() {
     </AuthShell>
   );
 }
-
 
 export default function Login() {
   return (

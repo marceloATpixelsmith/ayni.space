@@ -106,7 +106,7 @@ export const authEn = {
   auth_error_app_context_missing:
     "Application context is missing. Please reload and try again.",
   auth_metadata_unavailable:
-    "Auth metadata unavailable ({reason}). Sign-up options are hidden until app configuration is resolved.{diagnostic}",
+    "We could not load the sign-in configuration. Please try again later.",
   signup_error_fallback: "Unable to sign up.",
 
   verify_email_title: "Verify your email",
