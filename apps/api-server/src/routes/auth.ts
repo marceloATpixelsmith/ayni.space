@@ -2594,6 +2594,7 @@ async function resolveNextPathForEstablishedSession(
       continuationType: effectiveContinuation?.type ?? null,
       continuationPath: effectiveContinuation?.returnPath ?? null,
       requiredOnboarding: flow?.requiredOnboarding ?? null,
+      authIntent,
     });
     return destination;
   } catch {
