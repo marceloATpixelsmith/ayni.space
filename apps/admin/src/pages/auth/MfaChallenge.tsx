@@ -34,10 +34,7 @@ function MfaChallengeContent() {
         setCodeError(
           err instanceof Error
             ? err.message
-            : t(
-                "mfa_challenge_invalid_code",
-                "Invalid two-step verification code.",
-              ),
+            : t("mfa_challenge_invalid_code"),
         ),
       );
   };
@@ -49,21 +46,15 @@ function MfaChallengeContent() {
         setRecoveryError(
           err instanceof Error
             ? err.message
-            : t(
-                "mfa_challenge_invalid_recovery_code",
-                "Invalid recovery code.",
-              ),
+            : t("mfa_challenge_invalid_recovery_code"),
         ),
       );
   };
 
   return (
     <AuthShell
-      title={t("mfa_challenge_title", "Two-step verification required")}
-      subtitle={t(
-        "mfa_challenge_subtitle",
-        "Enter the code from your authenticator app to continue.",
-      )}
+      title={t("mfa_challenge_title")}
+      subtitle={t("mfa_challenge_subtitle")}
     >
       <AuthFormMotion>
         <div className="space-y-3">
@@ -74,10 +65,7 @@ function MfaChallengeContent() {
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
               />
-              {t(
-                "mfa_challenge_remember_browser",
-                "Remember this browser for 20 days (skip MFA challenge on this browser).",
-              )}
+              {t("mfa_challenge_remember_browser")}
             </label>
             <label className="text-sm flex items-center gap-2">
               <input
@@ -85,19 +73,13 @@ function MfaChallengeContent() {
                 checked={stayLoggedIn}
                 onChange={(e) => setStayLoggedIn(e.target.checked)}
               />
-              {t(
-                "mfa_challenge_stay_logged_in",
-                "Keep this session signed in for up to 2 weeks.",
-              )}
+              {t("mfa_challenge_stay_logged_in")}
             </label>
           </div>
           <input
             autoFocus
             className="w-full border rounded px-3 py-2"
-            placeholder={t(
-              "mfa_challenge_code_placeholder",
-              "6-digit authenticator code",
-            )}
+            placeholder={t("mfa_challenge_code_placeholder")}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             aria-invalid={Boolean(codeError)}
@@ -105,15 +87,12 @@ function MfaChallengeContent() {
           />
           <FieldValidationMessage id="twostep-code-error" message={codeError} />
           <Button className="w-full" onClick={submitCode}>
-            {t("mfa_challenge_verify_button", "Verify code")}
+            {t("mfa_challenge_verify_button")}
           </Button>
 
           <input
             className="w-full border rounded px-3 py-2"
-            placeholder={t(
-              "mfa_challenge_recovery_placeholder",
-              "Recovery code",
-            )}
+            placeholder={t("mfa_challenge_recovery_placeholder")}
             value={recoveryCode}
             onChange={(e) => setRecoveryCode(e.target.value)}
             aria-invalid={Boolean(recoveryError)}
@@ -130,7 +109,7 @@ function MfaChallengeContent() {
             variant="secondary"
             onClick={submitRecovery}
           >
-            {t("mfa_challenge_recovery_button", "Use recovery code")}
+            {t("mfa_challenge_recovery_button")}
           </Button>
         </div>
       </AuthFormMotion>

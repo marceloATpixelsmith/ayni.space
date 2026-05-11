@@ -74,14 +74,14 @@ function SignupContent() {
 
   return (
     <AuthShell
-      title={t("signup_title", "Create account")}
-      subtitle={t("signup_subtitle", "Create your account to continue.")}
+      title={t("signup_title")}
+      subtitle={t("signup_subtitle")}
     >
       <AuthFormMotion>
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
-            placeholder={t("signup_email_placeholder", "Email")}
+            placeholder={t("signup_email_placeholder")}
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -96,7 +96,7 @@ function SignupContent() {
 
           <PasswordInput
             className="w-full border rounded px-3 py-2"
-            placeholder={t("signup_password_placeholder", "Password")}
+            placeholder={t("signup_password_placeholder")}
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -128,7 +128,7 @@ function SignupContent() {
             onClick={onSubmit}
             disabled={disabledReasons.length > 0}
           >
-            {t("signup_email_button", "Sign up with email")}
+            {t("signup_email_button")}
           </Button>
         </div>
 
@@ -140,9 +140,9 @@ function SignupContent() {
         />
         <AuthStatusMessage message={submit.error} tone="error" />
         <p className="text-sm text-muted-foreground text-center">
-          {t("signup_has_account_label", "Already have an account?")}{" "}
+          {t("signup_has_account_label")}{" "}
           <Link href="/login" className="underline">
-            {t("signup_sign_in_link", "Sign in")}
+            {t("signup_sign_in_link")}
           </Link>
         </p>
       </AuthFormMotion>
@@ -158,4 +158,3 @@ export default function Signup() {
     </AuthI18nProvider>
   );
 }
-

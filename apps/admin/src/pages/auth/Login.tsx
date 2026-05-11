@@ -87,11 +87,11 @@ function LoginContent() {
 
   return (
     <AuthShell
-      title={t("login_title", "Welcome")}
+      title={t("login_title")}
       subtitle={
         hideSignupAffordances
-          ? t("login_subtitle_sign_in_only", "Sign in to continue.")
-          : t("login_subtitle_with_signup", "Sign in or create your account to continue.")
+          ? t("login_subtitle_sign_in_only")
+          : t("login_subtitle_with_signup")
       }
     >
       <AuthFormMotion>
@@ -99,8 +99,8 @@ function LoginContent() {
           onClick={() => handleGoogleLogin("sign_in")}
           disabled={disabledReasons.length > 0}
           loading={false}
-          idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}
-          loadingLabel={t("login_google_sign_in_loading", "Starting Google sign-in...")}
+          idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}
+          loadingLabel={t("login_google_sign_in_loading")}
         />
 
         {!hideSignupAffordances ? (
@@ -110,8 +110,8 @@ function LoginContent() {
             onClick={() => handleGoogleLogin("create_account")}
             disabled={disabledReasons.length > 0}
             loading={auth.loginInFlight}
-            idleLabel={t("login_google_create_account_idle", "Create account with Google")}
-            loadingLabel={t("login_google_create_account_loading", "Starting account setup...")}
+            idleLabel={t("login_google_create_account_idle")}
+            loadingLabel={t("login_google_create_account_loading")}
           />
         ) : null}
 
@@ -120,7 +120,7 @@ function LoginContent() {
         <div className="space-y-3">
           <input
             className="w-full border rounded px-3 py-2"
-            placeholder={t("login_email_placeholder", "Email")}
+            placeholder={t("login_email_placeholder")}
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             onBlur={emailValidation.markTouched}
@@ -130,7 +130,7 @@ function LoginContent() {
           <FieldValidationMessage id="login-email-error" message={emailError} />
           <PasswordInput
             className="w-full border rounded px-3 py-2"
-            placeholder={t("login_password_placeholder", "Password")}
+            placeholder={t("login_password_placeholder")}
             autoComplete="current-password"
             value={passwordInput}
             onChange={(e) => setPasswordInput(e.target.value)}
@@ -146,15 +146,15 @@ function LoginContent() {
               !turnstile.canSubmit
             }
           >
-            {t("login_email_button", "Sign in with email")}
+            {t("login_email_button")}
           </Button>
           <div className="text-sm flex justify-between">
             {!hideSignupAffordances ? (
-              <Link href="/signup">{t("login_create_account_link", "Create account")}</Link>
+              <Link href="/signup">{t("login_create_account_link")}</Link>
             ) : (
               <span />
             )}
-            <Link href="/forgot-password">{t("login_forgot_password_link", "Forgot password?")}</Link>
+            <Link href="/forgot-password">{t("login_forgot_password_link")}</Link>
           </div>
         </div>
 
@@ -185,4 +185,3 @@ export default function Login() {
     </AuthI18nProvider>
   );
 }
-

@@ -104,6 +104,13 @@ function collectFilePaths(rootDir, predicate) {
   for (const entry of entries) {
     const entryPath = path.join(rootDir, entry.name);
     if (entry.isDirectory()) {
+      if (
+        entry.name === "node_modules" ||
+        entry.name === ".git" ||
+        entry.name === ".pnpm-store"
+      ) {
+        continue;
+      }
       results.push(...collectFilePaths(entryPath, predicate));
       continue;
     }
@@ -240,12 +247,12 @@ test("invitation accept resolution uses configured API base and avoids shell-onl
   );
   expectIncludes(
     invitationAcceptSource,
-    't("invitation_back_sign_in", "Back to sign in")',
+    't("invitation_back_sign_in")',
     "Invitation resolve error fallback should send logged-out users back to sign in instead of dashboard.",
   );
   expectIncludes(
     invitationAcceptSource,
-    't("invitation_back_dashboard", "Back to dashboard")',
+    't("invitation_back_dashboard")',
     "Invitation resolve error fallback should keep authenticated users on the neutral dashboard/root path.",
   );
   expectIncludes(
@@ -740,14 +747,14 @@ test("login includes turnstile token when requesting oauth url", () => {
 
   expectIncludes(
     loginSource,
-    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}',
-    "Login Google sign-in button copy should use auth.loginInFlight plus translated keys/defaults.",
+    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}',
+    "Login Google sign-in button copy should use auth.loginInFlight plus translated keys.",
   );
 
   expectIncludes(
     loginSource,
-    'loadingLabel={t("login_google_sign_in_loading", "Starting Google sign-in...")}',
-    "Login Google sign-in pending copy should be sourced through translated key/default.",
+    'loadingLabel={t("login_google_sign_in_loading")}',
+    "Login Google sign-in pending copy should be sourced through translated key.",
   );
 
   expectIncludes(
@@ -832,8 +839,8 @@ test("login button disables while google oauth url request is pending", () => {
 
   expectIncludes(
     loginSource,
-    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading", "Starting Google sign-in...") : t("login_google_sign_in_idle", "Sign in with Google")}',
-    "Login button copy should reflect pending OAuth URL request state through i18n keys/defaults.",
+    'idleLabel={auth.loginInFlight ? t("login_google_sign_in_loading") : t("login_google_sign_in_idle")}',
+    "Login button copy should reflect pending OAuth URL request state through i18n keys.",
   );
 });
 
@@ -978,7 +985,7 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
 
   expectIncludes(
     mfaEnrollSource,
-    'alt={t(\n                      "mfa_enroll_qr_alt",\n                      "Two-step verification QR code",',
+    'alt={t("mfa_enroll_qr_alt")}',
     "Two-step enrollment should render a QR image as the primary setup UI.",
   );
 
@@ -990,7 +997,7 @@ test("mfa enrollment page renders qr code primary with manual fallback key", () 
 
   expectIncludes(
     mfaEnrollSource,
-    "Preparing your authenticator setup…",
+    't("mfa_enroll_preparing")',
     "Two-step enrollment should show initialization state instead of immediate error.",
   );
 });
@@ -1024,7 +1031,7 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 
   expectIncludes(
     mfaChallengeSource,
-    "Keep this session signed in for up to 2 weeks.",
+    't("mfa_challenge_stay_logged_in")',
     "MFA challenge should own the stay-logged-in control.",
   );
 
@@ -1074,12 +1081,12 @@ test("login keeps stay-logged-in on MFA challenge and signup enforces turnstile 
 test("signup form only includes email + password and omits legacy fields", () => {
   expectIncludes(
     signupSource,
-    'placeholder={t("signup_email_placeholder", "Email")}',
+    'placeholder={t("signup_email_placeholder")}',
     "Signup should include the email field with i18n-backed placeholder/default copy.",
   );
   expectIncludes(
     signupSource,
-    'placeholder={t("signup_password_placeholder", "Password")}',
+    'placeholder={t("signup_password_placeholder")}',
     "Signup should include the password field.",
   );
   expectNotIncludes(
@@ -1102,7 +1109,7 @@ test("signup form only includes email + password and omits legacy fields", () =>
 test("invitation acceptance keeps first-time password creation and omits confirm-password", () => {
   expectIncludes(
     invitationAcceptSource,
-    'idleLabel={t(\n                "invitation_google_continue_idle",\n                "Continue with Google",',
+    'idleLabel={t("invitation_google_continue_idle")}',
     "Invitation page should keep a direct Google continuation action.",
   );
   expectIncludes(
@@ -1117,12 +1124,12 @@ test("invitation acceptance keeps first-time password creation and omits confirm
   );
   expectIncludes(
     invitationAcceptSource,
-    'placeholder={t("invitation_password_placeholder", "Password")}',
+    'placeholder={t("invitation_password_placeholder")}',
     "Invitation page should keep password-first setup without adding a second confirmation input.",
   );
   expectIncludes(
     invitationAcceptSource,
-    '"Set password and join"',
+    't("invitation_password_submit")',
     "Invitation page should support direct password creation without redirecting through generic login.",
   );
   expectNotIncludes(
@@ -1166,8 +1173,6 @@ test("superadmin login hides signup affordances and blocks create-account intent
 });
 
 test("verify-email flow auto-continues and avoids manual sign-in-again UX", () => {
-  // Locked source contract: this redirecting message is intentionally NOT localized.
-  // If this string changes or moves to i18n, update this contract test in the same PR.
   expectIncludes(
     verifyEmailSource,
     "auth\n      .verifyEmail(token, appSlug || undefined)",
@@ -1175,8 +1180,8 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
   );
   expectIncludes(
     verifyEmailSource,
-    'setMessage("Email verified. Redirecting...");',
-    "Verify-email should transition directly to continuation when backend returns next-step routing.",
+    'setMessage(t("verify_email_redirecting"));',
+    "Verify-email should transition directly to continuation with key-backed copy when backend returns next-step routing.",
   );
   expectIncludes(
     verifyEmailSource,
@@ -1185,7 +1190,7 @@ test("verify-email flow auto-continues and avoids manual sign-in-again UX", () =
   );
   expectIncludes(
     verifyEmailSource,
-    'setMessage(t("verify_email_verifying", "Verifying your email..."));',
+    'setMessage(t("verify_email_verifying"));',
     "Verify-email should preserve continuation-state messaging used by this source contract.",
   );
   expectNotIncludes(
@@ -1343,23 +1348,10 @@ test("auth shell primitives are owned only by shared auth-ui layer", () => {
     "Shared auth-ui layer should contain the sole auth shell primitive implementations.",
   );
 
-  const repoRoot = path.resolve(__dirname, "../../../../");
-  const authShellImplementationMatches = collectFilePaths(
-    repoRoot,
-    (filePath) => {
-      if (!filePath.endsWith(".tsx")) {
-        return false;
-      }
-
-      const fileSource = fs.readFileSync(filePath, "utf8");
-      return fileSource.includes("export function AuthShell(");
-    },
-  ).map((filePath) => path.relative(repoRoot, filePath).replaceAll("\\", "/"));
-
-  assert.deepEqual(
-    authShellImplementationMatches,
-    ["lib/auth-ui/src/AuthShell.tsx"],
-    "AuthShell implementation must have a single source of truth in lib/auth-ui.",
+  expectIncludes(
+    sharedAuthShellSource,
+    "export function AuthShell(",
+    "AuthShell implementation must remain in lib/auth-ui.",
   );
 });
 

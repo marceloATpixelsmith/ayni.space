@@ -16,6 +16,7 @@ import {
   AuthStatusMessage,
   AuthI18nProvider,
   useAuthI18n,
+  formatAuthMessage,
 } from "@workspace/auth-ui";
 
 function ForgotPasswordContent() {
@@ -42,21 +43,17 @@ function ForgotPasswordContent() {
       .then((result) => {
         setMessage(
           result.resetToken
-            ? `Test reset token: ${result.resetToken}`
-            : t(
-                "forgot_password_success_generic",
-                "If an account exists, a reset email has been sent.",
-              ),
+            ? formatAuthMessage("forgot_password_test_reset_token", {
+                token: result.resetToken,
+              })
+            : t("forgot_password_success_generic"),
         );
       })
       .catch((error) => {
         setMessage(
           getAuthActionErrorMessage(
             error,
-            t(
-              "forgot_password_error_fallback",
-              "Unable to submit forgot-password request.",
-            ),
+            t("forgot_password_error_fallback"),
           ),
         );
       });
@@ -64,11 +61,8 @@ function ForgotPasswordContent() {
 
   return (
     <AuthShell
-      title={t("forgot_password_title", "Forgot password")}
-      subtitle={t(
-        "forgot_password_subtitle",
-        "Enter your email and we'll send reset instructions.",
-      )}
+      title={t("forgot_password_title")}
+      subtitle={t("forgot_password_subtitle")}
     >
       <AuthFormMotion>
         <div className="space-y-3">
@@ -77,7 +71,7 @@ function ForgotPasswordContent() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onBlur={emailValidation.markTouched}
-            placeholder={t("forgot_password_email_placeholder", "Email")}
+            placeholder={t("forgot_password_email_placeholder")}
             aria-invalid={Boolean(emailError)}
             aria-describedby={emailError ? "forgot-email-error" : undefined}
           />
@@ -88,16 +82,16 @@ function ForgotPasswordContent() {
             disabled={!email || Boolean(validateEmailInput(email)) || submitState.pending}
           >
             {submitState.pending
-              ? t("forgot_password_submit_loading", "Sending...")
-              : t("forgot_password_submit_idle", "Send reset link")}
+              ? t("forgot_password_submit_loading")
+              : t("forgot_password_submit_idle")}
           </Button>
         </div>
 
         <AuthStatusMessage message={message} />
         <p className="mt-4 text-sm text-muted-foreground">
-          {t("forgot_password_back_prompt", "Remembered your password?")}{" "}
+          {t("forgot_password_back_prompt")}{" "}
           <Link href="/login" className="underline">
-            {t("forgot_password_back_link", "Back to sign in")}
+            {t("forgot_password_back_link")}
           </Link>
         </p>
       </AuthFormMotion>

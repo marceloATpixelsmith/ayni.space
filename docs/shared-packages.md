@@ -16,6 +16,9 @@
 - `lib/auth-ui` (`@workspace/auth-ui`) is the active frontend auth UI shell/primitives runtime layer used by `apps/admin` auth routes.
   - `lib/auth-ui/src/AuthShell.tsx` is the only allowed `AuthShell` implementation in the repository.
   - `lib/auth-ui/src/*` owns reusable auth presentation primitives (`AuthShell`, `AuthFormMotion`, `AuthMethodDivider`, `AuthTurnstileSection`, `GoogleAuthButton`, `FieldValidationMessage`, `AuthStatusMessage`) and app auth pages should compose these directly instead of rebuilding shell/motion/divider/status-message glue per route.
+  - Auth localization is English-only for now. Translation keys live in `lib/auth-ui/src/locales/en/auth.ts`, and `AuthI18nProvider`/`useAuthI18n` in `lib/auth-ui/src/i18n.tsx` are the current auth-localization foundation.
+  - `lib/frontend-security` may consume auth messages through the synchronous `getAuthMessage`/`formatAuthMessage` helpers for shared validation/runtime messages, while retaining ownership of auth orchestration and security behavior.
+  - This foundation does not add runtime language switching UI, non-English translations, backend localization, or API response-shape changes.
   - `apps/admin` must consume auth shell primitives via `@workspace/auth-ui` imports only; app-local auth shell component ownership is not allowed.
 - `lib/api-spec` (`@workspace/api-spec`) is build-time contract/codegen source (OpenAPI + Orval), not a runtime app import target.
 
