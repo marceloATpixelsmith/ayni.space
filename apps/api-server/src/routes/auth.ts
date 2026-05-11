@@ -553,25 +553,59 @@ function getControlledAuthErrorRedirect(
 function getFrontendBaseForDeny(
   req: Request,
   oauthSessionGroup: string,
-): string | null {
+): string | null
+{
+  const allowedOrigins = getAllowedOrigins();
+
   const oauthReturnTo = req.session?.oauthReturnTo;
-  if (typeof oauthReturnTo === "string") {
-    try {
+  if (typeof oauthReturnTo === "string")
+  {
+    try
+    {
       const normalized = new URL(oauthReturnTo).origin;
-      if (getAllowedOrigins().includes(normalized)) {
+      if (allowedOrigins.includes(normalized))
+      {
         return normalized;
       }
-    } catch {
+    }
+    catch
+    {
       // noop
     }
   }
 
-  if (oauthSessionGroup === SESSION_GROUPS.ADMIN) {
+  const stateReturnTo = parseOAuthStateReturnTo(firstQueryParam(req.query["state"]));
+  if (stateReturnTo)
+  {
+    return stateReturnTo;
+  }
+
+  const statePayload = parseOAuthState(firstQueryParam(req.query["state"]));
+  if (statePayload)
+  {
+    try
+    {
+      const normalized = new URL(statePayload.returnTo).origin;
+      if (allowedOrigins.includes(normalized))
+      {
+        return normalized;
+      }
+    }
+    catch
+    {
+      // noop
+    }
+  }
+
+  if (oauthSessionGroup === SESSION_GROUPS.ADMIN)
+  {
     return getAdminSessionGroupOrigins()[0] ?? null;
   }
 
   return null;
 }
+
+
 
 function getTurnstileToken(req: Request): string {
   const headerValue = req.headers["cf-turnstile-response"];
