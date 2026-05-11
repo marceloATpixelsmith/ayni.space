@@ -27,10 +27,54 @@ function shouldUseSsl(env: NodeJS.ProcessEnv, sslMode: string | null): boolean
 {
   const nodeEnv = env.NODE_ENV ?? "development";
   const isProductionLike = nodeEnv === "production" || env.CI === "true";
-  if (isProductionLike) return true;
 
-  if (!sslMode) return false;
+  if (isProductionLike)
+  {
+    return true;
+  }
+
+  if (!sslMode)
+  {
+    return false;
+  }
+
   return sslMode !== "disable";
+}
+
+//FIX: SUPPORT RENDER/SELF-SIGNED POSTGRES CERTIFICATES
+//WHEN DATABASE_URL CONTAINS sslmode=no-verify
+//WE MUST ALLOW SELF-SIGNED CERTIFICATES.
+function buildSslConfig(sslMode: string | null): PoolConfig["ssl"]
+{
+  if (!sslMode || sslMode === "disable")
+  {
+    return false;
+  }
+
+  //STRICT SSL VALIDATION
+  if (
+    sslMode === "require" ||
+    sslMode === "verify-ca" ||
+    sslMode === "verify-full"
+  )
+  {
+    return {
+      rejectUnauthorized: true,
+    };
+  }
+
+  //ALLOW SELF-SIGNED CERTIFICATES
+  if (sslMode === "no-verify")
+  {
+    return {
+      rejectUnauthorized: false,
+    };
+  }
+
+  //SAFE DEFAULT FOR PRODUCTION-LIKE ENVIRONMENTS
+  return {
+    rejectUnauthorized: true,
+  };
 }
 
 export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig
@@ -41,7 +85,9 @@ export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolCon
 
   return {
     connectionString: databaseUrl,
-    ssl: useSsl ? { rejectUnauthorized: true } : false,
+    ssl: useSsl
+      ? buildSslConfig(sslMode)
+      : false,
   };
 }
 
