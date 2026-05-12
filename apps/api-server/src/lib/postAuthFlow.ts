@@ -84,6 +84,7 @@ export async function resolvePostAuthFlowDecision(params: {
     shouldRequireOrganizationOnboardingForGoogleCreateAccount
       ? "organization"
       : context.requiredOnboarding;
+
   const effectiveCanAccess =
     shouldRequireOrganizationOnboardingForGoogleCreateAccount
       ? true
