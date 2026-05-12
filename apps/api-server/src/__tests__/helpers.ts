@@ -41,6 +41,9 @@ export function createStatefulSessionApp(
       persistedSession.id = "regenerated-session-id";
       cb?.();
     }) as SessionShape["regenerate"];
+    if (persistedSession.turnstileVerified === true) {
+      (req as unknown as { turnstileVerified: boolean }).turnstileVerified = true;
+    }
     (req as unknown as { session: SessionShape }).session = persistedSession;
     next();
   });
