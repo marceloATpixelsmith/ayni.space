@@ -79,7 +79,9 @@ function ForgotPasswordContent() {
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={!email || Boolean(validateEmailInput(email)) || submitState.pending}
+            disabled={
+              !email || Boolean(validateEmailInput(email)) || submitState.pending
+            }
           >
             {submitState.pending
               ? t("forgot_password_submit_loading")
