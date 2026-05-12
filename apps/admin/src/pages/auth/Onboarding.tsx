@@ -26,6 +26,7 @@ import {
   secureApiFetch,
   useAuth,
   useTurnstileToken,
+  DEFAULT_POST_AUTH_PATH,
 } from "@workspace/frontend-security";
 import {
   captureApiFailure,
@@ -60,6 +61,37 @@ function OnboardingContent() {
   const { data: user, isLoading } = useGetMe();
   const isUserOnboarding = location === "/onboarding/user";
 
+  const appAccess =
+    user &&
+    typeof user === "object" &&
+    "appAccess" in user &&
+    user.appAccess &&
+    typeof user.appAccess === "object"
+      ? (user.appAccess as {
+          normalizedAccessProfile?: "superadmin" | "solo" | "organization";
+          requiredOnboarding?: "none" | "organization" | "user";
+        })
+      : null;
+
+  React.useEffect(() => {
+    if (!user || !appAccess) return;
+
+    if (
+      isUserOnboarding &&
+      appAccess.requiredOnboarding !== "user"
+    ) {
+      setLocation(DEFAULT_POST_AUTH_PATH);
+      return;
+    }
+
+    if (
+      !isUserOnboarding &&
+      appAccess.requiredOnboarding !== "organization"
+    ) {
+      setLocation(DEFAULT_POST_AUTH_PATH);
+    }
+  }, [appAccess, isUserOnboarding, setLocation, user]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -68,7 +100,6 @@ function OnboardingContent() {
     },
   });
 
-  // Auto-generate slug from name
   React.useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === "name" && value.name) {
@@ -89,9 +120,11 @@ function OnboardingContent() {
     mutation: {
       onSuccess: async () => {
         toast({ title: t("onboarding_org_created") });
+
         if (!auth.csrfReady || !auth.csrfToken) {
           throw new Error(t("onboarding_org_security_token_not_ready"));
         }
+
         const nextResponse = await secureApiFetch(
           "/api/auth/post-onboarding/next-path",
           {
@@ -101,17 +134,23 @@ function OnboardingContent() {
           },
           auth.csrfToken,
         );
+
         const nextPayload = (await nextResponse.json().catch(() => null)) as {
           nextPath?: string;
         } | null;
+
         await auth.refreshSession();
-        await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        await queryClient.invalidateQueries({
+          queryKey: getGetMeQueryKey(),
+        });
+
         if (nextPayload?.nextPath) {
           setLocation(nextPayload.nextPath);
         } else {
           setLocation("/");
         }
       },
+
       onError: (
         error: unknown,
         variables: { data: { name: string; slug: string } },
@@ -145,6 +184,7 @@ function OnboardingContent() {
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (isUserOnboarding) return;
+
     if (!auth.csrfReady || !auth.csrfToken) {
       toast({
         title: t("onboarding_org_security_token_not_ready"),
@@ -187,6 +227,7 @@ function OnboardingContent() {
       });
       return;
     }
+
     if (!auth.csrfReady || !auth.csrfToken) {
       toast({
         title: t("onboarding_org_security_token_not_ready"),
@@ -197,6 +238,7 @@ function OnboardingContent() {
     }
 
     setSavingUserProfile(true);
+
     try {
       const response = await secureApiFetch(
         "/api/users/me",
@@ -207,12 +249,15 @@ function OnboardingContent() {
         },
         auth.csrfToken,
       );
+
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
       } | null;
+
       if (!response.ok) {
         throw new Error(payload?.error ?? t("onboarding_user_save_error"));
       }
+
       const nextResponse = await secureApiFetch(
         "/api/auth/post-onboarding/next-path",
         {
@@ -222,11 +267,17 @@ function OnboardingContent() {
         },
         auth.csrfToken,
       );
+
       const nextPayload = (await nextResponse.json().catch(() => null)) as {
         nextPath?: string;
       } | null;
+
       await auth.refreshSession();
-      await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+
+      await queryClient.invalidateQueries({
+        queryKey: getGetMeQueryKey(),
+      });
+
       if (nextPayload?.nextPath) {
         setLocation(nextPayload.nextPath);
       } else {
@@ -256,14 +307,17 @@ function OnboardingContent() {
             <h1 className="text-3xl font-bold text-foreground">
               {t("onboarding_user_title")}
             </h1>
+
             <p className="text-muted-foreground mt-2">
               {t("onboarding_user_subtitle")}
             </p>
           </div>
+
           <Card className="p-8 shadow-xl shadow-black/5 border-border/50 space-y-4">
             <Label className="text-sm font-semibold">
               {t("onboarding_user_full_name_label")}
             </Label>
+
             <Input
               placeholder={t("onboarding_user_full_name_placeholder")}
               className="h-12"
@@ -271,6 +325,7 @@ function OnboardingContent() {
               onChange={(event) => setFullName(event.target.value)}
               autoComplete="name"
             />
+
             <Button
               className="w-full h-12 text-base"
               disabled={savingUserProfile || !fullName.trim()}
@@ -293,9 +348,11 @@ function OnboardingContent() {
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
             <Building2 className="w-8 h-8 text-primary" />
           </div>
+
           <h1 className="text-3xl font-bold text-foreground">
             {t("onboarding_org_title")}
           </h1>
+
           <p className="text-muted-foreground mt-2">
             {t("onboarding_org_subtitle")}
           </p>
@@ -303,7 +360,10 @@ function OnboardingContent() {
 
         <Card className="p-8 shadow-xl shadow-black/5 border-border/50">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6"
+            >
               <FormField
                 control={form.control}
                 name="name"
@@ -312,6 +372,7 @@ function OnboardingContent() {
                     <Label className="text-sm font-semibold">
                       {t("onboarding_org_name_label")}
                     </Label>
+
                     <FormControl>
                       <Input
                         placeholder={t("onboarding_org_name_placeholder")}
@@ -319,6 +380,7 @@ function OnboardingContent() {
                         {...field}
                       />
                     </FormControl>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -332,11 +394,13 @@ function OnboardingContent() {
                     <Label className="text-sm font-semibold">
                       {t("onboarding_org_url_label")}
                     </Label>
+
                     <FormControl>
                       <div className="flex">
                         <span className="inline-flex items-center px-4 rounded-l-md border border-r-0 border-input bg-muted text-muted-foreground text-sm font-medium">
                           {t("onboarding_org_url_prefix")}
                         </span>
+
                         <Input
                           placeholder={t("onboarding_org_slug_placeholder")}
                           className="h-12 rounded-l-none"
@@ -344,6 +408,7 @@ function OnboardingContent() {
                         />
                       </div>
                     </FormControl>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -363,17 +428,24 @@ function OnboardingContent() {
                   t("onboarding_org_creating")
                 ) : (
                   <>
-                    {t("onboarding_org_continue_button")}{" "}
+                    {t("onboarding_org_continue_button")}
                     <ArrowRight className="ml-2 w-4 h-4" />
                   </>
                 )}
               </Button>
+
               {turnstile.enabled && (
                 <div className="mt-6 space-y-2">
                   <turnstile.TurnstileWidget />
+
                   {turnstile.guidanceMessage && (
                     <p
-                      className={`text-sm ${turnstile.status === "error" || turnstile.status === "expired" ? "text-destructive" : "text-muted-foreground"}`}
+                      className={`text-sm ${
+                        turnstile.status === "error" ||
+                        turnstile.status === "expired"
+                          ? "text-destructive"
+                          : "text-muted-foreground"
+                      }`}
                     >
                       {turnstile.guidanceMessage}
                     </p>
