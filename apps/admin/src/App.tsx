@@ -239,6 +239,38 @@ function ConfigDrivenAuthRoute({
   return <>{children}</>;
 }
 
+function AppModePublicAuthRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { metadata, loading } = useCurrentPlatformAppMetadata();
+
+  if (loading) return <AuthLoading />;
+
+  if (metadata?.normalizedAccessProfile === "superadmin") {
+    return <AuthRedirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppModeTokenAuthRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { metadata, loading } = useCurrentPlatformAppMetadata();
+
+  if (loading) return <AuthLoading />;
+
+  if (metadata?.normalizedAccessProfile === "superadmin") {
+    return <AuthRedirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
 function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const { currentAppSlug } = useCurrentPlatformAppMetadata();
@@ -461,12 +493,37 @@ function Router() {
   const auth = useAuth();
 
   return (
-    <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
-      <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/verify-email" component={VerifyEmail} />
+            <Switch>
+              <Route path="/login" component={Login} />
+              <Route path="/signup">
+                {() => (
+                  <AppModePublicAuthRoute>
+                    <Signup />
+                  </AppModePublicAuthRoute>
+                )}
+              </Route>
+              <Route path="/forgot-password">
+                {() => (
+                  <AppModePublicAuthRoute>
+                    <ForgotPassword />
+                  </AppModePublicAuthRoute>
+                )}
+              </Route>
+              <Route path="/reset-password">
+                {() => (
+                  <AppModeTokenAuthRoute>
+                    <ResetPassword />
+                  </AppModeTokenAuthRoute>
+                )}
+              </Route>
+              <Route path="/verify-email">
+                {() => (
+                  <AppModeTokenAuthRoute>
+                    <VerifyEmail />
+                  </AppModeTokenAuthRoute>
+                )}
+              </Route>
+
       <Route path="/mfa/enroll">
         {() => {
           if (auth.status === "loading") return <AuthLoading />;
