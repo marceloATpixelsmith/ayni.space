@@ -77,6 +77,26 @@ vi.mock(
     return {
       ...actual,
 
+      deriveAppAuthRoutePolicy: (
+        metadata:
+          | {
+              authRoutePolicy?: {
+                allowInvitations?: boolean;
+                allowCustomerRegistration?: boolean;
+              };
+            }
+          | null
+          | undefined,
+      ) => ({
+        allowOnboarding: true,
+        allowInvitations:
+          metadata?.authRoutePolicy
+            ?.allowInvitations !== false,
+        allowCustomerRegistration:
+          metadata?.authRoutePolicy
+            ?.allowCustomerRegistration !== false,
+      }),
+
       AuthProvider: ({
         children,
       }: {
