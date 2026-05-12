@@ -34,7 +34,7 @@ function hasExistingOrganizationOrDirectAppAccess(
     return false;
   }
 
-  return Boolean(context.activeOrg || context.orgMembership || context.appAccess);
+  return Boolean(context.activeOrg || context.orgMembership);
 }
 
 function allowsOrganizationCustomerRegistration(
