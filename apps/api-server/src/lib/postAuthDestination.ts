@@ -18,7 +18,8 @@ export function resolveAuthenticatedPostAuthDestination(options: {
 }): string | null {
   const stage = options.stage ?? "post_auth";
   const expectedAppSlug =
-    (options.currentAppSlug ?? options.flowDecision?.appSlug ?? "").trim()
+    (options.currentAppSlug ?? options.flowDecision?.appSlug ?? "")
+      .trim()
       .toLowerCase() || null;
   const continuationAppSlug =
     options.continuation?.appSlug.trim().toLowerCase() ?? null;
@@ -44,6 +45,7 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     if (stage === "post_auth") {
       return flowDestination;
     }
+
     if (options.flowDecision?.requiredOnboarding === "user") {
       return flowDestination;
     }
