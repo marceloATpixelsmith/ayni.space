@@ -424,4 +424,3 @@ export async function getAppContext(userId: string, appSlug: string) {
     canAccess,
     defaultRoute,
   };
-}
