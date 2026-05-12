@@ -1,5 +1,12 @@
 import React from "react";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -18,121 +25,245 @@ type AuthStateMock = {
   loginInFlight: boolean;
 };
 
-const { authState, metadataState, resolveAuthenticatedNextStepMock } =
-  vi.hoisted(() => ({
-    authState: {
-      status: "unauthenticated",
-      user: null,
-      authBootstrapping: false,
-      csrfToken: "csrf",
-      csrfReady: true,
-      loginInFlight: false,
-    } satisfies AuthStateMock,
-    metadataState: {
-      loading: false,
-      currentAppSlug: "admin",
-      metadata: {
-        normalizedAccessProfile: "organization",
-        authRoutePolicy: {
-          allowInvitations: true,
-          allowCustomerRegistration: false,
-        },
-      },
-      resolutionError: null,
-    },
-    resolveAuthenticatedNextStepMock: vi.fn(() => ({
-      destination: "/dashboard",
-      reason: "default",
-    })),
-  }));
+const {
+  authState,
+  metadataState,
+  resolveAuthenticatedNextStepMock,
+} = vi.hoisted(() => ({
+  authState: {
+    status: "unauthenticated",
+    user: null,
+    authBootstrapping: false,
+    csrfToken: "csrf",
+    csrfReady: true,
+    loginInFlight: false,
+  } satisfies AuthStateMock,
 
-vi.mock("@workspace/frontend-observability", () => ({
-  MonitoringErrorBoundary: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
+  metadataState: {
+    loading: false,
+    currentAppSlug: "admin",
+    metadata: {
+      normalizedAccessProfile: "organization",
+      authRoutePolicy: {
+        allowInvitations: true,
+        allowCustomerRegistration: true,
+      },
+    },
+    resolutionError: null,
+  },
+
+  resolveAuthenticatedNextStepMock: vi.fn(() => ({
+    destination: "/dashboard",
+    reason: "default",
+  })),
 }));
 
-vi.mock("@workspace/frontend-security", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@workspace/frontend-security")>();
-  return {
-    ...actual,
-    AuthProvider: ({ children }: { children: React.ReactNode }) => (
-      <>{children}</>
-    ),
-    useAuth: () => authState,
-    useCurrentPlatformAppMetadata: () => metadataState,
-    getLastAuthDebugEventSummary: () => null,
-    getDisallowedAuthRouteRedirect: () => "/login",
-    getMfaPendingRoute: (status: string) =>
-      status === "authenticated_mfa_pending_enrolled"
-        ? "/mfa/challenge"
-        : "/mfa/enroll",
-    isAuthDebugEnabled: () => false,
-    isMfaPendingStatus: (status: string) =>
-      status === "authenticated_mfa_pending_enrolled" ||
-      status === "authenticated_mfa_pending_unenrolled",
-    isAuthRouteAllowed: (
-      metadata: {
-        authRoutePolicy?: {
-          allowInvitations?: boolean;
-          allowCustomerRegistration?: boolean;
-        };
-      } | null,
-      routeKind: string,
-    ) => {
-      if (!metadata?.authRoutePolicy) return true;
-      if (routeKind === "signup")
-        return metadata.authRoutePolicy.allowCustomerRegistration !== false;
-      if (routeKind === "invitation")
-        return metadata.authRoutePolicy.allowInvitations !== false;
-      return true;
-    },
-    logAuthDebug: () => undefined,
-    resolveAuthenticatedNextStep: resolveAuthenticatedNextStepMock,
-  };
-});
+vi.mock("@workspace/frontend-observability", () => ({
+  MonitoringErrorBoundary: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <>{children}</>,
+}));
+
+vi.mock(
+  "@workspace/frontend-security",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@workspace/frontend-security")
+      >();
+
+    return {
+      ...actual,
+
+      AuthProvider: ({
+        children,
+      }: {
+        children: React.ReactNode;
+      }) => <>{children}</>,
+
+      useAuth: () => authState,
+
+      useCurrentPlatformAppMetadata: () =>
+        metadataState,
+
+      getLastAuthDebugEventSummary: () =>
+        null,
+
+      getDisallowedAuthRouteRedirect: () =>
+        "/login",
+
+      getMfaPendingRoute: (status: string) =>
+        status ===
+        "authenticated_mfa_pending_enrolled"
+          ? "/mfa/challenge"
+          : "/mfa/enroll",
+
+      isAuthDebugEnabled: () => false,
+
+      isMfaPendingStatus: (status: string) =>
+        status ===
+          "authenticated_mfa_pending_enrolled" ||
+        status ===
+          "authenticated_mfa_pending_unenrolled",
+
+      isAuthRouteAllowed: (
+        metadata:
+          | {
+              normalizedAccessProfile?: string;
+              authRoutePolicy?: {
+                allowInvitations?: boolean;
+                allowCustomerRegistration?: boolean;
+              };
+            }
+          | null,
+        routeKind: string,
+      ) => {
+        if (
+          metadata?.normalizedAccessProfile ===
+          "superadmin"
+        ) {
+          if (
+            routeKind === "signup" ||
+            routeKind === "forgotPassword" ||
+            routeKind === "publicAuth" ||
+            routeKind === "tokenAuth"
+          ) {
+            return false;
+          }
+        }
+
+        if (!metadata?.authRoutePolicy) {
+          return true;
+        }
+
+        if (routeKind === "signup") {
+          return (
+            metadata.authRoutePolicy
+              .allowCustomerRegistration !==
+            false
+          );
+        }
+
+        if (routeKind === "invitation") {
+          return (
+            metadata.authRoutePolicy
+              .allowInvitations !== false
+          );
+        }
+
+        return true;
+      },
+
+      logAuthDebug: () => undefined,
+
+      resolveAuthenticatedNextStep:
+        resolveAuthenticatedNextStepMock,
+    };
+  },
+);
 
 vi.mock("../pages/auth/Login", async () => {
-  const { useLocation } = await import("wouter");
+  const { useLocation } = await import(
+    "wouter"
+  );
+
   const {
     useAuth,
     resolveAuthenticatedNextStep,
     useCurrentPlatformAppMetadata,
     deriveAppAuthRoutePolicy,
-  } = await import("@workspace/frontend-security");
+  } = await import(
+    "@workspace/frontend-security"
+  );
 
   return {
     default: () => {
       const [, setLocation] = useLocation();
+
       const auth = useAuth();
 
       React.useEffect(() => {
-        if (auth.status !== "authenticated_fully") return;
-        const nextStep = resolveAuthenticatedNextStep({
-          authStatus: auth.status,
-          user: auth.user,
-          deniedLoginPath: "/login?error=access_denied",
-          defaultPath: "/dashboard",
-        });
-        setLocation(nextStep.destination);
-      }, [auth.status, auth.user, setLocation]);
+        if (
+          auth.status !==
+          "authenticated_fully"
+        ) {
+          return;
+        }
 
-      if (auth.status === "authenticated_fully") return null;
-      const { metadata, resolutionError } = useCurrentPlatformAppMetadata();
-      const hideSignupAffordances =
-        !deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+        const nextStep =
+          resolveAuthenticatedNextStep({
+            authStatus: auth.status,
+            user: auth.user,
+            deniedLoginPath:
+              "/login?error=access_denied",
+            defaultPath: "/dashboard",
+          });
+
+        setLocation(nextStep.destination);
+      }, [
+        auth.status,
+        auth.user,
+        setLocation,
+      ]);
+
+      if (
+        auth.status ===
+        "authenticated_fully"
+      ) {
+        return null;
+      }
+
+      const {
+        metadata,
+        resolutionError,
+      } = useCurrentPlatformAppMetadata();
+
+      const authRoutePolicy =
+        deriveAppAuthRoutePolicy(metadata);
+
+      const isSuperadmin =
+        metadata?.normalizedAccessProfile ===
+        "superadmin";
+
       return (
         <>
           <h1>Welcome</h1>
-          {!hideSignupAffordances ? <a href="/signup">Create account</a> : null}
-          {!hideSignupAffordances ? (
-            <button type="button">Create account with Google</button>
+
+          {!isSuperadmin ? (
+            <>
+              <input
+                aria-label="Email"
+              />
+
+              <input
+                aria-label="Password"
+              />
+
+              <a href="/forgot-password">
+                Forgot password
+              </a>
+            </>
           ) : null}
+
+          {authRoutePolicy.allowCustomerRegistration ? (
+            <>
+              <a href="/signup">
+                Create account
+              </a>
+
+              <button type="button">
+                Create account with Google
+              </button>
+            </>
+          ) : null}
+
           {resolutionError ? (
             <div>
-              We could not load the sign-in configuration. Please try again
-              later.
+              We could not load the
+              sign-in configuration.
+              Please try again later.
             </div>
           ) : null}
         </>
@@ -140,35 +271,78 @@ vi.mock("../pages/auth/Login", async () => {
     },
   };
 });
+
 vi.mock("../pages/auth/Signup", async () => {
-  const { useLocation } = await import("wouter");
-  const { useCurrentPlatformAppMetadata, deriveAppAuthRoutePolicy } =
-    await import("@workspace/frontend-security");
+  const { useLocation } = await import(
+    "wouter"
+  );
+
+  const {
+    useCurrentPlatformAppMetadata,
+    deriveAppAuthRoutePolicy,
+  } = await import(
+    "@workspace/frontend-security"
+  );
 
   return {
     default: () => {
-      const [location, setLocation] = useLocation();
-      const { metadata, loading } = useCurrentPlatformAppMetadata();
+      const [location, setLocation] =
+        useLocation();
+
+      const {
+        metadata,
+        loading,
+      } =
+        useCurrentPlatformAppMetadata();
+
       const signupAllowed =
-        deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
+        deriveAppAuthRoutePolicy(metadata)
+          .allowCustomerRegistration;
 
       React.useEffect(() => {
-        if (loading || signupAllowed) return;
-        if (location !== "/signup") return;
-        setLocation("/login");
-      }, [loading, signupAllowed, location, setLocation]);
+        if (
+          loading ||
+          signupAllowed
+        ) {
+          return;
+        }
 
-      if (!signupAllowed) return null;
+        if (
+          location !== "/signup"
+        ) {
+          return;
+        }
+
+        setLocation("/login");
+      }, [
+        loading,
+        signupAllowed,
+        location,
+        setLocation,
+      ]);
+
+      if (!signupAllowed) {
+        return null;
+      }
+
       return (
         <>
           <h1>Create account</h1>
+
           <button
             type="button"
             onClick={() => {
-              const continuation = window.location.search;
+              const continuation =
+                window.location.search;
+
               setLocation("/login");
+
               if (continuation) {
-                window.history.replaceState({}, "", `/login${continuation}`);
+                window.history.replaceState(
+                  {},
+                  "",
+                  `/login${continuation}`,
+                );
               }
             }}
           >
@@ -179,368 +353,784 @@ vi.mock("../pages/auth/Signup", async () => {
     },
   };
 });
-vi.mock("../pages/auth/ForgotPassword", () => ({
-  default: () => <div>Forgot password page</div>,
-}));
+
+vi.mock(
+  "../pages/auth/ForgotPassword",
+  async () => {
+    const { useLocation } = await import(
+      "wouter"
+    );
+
+    const {
+      useCurrentPlatformAppMetadata,
+    } = await import(
+      "@workspace/frontend-security"
+    );
+
+    return {
+      default: () => {
+        const [location, setLocation] =
+          useLocation();
+
+        const {
+          metadata,
+        } =
+          useCurrentPlatformAppMetadata();
+
+        React.useEffect(() => {
+          if (
+            metadata?.normalizedAccessProfile !==
+            "superadmin"
+          ) {
+            return;
+          }
+
+          if (
+            location !==
+            "/forgot-password"
+          ) {
+            return;
+          }
+
+          setLocation("/login");
+        }, [
+          metadata,
+          location,
+          setLocation,
+        ]);
+
+        if (
+          metadata?.normalizedAccessProfile ===
+          "superadmin"
+        ) {
+          return null;
+        }
+
+        return (
+          <div>
+            Forgot password page
+          </div>
+        );
+      },
+    };
+  },
+);
+
 vi.mock("../pages/auth/ResetPassword", () => ({
-  default: () => <div>Reset password page</div>,
-}));
-vi.mock("../pages/auth/VerifyEmail", () => ({
-  default: () => <div>Verify email page</div>,
-}));
-vi.mock("../pages/auth/MfaEnroll", () => ({
-  default: () => <h1>Set up multi-factor authentication</h1>,
-}));
-vi.mock("../pages/auth/MfaChallenge", () => ({
-  default: () => <h1>Continue</h1>,
-}));
-vi.mock("../pages/auth/Onboarding", () => ({
-  default: () => <div>Onboarding</div>,
-}));
-vi.mock("../pages/auth/InvitationAccept", () => ({
-  default: () => <div>Invitation accept</div>,
-}));
-vi.mock("../pages/admin/AdminDashboard", () => ({
-  default: () => <div>Admin dashboard</div>,
-}));
-vi.mock("../pages/dashboard/DashboardHome", () => ({
-  default: () => <div>Dashboard home</div>,
-}));
-vi.mock("../pages/dashboard/Apps", () => ({
-  default: () => <div>Apps</div>,
-}));
-vi.mock("../pages/dashboard/Members", () => ({
-  default: () => <div>Members</div>,
-}));
-vi.mock("../pages/dashboard/Invitations", () => ({
-  default: () => <div>Invitations</div>,
-}));
-vi.mock("../pages/dashboard/Billing", () => ({
-  default: () => <div>Billing</div>,
-}));
-vi.mock("../pages/dashboard/Settings", () => ({
-  default: () => <div>Settings</div>,
-}));
-vi.mock("../pages/not-found", () => ({
-  default: () => <div>Not found</div>,
-}));
-vi.mock("../components/ui/toaster", () => ({
-  Toaster: () => null,
-}));
-vi.mock("../components/ui/tooltip", () => ({
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
+  default: () => (
+    <div>Reset password page</div>
   ),
 }));
 
+vi.mock("../pages/auth/VerifyEmail", () => ({
+  default: () => (
+    <div>Verify email page</div>
+  ),
+}));
+
+vi.mock("../pages/auth/MfaEnroll", () => ({
+  default: () => (
+    <h1>
+      Set up multi-factor
+      authentication
+    </h1>
+  ),
+}));
+
+vi.mock("../pages/auth/MfaChallenge", () => ({
+  default: () => <h1>Continue</h1>,
+}));
+
+vi.mock("../pages/auth/Onboarding", () => ({
+  default: () => (
+    <div>Onboarding</div>
+  ),
+}));
+
+vi.mock(
+  "../pages/auth/InvitationAccept",
+  () => ({
+    default: () => (
+      <div>Invitation accept</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/admin/AdminDashboard",
+  () => ({
+    default: () => (
+      <div>Admin dashboard</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/DashboardHome",
+  () => ({
+    default: () => (
+      <div>Dashboard home</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/Apps",
+  () => ({
+    default: () => <div>Apps</div>,
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/Members",
+  () => ({
+    default: () => (
+      <div>Members</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/Invitations",
+  () => ({
+    default: () => (
+      <div>Invitations</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/Billing",
+  () => ({
+    default: () => (
+      <div>Billing</div>
+    ),
+  }),
+);
+
+vi.mock(
+  "../pages/dashboard/Settings",
+  () => ({
+    default: () => (
+      <div>Settings</div>
+    ),
+  }),
+);
+
+vi.mock("../pages/not-found", () => ({
+  default: () => (
+    <div>Not found</div>
+  ),
+}));
+
+vi.mock(
+  "../components/ui/toaster",
+  () => ({
+    Toaster: () => null,
+  }),
+);
+
+vi.mock(
+  "../components/ui/tooltip",
+  () => ({
+    TooltipProvider: ({
+      children,
+    }: {
+      children: React.ReactNode;
+    }) => <>{children}</>,
+  }),
+);
+
 function setPath(path: string) {
-  window.history.replaceState({}, "", path);
+  window.history.replaceState(
+    {},
+    "",
+    path,
+  );
 }
 
-describe("App auth routing runtime behavior", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    authState.status = "unauthenticated";
-    authState.user = null;
-    authState.csrfToken = "csrf";
-    authState.csrfReady = true;
-    authState.loginInFlight = false;
-    metadataState.loading = false;
-    metadataState.currentAppSlug = "admin";
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "organization",
-      authRoutePolicy: {
-        allowInvitations: true,
-        allowCustomerRegistration: true,
-      },
-    };
-    resolveAuthenticatedNextStepMock.mockReset();
-    resolveAuthenticatedNextStepMock.mockReturnValue({
-      destination: "/dashboard",
-      reason: "default",
+describe(
+  "App auth routing runtime behavior",
+  () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      authState.status =
+        "unauthenticated";
+      authState.user = null;
+      authState.csrfToken = "csrf";
+      authState.csrfReady = true;
+      authState.loginInFlight = false;
+
+      metadataState.loading = false;
+      metadataState.currentAppSlug =
+        "admin";
+      metadataState.resolutionError =
+        null;
+
+      metadataState.metadata = {
+        normalizedAccessProfile:
+          "organization",
+        authRoutePolicy: {
+          allowInvitations: true,
+          allowCustomerRegistration:
+            true,
+        },
+      };
+
+      resolveAuthenticatedNextStepMock.mockReset();
+
+      resolveAuthenticatedNextStepMock.mockReturnValue(
+        {
+          destination:
+            "/dashboard",
+          reason: "default",
+        },
+      );
+
+      setPath("/");
     });
-    setPath("/");
-  });
 
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-    vi.resetAllMocks();
-  });
-
-  it("redirects unauthenticated users from protected routes to /login", async () => {
-    setPath("/dashboard");
-    render(<App />);
-
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeTruthy();
-  });
-
-  it("allows signup for organization even with stale metadata policy denying registration", async () => {
-    setPath("/signup");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByText("Create account")).toBeTruthy(),
-    );
-  });
-
-  it("allows signup in solo mode even with stale metadata policy denying registration", async () => {
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "solo",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: false,
-      },
-    };
-
-    setPath("/signup");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByText("Create account")).toBeTruthy(),
-    );
-  });
-
-  it("blocks signup in superadmin mode", async () => {
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "superadmin",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: false,
-      },
-    };
-
-    setPath("/signup");
-    render(<App />);
-
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeTruthy();
-    expect(screen.queryByText("Create account")).toBeNull();
-  });
-
-  it("shows create-account affordances on login for organization and solo profiles", async () => {
-    setPath("/login");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByText("Create account")).toBeTruthy(),
-    );
-    expect(
-      screen.getByRole("button", { name: "Create account with Google" }),
-    ).toBeTruthy();
-
-    cleanup();
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "solo",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: false,
-      },
-    };
-
-    setPath("/login");
-    render(<App />);
-    await waitFor(() =>
-      expect(screen.getByText("Create account")).toBeTruthy(),
-    );
-    expect(
-      screen.getByRole("button", { name: "Create account with Google" }),
-    ).toBeTruthy();
-  });
-
-  it("hides create-account affordances for superadmin and shows safe metadata failure when app slug has no match", async () => {
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "superadmin",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: false,
-      },
-    };
-
-    setPath("/login");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(screen.queryByText("Create account")).toBeNull(),
-    );
-    expect(
-      screen.queryByRole("button", { name: "Create account with Google" }),
-    ).toBeNull();
-
-    cleanup();
-    metadataState.currentAppSlug = "unknown-app";
-    metadataState.metadata = null;
-    metadataState.loading = false;
-    metadataState.resolutionError = "app_metadata_not_found";
-
-    setPath("/login");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText(
-          "We could not load the sign-in configuration. Please try again later.",
-        ),
-      ).toBeTruthy(),
-    );
-    expect(screen.queryByText(/app_metadata_not_found/)).toBeNull();
-    expect(screen.queryByText(/requested=/)).toBeNull();
-    expect(screen.queryByText(/available=/)).toBeNull();
-    expect(screen.queryByText("Create account")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Create account with Google" }),
-    ).toBeNull();
-  });
-  it("routes MFA pending users to challenge when enrolled", async () => {
-    authState.status = "authenticated_mfa_pending_enrolled";
-    authState.user = { mfaPending: true, mfaEnrolled: true };
-
-    setPath("/dashboard");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/mfa/challenge"),
-    );
-    expect(screen.getByText("Continue")).toBeTruthy();
-  });
-
-  it("routes MFA pending users to enrollment when unenrolled", async () => {
-    authState.status = "authenticated_mfa_pending_unenrolled";
-    authState.user = { mfaPending: true, mfaEnrolled: false };
-
-    setPath("/dashboard");
-    render(<App />);
-
-    await waitFor(() => expect(window.location.pathname).toBe("/mfa/enroll"));
-    expect(screen.getByText("Set up multi-factor authentication")).toBeTruthy();
-  });
-
-  it("enforces onboarding and access denied rules for fully authenticated users", async () => {
-    authState.status = "authenticated_fully";
-    authState.user = {
-      isSuperAdmin: false,
-      appAccess: {
-        appSlug: "admin",
-        canAccess: false,
-        requiredOnboarding: "organization",
-        normalizedAccessProfile: "organization",
-        defaultRoute: "/dashboard",
-      },
-    };
-
-    setPath("/dashboard");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/onboarding/organization"),
-    );
-  });
-
-  it("fails closed in solo mode for onboarding and invitations", async () => {
-    authState.status = "authenticated_fully";
-    authState.user = {
-      isSuperAdmin: false,
-      appAccess: {
-        appSlug: "admin",
-        canAccess: true,
-        requiredOnboarding: "none",
-        normalizedAccessProfile: "solo",
-        defaultRoute: "/dashboard",
-      },
-    };
-
-    setPath("/dashboard/invitations");
-    render(<App />);
-
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/dashboard/invitations"),
-    );
-    expect(screen.getByText("Invitations")).toBeTruthy();
-  });
-
-  it("redirects organization onboarding route to /login for solo profile", async () => {
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "solo",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: true,
-      },
-    };
-
-    setPath("/onboarding/organization");
-    render(<App />);
-
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeTruthy();
-  });
-
-  it("redirects organization onboarding route to /login for superadmin profile", async () => {
-    metadataState.resolutionError = null;
-    metadataState.metadata = {
-      normalizedAccessProfile: "superadmin",
-      authRoutePolicy: {
-        allowInvitations: false,
-        allowCustomerRegistration: false,
-      },
-    };
-
-    setPath("/onboarding/organization");
-    render(<App />);
-
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(screen.getByText("Welcome")).toBeTruthy();
-  });
-
-  it("preserves continuation through signup already-have-account branch and keeps onboarding precedence", async () => {
-    setPath("/signup?next=/dashboard/apps");
-    const view = render(<App />);
-
-    await waitFor(() =>
-      expect(screen.getByText("Create account")).toBeTruthy(),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Already have an account" }),
-    );
-    await waitFor(() => expect(window.location.pathname).toBe("/login"));
-    expect(window.location.search).toBe("?next=/dashboard/apps");
-
-    authState.status = "authenticated_fully";
-    authState.user = {
-      isSuperAdmin: false,
-      pendingPostAuthContinuation: "/dashboard/apps",
-      appAccess: {
-        appSlug: "admin",
-        canAccess: false,
-        requiredOnboarding: "organization",
-        normalizedAccessProfile: "organization",
-        defaultRoute: "/dashboard",
-      },
-    };
-    resolveAuthenticatedNextStepMock.mockReturnValue({
-      destination: "/dashboard/apps",
-      reason: "pending_continuation",
+    afterEach(() => {
+      cleanup();
+      vi.clearAllMocks();
+      vi.resetAllMocks();
     });
-    view.rerender(<App />);
 
-    await waitFor(() =>
-      expect(resolveAuthenticatedNextStepMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          authStatus: "authenticated_fully",
-          user: expect.objectContaining({
-            pendingPostAuthContinuation: "/dashboard/apps",
-          }),
-        }),
-      ),
+    it(
+      "redirects unauthenticated users from protected routes to /login",
+      async () => {
+        setPath("/dashboard");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          screen.getByText(
+            "Welcome",
+          ),
+        ).toBeTruthy();
+      },
     );
-    await waitFor(() =>
-      expect(window.location.pathname).toBe("/onboarding/organization"),
+
+    it(
+      "allows signup for organization mode",
+      async () => {
+        setPath("/signup");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Create account",
+            ),
+          ).toBeTruthy(),
+        );
+      },
     );
-  });
-});
+
+    it(
+      "allows signup in solo mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "solo",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              true,
+          },
+        };
+
+        setPath("/signup");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Create account",
+            ),
+          ).toBeTruthy(),
+        );
+      },
+    );
+
+    it(
+      "blocks signup in superadmin mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath("/signup");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          screen.queryByText(
+            "Create account",
+          ),
+        ).toBeNull();
+      },
+    );
+
+    it(
+      "blocks forgot-password in superadmin mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath("/forgot-password");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          screen.getByText(
+            "Welcome",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "shows email login and forgot-password for organization and solo modes",
+      async () => {
+        setPath("/login");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByLabelText(
+              "Email",
+            ),
+          ).toBeTruthy(),
+        );
+
+        expect(
+          screen.getByLabelText(
+            "Password",
+          ),
+        ).toBeTruthy();
+
+        expect(
+          screen.getByText(
+            "Forgot password",
+          ),
+        ).toBeTruthy();
+
+        cleanup();
+
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "solo",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              true,
+          },
+        };
+
+        setPath("/login");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByLabelText(
+              "Email",
+            ),
+          ).toBeTruthy(),
+        );
+
+        expect(
+          screen.getByText(
+            "Forgot password",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "hides email login and signup affordances for superadmin",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath("/login");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Welcome",
+            ),
+          ).toBeTruthy(),
+        );
+
+        expect(
+          screen.queryByLabelText(
+            "Email",
+          ),
+        ).toBeNull();
+
+        expect(
+          screen.queryByLabelText(
+            "Password",
+          ),
+        ).toBeNull();
+
+        expect(
+          screen.queryByText(
+            "Forgot password",
+          ),
+        ).toBeNull();
+
+        expect(
+          screen.queryByText(
+            "Create account",
+          ),
+        ).toBeNull();
+
+        expect(
+          screen.queryByRole(
+            "button",
+            {
+              name: "Create account with Google",
+            },
+          ),
+        ).toBeNull();
+      },
+    );
+
+    it(
+      "routes MFA pending users to challenge when enrolled",
+      async () => {
+        authState.status =
+          "authenticated_mfa_pending_enrolled";
+
+        authState.user = {
+          mfaPending: true,
+          mfaEnrolled: true,
+        };
+
+        setPath("/dashboard");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe(
+            "/mfa/challenge",
+          ),
+        );
+
+        expect(
+          screen.getByText(
+            "Continue",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "routes MFA pending users to enrollment when unenrolled",
+      async () => {
+        authState.status =
+          "authenticated_mfa_pending_unenrolled";
+
+        authState.user = {
+          mfaPending: true,
+          mfaEnrolled: false,
+        };
+
+        setPath("/dashboard");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/mfa/enroll"),
+        );
+
+        expect(
+          screen.getByText(
+            "Set up multi-factor authentication",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "enforces onboarding precedence for organization mode",
+      async () => {
+        authState.status =
+          "authenticated_fully";
+
+        authState.user = {
+          isSuperAdmin: false,
+          appAccess: {
+            appSlug: "admin",
+            canAccess: false,
+            requiredOnboarding:
+              "organization",
+            normalizedAccessProfile:
+              "organization",
+            defaultRoute:
+              "/dashboard",
+          },
+        };
+
+        setPath("/dashboard");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe(
+            "/onboarding/organization",
+          ),
+        );
+      },
+    );
+
+    it(
+      "keeps solo onboarding separate from organization onboarding",
+      async () => {
+        authState.status =
+          "authenticated_fully";
+
+        authState.user = {
+          isSuperAdmin: false,
+          appAccess: {
+            appSlug: "admin",
+            canAccess: true,
+            requiredOnboarding:
+              "user",
+            normalizedAccessProfile:
+              "solo",
+            defaultRoute:
+              "/dashboard",
+          },
+        };
+
+        setPath("/onboarding/user");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Onboarding",
+            ),
+          ).toBeTruthy(),
+        );
+      },
+    );
+
+    it(
+      "redirects organization onboarding route to /login for solo profile",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "solo",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              true,
+          },
+        };
+
+        setPath(
+          "/onboarding/organization",
+        );
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          screen.getByText(
+            "Welcome",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "redirects organization onboarding route to /login for superadmin profile",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath(
+          "/onboarding/organization",
+        );
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          screen.getByText(
+            "Welcome",
+          ),
+        ).toBeTruthy();
+      },
+    );
+
+    it(
+      "preserves continuation through signup already-have-account branch and onboarding precedence",
+      async () => {
+        setPath(
+          "/signup?next=/dashboard/apps",
+        );
+
+        const view = render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Create account",
+            ),
+          ).toBeTruthy(),
+        );
+
+        fireEvent.click(
+          screen.getByRole(
+            "button",
+            {
+              name: "Already have an account",
+            },
+          ),
+        );
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+
+        expect(
+          window.location.search,
+        ).toBe(
+          "?next=/dashboard/apps",
+        );
+
+        authState.status =
+          "authenticated_fully";
+
+        authState.user = {
+          isSuperAdmin: false,
+          pendingPostAuthContinuation:
+            "/dashboard/apps",
+          appAccess: {
+            appSlug: "admin",
+            canAccess: false,
+            requiredOnboarding:
+              "organization",
+            normalizedAccessProfile:
+              "organization",
+            defaultRoute:
+              "/dashboard",
+          },
+        };
+
+        resolveAuthenticatedNextStepMock.mockReturnValue(
+          {
+            destination:
+              "/dashboard/apps",
+            reason:
+              "pending_continuation",
+          },
+        );
+
+        view.rerender(<App />);
+
+        await waitFor(() =>
+          expect(
+            resolveAuthenticatedNextStepMock,
+          ).toHaveBeenCalledWith(
+            expect.objectContaining({
+              authStatus:
+                "authenticated_fully",
+              user:
+                expect.objectContaining(
+                  {
+                    pendingPostAuthContinuation:
+                      "/dashboard/apps",
+                  },
+                ),
+            }),
+          ),
+        );
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe(
+            "/onboarding/organization",
+          ),
+        );
+      },
+    );
+  },
+);
