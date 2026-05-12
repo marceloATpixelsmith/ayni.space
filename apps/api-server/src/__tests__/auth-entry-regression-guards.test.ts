@@ -15,12 +15,23 @@ import {
 
 ensureTestDatabaseEnv();
 
-process.env["ALLOWED_ORIGINS"] = "http://admin.local,http://workspace.local";
-process.env["ADMIN_FRONTEND_ORIGINS"] = "http://admin.local";
-process.env["GOOGLE_CLIENT_ID"] = "test-client";
-process.env["GOOGLE_CLIENT_SECRET"] = "test-secret";
-process.env["GOOGLE_REDIRECT_URI"] = "http://localhost:3000/api/auth/google/callback";
-process.env["APP_SLUG_BY_ORIGIN"] = "http://workspace.local=workspace,http://admin.local=admin";
+process.env["ALLOWED_ORIGINS"] =
+  "http://admin.local,http://workspace.local";
+
+process.env["ADMIN_FRONTEND_ORIGINS"] =
+  "http://admin.local";
+
+process.env["GOOGLE_CLIENT_ID"] =
+  "test-client";
+
+process.env["GOOGLE_CLIENT_SECRET"] =
+  "test-secret";
+
+process.env["GOOGLE_REDIRECT_URI"] =
+  "http://localhost:3000/api/auth/google/callback";
+
+process.env["APP_SLUG_BY_ORIGIN"] =
+  "http://workspace.local=workspace,http://admin.local=admin";
 
 const BASELINE_ENV_KEYS = [
   "ALLOWED_ORIGINS",
@@ -30,126 +41,648 @@ const BASELINE_ENV_KEYS = [
   "GOOGLE_REDIRECT_URI",
   "APP_SLUG_BY_ORIGIN",
 ] as const;
-const baselineEnv = new Map<string, string | undefined>(
-  BASELINE_ENV_KEYS.map((key) => [key, process.env[key]]),
+
+const baselineEnv = new Map<
+  string,
+  string | undefined
+>(
+  BASELINE_ENV_KEYS.map((key) => [
+    key,
+    process.env[key],
+  ]),
 );
 
 test.after(() => {
   for (const [key, value] of baselineEnv) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 });
 
-const { default: authRouter } = await import("../routes/auth.js");
-const { db } = await import("@workspace/db");
+const { default: authRouter } =
+  await import("../routes/auth.js");
+
+const { db } =
+  await import("@workspace/db");
 
 function tlsLookupError() {
-  const err = new Error("SSL/TLS required");
-  (err as Error & { code?: string }).code = "28000";
+  const err = new Error(
+    "SSL/TLS required",
+  );
+
+  (
+    err as Error & {
+      code?: string;
+    }
+  ).code = "28000";
+
   return err;
 }
 
-test("oauth start: explicit appSlug and origin mapping contracts remain locked", async () => {
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-    save: (cb?: (err?: unknown) => void) => cb?.(),
-    turnstileVerified: true,
-  });
+test(
+  "oauth start: explicit appSlug and origin mapping contracts remain locked",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {
+          save: (
+            cb?: (
+              err?: unknown,
+            ) => void,
+          ) => cb?.(),
+          turnstileVerified: true,
+        },
+      );
 
-  const explicitWorkspace = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-  assert.equal(explicitWorkspace.status, 200);
+    const explicitWorkspace =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url?appSlug=workspace",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
 
-  const explicitAdminDifferentOrigin = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=admin", undefined, { origin: "http://workspace.local" });
-  assert.equal(explicitAdminDifferentOrigin.status, 200);
+    assert.equal(
+      explicitWorkspace.status,
+      200,
+    );
 
-  const originDerived = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://workspace.local" });
-  assert.equal(originDerived.status, 200);
+    const explicitAdminDifferentOrigin =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url?appSlug=admin",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
 
-  const disallowed = await performJsonRequest(app, "POST", "/api/auth/google/url", undefined, { origin: "http://disallowed.local" });
-  assert.equal(disallowed.status, 400);
-  assert.equal(disallowed.body?.code, "ORIGIN_NOT_ALLOWED");
-});
+    assert.equal(
+      explicitAdminDifferentOrigin.status,
+      200,
+    );
 
-test("oauth start test isolation does not inherit ambient Turnstile enforcement", async () => {
-  const prevTurnstileEnabled = process.env["TURNSTILE_ENABLED"];
-  const prevTurnstileSecret = process.env["TURNSTILE_SECRET_KEY"];
-  process.env["TURNSTILE_ENABLED"] = "true";
-  delete process.env["TURNSTILE_SECRET_KEY"];
+    const originDerived =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
 
-  try {
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      save: (cb?: (err?: unknown) => void) => cb?.(),
-      turnstileVerified: true,
-    });
-    const response = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-    assert.equal(response.status, 200);
-  } finally {
-    if (prevTurnstileEnabled === undefined) delete process.env["TURNSTILE_ENABLED"];
-    else process.env["TURNSTILE_ENABLED"] = prevTurnstileEnabled;
-    if (prevTurnstileSecret === undefined) delete process.env["TURNSTILE_SECRET_KEY"];
-    else process.env["TURNSTILE_SECRET_KEY"] = prevTurnstileSecret;
-  }
-});
+    assert.equal(
+      originDerived.status,
+      200,
+    );
 
-test("canonical lookup TLS outage: test mode fallback allowed, production fails closed", async () => {
-  const prevNodeEnv = process.env["NODE_ENV"];
-  const prevRateLimitEnabled = process.env["RATE_LIMIT_ENABLED"];
-  const prevRateLimitAllowDisable = process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"];
-  const restoreFindFirst = patchProperty(db.query.appsTable, "findFirst", async () => { throw tlsLookupError(); });
+    const disallowed =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url",
+        undefined,
+        {
+          origin:
+            "http://disallowed.local",
+        },
+      );
 
-  try {
-    process.env["NODE_ENV"] = "test";
-    const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {
-      save: (cb?: (err?: unknown) => void) => cb?.(),
-      turnstileVerified: true,
-    });
-    const oauth = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-    assert.equal(oauth.status, 200);
+    assert.equal(
+      disallowed.status,
+      400,
+    );
 
-    process.env["NODE_ENV"] = "production";
-    process.env["RATE_LIMIT_ENABLED"] = "false";
-    process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"] = "true";
-    const oauthProd = await performJsonRequest(app, "POST", "/api/auth/google/url?appSlug=workspace", undefined, { origin: "http://workspace.local" });
-    assert.equal(oauthProd.status, 400);
-    assert.equal(oauthProd.body?.code, "app_not_found");
-    assert.notEqual(oauthProd.status, 200);
-    assert.notEqual(oauthProd.status, 403);
-  } finally {
-    restoreFindFirst();
-    if (prevNodeEnv === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = prevNodeEnv;
-    if (prevRateLimitEnabled === undefined) delete process.env["RATE_LIMIT_ENABLED"]; else process.env["RATE_LIMIT_ENABLED"] = prevRateLimitEnabled;
-    if (prevRateLimitAllowDisable === undefined) delete process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"]; else process.env["RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"] = prevRateLimitAllowDisable;
-  }
-});
+    assert.equal(
+      disallowed.body?.code,
+      "ORIGIN_NOT_ALLOWED",
+    );
+  },
+);
 
-test("password login app-context contract: mfa challenge response keeps pending session fields", async () => {
-  const app = createMountedSessionApp([{ path: "/api/auth", router: authRouter }], {});
-  const response = await performJsonRequest(app, "POST", "/api/auth/login", {
-    email: "mfa@example.com",
-    password: "password",
-    appSlug: "workspace",
-  }, { origin: "http://workspace.local" });
+test(
+  "oauth start test isolation does not inherit ambient Turnstile enforcement",
+  async () => {
+    const prevTurnstileEnabled =
+      process.env[
+        "TURNSTILE_ENABLED"
+      ];
 
-  // Lock MFA contract shape when challenge is required.
-  if (response.status === 202) {
-    assert.equal(response.body?.nextStep, "mfa_challenge");
-    assert.ok(response.body?.pendingSessionId);
-    assert.ok(response.body?.challengeToken);
-  }
-});
+    const prevTurnstileSecret =
+      process.env[
+        "TURNSTILE_SECRET_KEY"
+      ];
 
-test("extract-failure-summary prioritizes test file/auth context over unrelated audit noise", async () => {
-  const tmp = await mkdtemp(path.join(tmpdir(), "failure-summary-"));
-  const logPath = path.join(tmp, "log.txt");
-  await writeFile(logPath, [
-    "[audit] noisy audit log line",
-    "AssertionError [ERR_ASSERTION]: expected 200",
-    "    at src/__tests__/auth-entry-regression-guards.test.ts:88:11",
-    "[auth/google/url] app context resolution failed reason: app_not_found lookupError: SSL/TLS required",
-    "apps/api-server/src/routes/audit.ts:44:2",
-  ].join("\n"));
+    process.env[
+      "TURNSTILE_ENABLED"
+    ] = "true";
 
-  const { stdout } = await promisify(execFile)("node", ["../../scripts/ci/extract-failure-summary.mjs", logPath], { cwd: process.cwd() });
-  assert.match(stdout, /src\/__tests__\/auth-entry-regression-guards\.test\.ts:88:11/);
-  assert.match(stdout, /Auth-context signal: \[auth\/google\/url\] app context resolution failed/);
-});
+    delete process.env[
+      "TURNSTILE_SECRET_KEY"
+    ];
+
+    try {
+      const app =
+        createMountedSessionApp(
+          [
+            {
+              path: "/api/auth",
+              router: authRouter,
+            },
+          ],
+          {
+            save: (
+              cb?: (
+                err?: unknown,
+              ) => void,
+            ) => cb?.(),
+            turnstileVerified: true,
+          },
+        );
+
+      const response =
+        await performJsonRequest(
+          app,
+          "POST",
+          "/api/auth/google/url?appSlug=workspace",
+          undefined,
+          {
+            origin:
+              "http://workspace.local",
+          },
+        );
+
+      assert.equal(
+        response.status,
+        200,
+      );
+    } finally {
+      if (
+        prevTurnstileEnabled ===
+        undefined
+      ) {
+        delete process.env[
+          "TURNSTILE_ENABLED"
+        ];
+      } else {
+        process.env[
+          "TURNSTILE_ENABLED"
+        ] =
+          prevTurnstileEnabled;
+      }
+
+      if (
+        prevTurnstileSecret ===
+        undefined
+      ) {
+        delete process.env[
+          "TURNSTILE_SECRET_KEY"
+        ];
+      } else {
+        process.env[
+          "TURNSTILE_SECRET_KEY"
+        ] =
+          prevTurnstileSecret;
+      }
+    }
+  },
+);
+
+test(
+  "canonical lookup TLS outage: test mode fallback allowed, production fails closed",
+  async () => {
+    const prevNodeEnv =
+      process.env["NODE_ENV"];
+
+    const prevRateLimitEnabled =
+      process.env[
+        "RATE_LIMIT_ENABLED"
+      ];
+
+    const prevRateLimitAllowDisable =
+      process.env[
+        "RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"
+      ];
+
+    const restoreFindFirst =
+      patchProperty(
+        db.query.appsTable,
+        "findFirst",
+        async () => {
+          throw tlsLookupError();
+        },
+      );
+
+    try {
+      process.env["NODE_ENV"] =
+        "test";
+
+      const app =
+        createMountedSessionApp(
+          [
+            {
+              path: "/api/auth",
+              router: authRouter,
+            },
+          ],
+          {
+            save: (
+              cb?: (
+                err?: unknown,
+              ) => void,
+            ) => cb?.(),
+            turnstileVerified: true,
+          },
+        );
+
+      const oauth =
+        await performJsonRequest(
+          app,
+          "POST",
+          "/api/auth/google/url?appSlug=workspace",
+          undefined,
+          {
+            origin:
+              "http://workspace.local",
+          },
+        );
+
+      assert.equal(
+        oauth.status,
+        200,
+      );
+
+      process.env["NODE_ENV"] =
+        "production";
+
+      process.env[
+        "RATE_LIMIT_ENABLED"
+      ] = "false";
+
+      process.env[
+        "RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"
+      ] = "true";
+
+      const oauthProd =
+        await performJsonRequest(
+          app,
+          "POST",
+          "/api/auth/google/url?appSlug=workspace",
+          undefined,
+          {
+            origin:
+              "http://workspace.local",
+          },
+        );
+
+      assert.equal(
+        oauthProd.status,
+        400,
+      );
+
+      assert.equal(
+        oauthProd.body?.code,
+        "app_not_found",
+      );
+
+      assert.notEqual(
+        oauthProd.status,
+        200,
+      );
+
+      assert.notEqual(
+        oauthProd.status,
+        403,
+      );
+    } finally {
+      restoreFindFirst();
+
+      if (
+        prevNodeEnv === undefined
+      ) {
+        delete process.env[
+          "NODE_ENV"
+        ];
+      } else {
+        process.env["NODE_ENV"] =
+          prevNodeEnv;
+      }
+
+      if (
+        prevRateLimitEnabled ===
+        undefined
+      ) {
+        delete process.env[
+          "RATE_LIMIT_ENABLED"
+        ];
+      } else {
+        process.env[
+          "RATE_LIMIT_ENABLED"
+        ] =
+          prevRateLimitEnabled;
+      }
+
+      if (
+        prevRateLimitAllowDisable ===
+        undefined
+      ) {
+        delete process.env[
+          "RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"
+        ];
+      } else {
+        process.env[
+          "RATE_LIMIT_ALLOW_DISABLE_IN_PRODUCTION"
+        ] =
+          prevRateLimitAllowDisable;
+      }
+    }
+  },
+);
+
+test(
+  "password login app-context contract: mfa challenge response keeps pending session fields",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {},
+      );
+
+    const response =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/login",
+        {
+          email:
+            "mfa@example.com",
+          password: "password",
+          appSlug: "workspace",
+        },
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
+
+    if (response.status === 202) {
+      assert.equal(
+        response.body?.nextStep,
+        "mfa_challenge",
+      );
+
+      assert.ok(
+        response.body
+          ?.pendingSessionId,
+      );
+
+      assert.ok(
+        response.body
+          ?.challengeToken,
+      );
+    }
+  },
+);
+
+test(
+  "superadmin apps reject password login entrypoints",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {},
+      );
+
+    const response =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/login",
+        {
+          email:
+            "not-admin@example.com",
+          password: "password",
+          appSlug: "admin",
+        },
+        {
+          origin:
+            "http://admin.local",
+        },
+      );
+
+    assert.notEqual(
+      response.status,
+      200,
+    );
+
+    assert.notEqual(
+      response.status,
+      201,
+    );
+  },
+);
+
+test(
+  "superadmin apps reject signup entrypoints",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {},
+      );
+
+    const response =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/signup",
+        {
+          email:
+            "signup@example.com",
+          password:
+            "Password123!",
+          appSlug: "admin",
+        },
+        {
+          origin:
+            "http://admin.local",
+        },
+      );
+
+    assert.notEqual(
+      response.status,
+      200,
+    );
+
+    assert.notEqual(
+      response.status,
+      201,
+    );
+  },
+);
+
+test(
+  "organization apps preserve invitation continuation eligibility",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {},
+      );
+
+    const response =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url?appSlug=workspace&returnTo=%2Finvitations%2Ftoken-1%2Faccept",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
+
+    assert.equal(
+      response.status,
+      200,
+    );
+  },
+);
+
+test(
+  "client/public continuation allowlist remains accepted",
+  async () => {
+    const app =
+      createMountedSessionApp(
+        [
+          {
+            path: "/api/auth",
+            router: authRouter,
+          },
+        ],
+        {},
+      );
+
+    const clientResponse =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url?appSlug=workspace&returnTo=%2Fregister%2Fclient",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
+
+    assert.equal(
+      clientResponse.status,
+      200,
+    );
+
+    const publicResponse =
+      await performJsonRequest(
+        app,
+        "POST",
+        "/api/auth/google/url?appSlug=workspace&returnTo=%2Fregistration%2Fpublic",
+        undefined,
+        {
+          origin:
+            "http://workspace.local",
+        },
+      );
+
+    assert.equal(
+      publicResponse.status,
+      200,
+    );
+  },
+);
+
+test(
+  "extract-failure-summary prioritizes test file/auth context over unrelated audit noise",
+  async () => {
+    const tmp = await mkdtemp(
+      path.join(
+        tmpdir(),
+        "failure-summary-",
+      ),
+    );
+
+    const logPath = path.join(
+      tmp,
+      "log.txt",
+    );
+
+    await writeFile(
+      logPath,
+      [
+        "[audit] noisy audit log line",
+        "AssertionError [ERR_ASSERTION]: expected 200",
+        "    at src/__tests__/auth-entry-regression-guards.test.ts:88:11",
+        "[auth/google/url] app context resolution failed reason: app_not_found lookupError: SSL/TLS required",
+        "apps/api-server/src/routes/audit.ts:44:2",
+      ].join("\n"),
+    );
+
+    const { stdout } =
+      await promisify(execFile)(
+        "node",
+        [
+          "../../scripts/ci/extract-failure-summary.mjs",
+          logPath,
+        ],
+        {
+          cwd: process.cwd(),
+        },
+      );
+
+    assert.match(
+      stdout,
+      /src\/__tests__\/auth-entry-regression-guards\.test\.ts:88:11/,
+    );
+
+    assert.match(
+      stdout,
+      /Auth-context signal: \[auth\/google\/url\] app context resolution failed/,
+    );
+  },
+);
