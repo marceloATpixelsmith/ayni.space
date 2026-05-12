@@ -50,7 +50,11 @@ function SignupContent() {
     emailError,
     onRedirect: setLocation,
   });
-  const emailSignupInvalid = !email || !password || Boolean(validateEmailInput(email)) || Boolean(validatePasswordInput(password));
+  const emailSignupInvalid =
+    !email ||
+    !password ||
+    Boolean(validateEmailInput(email)) ||
+    Boolean(validatePasswordInput(password));
   const disabledReasons = React.useMemo(
     () =>
       getSignupDisabledReasons({
@@ -58,7 +62,8 @@ function SignupContent() {
         emailPresent: Boolean(email),
         passwordPresent: Boolean(password),
         emailError: emailSignupInvalid && Boolean(validateEmailInput(email)),
-        passwordError: emailSignupInvalid && Boolean(validatePasswordInput(password)),
+        passwordError:
+          emailSignupInvalid && Boolean(validatePasswordInput(password)),
       }),
     [submit.pending, email, password, emailSignupInvalid],
   );
@@ -73,10 +78,7 @@ function SignupContent() {
   };
 
   return (
-    <AuthShell
-      title={t("signup_title")}
-      subtitle={t("signup_subtitle")}
-    >
+    <AuthShell title={t("signup_title")} subtitle={t("signup_subtitle")}>
       <AuthFormMotion>
         <div className="space-y-3">
           <input
@@ -149,7 +151,6 @@ function SignupContent() {
     </AuthShell>
   );
 }
-
 
 export default function Signup() {
   return (
