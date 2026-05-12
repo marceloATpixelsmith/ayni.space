@@ -146,7 +146,7 @@ function Home() {
       });
       setLocation(nextStep.destination);
     }
-  }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
+  }, [auth.status, auth.user, auth.user?.isSuperAdmin, setLocation]);
 
   return <AuthLoading />;
 }
@@ -189,17 +189,6 @@ function ConfigDrivenAuthRoute({
 
   if (loading || auth.status === "loading") return <AuthLoading />;
 
-  if (auth.status === "unauthenticated" && routeKind === "invitation") {
-    console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render", {
-      path: location,
-    });
-    return <>{children}</>;
-  }
-
-  if (isMfaPendingStatus(auth.status)) {
-    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
-  }
-
   if (!isAuthRouteAllowed(metadata, routeKind)) {
     console.info("[INVITATION-FLOW] auth route disallowed by metadata policy", {
       routeKind,
@@ -225,6 +214,17 @@ function ConfigDrivenAuthRoute({
     );
   }
 
+  if (auth.status === "unauthenticated" && routeKind === "invitation") {
+    console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render", {
+      path: location,
+    });
+    return <>{children}</>;
+  }
+
+  if (isMfaPendingStatus(auth.status)) {
+    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
+  }
+
   if (auth.status === "unauthenticated") {
     console.info(
       "[INVITATION-FLOW] redirecting unauthenticated user to generic login",
@@ -237,6 +237,77 @@ function ConfigDrivenAuthRoute({
   }
 
   return <>{children}</>;
+}
+
+function AppModePublicAuthRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { metadata, loading } = useCurrentPlatformAppMetadata();
+
+  if (loading) return <AuthLoading />;
+
+  if (metadata?.normalizedAccessProfile === "superadmin") {
+    return <AuthRedirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppModeTokenAuthRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { metadata, loading } = useCurrentPlatformAppMetadata();
+
+  if (loading) return <AuthLoading />;
+
+  if (metadata?.normalizedAccessProfile === "superadmin") {
+    return <AuthRedirect to="/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function UserOnboardingRoute() {
+  const auth = useAuth();
+  const { currentAppSlug } = useCurrentPlatformAppMetadata();
+
+  if (auth.status === "loading") return <AuthLoading />;
+  if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
+  if (isMfaPendingStatus(auth.status)) {
+    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
+  }
+
+  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
+
+  if (appAccess?.normalizedAccessProfile === "superadmin") {
+    return (
+      <AuthRedirect
+        to={
+          auth.user?.isSuperAdmin
+            ? DEFAULT_POST_AUTH_PATH
+            : adminAccessDeniedLoginPath()
+        }
+      />
+    );
+  }
+
+  if (appAccess?.normalizedAccessProfile === "organization") {
+    return <AuthRedirect to="/onboarding/organization" />;
+  }
+
+  if (appAccess?.normalizedAccessProfile === "solo") {
+    if (appAccess.requiredOnboarding === "user") {
+      return <Onboarding />;
+    }
+
+    return <AuthRedirect to={appAccess.defaultRoute || DEFAULT_POST_AUTH_PATH} />;
+  }
+
+  return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
 }
 
 function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
@@ -463,10 +534,34 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/signup" component={Signup} />
-      <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/verify-email" component={VerifyEmail} />
+      <Route path="/signup">
+        {() => (
+          <AppModePublicAuthRoute>
+            <Signup />
+          </AppModePublicAuthRoute>
+        )}
+      </Route>
+      <Route path="/forgot-password">
+        {() => (
+          <AppModePublicAuthRoute>
+            <ForgotPassword />
+          </AppModePublicAuthRoute>
+        )}
+      </Route>
+      <Route path="/reset-password">
+        {() => (
+          <AppModeTokenAuthRoute>
+            <ResetPassword />
+          </AppModeTokenAuthRoute>
+        )}
+      </Route>
+      <Route path="/verify-email">
+        {() => (
+          <AppModeTokenAuthRoute>
+            <VerifyEmail />
+          </AppModeTokenAuthRoute>
+        )}
+      </Route>
       <Route path="/mfa/enroll">
         {() => {
           if (auth.status === "loading") return <AuthLoading />;
@@ -505,24 +600,49 @@ function Router() {
           return <MfaChallenge />;
         }}
       </Route>
-      <Route path="/onboarding/organization">{() => <ConfigDrivenAuthRoute routeKind="onboarding"><Onboarding /></ConfigDrivenAuthRoute>}</Route>
-      <Route path="/onboarding/user">{() => {
-        if (auth.status === "loading") return <AuthLoading />;
-        if (auth.status === "unauthenticated") return <AuthRedirect to="/login" />;
-        if (isMfaPendingStatus(auth.status)) return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
-        return <Onboarding />;
-      }}</Route>
+      <Route path="/onboarding/organization">
+        {() => (
+          <ConfigDrivenAuthRoute routeKind="onboarding">
+            <Onboarding />
+          </ConfigDrivenAuthRoute>
+        )}
+      </Route>
+      <Route path="/onboarding/user">{() => <UserOnboardingRoute />}</Route>
       <Route path="/onboarding">
         {() => <AuthRedirect to="/onboarding/organization" />}
       </Route>
-      <Route path="/invitations/:token/accept">{() => <ConfigDrivenAuthRoute routeKind="invitation"><InvitationAccept /></ConfigDrivenAuthRoute>}</Route>
+      <Route path="/invitations/:token/accept">
+        {() => (
+          <ConfigDrivenAuthRoute routeKind="invitation">
+            <InvitationAccept />
+          </ConfigDrivenAuthRoute>
+        )}
+      </Route>
 
       {/* App-access routes */}
-      <Route path="/dashboard">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
-      <Route path="/dashboard/:section">{() => <ProtectedAppAccess><DashboardRoute /></ProtectedAppAccess>}</Route>
+      <Route path="/dashboard">
+        {() => (
+          <ProtectedAppAccess>
+            <DashboardRoute />
+          </ProtectedAppAccess>
+        )}
+      </Route>
+      <Route path="/dashboard/:section">
+        {() => (
+          <ProtectedAppAccess>
+            <DashboardRoute />
+          </ProtectedAppAccess>
+        )}
+      </Route>
 
       {/* Fail-closed aliases for legacy routes */}
-      <Route path="/apps/:slug">{() => <ProtectedAppAccess><AuthRedirect to="/dashboard/apps" /></ProtectedAppAccess>}</Route>
+      <Route path="/apps/:slug">
+        {() => (
+          <ProtectedAppAccess>
+            <AuthRedirect to="/dashboard/apps" />
+          </ProtectedAppAccess>
+        )}
+      </Route>
 
       {/* Root redirect route must stay after concrete auth/app routes to avoid prefix capture. */}
       <Route path={"/"} nest component={Home} />
