@@ -21,7 +21,10 @@ function getDefaultRouteByAppSlug(appSlug: string): string {
 
 function parseMappedTestAppSlugs(): Set<string> {
   const slugs = new Set<string>();
-  const parseEntries = (value: string | undefined, getSlug: (entry: string) => string | null) => {
+  const parseEntries = (
+    value: string | undefined,
+    getSlug: (entry: string) => string | null,
+  ) => {
     for (const entry of (value ?? "")
       .split(",")
       .map((rawEntry) => rawEntry.trim())
@@ -48,7 +51,8 @@ function parseMappedTestAppSlugs(): Set<string> {
     process.env["APP_SLUG"],
   ];
   for (const envSlug of directEnvSlugs) {
-    const normalized = typeof envSlug === "string" ? envSlug.trim().toLowerCase() : "";
+    const normalized =
+      typeof envSlug === "string" ? envSlug.trim().toLowerCase() : "";
     if (normalized) slugs.add(normalized);
   }
 
@@ -57,7 +61,8 @@ function parseMappedTestAppSlugs(): Set<string> {
 
 function canUseTestCanonicalFallback(appSlug: string): boolean {
   if (process.env["NODE_ENV"] === "production") return false;
-  if (process.env["AUTH_ALLOW_TEST_APP_LOOKUP_FALLBACK"] === "true") return true;
+  if (process.env["AUTH_ALLOW_TEST_APP_LOOKUP_FALLBACK"] === "true")
+    return true;
 
   if (appSlug === "admin") return true;
   if (appSlug === "workspace") return true;
@@ -93,14 +98,22 @@ function isCanonicalLookupOutage(error: unknown): boolean {
 
     if (typeof current === "object") {
       const currentRecord = current as Record<string, unknown>;
-      const code = typeof currentRecord["code"] === "string"
-        ? currentRecord["code"].toLowerCase()
-        : "";
-      if (code === "econnrefused" || code === "etimedout" || code === "econnreset" || code === "28000") {
+      const code =
+        typeof currentRecord["code"] === "string"
+          ? currentRecord["code"].toLowerCase()
+          : "";
+      if (
+        code === "econnrefused" ||
+        code === "etimedout" ||
+        code === "econnreset" ||
+        code === "28000"
+      ) {
         return true;
       }
       queue.push(currentRecord["cause"]);
-      if (Array.isArray(currentRecord["errors"])) queue.push(...currentRecord["errors"]);
+      if (Array.isArray(currentRecord["errors"])) {
+        queue.push(...currentRecord["errors"]);
+      }
     }
   }
 
@@ -151,14 +164,24 @@ function buildCanonicalTestFallbackApp(
 }
 
 export function buildCanonicalTestFallbackAdminApp(): typeof appsTable.$inferSelect {
-  return buildCanonicalTestFallbackApp("admin", TEST_FALLBACK_APP_TEMPLATES["admin"]!);
+  return buildCanonicalTestFallbackApp(
+    "admin",
+    TEST_FALLBACK_APP_TEMPLATES["admin"]!,
+  );
 }
 
-export function getNormalizedAccessProfileForApp(app: Pick<typeof appsTable.$inferSelect, "slug" | "accessMode" | "metadata">) {
+export function getNormalizedAccessProfileForApp(
+  app: Pick<
+    typeof appsTable.$inferSelect,
+    "slug" | "accessMode" | "metadata"
+  >,
+) {
   return resolveNormalizedAccessProfile(app);
 }
 
-export function getTestFallbackApp(appSlug: string): typeof appsTable.$inferSelect | null {
+export function getTestFallbackApp(
+  appSlug: string,
+): typeof appsTable.$inferSelect | null {
   if (!canUseTestCanonicalFallback(appSlug)) return null;
 
   const normalizedSlug = appSlug.trim().toLowerCase();
@@ -179,9 +202,13 @@ export async function getAppBySlug(
   const normalizedSlug =
     typeof appSlug === "string" ? appSlug.trim().toLowerCase() : "";
   if (!normalizedSlug) return null;
+
   try {
     const directMatch = await db.query.appsTable.findFirst({
-      where: and(eq(appsTable.slug, normalizedSlug), eq(appsTable.isActive, true)),
+      where: and(
+        eq(appsTable.slug, normalizedSlug),
+        eq(appsTable.isActive, true),
+      ),
     });
     if (directMatch) return directMatch;
 
@@ -209,23 +236,32 @@ export async function getAppBySlug(
 
     return null;
   } catch (error) {
-    const fallbackApp = options.allowOutageFallback !== false && isCanonicalLookupOutage(error)
-      ? getTestFallbackApp(normalizedSlug)
-      : null;
+    const fallbackApp =
+      options.allowOutageFallback !== false && isCanonicalLookupOutage(error)
+        ? getTestFallbackApp(normalizedSlug)
+        : null;
+
     if (fallbackApp) {
-      console.warn("[auth/access] canonical app lookup failed, using test fallback", {
-        appSlug: normalizedSlug,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      console.warn(
+        "[auth/access] canonical app lookup failed, using test fallback",
+        {
+          appSlug: normalizedSlug,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return fallbackApp;
     }
+
     throw error;
   }
 }
 
-export async function getAppSlugByOrigin(origin: string): Promise<string | null> {
+export async function getAppSlugByOrigin(
+  origin: string,
+): Promise<string | null> {
   let normalizedHost: string | null = null;
   let normalizedHostname: string | null = null;
+
   try {
     const parsedOrigin = new URL(origin);
     normalizedHost = parsedOrigin.host.toLowerCase();
@@ -234,24 +270,33 @@ export async function getAppSlugByOrigin(origin: string): Promise<string | null>
     normalizedHost = null;
     normalizedHostname = null;
   }
+
   if (!normalizedHost) return null;
 
   const appByHost = await db.query.appsTable.findFirst({
-    where: and(eq(appsTable.domain, normalizedHost), eq(appsTable.isActive, true)),
+    where: and(
+      eq(appsTable.domain, normalizedHost),
+      eq(appsTable.isActive, true),
+    ),
     columns: {
       slug: true,
     },
   });
+
   if (appByHost?.slug) return appByHost.slug;
 
   if (!normalizedHostname || normalizedHostname === normalizedHost) return null;
 
   const appByHostname = await db.query.appsTable.findFirst({
-    where: and(eq(appsTable.domain, normalizedHostname), eq(appsTable.isActive, true)),
+    where: and(
+      eq(appsTable.domain, normalizedHostname),
+      eq(appsTable.isActive, true),
+    ),
     columns: {
       slug: true,
     },
   });
+
   return appByHostname?.slug ?? null;
 }
 
@@ -327,6 +372,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     canAccess = Boolean(user.isSuperAdmin);
   } else if (normalizedAccessProfile === "organization") {
     let activeMemberships: Array<typeof orgMembershipsTable.$inferSelect> = [];
+
     try {
       activeMemberships = await db.query.orgMembershipsTable.findMany({
         where: and(
@@ -337,6 +383,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     } catch {
       activeMemberships = [];
     }
+
     if (activeMemberships.length === 0 && user.activeOrgId) {
       const activeMembership = await db.query.orgMembershipsTable.findFirst({
         where: and(
@@ -345,7 +392,10 @@ export async function getAppContext(userId: string, appSlug: string) {
           eq(orgMembershipsTable.membershipStatus, "active"),
         ),
       });
-      if (activeMembership) activeMemberships = [activeMembership];
+
+      if (activeMembership) {
+        activeMemberships = [activeMembership];
+      }
     }
 
     const orgAuthorizations = (
@@ -357,9 +407,11 @@ export async function getAppContext(userId: string, appSlug: string) {
               eq(organizationsTable.isActive, true),
             ),
           });
+
           if (!organization) return null;
 
           let orgAppAccess = null;
+
           try {
             orgAppAccess = await db.query.orgAppAccessTable.findFirst({
               where: and(
@@ -371,6 +423,7 @@ export async function getAppContext(userId: string, appSlug: string) {
           } catch {
             orgAppAccess = null;
           }
+
           if (!orgAppAccess && organization.appId !== app.id) return null;
 
           return { membership, organization };
@@ -387,15 +440,16 @@ export async function getAppContext(userId: string, appSlug: string) {
       ) ??
       orgAuthorizations[0] ??
       null;
+
     activeOrg = selectedAuthorization?.organization ?? null;
     orgMembership = selectedAuthorization?.membership ?? null;
     canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
+
     if (!canAccess) {
       if (app.customerRegistrationEnabled) {
-        canAccess = true;
-        requiredOnboarding = user.name?.trim() ? "none" : "user";
-      } else {
         requiredOnboarding = "organization";
+      } else {
+        requiredOnboarding = "none";
       }
     } else if (!user.name?.trim()) {
       requiredOnboarding = "user";
