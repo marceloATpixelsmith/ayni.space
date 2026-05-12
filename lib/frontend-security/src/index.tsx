@@ -83,13 +83,8 @@ type AuthContextValue = {
     password: string,
     turnstileToken?: string | null,
   ) => Promise<{ verifyToken?: string; appSlug?: string }>;
-  forgotPassword: (
-    email: string,
-  ) => Promise<{ resetToken?: string }>;
-  resetPassword: (
-    token: string,
-    password: string,
-  ) => Promise<void>;
+  forgotPassword: (email: string) => Promise<{ resetToken?: string }>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   verifyEmail: (
     token: string,
     appSlug?: string,
@@ -107,10 +102,7 @@ type AuthContextValue = {
   verifyMfaEnrollment: (
     factorId: string,
     code: string,
-  ) => Promise<{
-    recoveryCodes: string[];
-    nextPath?: string;
-  }>;
+  ) => Promise<{ recoveryCodes: string[]; nextPath?: string }>;
   completeMfaChallenge: (
     code: string,
     rememberDevice: boolean,
@@ -123,14 +115,9 @@ type AuthContextValue = {
   ) => Promise<void>;
 };
 
-const AuthContext =
-  React.createContext<AuthContextValue | null>(null);
+const AuthContext = React.createContext<AuthContextValue | null>(null);
 
-const SAFE_METHODS = new Set([
-  "GET",
-  "HEAD",
-  "OPTIONS",
-]);
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 type GoogleUrlErrorPayload = {
   url?: string;
@@ -143,49 +130,29 @@ type ApiErrorPayload = {
   code?: string;
 } | null;
 
-const OAUTH_START_STORAGE_KEY =
-  "auth:oauth-started-at";
+const OAUTH_START_STORAGE_KEY = "auth:oauth-started-at";
+const AUTH_TRANSITION_STORAGE_KEY = "auth:session-transition-at";
+const OAUTH_GRACE_WINDOW_MS = 5 * 60 * 1000;
 
-const AUTH_TRANSITION_STORAGE_KEY =
-  "auth:session-transition-at";
-
-const OAUTH_GRACE_WINDOW_MS =
-  5 * 60 * 1000;
-
-export function isMfaPendingStatus(
-  status: AuthStatus,
-): boolean {
+export function isMfaPendingStatus(status: AuthStatus): boolean {
   return (
-    status ===
-      "authenticated_mfa_pending_enrolled" ||
-    status ===
-      "authenticated_mfa_pending_unenrolled"
+    status === "authenticated_mfa_pending_enrolled" ||
+    status === "authenticated_mfa_pending_unenrolled"
   );
 }
 
-export function isFullyAuthenticatedStatus(
-  status: AuthStatus,
-): boolean {
+export function isFullyAuthenticatedStatus(status: AuthStatus): boolean {
   return status === "authenticated_fully";
 }
 
 export function getMfaPendingRoute(
   status: AuthStatus,
-):
-  | "/mfa/challenge"
-  | "/mfa/enroll"
-  | null {
-  if (
-    status ===
-    "authenticated_mfa_pending_enrolled"
-  ) {
+): "/mfa/challenge" | "/mfa/enroll" | null {
+  if (status === "authenticated_mfa_pending_enrolled") {
     return "/mfa/challenge";
   }
 
-  if (
-    status ===
-    "authenticated_mfa_pending_unenrolled"
-  ) {
+  if (status === "authenticated_mfa_pending_unenrolled") {
     return "/mfa/enroll";
   }
 
@@ -204,136 +171,348 @@ type ResolvedPostAuthDestination = {
     | "default";
 };
 
-export function resolveAuthenticatedNextStep(
-  params: {
-    authStatus: AuthStatus;
-    user: AuthUser | null;
-    continuationPath?: string | null;
-    deniedLoginPath?: string;
-    defaultPath?: string;
-  },
-): ResolvedPostAuthDestination {
-  if (
-    isMfaPendingStatus(params.authStatus)
-  ) {
+export function resolveAuthenticatedNextStep(params: {
+  authStatus: AuthStatus;
+  user: AuthUser | null;
+  continuationPath?: string | null;
+  deniedLoginPath?: string;
+  defaultPath?: string;
+}): ResolvedPostAuthDestination {
+  if (isMfaPendingStatus(params.authStatus)) {
     return {
-      destination:
-        getMfaPendingRoute(
-          params.authStatus,
-        ) ?? AUTH_LOGIN_PATH,
+      destination: getMfaPendingRoute(params.authStatus) ?? AUTH_LOGIN_PATH,
       reason: "mfa_pending",
     };
   }
 
   const appAccess =
-    params.user &&
-    typeof params.user === "object"
+    params.user && typeof params.user === "object"
       ? (
           params.user as unknown as {
             appAccess?: {
-              normalizedAccessProfile?:
-                | "superadmin"
-                | "solo"
-                | "organization";
+              normalizedAccessProfile?: "superadmin" | "solo" | "organization";
               canAccess?: boolean;
-              requiredOnboarding?:
-                | "none"
-                | "organization"
-                | "user";
+              requiredOnboarding?: "none" | "organization" | "user";
             };
           }
         ).appAccess
       : undefined;
 
   if (
-    appAccess?.requiredOnboarding ===
-      "organization" &&
+    appAccess?.requiredOnboarding === "organization" &&
     !appAccess.canAccess
   ) {
     return {
-      destination:
-        "/onboarding/organization",
-      reason:
-        "onboarding_organization",
+      destination: "/onboarding/organization",
+      reason: "onboarding_organization",
     };
   }
 
-  if (
-    appAccess?.requiredOnboarding ===
-    "user"
-  ) {
-    return {
-      destination: "/onboarding/user",
-      reason: "onboarding_user",
-    };
+  if (appAccess?.requiredOnboarding === "user") {
+    return { destination: "/onboarding/user", reason: "onboarding_user" };
   }
 
-  if (
-    appAccess?.normalizedAccessProfile ===
-    "superadmin"
-  ) {
+  if (appAccess?.normalizedAccessProfile === "superadmin") {
     return {
-      destination:
-        params.user?.isSuperAdmin
-          ? DEFAULT_POST_AUTH_PATH
-          : (
-              params.deniedLoginPath ??
-              AUTH_LOGIN_PATH
-            ),
+      destination: params.user?.isSuperAdmin
+        ? DEFAULT_POST_AUTH_PATH
+        : (params.deniedLoginPath ?? AUTH_LOGIN_PATH),
       reason: "superadmin_policy",
     };
   }
 
-  if (
-    appAccess &&
-    appAccess.canAccess === false
-  ) {
+  if (appAccess && appAccess.canAccess === false) {
     return {
-      destination:
-        params.deniedLoginPath ??
-        AUTH_LOGIN_PATH,
+      destination: params.deniedLoginPath ?? AUTH_LOGIN_PATH,
       reason: "access_denied",
     };
   }
 
-  const continuationPath =
-    sanitizePostAuthNavigationPath(
-      params.continuationPath,
-    );
+  const continuationPath = sanitizePostAuthNavigationPath(
+    params.continuationPath,
+  );
 
   if (continuationPath) {
-    return {
-      destination: continuationPath,
-      reason: "continuation",
-    };
+    return { destination: continuationPath, reason: "continuation" };
   }
 
   return {
-    destination:
-      params.defaultPath ??
-      DEFAULT_POST_AUTH_PATH,
+    destination: params.defaultPath ?? DEFAULT_POST_AUTH_PATH,
     reason: "default",
   };
 }
 
-export type NormalizedAccessProfile =
-  | "superadmin"
-  | "solo"
-  | "organization";
+function classifyMfaPendingUser(
+  payload: Pick<AuthUser, "mfaPending" | "mfaEnrolled" | "nextStep">,
+) {
+  const mfaPending = payload.mfaPending === true;
+  const nextStep = payload.nextStep ?? null;
+  const mfaEnrolled = payload.mfaEnrolled === true;
+  const enrolled =
+    nextStep === "mfa_challenge" || (nextStep !== "mfa_enroll" && mfaEnrolled);
+
+  return {
+    mfaPending,
+    nextStep,
+    mfaEnrolled,
+    enrolled,
+    status: enrolled
+      ? ("authenticated_mfa_pending_enrolled" as const)
+      : ("authenticated_mfa_pending_unenrolled" as const),
+    needsEnrollment: !enrolled,
+    route: enrolled ? ("/mfa/challenge" as const) : ("/mfa/enroll" as const),
+  };
+}
+
+function normalizeReturnToPath(path: string | null | undefined): string | null {
+  if (typeof path !== "string") return null;
+  const trimmed = path.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return null;
+  return trimmed;
+}
+
+const INVITATION_CONTINUATION_REGEX = /^\/invitations\/[^/]+\/accept$/i;
+const EVENT_CONTINUATION_REGEX =
+  /^\/(events|event-registration)\/[^/]+\/register(?:\/)?$/i;
+const CLIENT_REGISTRATION_CONTINUATION_REGEX =
+  /^\/(register|registration)\/(client|public)(?:\/)?$/i;
+const AUTHORIZED_POST_AUTH_PATHS = new Set([
+  "/",
+  DEFAULT_POST_AUTH_PATH,
+  "/dashboard/apps",
+  "/apps",
+  "/onboarding/organization",
+  "/onboarding/user",
+  "/mfa/enroll",
+  "/mfa/challenge",
+]);
+
+function normalizePathForExactMatch(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
+
+export function isSafePostAuthNavigationPath(
+  path: string | null | undefined,
+): boolean {
+  const normalizedPath = normalizeReturnToPath(path);
+  if (!normalizedPath) return false;
+  const exactPath = normalizePathForExactMatch(normalizedPath);
+  if (AUTHORIZED_POST_AUTH_PATHS.has(exactPath)) return true;
+
+  return (
+    INVITATION_CONTINUATION_REGEX.test(normalizedPath) ||
+    EVENT_CONTINUATION_REGEX.test(normalizedPath) ||
+    CLIENT_REGISTRATION_CONTINUATION_REGEX.test(normalizedPath)
+  );
+}
+
+function sanitizePostAuthNavigationPath(
+  path: string | null | undefined,
+): string | null {
+  const normalizedPath = normalizeReturnToPath(path);
+  if (!normalizedPath) return null;
+  return isSafePostAuthNavigationPath(normalizedPath) ? normalizedPath : null;
+}
+
+function normalizeEmailForSubmission(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function toApiUrl(path: string): string {
+  const apiBase = getFrontendRuntimeSettings().apiBaseUrl;
+  if (!apiBase) return path;
+  return `${apiBase.replace(/\/$/, "")}${path}`;
+}
+
+function isCredentialRequiredPath(path: string): boolean {
+  return path.startsWith("/api/auth/") || path === "/api/csrf-token";
+}
+
+export async function fetchCsrfToken(): Promise<string> {
+  logAuthDebug("csrf_fetch_start", {
+    path: "/api/csrf-token",
+    credentialsMode: "include",
+  });
+
+  const response = await fetch(toApiUrl("/api/csrf-token"), {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "x-auth-flow-id": getAuthFlowId(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`CSRF token fetch failed with status ${response.status}`);
+  }
+
+  const data = (await response.json()) as { csrfToken?: string };
+
+  if (!data.csrfToken) {
+    throw new Error("CSRF token endpoint did not return a token.");
+  }
+
+  return data.csrfToken;
+}
+
+export async function secureApiFetch(
+  path: string,
+  init: RequestInit = {},
+  csrfToken?: string | null,
+): Promise<Response> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  const credentialsMode = isCredentialRequiredPath(path)
+    ? "include"
+    : (init.credentials ?? "include");
+
+  if (path.startsWith("/api/auth/")) {
+    headers.set("x-auth-flow-id", getAuthFlowId());
+    logAuthDebug("auth_request_start", { path, method, credentialsMode });
+  }
+
+  if (!SAFE_METHODS.has(method) && csrfToken) {
+    headers.set("x-csrf-token", csrfToken);
+  }
+
+  return fetch(toApiUrl(path), {
+    ...init,
+    headers,
+    credentials: credentialsMode,
+  });
+}
+
+export function mapGoogleSignInError(
+  response: Response | null,
+  payload: GoogleUrlErrorPayload,
+): string {
+  const status = response?.status ?? 0;
+
+  if (status === 429 || payload?.code === "RATE_LIMITED") {
+    const retryAfterHeader = response?.headers.get("retry-after");
+    const retrySeconds = retryAfterHeader
+      ? Number.parseInt(retryAfterHeader, 10)
+      : Number.NaN;
+    const retryHint =
+      Number.isFinite(retrySeconds) && retrySeconds > 0
+        ? formatAuthMessage("login_error_google_rate_retry_seconds", {
+            seconds: retrySeconds,
+            unit: retrySeconds === 1 ? "second" : "seconds",
+          })
+        : getAuthMessage("login_error_google_rate_retry_moment");
+
+    return `${getAuthMessage("login_error_google_rate_limited")}${retryHint}`;
+  }
+
+  if (payload?.code === "TURNSTILE_MISSING_TOKEN") {
+    return getAuthMessage("login_error_google_verification_required");
+  }
+
+  if (payload?.code === "TURNSTILE_TOKEN_EXPIRED") {
+    return getAuthMessage("login_error_google_verification_expired");
+  }
+
+  if (payload?.code === "TURNSTILE_INVALID_TOKEN") {
+    return getAuthMessage("login_error_google_verification_failed");
+  }
+
+  if (payload?.code === "TURNSTILE_MISCONFIGURED") {
+    return getAuthMessage("login_error_google_verification_misconfigured");
+  }
+
+  if (payload?.code === "TURNSTILE_UNAVAILABLE") {
+    return getAuthMessage("login_error_google_verification_unavailable");
+  }
+
+  if (
+    payload?.code === "OAUTH_CONFIG_MISSING" ||
+    payload?.code === "OAUTH_URL_INVALID"
+  ) {
+    return getAuthMessage("login_error_google_config_unavailable");
+  }
+
+  if (payload?.code === "ORIGIN_NOT_ALLOWED") {
+    return getAuthMessage("login_error_google_origin_not_allowed");
+  }
+
+  if (payload?.code === AUTH_ERROR_CODES.APP_SLUG_MISSING) {
+    return getAuthMessage("auth_error_app_context_missing");
+  }
+
+  if (status === 403) {
+    return (
+      payload?.error ?? getAuthMessage("login_error_google_verification_failed")
+    );
+  }
+
+  return payload?.error ?? getAuthMessage("login_error_google_start");
+}
+
+export function mapVerifyEmailError(
+  response: Response | null,
+  payload: ApiErrorPayload,
+): string {
+  if (payload?.code === "VERIFICATION_TOKEN_ALREADY_USED") {
+    return getAuthMessage("verify_email_link_already_used");
+  }
+
+  if (payload?.code === "VERIFICATION_TOKEN_EXPIRED") {
+    return getAuthMessage("verify_email_link_expired");
+  }
+
+  if (payload?.code === "VERIFICATION_TOKEN_INVALID") {
+    return getAuthMessage("verify_email_link_invalid");
+  }
+
+  if (payload?.code === "CSRF_INVALID") {
+    return getAuthMessage("verify_email_security_retry");
+  }
+
+  if (response?.status === 403) {
+    return getAuthMessage("verify_email_security_retry");
+  }
+
+  return payload?.error ?? getAuthMessage("verify_email_unable");
+}
+
+function resolveRequiredAuthAppSlug(): string {
+  const appSlug = resolveCurrentAppSlug();
+
+  if (appSlug) return appSlug;
+
+  const error = new Error(
+    getAuthMessage("auth_error_app_context_missing"),
+  ) as Error & { code?: string };
+
+  error.code = AUTH_ERROR_CODES.APP_SLUG_MISSING;
+
+  throw error;
+}
+
+export async function requireCsrfToken(
+  currentToken: string | null | undefined,
+  refreshCsrfState: () => Promise<string | null>,
+  missingTokenMessage: string,
+  options?: { forceRefresh?: boolean },
+): Promise<string> {
+  const token = options?.forceRefresh
+    ? await refreshCsrfState()
+    : (currentToken ?? (await refreshCsrfState()));
+
+  if (!token) {
+    throw new Error(missingTokenMessage);
+  }
+
+  return token;
+}
+
+export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
 
 export type AuthRouteKind =
   | "onboarding"
   | "organizationOnboarding"
-  | "invitation"
-  | "publicAuth"
-  | "tokenAuth"
-  | "customerRegistration";
-
-export type AppAuthRoutePolicy = {
-  allowOnboarding: boolean;
-  allowInvitations: boolean;
-  allowCustomerRegistration: boolean;
-};
+  | "invitation";
 
 export type PlatformAppMetadata = {
   slug: string;
@@ -341,51 +520,50 @@ export type PlatformAppMetadata = {
   authRoutePolicy?: AppAuthRoutePolicy;
 };
 
+export type PlatformAppMetadataDiagnostic = {
+  code:
+    | "app_metadata_not_found"
+    | "app_metadata_fetch_failed"
+    | "app_slug_missing"
+    | null;
+  requestedSlug: string | null;
+  message: string | null;
+};
+
+export type AppAuthRoutePolicy = {
+  allowOnboarding: boolean;
+  allowInvitations: boolean;
+  allowCustomerRegistration: boolean;
+};
+
 export function deriveAppAuthRoutePolicy(
-  app:
-    | PlatformAppMetadata
-    | null
-    | undefined,
+  app: PlatformAppMetadata | null | undefined,
 ): AppAuthRoutePolicy {
   if (!app) {
     return {
       allowOnboarding: false,
       allowInvitations: false,
-      allowCustomerRegistration:
-        false,
+      allowCustomerRegistration: false,
     };
   }
 
   if (app.authRoutePolicy) {
     return {
-      allowOnboarding:
-        app.authRoutePolicy
-          .allowOnboarding,
-      allowInvitations:
-        app.authRoutePolicy
-          .allowInvitations,
-      allowCustomerRegistration:
-        app.authRoutePolicy
-          .allowCustomerRegistration,
+      allowOnboarding: app.authRoutePolicy.allowOnboarding,
+      allowInvitations: app.authRoutePolicy.allowInvitations,
+      allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
     };
   }
 
-  if (
-    app.normalizedAccessProfile ===
-    "superadmin"
-  ) {
+  if (app.normalizedAccessProfile === "superadmin") {
     return {
       allowOnboarding: false,
       allowInvitations: false,
-      allowCustomerRegistration:
-        false,
+      allowCustomerRegistration: false,
     };
   }
 
-  if (
-    app.normalizedAccessProfile ===
-    "solo"
-  ) {
+  if (app.normalizedAccessProfile === "solo") {
     return {
       allowOnboarding: false,
       allowInvitations: false,
@@ -393,15 +571,11 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
-  if (
-    app.normalizedAccessProfile ===
-    "organization"
-  ) {
+  if (app.normalizedAccessProfile === "organization") {
     return {
       allowOnboarding: true,
       allowInvitations: false,
-      allowCustomerRegistration:
-        false,
+      allowCustomerRegistration: false,
     };
   }
 
@@ -412,29 +586,103 @@ export function deriveAppAuthRoutePolicy(
   };
 }
 
-function getAuthRoutePolicyForNormalizedProfile(
-  input: {
-    normalizedAccessProfile: NormalizedAccessProfile;
-    staffInvitesEnabled: boolean;
-    customerRegistrationEnabled: boolean;
-  },
-): AppAuthRoutePolicy {
-  if (
-    input.normalizedAccessProfile ===
-    "superadmin"
-  ) {
+export function isAuthRouteAllowed(
+  app: PlatformAppMetadata | null | undefined,
+  routeKind: AuthRouteKind,
+): boolean {
+  const policy = deriveAppAuthRoutePolicy(app);
+
+  return routeKind === "onboarding" || routeKind === "organizationOnboarding"
+    ? policy.allowOnboarding
+    : policy.allowInvitations;
+}
+
+export function getDisallowedAuthRouteRedirect({
+  app,
+  authStatus,
+  isSuperAdmin,
+  deniedLoginPath,
+}: {
+  app: PlatformAppMetadata | null | undefined;
+  authStatus: AuthStatus;
+  isSuperAdmin?: boolean;
+  deniedLoginPath?: string;
+}): string {
+  if (app?.normalizedAccessProfile === "superadmin") {
+    if (isFullyAuthenticatedStatus(authStatus)) {
+      return isSuperAdmin
+        ? DEFAULT_POST_AUTH_PATH
+        : (deniedLoginPath ?? AUTH_LOGIN_PATH);
+    }
+
+    if (isMfaPendingStatus(authStatus)) {
+      return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
+    }
+
+    return AUTH_LOGIN_PATH;
+  }
+
+  if (isFullyAuthenticatedStatus(authStatus)) {
+    return DEFAULT_POST_AUTH_PATH;
+  }
+
+  if (isMfaPendingStatus(authStatus)) {
+    return getMfaPendingRoute(authStatus) ?? AUTH_LOGIN_PATH;
+  }
+
+  return AUTH_LOGIN_PATH;
+}
+
+function normalizePlatformAppMetadata(
+  raw: unknown,
+): PlatformAppMetadata | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  const candidate = raw as Record<string, unknown>;
+
+  if (typeof candidate["slug"] !== "string") return null;
+
+  const normalizedAccessProfile =
+    candidate["normalizedAccessProfile"] === "superadmin" ||
+    candidate["normalizedAccessProfile"] === "solo" ||
+    candidate["normalizedAccessProfile"] === "organization"
+      ? candidate["normalizedAccessProfile"]
+      : candidate["accessMode"] === "superadmin" ||
+          candidate["accessMode"] === "solo" ||
+          candidate["accessMode"] === "organization"
+        ? candidate["accessMode"]
+        : null;
+
+  if (!normalizedAccessProfile) return null;
+
+  const fallbackPolicy = getAuthRoutePolicyForNormalizedProfile({
+    normalizedAccessProfile,
+    staffInvitesEnabled: candidate["staffInvitesEnabled"] === true,
+    customerRegistrationEnabled:
+      candidate["customerRegistrationEnabled"] === true,
+  });
+
+  return {
+    slug: candidate["slug"],
+    normalizedAccessProfile,
+    authRoutePolicy: fallbackPolicy,
+  };
+}
+
+function getAuthRoutePolicyForNormalizedProfile(input: {
+  normalizedAccessProfile: NormalizedAccessProfile;
+  staffInvitesEnabled: boolean;
+  customerRegistrationEnabled: boolean;
+}): AppAuthRoutePolicy {
+  if (input.normalizedAccessProfile === "superadmin") {
     return {
       allowOnboarding: false,
       allowInvitations: false,
-      allowCustomerRegistration:
-        false,
+      allowCustomerRegistration: false,
     };
   }
 
-  if (
-    input.normalizedAccessProfile ===
-    "solo"
-  ) {
+  if (input.normalizedAccessProfile === "solo") {
     return {
       allowOnboarding: false,
       allowInvitations: false,
@@ -444,11 +692,1318 @@ function getAuthRoutePolicyForNormalizedProfile(
 
   return {
     allowOnboarding: true,
-    allowInvitations:
-      input.staffInvitesEnabled ===
-      true,
-    allowCustomerRegistration:
-      input.customerRegistrationEnabled ===
-      true,
+    allowInvitations: input.staffInvitesEnabled === true,
+    allowCustomerRegistration: input.customerRegistrationEnabled === true,
   };
 }
+
+function normalizeSlug(value: string): string {
+  return value.trim();
+}
+
+export function resolveCurrentAppSlug(): string | null {
+  const configuredSlug = normalizeSlug(getBootstrapAppSlug());
+  return configuredSlug.length > 0 ? configuredSlug : null;
+}
+
+export type PlatformAppMetadataResolution = {
+  metadata: PlatformAppMetadata | null;
+  requestedSlug: string;
+  availableSlugs: string[];
+};
+
+export async function fetchPlatformAppMetadataBySlug(
+  appSlug: string,
+): Promise<PlatformAppMetadataResolution> {
+  const response = await secureApiFetch("/api/apps", { method: "GET" });
+
+  if (!response.ok) {
+    return { metadata: null, requestedSlug: appSlug, availableSlugs: [] };
+  }
+
+  const payload = (await response.json().catch(() => null)) as unknown;
+
+  if (!Array.isArray(payload)) {
+    return { metadata: null, requestedSlug: appSlug, availableSlugs: [] };
+  }
+
+  const normalizedTargetSlug = normalizeSlug(appSlug);
+  const availableSlugs: string[] = [];
+
+  for (const appCandidate of payload) {
+    const normalized = normalizePlatformAppMetadata(appCandidate);
+
+    if (!normalized) continue;
+
+    availableSlugs.push(normalized.slug);
+
+    if (normalizeSlug(normalized.slug) === normalizedTargetSlug) {
+      return { metadata: normalized, requestedSlug: appSlug, availableSlugs };
+    }
+  }
+
+  return { metadata: null, requestedSlug: appSlug, availableSlugs };
+}
+
+export function useCurrentPlatformAppMetadata(): {
+  currentAppSlug: string | null;
+  metadata: PlatformAppMetadata | null;
+  loading: boolean;
+  resolutionError: string | null;
+  diagnostic: PlatformAppMetadataDiagnostic;
+} {
+  const currentAppSlug = resolveCurrentAppSlug();
+  const [metadata, setMetadata] = React.useState<PlatformAppMetadata | null>(
+    null,
+  );
+  const [loading, setLoading] = React.useState(true);
+  const [resolutionError, setResolutionError] = React.useState<string | null>(
+    null,
+  );
+  const [diagnostic, setDiagnostic] =
+    React.useState<PlatformAppMetadataDiagnostic>({
+      code: null,
+      requestedSlug: null,
+      message: null,
+    });
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!currentAppSlug) {
+      setMetadata(null);
+      setResolutionError("app_slug_missing");
+      setDiagnostic({
+        code: "app_slug_missing",
+        requestedSlug: null,
+        message: "requested slug is empty",
+      });
+      setLoading(false);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(true);
+    setResolutionError(null);
+    setDiagnostic({ code: null, requestedSlug: currentAppSlug, message: null });
+
+    fetchPlatformAppMetadataBySlug(currentAppSlug)
+      .then((result) => {
+        if (cancelled) return;
+
+        setMetadata(result.metadata);
+
+        if (!result.metadata) {
+          setResolutionError("app_metadata_not_found");
+
+          const available =
+            result.availableSlugs.length > 0
+              ? result.availableSlugs.join(", ")
+              : "none";
+
+          setDiagnostic({
+            code: "app_metadata_not_found",
+            requestedSlug: result.requestedSlug,
+            message: `requested=${result.requestedSlug}; available=${available}`,
+          });
+        } else {
+          setDiagnostic({
+            code: null,
+            requestedSlug: result.requestedSlug,
+            message: null,
+          });
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+
+        setMetadata(null);
+        setResolutionError("app_metadata_fetch_failed");
+        setDiagnostic({
+          code: "app_metadata_fetch_failed",
+          requestedSlug: currentAppSlug,
+          message: `requested=${currentAppSlug}; available=unknown`,
+        });
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAppSlug]);
+
+  return { currentAppSlug, metadata, loading, resolutionError, diagnostic };
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
+  const [csrfReady, setCsrfReady] = React.useState(false);
+  const [loginInFlight, setLoginInFlight] = React.useState(false);
+  const [sessionRevoked, setSessionRevoked] = React.useState(false);
+  const [authBootstrapping, setAuthBootstrapping] = React.useState(true);
+  const csrfTokenRef = React.useRef<string | null>(null);
+  const csrfRefreshInFlightRef = React.useRef<Promise<string | null> | null>(
+    null,
+  );
+  const loginRequestRef = React.useRef<Promise<void> | null>(null);
+  const authCheckRef = React.useRef<Promise<void> | null>(null);
+  const startupAuthInitializedRef = React.useRef(false);
+
+  const meQuery = useQuery({
+    queryKey: getGetMeQueryKey(),
+    queryFn: () => getMe(),
+    enabled: false,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  const logoutMutation = useLogout();
+  const switchOrgMutation = useSwitchOrganization();
+
+  const runAuthCheck = React.useCallback(async () => {
+    if (authCheckRef.current) {
+      return authCheckRef.current;
+    }
+
+    const request = (async () => {
+      logAuthDebug("auth_bootstrap_check_start", {
+        retryAfterDelay: false,
+      });
+
+      const firstAttempt = await meQuery.refetch();
+      const firstData = firstAttempt.data ?? null;
+      const firstUserId = firstData?.id ?? null;
+      const firstAllow = firstAttempt.isSuccess && Boolean(firstData);
+      const firstMfaClassification = firstData
+        ? classifyMfaPendingUser({
+            mfaPending: firstData.mfaPending,
+            mfaEnrolled: firstData.mfaEnrolled,
+            nextStep: firstData.nextStep,
+          })
+        : null;
+
+      logAuthDebug("auth_bootstrap_check_result", {
+        attempt: "initial",
+        userId: firstUserId,
+        allow: firstAllow,
+        authenticated:
+          firstData && "authenticated" in firstData
+            ? firstData.authenticated === true
+            : false,
+        mfaPending: firstData ? firstData.mfaPending === true : false,
+        mfaEnrolled: firstData ? firstData.mfaEnrolled === true : false,
+        nextStep: firstData?.nextStep ?? null,
+        bootstrapStatus: firstData?.mfaPending
+          ? (firstMfaClassification?.status ?? null)
+          : null,
+        needsEnrollment: firstData?.mfaPending
+          ? (firstMfaClassification?.needsEnrollment ?? null)
+          : null,
+        route: firstData?.mfaPending
+          ? (firstMfaClassification?.route ?? null)
+          : null,
+      });
+    })();
+
+    authCheckRef.current = request;
+
+    try {
+      await request;
+    } finally {
+      if (authCheckRef.current === request) {
+        authCheckRef.current = null;
+      }
+    }
+  }, [meQuery]);
+
+  const refreshSession = React.useCallback(async () => {
+    await runAuthCheck();
+  }, [runAuthCheck]);
+
+  React.useEffect(() => {
+    csrfTokenRef.current = csrfToken;
+  }, [csrfToken]);
+
+  React.useEffect(() => {
+    setCsrfTokenProvider(() => csrfTokenRef.current);
+
+    return () => {
+      setCsrfTokenProvider(null);
+    };
+  }, []);
+
+  const markAuthTransition = React.useCallback(() => {
+    window.sessionStorage.setItem(
+      AUTH_TRANSITION_STORAGE_KEY,
+      String(Date.now()),
+    );
+
+    logAuthDebug("auth_transition_marked", {});
+  }, []);
+
+  const refreshCsrfState = React.useCallback(async (): Promise<
+    string | null
+  > => {
+    if (csrfRefreshInFlightRef.current) {
+      return csrfRefreshInFlightRef.current;
+    }
+
+    setCsrfReady(false);
+
+    const request = (async () => {
+      try {
+        const token = await fetchCsrfToken();
+        setCsrfToken(token);
+        csrfTokenRef.current = token;
+        return token;
+      } catch {
+        setCsrfToken(null);
+        csrfTokenRef.current = null;
+        return null;
+      } finally {
+        setCsrfReady(true);
+      }
+    })();
+
+    csrfRefreshInFlightRef.current = request;
+
+    try {
+      return await request;
+    } finally {
+      if (csrfRefreshInFlightRef.current === request) {
+        csrfRefreshInFlightRef.current = null;
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshCsrfState();
+  }, [refreshCsrfState]);
+
+  React.useEffect(() => {
+    setCsrfTokenRefresher(refreshCsrfState);
+
+    return () => {
+      setCsrfTokenRefresher(null);
+    };
+  }, [refreshCsrfState]);
+
+  React.useEffect(() => {
+    if (startupAuthInitializedRef.current) {
+      return;
+    }
+
+    startupAuthInitializedRef.current = true;
+
+    const runStartupAuth = async () => {
+      const now = Date.now();
+      const oauthStartedAtRaw = window.sessionStorage.getItem(
+        OAUTH_START_STORAGE_KEY,
+      );
+      const oauthStartedAt = oauthStartedAtRaw
+        ? Number.parseInt(oauthStartedAtRaw, 10)
+        : Number.NaN;
+      const recentlyStartedOauth =
+        Number.isFinite(oauthStartedAt) &&
+        now - oauthStartedAt >= 0 &&
+        now - oauthStartedAt <= OAUTH_GRACE_WINDOW_MS;
+      const authTransitionStartedAtRaw = window.sessionStorage.getItem(
+        AUTH_TRANSITION_STORAGE_KEY,
+      );
+      const authTransitionStartedAt = authTransitionStartedAtRaw
+        ? Number.parseInt(authTransitionStartedAtRaw, 10)
+        : Number.NaN;
+      const recentlyTransitionedAuth =
+        Number.isFinite(authTransitionStartedAt) &&
+        now - authTransitionStartedAt >= 0 &&
+        now - authTransitionStartedAt <= OAUTH_GRACE_WINDOW_MS;
+
+      try {
+        logAuthDebug("auth_bootstrap_start", {});
+        await runAuthCheck();
+
+        if (recentlyStartedOauth) {
+          window.sessionStorage.removeItem(OAUTH_START_STORAGE_KEY);
+        }
+
+        if (recentlyTransitionedAuth) {
+          window.sessionStorage.removeItem(AUTH_TRANSITION_STORAGE_KEY);
+        }
+      } finally {
+        logAuthDebug("auth_bootstrap_end", {});
+        setAuthBootstrapping(false);
+      }
+    };
+
+    void runStartupAuth();
+  }, [runAuthCheck]);
+
+  React.useEffect(() => {
+    const revalidateSession = () => {
+      loginRequestRef.current = null;
+      setLoginInFlight(false);
+
+      if (sessionRevoked) {
+        setSessionRevoked(false);
+      }
+
+      void meQuery.refetch();
+      void runAuthCheck();
+
+      if (!csrfTokenRef.current) {
+        void refreshCsrfState();
+      }
+    };
+
+    const handlePageShow = () => {
+      revalidateSession();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        revalidateSession();
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshCsrfState, runAuthCheck, sessionRevoked]);
+
+  const loginWithGoogle = React.useCallback(
+    async (
+      turnstileToken?: string | null,
+      intent: "sign_in" | "create_account" = "sign_in",
+      returnToPath?: string | null,
+    ) => {
+      if (loginRequestRef.current) {
+        return loginRequestRef.current;
+      }
+
+      const request = (async () => {
+        const normalizedTurnstileToken = turnstileToken?.trim() ?? "";
+
+        if (!normalizedTurnstileToken) {
+          throw new Error(getAuthMessage("auth_error_turnstile_required"));
+        }
+
+        const token = csrfTokenRef.current ?? (await refreshCsrfState());
+
+        if (!token) {
+          throw new Error(
+            getAuthMessage("auth_error_security_token_not_ready_retry"),
+          );
+        }
+
+        const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
+
+        const response = await secureApiFetch(
+          "/api/auth/google/url",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "cf-turnstile-response": normalizedTurnstileToken,
+            },
+            body: JSON.stringify({
+              "cf-turnstile-response": normalizedTurnstileToken,
+              intent,
+              returnToPath: normalizedReturnToPath,
+            }),
+          },
+          token,
+        );
+
+        const payload = (await response
+          .json()
+          .catch(() => null)) as GoogleUrlErrorPayload;
+
+        if (!response.ok || !payload?.url) {
+          throw new Error(mapGoogleSignInError(response, payload));
+        }
+
+        window.sessionStorage.setItem(
+          OAUTH_START_STORAGE_KEY,
+          String(Date.now()),
+        );
+
+        window.location.assign(payload.url);
+      })();
+
+      loginRequestRef.current = request;
+      setLoginInFlight(true);
+
+      try {
+        await request;
+      } finally {
+        if (loginRequestRef.current === request) {
+          loginRequestRef.current = null;
+          setLoginInFlight(false);
+        }
+      }
+    },
+    [refreshCsrfState],
+  );
+
+  const clearAuthState = React.useCallback(async () => {
+    const meQueryKey = getGetMeQueryKey();
+
+    await queryClient.cancelQueries({ queryKey: meQueryKey });
+    queryClient.setQueryData(meQueryKey, null);
+    queryClient.removeQueries({ queryKey: meQueryKey });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        return query.queryKey.some(
+          (part) =>
+            typeof part === "string" &&
+            /(auth|csrf|session|bootstrap|security)/i.test(part),
+        );
+      },
+    });
+  }, [queryClient]);
+
+  const logout = React.useCallback(async () => {
+    setSessionRevoked(true);
+    loginRequestRef.current = null;
+    setLoginInFlight(false);
+
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      // Fail closed: if backend logout is partially successful, keep privileged UI revoked.
+    } finally {
+      setCsrfToken(null);
+      setCsrfReady(false);
+      csrfTokenRef.current = null;
+      await clearAuthState();
+      queryClient.clear();
+      await refreshCsrfState();
+    }
+  }, [clearAuthState, logoutMutation, queryClient, refreshCsrfState]);
+
+  const switchOrganization = React.useCallback(
+    async (orgId: string) => {
+      const payload: SwitchOrgRequest = { orgId };
+      await switchOrgMutation.mutateAsync({ data: payload });
+      await refreshSession();
+    },
+    [switchOrgMutation, refreshSession],
+  );
+
+  const acceptInvitation = React.useCallback(
+    async (token: string, turnstileToken?: string | null) => {
+      console.info("[INVITATION-FLOW] auth.acceptInvitation invoked", {
+        tokenLength: token.length,
+        hasTurnstileToken: Boolean(turnstileToken),
+      });
+
+      const headers: HeadersInit = {};
+
+      if (turnstileToken) {
+        headers["cf-turnstile-response"] = turnstileToken;
+      }
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_invitation"),
+      );
+
+      const response = await secureApiFetch(
+        `/api/invitations/${token}/accept`,
+        {
+          method: "POST",
+          headers,
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & { nextPath?: string | null };
+
+      if (!response.ok) {
+        const error = new Error(
+          payload?.error ?? getAuthMessage("invitation_accept_failed"),
+        ) as Error & { code?: string; status?: number };
+
+        error.code = payload?.code;
+        error.status = response.status;
+
+        console.info("[INVITATION-FLOW] auth.acceptInvitation request failed", {
+          status: response.status,
+          code: payload?.code ?? null,
+        });
+
+        throw error;
+      }
+
+      console.info(
+        "[INVITATION-FLOW] auth.acceptInvitation request succeeded; refreshing session",
+      );
+
+      await refreshSession();
+
+      console.info(
+        "[INVITATION-FLOW] auth.acceptInvitation session refresh complete",
+      );
+
+      return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
+    },
+    [refreshCsrfState, refreshSession],
+  );
+
+  const acceptInvitationWithPassword = React.useCallback(
+    async (token: string, password: string, turnstileToken?: string | null) => {
+      const headers: HeadersInit = { "content-type": "application/json" };
+
+      if (turnstileToken) {
+        headers["cf-turnstile-response"] = turnstileToken;
+      }
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_generic"),
+      );
+
+      const response = await secureApiFetch(
+        `/api/invitations/${token}/accept-email`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ password }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & {
+        mfaRequired?: boolean;
+        needsEnrollment?: boolean;
+        nextStep?: "mfa_enroll" | "mfa_challenge";
+        nextPath?: string | null;
+      };
+
+      if (!response.ok) {
+        const error = new Error(
+          payload?.error ?? getAuthMessage("invitation_password_set_failed"),
+        ) as Error & { code?: string; status?: number };
+
+        error.code = payload?.code;
+        error.status = response.status;
+
+        throw error;
+      }
+
+      if (payload?.mfaRequired) {
+        const target =
+          payload.nextStep === "mfa_enroll" ||
+          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+            ? "/mfa/enroll"
+            : "/mfa/challenge";
+
+        markAuthTransition();
+        await refreshSession();
+        await refreshCsrfState();
+        window.location.assign(target);
+
+        return target;
+      }
+
+      await refreshSession();
+
+      return sanitizePostAuthNavigationPath(payload?.nextPath) ?? null;
+    },
+    [markAuthTransition, refreshCsrfState, refreshSession],
+  );
+
+  const loginWithPassword = React.useCallback(
+    async (
+      email: string,
+      password: string,
+      turnstileToken?: string | null,
+      returnToPath?: string | null,
+    ) => {
+      beginAuthDebugFlow("password_login");
+
+      const normalizedEmail = normalizeEmailForSubmission(email);
+      const normalizedReturnToPath = normalizeReturnToPath(returnToPath);
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_sign_in"),
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(turnstileToken
+              ? { "cf-turnstile-response": turnstileToken }
+              : {}),
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password,
+            appSlug: resolveRequiredAuthAppSlug(),
+            "cf-turnstile-response": turnstileToken ?? undefined,
+            returnToPath: normalizedReturnToPath,
+          }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & {
+        mfaRequired?: boolean;
+        needsEnrollment?: boolean;
+        nextStep?: "mfa_enroll" | "mfa_challenge";
+        nextPath?: string;
+      };
+
+      if (!response.ok) {
+        logAuthDebug("login_response_received", {
+          ok: false,
+          status: response.status,
+        });
+
+        if (payload?.code === "POST_AUTH_DESTINATION_UNRESOLVED") {
+          throw new Error(getAuthMessage("login_error_routing_unresolved"));
+        }
+
+        throw new Error(
+          payload?.error ?? getAuthMessage("login_error_invalid_credentials"),
+        );
+      }
+
+      logAuthDebug("login_response_received", {
+        ok: true,
+        status: response.status,
+        mfaRequired: Boolean(payload?.mfaRequired),
+        needsEnrollment: Boolean(payload?.needsEnrollment),
+        nextStep: payload?.nextStep ?? null,
+        nextPath: payload?.nextPath ?? null,
+      });
+
+      if (payload?.mfaRequired) {
+        const target =
+          payload.nextStep === "mfa_enroll" ||
+          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+            ? "/mfa/enroll"
+            : "/mfa/challenge";
+
+        logAuthDebug("route_selected", {
+          route: target,
+          reason: "login_response",
+        });
+
+        markAuthTransition();
+
+        logAuthDebug("post_login_bootstrap_start", {
+          firstEndpoint: "/api/auth/me",
+          reason: "mfa_required",
+        });
+
+        await refreshSession();
+
+        logAuthDebug("post_login_bootstrap_end", {
+          firstEndpoint: "/api/auth/me",
+          reason: "mfa_required",
+        });
+
+        await refreshCsrfState();
+        window.location.assign(target);
+
+        return;
+      }
+
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+
+      if (nextPath) {
+        logAuthDebug("route_selected", {
+          route: nextPath,
+          reason: "login_response",
+        });
+
+        markAuthTransition();
+        await refreshCsrfState();
+        window.location.assign(nextPath);
+
+        return;
+      }
+
+      await refreshSession();
+    },
+    [markAuthTransition, refreshCsrfState, refreshSession],
+  );
+
+  const signupWithPassword = React.useCallback(
+    async (email: string, password: string, turnstileToken?: string | null) => {
+      const normalizedEmail = normalizeEmailForSubmission(email);
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_signup"),
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/signup",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(turnstileToken
+              ? { "cf-turnstile-response": turnstileToken }
+              : {}),
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            password,
+            appSlug: resolveRequiredAuthAppSlug(),
+            "cf-turnstile-response": turnstileToken ?? undefined,
+          }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response.json().catch(() => null)) as {
+        verifyToken?: string;
+        appSlug?: string;
+      } & ApiErrorPayload;
+
+      if (!response.ok) {
+        if (payload?.code === AUTH_ERROR_CODES.APP_SLUG_MISSING) {
+          throw new Error(getAuthMessage("auth_error_app_context_missing"));
+        }
+
+        throw new Error(
+          payload?.error ?? getAuthMessage("signup_error_fallback"),
+        );
+      }
+
+      await refreshSession();
+
+      return { verifyToken: payload?.verifyToken, appSlug: payload?.appSlug };
+    },
+    [refreshCsrfState, refreshSession],
+  );
+
+  const forgotPassword = React.useCallback(
+    async (email: string) => {
+      const normalizedEmail = normalizeEmailForSubmission(email);
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_generic"),
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/forgot-password",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            appSlug: resolveRequiredAuthAppSlug(),
+          }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response.json().catch(() => null)) as {
+        resetToken?: string;
+      } & ApiErrorPayload;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ?? getAuthMessage("forgot_password_process_error"),
+        );
+      }
+
+      return { resetToken: payload?.resetToken };
+    },
+    [refreshCsrfState],
+  );
+
+  const resetPassword = React.useCallback(
+    async (token: string, password: string) => {
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_reset_password"),
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/reset-password",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token, password }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ?? getAuthMessage("reset_password_error_fallback"),
+        );
+      }
+
+      await refreshSession();
+    },
+    [refreshCsrfState, refreshSession],
+  );
+
+  const verifyEmail = React.useCallback(
+    async (token: string, appSlug?: string) => {
+      beginAuthDebugFlow("verify_email");
+
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_retry_verify_email"),
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/verify-email",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token,
+            appSlug: appSlug?.trim() || undefined,
+          }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & {
+        mfaRequired?: boolean;
+        needsEnrollment?: boolean;
+        nextStep?: "mfa_enroll" | "mfa_challenge";
+        nextPath?: string;
+      };
+
+      logAuthDebug("verify_email_response_received", {
+        ok: response.ok,
+        status: response.status,
+        mfaRequired: Boolean(payload?.mfaRequired),
+        needsEnrollment: Boolean(payload?.needsEnrollment),
+        nextStep: payload?.nextStep ?? null,
+        nextPath: payload?.nextPath ?? null,
+        appSlug: appSlug ?? null,
+      });
+
+      if (!response.ok) {
+        throw new Error(mapVerifyEmailError(response, payload));
+      }
+
+      if (payload?.mfaRequired) {
+        const target =
+          payload.nextStep === "mfa_enroll" ||
+          (payload.nextStep !== "mfa_challenge" && payload.needsEnrollment)
+            ? "/mfa/enroll"
+            : "/mfa/challenge";
+
+        logAuthDebug("route_selected", {
+          route: target,
+          reason: "verify_email_response",
+        });
+
+        markAuthTransition();
+        await refreshSession();
+        await refreshCsrfState();
+        window.location.assign(target);
+
+        return payload;
+      }
+
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+
+      if (nextPath) {
+        logAuthDebug("route_selected", {
+          route: nextPath,
+          reason: "verify_email_response",
+        });
+
+        markAuthTransition();
+        await refreshSession();
+        await refreshCsrfState();
+        window.location.assign(nextPath);
+
+        return payload;
+      }
+
+      await refreshSession();
+
+      return payload;
+    },
+    [markAuthTransition, refreshCsrfState, refreshSession],
+  );
+
+  const startMfaEnrollment = React.useCallback(async () => {
+    const csrfToken = await requireCsrfToken(
+      csrfTokenRef.current,
+      refreshCsrfState,
+      getAuthMessage("auth_error_security_token_refresh_mfa_setup"),
+      { forceRefresh: true },
+    );
+
+    const response = await secureApiFetch(
+      "/api/auth/mfa/enroll/start",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      },
+      csrfToken,
+    );
+
+    const payload = (await response.json()) as {
+      factorId: string;
+      secret: string;
+      otpauthUrl: string;
+      issuer: string;
+      nextStep?: "mfa_enroll" | "mfa_challenge";
+    } & ApiErrorPayload;
+
+    if (!response.ok) {
+      if (response.status === 409 && payload?.nextStep === "mfa_challenge") {
+        logAuthDebug("mfa_screen_mode_selected", {
+          mode: "challenge",
+          reason: "enroll_start_conflict",
+        });
+
+        markAuthTransition();
+        window.location.assign("/mfa/challenge");
+
+        throw new Error(getAuthMessage("mfa_enroll_redirecting_challenge"));
+      }
+
+      throw new Error(
+        payload?.error ?? getAuthMessage("mfa_enroll_init_error_fallback"),
+      );
+    }
+
+    logAuthDebug("mfa_screen_mode_selected", {
+      mode: "enroll",
+      reason: "enroll_start_success",
+    });
+
+    return payload;
+  }, [markAuthTransition, refreshCsrfState]);
+
+  const finalizePostAuthNavigation = React.useCallback(
+    async (nextPath: string) => {
+      logAuthDebug("route_selected", {
+        route: nextPath,
+        reason: "post_auth_finalize",
+      });
+
+      markAuthTransition();
+      await refreshSession();
+      await refreshCsrfState();
+      window.location.assign(nextPath);
+    },
+    [markAuthTransition, refreshCsrfState, refreshSession],
+  );
+
+  const verifyMfaEnrollment = React.useCallback(
+    async (factorId: string, code: string) => {
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_mfa"),
+        { forceRefresh: true },
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/mfa/enroll/verify",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ factorId, code }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response.json()) as {
+        recoveryCodes: string[];
+        nextPath?: string;
+      } & ApiErrorPayload;
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ?? getAuthMessage("mfa_enroll_verify_fallback"),
+        );
+      }
+
+      if (
+        !Array.isArray(payload?.recoveryCodes) ||
+        payload.recoveryCodes.length === 0
+      ) {
+        throw new Error(getAuthMessage("mfa_enroll_recovery_codes_missing"));
+      }
+
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
+      }
+
+      return {
+        recoveryCodes: payload.recoveryCodes,
+        nextPath: payload.nextPath,
+      };
+    },
+    [finalizePostAuthNavigation, refreshCsrfState],
+  );
+
+  const completeMfaChallenge = React.useCallback(
+    async (code: string, rememberDevice: boolean, stayLoggedIn = false) => {
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_mfa"),
+        { forceRefresh: true },
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/mfa/challenge",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code, rememberDevice, stayLoggedIn }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & { nextPath?: string };
+
+      logAuthDebug("mfa_challenge_response_received", {
+        ok: response.ok,
+        status: response.status,
+        rememberDevice,
+        stayLoggedIn,
+        nextPath: payload?.nextPath ?? null,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ??
+            getAuthMessage("mfa_challenge_complete_fallback"),
+        );
+      }
+
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
+        return;
+      }
+
+      await refreshSession();
+      await refreshCsrfState();
+    },
+    [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
+  );
+
+  const completeMfaRecovery = React.useCallback(
+    async (
+      recoveryCode: string,
+      rememberDevice: boolean,
+      stayLoggedIn = false,
+    ) => {
+      const csrfToken = await requireCsrfToken(
+        csrfTokenRef.current,
+        refreshCsrfState,
+        getAuthMessage("auth_error_security_token_refresh_recovery"),
+        { forceRefresh: true },
+      );
+
+      const response = await secureApiFetch(
+        "/api/auth/mfa/recovery",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ recoveryCode, rememberDevice, stayLoggedIn }),
+        },
+        csrfToken,
+      );
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ApiErrorPayload & { nextPath?: string };
+
+      logAuthDebug("mfa_recovery_response_received", {
+        ok: response.ok,
+        status: response.status,
+        rememberDevice,
+        stayLoggedIn,
+        nextPath: payload?.nextPath ?? null,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.error ?? getAuthMessage("mfa_recovery_complete_fallback"),
+        );
+      }
+
+      const nextPath = sanitizePostAuthNavigationPath(payload?.nextPath);
+
+      if (nextPath) {
+        await finalizePostAuthNavigation(nextPath);
+        return;
+      }
+
+      await refreshSession();
+      await refreshCsrfState();
+    },
+    [finalizePostAuthNavigation, refreshCsrfState, refreshSession],
+  );
+
+  const status: AuthStatus = React.useMemo(() => {
+    if (sessionRevoked) return "unauthenticated";
+    if (authBootstrapping || meQuery.isLoading) return "loading";
+    if (meQuery.isError || !meQuery.data) return "unauthenticated";
+
+    if (meQuery.data.mfaPending) {
+      return classifyMfaPendingUser({
+        mfaPending: meQuery.data.mfaPending,
+        mfaEnrolled: meQuery.data.mfaEnrolled,
+        nextStep: meQuery.data.nextStep,
+      }).status;
+    }
+
+    return "authenticated_fully";
+  }, [
+    authBootstrapping,
+    meQuery.data,
+    meQuery.isError,
+    meQuery.isLoading,
+    sessionRevoked,
+  ]);
+
+  const value: AuthContextValue = React.useMemo(
+    () => ({
+      status,
+      user:
+        status === "loading" || status === "unauthenticated"
+          ? null
+          : (meQuery.data ?? null),
+      authBootstrapping,
+      csrfToken,
+      csrfReady,
+      loginInFlight,
+      refreshSession,
+      loginWithGoogle,
+      logout,
+      switchOrganization,
+      acceptInvitation,
+      acceptInvitationWithPassword,
+      loginWithPassword,
+      signupWithPassword,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
+      startMfaEnrollment,
+      verifyMfaEnrollment,
+      completeMfaChallenge,
+      completeMfaRecovery,
+    }),
+    [
+      status,
+      meQuery.data,
+      authBootstrapping,
+      csrfToken,
+      csrfReady,
+      loginInFlight,
+      refreshSession,
+      loginWithGoogle,
+      logout,
+      switchOrganization,
+      acceptInvitation,
+      acceptInvitationWithPassword,
+      loginWithPassword,
+      signupWithPassword,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
+      startMfaEnrollment,
+      verifyMfaEnrollment,
+      completeMfaChallenge,
+      completeMfaRecovery,
+    ],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = React.useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth must be used inside AuthProvider.");
+  }
+
+  return context;
+}
+
+export function RequireAuth({
+  children,
+  loadingFallback = null,
+  unauthenticatedFallback = null,
+}: {
+  children: React.ReactNode;
+  loadingFallback?: React.ReactNode;
+  unauthenticatedFallback?: React.ReactNode;
+}) {
+  const auth = useAuth();
+
+  if (auth.status === "loading") return <>{loadingFallback}</>;
+
+  if (auth.status === "unauthenticated" || isMfaPendingStatus(auth.status)) {
+    return <>{unauthenticatedFallback}</>;
+  }
+
+  return <>{children}</>;
+}
+
+export { useTurnstileToken } from "./turnstile";
+export {
+  logAuthDebug,
+  isAuthDebugEnabled,
+  getLastAuthDebugEventSummary,
+} from "./authDebug";
+
+export * from "./auth-page-orchestration";
+export * from "./auth-form-runtime";
+export * from "./authValidation";
+export * from "./runtimeSettings";
