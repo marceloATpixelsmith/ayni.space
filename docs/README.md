@@ -10,6 +10,70 @@
 - Current GitHub Actions workflows are CI/policy automation (validation, lockfile integrity, history policy, and Codex PR automation) rather than frontend deploy execution.
 - Admin frontend deploys are intended to be handled by Vercel Git integration from `master` (configured in Vercel, not as a repository workflow).
 
+## Mandatory AUTH routing + regression reading requirements
+
+AUTH is a protected subsystem.
+
+Before modifying ANY auth-related frontend or backend behavior, you MUST read ALL of the following documents completely:
+
+1. `authentication-and-session-architecture.md`
+2. `auth-security-regression-suite.md`
+3. `auth-and-session-inventory.md`
+4. `authorization-and-access-model-inventory.md`
+5. `authorization-roles-and-access-model.md`
+6. `session-group-authorization-boundary.md`
+7. `security-standards-and-non-negotiables.md`
+8. `system-baseline-audit.md`
+
+Additionally, if the task touches ANY of the following:
+- login routing
+- signup routing
+- onboarding routing
+- invitation auth flow
+- MFA routing
+- verify-email flow
+- forgot/reset-password flow
+- post-auth continuation
+- app access resolution
+- access-mode policy
+- superadmin restrictions
+- customer/public registration
+- auth route visibility
+- frontend auth orchestration
+- auth redirect precedence
+
+Then the implementer MUST ALSO read:
+
+- `apps/admin/src/App.tsx`
+- `lib/frontend-security/src/index.tsx`
+- `lib/frontend-security/src/auth-page-orchestration.ts`
+- `apps/api-server/src/lib/postAuthFlow.ts`
+- `apps/api-server/src/lib/postAuthRedirect.ts`
+- `apps/api-server/src/lib/postAuthDestination.ts`
+- `apps/api-server/src/lib/postAuthContinuation.ts`
+
+Required regression suites:
+- `pnpm run test:auth-security-regression`
+
+Required regression files:
+- `apps/admin/src/__tests__/auth-routing.runtime.test.tsx`
+- `lib/frontend-security/src/__tests__/post-auth-resolver.test.ts`
+- `apps/api-server/src/__tests__/auth-entry-regression-guards.test.ts`
+- `apps/api-server/src/__tests__/auth-session-group-hardening.test.ts`
+- `apps/api-server/src/__tests__/post-auth-routing-regression.test.ts`
+
+AUTH change policy:
+- AUTH changes must remain surgical.
+- Do not weaken MFA.
+- Do not weaken CSRF.
+- Do not weaken Turnstile.
+- Do not weaken session-group isolation.
+- Do not weaken onboarding precedence.
+- Do not weaken continuation allowlists.
+- Do not introduce fallback auth redirects not explicitly documented.
+- Do not introduce frontend/backend auth policy drift.
+- Docs and regression tests MUST be updated in the same PR as auth behavior changes.
+
 ## Required reading order
 1. `monorepo-overview.md` (source of truth)
 2. Domain docs (`shared-packages.md` through `ci-cd-and-deploy-rules.md`, plus ownership/codex docs)
@@ -17,6 +81,7 @@
 4. `open-questions-and-conflicts.md` for unresolved items
 
 ## Document index (all current docs)
+
 ### Canonical doc set
 1. `README.md`
 2. `ARCHITECTURE_RULES.md`
@@ -88,7 +153,6 @@
 ## Do not break
 - Do not index docs that contradict `monorepo-overview.md`.
 - Do not remove required consistency sections from architecture docs.
-
 
 ## Auth freeze policy (protected subsystem)
 - AUTH is currently a protected/frozen subsystem.
