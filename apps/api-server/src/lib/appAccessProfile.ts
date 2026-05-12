@@ -1,6 +1,9 @@
 import type { App } from "@workspace/db";
 
-export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
+export type NormalizedAccessProfile =
+  | "superadmin"
+  | "solo"
+  | "organization";
 
 export type AuthRoutePolicy = {
   allowOnboarding: boolean;
@@ -8,29 +11,52 @@ export type AuthRoutePolicy = {
   allowCustomerRegistration: boolean;
 };
 
-export function resolveNormalizedAccessProfile(app: Pick<App, "accessMode">): NormalizedAccessProfile | null {
-  if (app.accessMode === "superadmin") return "superadmin";
-  if (app.accessMode === "solo") return "solo";
-  if (app.accessMode === "organization") return "organization";
+export function resolveNormalizedAccessProfile(
+  app: Pick<App, "accessMode">,
+): NormalizedAccessProfile | null {
+  if (app.accessMode === "superadmin") {
+    return "superadmin";
+  }
+
+  if (app.accessMode === "solo") {
+    return "solo";
+  }
+
+  if (app.accessMode === "organization") {
+    return "organization";
+  }
+
   return null;
 }
 
 export function getAuthRoutePolicyForProfile(
   profile: NormalizedAccessProfile,
-  organizationCapabilities: Pick<App, "staffInvitesEnabled" | "customerRegistrationEnabled">,
+  organizationCapabilities: Pick<
+    App,
+    "staffInvitesEnabled" | "customerRegistrationEnabled"
+  >,
 ): AuthRoutePolicy {
   if (profile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: true,
-      allowCustomerRegistration: true,
+      allowInvitations:
+        organizationCapabilities.staffInvitesEnabled === true,
+      allowCustomerRegistration:
+        organizationCapabilities.customerRegistrationEnabled === true,
     };
   }
 
   if (profile === "solo") {
-    return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: true };
+    return {
+      allowOnboarding: false,
+      allowInvitations: false,
+      allowCustomerRegistration: true,
+    };
   }
 
-  void organizationCapabilities;
-  return { allowOnboarding: false, allowInvitations: false, allowCustomerRegistration: false };
+  return {
+    allowOnboarding: false,
+    allowInvitations: false,
+    allowCustomerRegistration: false,
+  };
 }
