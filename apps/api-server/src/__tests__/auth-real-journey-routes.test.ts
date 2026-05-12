@@ -382,7 +382,10 @@ test("solo signup -> verify-email route -> user onboarding when profile is incom
 test("invitation password + existing sign-in + google continuation branches preserve invitation route and post-auth stages", async () => {
   const state = buildState();
   const restore = installDbMocks(state);
-  const session: Record<string, unknown> = { sessionGroup: "admin" };
+  const session: Record<string, unknown> = {
+    sessionGroup: "admin",
+    turnstileVerified: true,
+  };
   const app = createStatefulSessionApp(
     [
       { path: "/api/auth", router: authRouter },
