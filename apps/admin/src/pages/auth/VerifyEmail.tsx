@@ -74,7 +74,7 @@ function VerifyEmailContent() {
             : t("verify_email_failure_fallback"),
         );
       });
-  }, [auth, search, setLocation]);
+  }, [auth, search, setLocation, t, format]);
 
   return (
     <AuthShell
@@ -89,7 +89,6 @@ function VerifyEmailContent() {
   );
 }
 
-//__EXPORT__
 export default function VerifyEmail() {
   return (
     <AuthI18nProvider>
