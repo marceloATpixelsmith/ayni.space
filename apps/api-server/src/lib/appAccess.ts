@@ -391,12 +391,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     orgMembership = selectedAuthorization?.membership ?? null;
     canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
     if (!canAccess) {
-      if (app.customerRegistrationEnabled) {
-        canAccess = true;
-        requiredOnboarding = user.name?.trim() ? "none" : "user";
-      } else {
-        requiredOnboarding = "organization";
-      }
+      requiredOnboarding = "organization";
     } else if (!user.name?.trim()) {
       requiredOnboarding = "user";
     }
