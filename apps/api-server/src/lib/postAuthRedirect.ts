@@ -14,7 +14,11 @@ export function getPostAuthRedirectPath(options: {
   normalizedAccessProfile: NormalizedAccessProfile;
   requiredOnboarding: "none" | "organization" | "user";
 }): string {
-  const { isSuperAdmin, normalizedAccessProfile, requiredOnboarding } = options;
+  const {
+    isSuperAdmin,
+    normalizedAccessProfile,
+    requiredOnboarding,
+  } = options;
 
   if (normalizedAccessProfile === "superadmin") {
     if (isSuperAdmin) return DEFAULT_POST_AUTH_PATH;
@@ -24,7 +28,10 @@ export function getPostAuthRedirectPath(options: {
   if (requiredOnboarding === "organization") {
     return "/onboarding/organization";
   }
-  if (requiredOnboarding === "user") return "/onboarding/user";
+
+  if (requiredOnboarding === "user") {
+    return "/onboarding/user";
+  }
 
   return DEFAULT_POST_AUTH_PATH;
 }
