@@ -1284,7 +1284,12 @@ async function handleGoogleUrl(req: Request, res: Response) {
     logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
-  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
+  const returnToPath = normalizeReturnToPath(
+    firstQueryParam(req.body?.returnToPath) ??
+      firstQueryParam(req.body?.returnTo) ??
+      firstQueryParam(req.query?.returnToPath) ??
+      firstQueryParam(req.query?.returnTo),
+  );
   const oauthIntent: OAuthIntent =
     firstQueryParam(req.body?.intent) === "create_account"
       ? "create_account"
@@ -2571,6 +2576,75 @@ async function resolveNextPathForEstablishedSession(
       continuation === undefined
         ? (req.session.postAuthContinuation ?? null)
         : continuation;
+
+    const continuationPath =
+      effectiveContinuation?.returnPath ?? "";
+
+    const continuationAllowsBypass =
+      effectiveContinuation?.type === "invitation_acceptance" ||
+      effectiveContinuation?.type === "event_registration" ||
+      effectiveContinuation?.type === "client_registration" ||
+      continuationPath.startsWith("/invitations/") ||
+      continuationPath.startsWith("/events/") ||
+      continuationPath.startsWith("/event-registration/") ||
+      continuationPath.startsWith("/register/") ||
+      continuationPath.startsWith("/registration/");
+
+    if (
+      stage === "post_auth" &&
+      !user.name?.trim()
+    ) {
+      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/onboarding/user",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: "user",
+        authIntent,
+      });
+      return "/onboarding/user";
+    }
+
+    if (
+      stage === "post_auth" &&
+      continuationAllowsBypass &&
+      continuationPath
+    ) {
+      delete req.session.postAuthContinuation;
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: continuationPath,
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath,
+        requiredOnboarding: flow?.requiredOnboarding ?? null,
+        authIntent,
+        continuationBypass: true,
+      });
+      return continuationPath;
+    }
+
+    if (
+      stage === "post_auth" &&
+      normalizedAccessProfile === "organization" &&
+      app.customerRegistrationEnabled === true &&
+      flow?.requiredOnboarding === "organization"
+    ) {
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/dashboard",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: flow.requiredOnboarding,
+        organizationRegistrationBridge: true,
+        authIntent,
+      });
+      return "/dashboard";
+    }
+
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
@@ -2642,9 +2716,15 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const signupAppSlug = signupAppContext.resolvedAppSlug;
 
   try {
-    const signupApp = await getAppBySlug(signupAppSlug);
+    const signupApp = signupAppContext.app;
+    const signupAccessProfile = signupApp
+      ? resolveNormalizedAccessProfile(signupApp)
+      : null;
+
     if (
       !signupApp ||
+      signupAppSlug === "admin" ||
+      signupAccessProfile === "superadmin" ||
       signupApp.accessMode === "superadmin" ||
       (signupApp.accessMode === "organization" &&
         !signupApp.customerRegistrationEnabled)
