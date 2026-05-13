@@ -2680,11 +2680,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
   try {
     const signupApp = signupAppContext.app;
 
-    if (signupApp?.accessMode === "superadmin") {
-      return res.status(403).json({
-        error: "signup_not_allowed_by_access_policy",
-      });
-    }
     if (
       !signupApp ||
       signupApp.accessMode === "superadmin" ||
