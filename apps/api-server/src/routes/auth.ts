@@ -1286,8 +1286,9 @@ async function handleGoogleUrl(req: Request, res: Response) {
 
   const returnToPath = normalizeReturnToPath(
     firstQueryParam(req.body?.returnToPath) ??
-      firstQueryParam(req.query?.returnTo) ??
-      firstQueryParam(req.query?.returnToPath),
+      firstQueryParam(req.body?.returnTo) ??
+      firstQueryParam(req.query?.returnToPath) ??
+      firstQueryParam(req.query?.returnTo),
   );
   const oauthIntent: OAuthIntent =
     firstQueryParam(req.body?.intent) === "create_account"
@@ -2587,6 +2588,25 @@ async function resolveNextPathForEstablishedSession(
       });
       return "/onboarding/user";
     }
+
+    if (
+      stage === "post_auth" &&
+      normalizedAccessProfile === "organization" &&
+      app.customerRegistrationEnabled === true &&
+      flow?.requiredOnboarding === "organization"
+    ) {
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/dashboard",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: flow.requiredOnboarding,
+        organizationRegistrationBridge: true,
+      });
+      return "/dashboard";
+    }
+
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
