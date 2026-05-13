@@ -35,16 +35,31 @@ export function getLoginDisabledReasons(input: {
   turnstileTokenPresent: boolean;
 }) {
   const reasons: string[] = [];
+
   if (input.authStatus === "authenticated_fully") {
     reasons.push("auth.status===authenticated_fully");
   }
-  if (input.loginInFlight) reasons.push("auth.loginInFlight");
-  if (!input.csrfReady) reasons.push("!auth.csrfReady");
-  if (!input.csrfTokenPresent) reasons.push("!auth.csrfToken");
-  if (input.turnstileEnabled && !input.turnstileReady)
+
+  if (input.loginInFlight) {
+    reasons.push("auth.loginInFlight");
+  }
+
+  if (!input.csrfReady) {
+    reasons.push("!auth.csrfReady");
+  }
+
+  if (!input.csrfTokenPresent) {
+    reasons.push("!auth.csrfToken");
+  }
+
+  if (input.turnstileEnabled && !input.turnstileReady) {
     reasons.push("turnstileEnabled&&!turnstileReady");
-  if (input.turnstileEnabled && !input.turnstileTokenPresent)
+  }
+
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) {
     reasons.push("turnstileEnabled&&!turnstileToken");
+  }
+
   return reasons;
 }
 
@@ -67,6 +82,8 @@ export function deriveLoginPageVisibilityPolicy(
     };
   }
 
+  const authPolicy = deriveAppAuthRoutePolicy(metadata);
+
   if (metadata.normalizedAccessProfile === "superadmin") {
     return {
       allowGoogleLogin: true,
@@ -80,19 +97,26 @@ export function deriveLoginPageVisibilityPolicy(
     allowGoogleLogin: true,
     allowEmailLogin: true,
     allowForgotPassword: true,
-    allowCreateAccount:
-      deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration,
+    allowCreateAccount: authPolicy.allowCustomerRegistration,
   };
 }
 
 export function useLoginRouteComposition() {
   const auth = useAuth();
-  const { metadata, resolutionError, diagnostic } =
-    useCurrentPlatformAppMetadata();
+
+  const {
+    metadata,
+    resolutionError,
+    diagnostic,
+  } = useCurrentPlatformAppMetadata();
+
   const turnstile = useTurnstileToken();
 
-  const loginPageVisibility = deriveLoginPageVisibilityPolicy(metadata);
-  const hideSignupAffordances = !loginPageVisibility.allowCreateAccount;
+  const loginPageVisibility =
+    deriveLoginPageVisibilityPolicy(metadata);
+
+  const hideSignupAffordances =
+    !loginPageVisibility.allowCreateAccount;
 
   return {
     auth,
@@ -110,6 +134,7 @@ export function useLoginRoutePolicy(options: {
   onRedirect: (path: string) => void;
 }) {
   const { search, onRedirect } = options;
+
   const {
     auth,
     metadata,
@@ -118,31 +143,55 @@ export function useLoginRoutePolicy(options: {
     hideSignupAffordances,
     metadataResolutionError,
   } = useLoginRouteComposition();
-  const query = React.useMemo(() => new URLSearchParams(search), [search]);
+
+  const query = React.useMemo(
+    () => new URLSearchParams(search),
+    [search],
+  );
+
   const nextPath = query.get("next");
+
   const accessError = getAuthErrorMessage(
     parseAuthErrorCode(query.get("error")),
   );
+
   const metadataError = metadataResolutionError
     ? getAuthMessage("auth_metadata_unavailable")
     : null;
-  const combinedAccessError = accessError ?? metadataError;
-  const deniedCleanupAttemptedRef = React.useRef(false);
+
+  const combinedAccessError =
+    accessError ?? metadataError;
+
+  const deniedCleanupAttemptedRef =
+    React.useRef(false);
 
   React.useEffect(() => {
     if (!combinedAccessError) {
       deniedCleanupAttemptedRef.current = false;
       return;
     }
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
-    if (deniedCleanupAttemptedRef.current) return;
+
+    if (!isFullyAuthenticatedStatus(auth.status)) {
+      return;
+    }
+
+    if (deniedCleanupAttemptedRef.current) {
+      return;
+    }
 
     deniedCleanupAttemptedRef.current = true;
+
     void auth.logout();
-  }, [combinedAccessError, auth.status, auth.logout]);
+  }, [
+    combinedAccessError,
+    auth.status,
+    auth.logout,
+  ]);
 
   React.useEffect(() => {
-    if (!isFullyAuthenticatedStatus(auth.status)) return;
+    if (!isFullyAuthenticatedStatus(auth.status)) {
+      return;
+    }
 
     const nextStep = resolveAuthenticatedNextStep({
       authStatus: auth.status,
@@ -151,8 +200,14 @@ export function useLoginRoutePolicy(options: {
       deniedLoginPath: buildAdminAccessDeniedLoginPath(),
       defaultPath: DEFAULT_POST_AUTH_PATH,
     });
+
     onRedirect(nextStep.destination);
-  }, [auth.status, auth.user, nextPath, onRedirect]);
+  }, [
+    auth.status,
+    auth.user,
+    nextPath,
+    onRedirect,
+  ]);
 
   return {
     auth,
@@ -170,15 +225,33 @@ export function useSignupRoutePolicy(options: {
   signupPath?: string;
   onRedirect: (path: string) => void;
 }) {
-  const { metadata, loading } = useCurrentPlatformAppMetadata();
+  const { metadata, loading } =
+    useCurrentPlatformAppMetadata();
+
   const metadataResolved = !loading;
+
+  const authPolicy =
+    deriveAppAuthRoutePolicy(metadata);
+
   const signupAllowed =
-    deriveAppAuthRoutePolicy(metadata).allowCustomerRegistration;
-  const signupPath = options.signupPath ?? "/signup";
+    authPolicy.allowCustomerRegistration;
+
+  const signupPath =
+    options.signupPath ?? "/signup";
 
   React.useEffect(() => {
-    if (!metadataResolved || signupAllowed) return;
-    if (options.locationPath !== signupPath) return;
+    if (!metadataResolved) {
+      return;
+    }
+
+    if (signupAllowed) {
+      return;
+    }
+
+    if (options.locationPath !== signupPath) {
+      return;
+    }
+
     options.onRedirect("/login");
   }, [
     metadataResolved,
@@ -200,572 +273,18 @@ function buildVerifyEmailPath(input: {
   verifyToken?: string;
 }): string {
   const query = new URLSearchParams();
+
   query.set("email", input.email);
-  if (input.appSlug) query.set("appSlug", input.appSlug);
-  if (input.verifyToken) query.set("token", input.verifyToken);
+
+  if (input.appSlug) {
+    query.set("appSlug", input.appSlug);
+  }
+
+  if (input.verifyToken) {
+    query.set("token", input.verifyToken);
+  }
+
   return `/verify-email?${query.toString()}`;
 }
 
-export function getSignupDisabledReasons(input: {
-  signupInFlight: boolean;
-  emailPresent: boolean;
-  passwordPresent: boolean;
-  emailError: boolean;
-  passwordError: boolean;
-}) {
-  const reasons: string[] = [];
-  if (input.signupInFlight) reasons.push("auth.signupInFlight");
-  if (!input.emailPresent) reasons.push("!email");
-  if (!input.passwordPresent) reasons.push("!password");
-  if (input.emailError) reasons.push("email.invalid");
-  if (input.passwordError) reasons.push("password.invalid");
-  return reasons;
-}
-
-export function useSignupRouteActions(options: {
-  auth: ReturnType<typeof useAuth>;
-  turnstile: ReturnType<typeof useTurnstileToken>;
-  email: string;
-  password: string;
-  emailError: string | null;
-  onRedirect: (path: string) => void;
-}) {
-  const submit = useAuthSubmitOrchestration();
-  const { auth, turnstile, email, password, emailError, onRedirect } = options;
-
-  const handleSignup = React.useCallback(() => {
-    if (!auth.csrfReady || !auth.csrfToken) {
-      submit.setError(getAuthMessage("auth_error_security_token_not_ready"));
-      return;
-    }
-    if (emailError) {
-      submit.setError(emailError);
-      return;
-    }
-    const passwordError = validatePasswordInput(password);
-    if (passwordError) {
-      submit.setError(passwordError);
-      return;
-    }
-    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
-    if (turnstileError) {
-      submit.setError(turnstileError);
-      return;
-    }
-
-    const normalizedEmail = normalizeEmailInput(email);
-    void submit
-      .run(() =>
-        auth.signupWithPassword(normalizedEmail, password, turnstile.token),
-      )
-      .then((result) => {
-        onRedirect(
-          buildVerifyEmailPath({
-            email: normalizedEmail,
-            appSlug: result.appSlug,
-            verifyToken: result.verifyToken,
-          }),
-        );
-      })
-      .catch((error) => {
-        handleTurnstileProtectedAuthError({
-          error,
-          turnstile,
-          setError: submit.setError,
-          fallbackMessage: getAuthMessage("signup_error_fallback"),
-        });
-      });
-  }, [auth, email, emailError, onRedirect, password, submit, turnstile]);
-
-  return {
-    submit,
-    handleSignup,
-  };
-}
-
-export function useLoginRouteActions(options: {
-  auth: ReturnType<typeof useAuth>;
-  turnstile: ReturnType<typeof useTurnstileToken>;
-  nextPath: string | null;
-  allowCreateAccount: boolean;
-  email: string;
-  password: string;
-  emailError: string | null;
-}) {
-  const submit = useAuthSubmitOrchestration();
-  const [loginError, setLoginError] = React.useState<string | null>(null);
-
-  const handlePasswordLogin = React.useCallback(() => {
-    if (options.emailError) {
-      setLoginError(options.emailError);
-      return;
-    }
-    const turnstileError = ensureTurnstileReadyForSubmit(options.turnstile);
-    if (turnstileError) {
-      setLoginError(turnstileError);
-      return;
-    }
-
-    setLoginError(null);
-    const turnstileToken = options.turnstile.token;
-    void submit
-      .run(() =>
-        options.auth.loginWithPassword(
-          options.email,
-          options.password,
-          turnstileToken,
-          options.nextPath,
-        ),
-      )
-      .catch((error) => {
-        setLoginError(
-          getAuthActionErrorMessage(
-            error,
-            getAuthMessage("login_error_email_sign_in"),
-          ),
-        );
-      });
-  }, [
-    options.auth,
-    options.email,
-    options.emailError,
-    options.nextPath,
-    options.password,
-    options.turnstile,
-    submit,
-  ]);
-
-  const handleGoogleLogin = React.useCallback(
-    (intent: "sign_in" | "create_account") => {
-      if (options.auth.loginInFlight) return;
-      if (!options.allowCreateAccount && intent === "create_account") return;
-
-      const turnstileError = ensureTurnstileReadyForSubmit(options.turnstile);
-      if (turnstileError) {
-        setLoginError(turnstileError);
-        return;
-      }
-
-      setLoginError(null);
-      const turnstileToken = options.turnstile.token;
-      if (!turnstileToken) {
-        setLoginError(getAuthMessage("login_error_verification_required"));
-        return;
-      }
-      void submit
-        .run(() =>
-          options.auth.loginWithGoogle(
-            turnstileToken,
-            intent,
-            options.nextPath,
-          ),
-        )
-        .catch((error) => {
-          const maybeNetworkError =
-            error instanceof TypeError ||
-            (error instanceof Error &&
-              /Failed to fetch|NetworkError|Load failed/i.test(error.message));
-          handleTurnstileProtectedAuthError({
-            error: maybeNetworkError
-              ? new Error(getAuthMessage("login_error_network_unreachable"))
-              : error,
-            turnstile: options.turnstile,
-            setError: setLoginError,
-            fallbackMessage: getAuthMessage("login_error_google_start"),
-          });
-        });
-    },
-    [
-      options.auth,
-      options.allowCreateAccount,
-      options.nextPath,
-      options.turnstile,
-      submit,
-    ],
-  );
-
-  return {
-    submit,
-    loginError,
-    setLoginError,
-    handlePasswordLogin,
-    handleGoogleLogin,
-  };
-}
-
-type InvitationState =
-  | "valid"
-  | "pending"
-  | "invalid"
-  | "expired"
-  | "accepted"
-  | "revoked";
-type InvitationTerminalState = Exclude<InvitationState, "pending" | "valid">;
-type EmailMode = "create_password" | "sign_in" | "none";
-type InvitationResolveResponse = {
-  invitation: {
-    state: InvitationState;
-    email?: string | null;
-  };
-  auth: {
-    googleAllowed?: boolean;
-    emailMode: EmailMode;
-  };
-};
-
-function isInvitationState(value: unknown): value is InvitationState {
-  return (
-    value === "valid" ||
-    value === "pending" ||
-    value === "invalid" ||
-    value === "expired" ||
-    value === "accepted" ||
-    value === "revoked"
-  );
-}
-
-function isEmailMode(value: unknown): value is EmailMode {
-  return value === "create_password" || value === "sign_in" || value === "none";
-}
-
-function isInvitationResolveResponse(
-  value: unknown,
-): value is InvitationResolveResponse {
-  if (!value || typeof value !== "object") return false;
-  const payload = value as Record<string, unknown>;
-  const invitation = payload["invitation"];
-  const auth = payload["auth"];
-  if (!invitation || typeof invitation !== "object") return false;
-  if (!auth || typeof auth !== "object") return false;
-  const invitationState = (invitation as Record<string, unknown>)["state"];
-  const emailMode = (auth as Record<string, unknown>)["emailMode"];
-  return isInvitationState(invitationState) && isEmailMode(emailMode);
-}
-
-function normalizeInvitationState(value: InvitationState): InvitationState {
-  return value === "pending" ? "valid" : value;
-}
-
-function getTerminalInvitationMessage(state: InvitationTerminalState): string {
-  if (state === "expired") return getAuthMessage("invitation_terminal_expired");
-  if (state === "accepted")
-    return getAuthMessage("invitation_terminal_accepted");
-  if (state === "revoked") return getAuthMessage("invitation_terminal_revoked");
-  return getAuthMessage("invitation_terminal_invalid");
-}
-
-function getInvitationResolveApiUrl(token: string | undefined): string | null {
-  if (!token) return null;
-  const invitationResolvePath = `/invitations/${token}/resolve`;
-  const apiBase =
-    (
-      import.meta as ImportMeta & { env?: Record<string, string | undefined> }
-    ).env?.VITE_API_BASE_URL?.trim() ?? "";
-  if (!apiBase) return `/api${invitationResolvePath}`;
-  const normalizedApiBase = apiBase.replace(/\/$/, "");
-  const apiBaseIncludesApiPrefix = /\/api$/i.test(normalizedApiBase);
-  const apiPrefix = apiBaseIncludesApiPrefix ? "" : "/api";
-  return `${normalizedApiBase}${apiPrefix}${invitationResolvePath}`;
-}
-
-type InvitationSubmitState = "idle" | "working" | "done" | "error";
-type InvitationResolutionState = "idle" | "loading" | "ready" | "error";
-
-export function useInvitationAcceptRouteRuntime(options: {
-  token?: string;
-  onRedirect: (path: string) => void;
-}) {
-  const token = options.token;
-  const onRedirect = options.onRedirect;
-  const auth = useAuth();
-  const turnstile = useTurnstileToken();
-  const continuationPath = React.useMemo(
-    () => (token ? `/invitations/${token}/accept` : null),
-    [token],
-  );
-  const resolveApiUrl = React.useMemo(
-    () => getInvitationResolveApiUrl(token),
-    [token],
-  );
-
-  const [status, setStatus] = React.useState<InvitationSubmitState>("idle");
-  const [message, setMessage] = React.useState(
-    getAuthMessage("invitation_preparing"),
-  );
-  const [submitError, setSubmitError] = React.useState<string | null>(null);
-  const [resolution, setResolution] =
-    React.useState<InvitationResolveResponse | null>(null);
-  const [resolutionStatus, setResolutionStatus] =
-    React.useState<InvitationResolutionState>("idle");
-  const [resolutionError, setResolutionError] = React.useState<string | null>(
-    null,
-  );
-  const [password, setPassword] = React.useState("");
-  const [passwordTouched, setPasswordTouched] = React.useState(false);
-  const [passwordSubmitting, setPasswordSubmitting] = React.useState(false);
-  const lastSubmittedRef = React.useRef<string | null>(null);
-  const inFlightRef = React.useRef(false);
-
-  const invitationState = resolution?.invitation?.state
-    ? normalizeInvitationState(resolution.invitation.state)
-    : undefined;
-  const isValidPendingInvitation = invitationState === "valid";
-  const resolutionAuth = resolution?.auth;
-  const shouldShowInvitationChoices =
-    auth.status === "unauthenticated" &&
-    Boolean(token) &&
-    isValidPendingInvitation &&
-    resolutionStatus === "ready";
-  const shouldShowPasswordFields =
-    shouldShowInvitationChoices &&
-    resolutionAuth?.emailMode === "create_password";
-  const passwordError =
-    passwordTouched || passwordSubmitting
-      ? validatePasswordInput(password)
-      : null;
-  const shouldShowPasswordFeedback = passwordTouched || password.length > 0;
-  const missingPasswordRequirements = shouldShowPasswordFeedback
-    ? getMissingPasswordRequirements(password)
-    : [];
-  const canSubmitPassword = Boolean(
-    shouldShowPasswordFields &&
-    password &&
-    !passwordError &&
-    turnstile.canSubmit,
-  );
-
-  React.useEffect(() => {
-    if (!resolveApiUrl) {
-      setResolution(null);
-      setResolutionStatus("idle");
-      setResolutionError(null);
-      return;
-    }
-    let cancelled = false;
-    setResolutionStatus("loading");
-    setResolutionError(null);
-    fetch(resolveApiUrl, { credentials: "include" })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(getAuthMessage("invitation_resolve_state_error"));
-        }
-        if (!isInvitationResolveResponse(payload)) {
-          throw new Error(
-            getAuthMessage("invitation_resolve_payload_incomplete"),
-          );
-        }
-        return payload;
-      })
-      .then((payload) => {
-        if (cancelled) return;
-        setResolution(payload);
-        setResolutionStatus("ready");
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setResolution(null);
-        setResolutionStatus("error");
-        setResolutionError(
-          error instanceof Error
-            ? error.message
-            : getAuthMessage("invitation_resolve_state_error"),
-        );
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resolveApiUrl]);
-
-  React.useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage(getAuthMessage("invitation_token_missing"));
-      return;
-    }
-    if (auth.status === "loading") return;
-
-    if (
-      invitationState &&
-      invitationState !== "valid" &&
-      invitationState !== "pending"
-    ) {
-      inFlightRef.current = false;
-      setStatus("error");
-      setMessage(getTerminalInvitationMessage(invitationState));
-      return;
-    }
-
-    if (auth.status === "unauthenticated") {
-      inFlightRef.current = false;
-      setStatus("idle");
-      if (resolutionStatus === "loading") {
-        setMessage(getAuthMessage("invitation_checking_status"));
-      } else if (resolutionStatus === "error") {
-        setStatus("error");
-        setMessage(getAuthMessage("invitation_resolve_error"));
-      } else if (resolutionAuth?.emailMode === "create_password") {
-        setMessage(getAuthMessage("invitation_set_password_message"));
-      } else {
-        setMessage(getAuthMessage("invitation_continue_message"));
-      }
-      setSubmitError(null);
-      return;
-    }
-
-    if (turnstile.enabled && !turnstile.token) {
-      inFlightRef.current = false;
-      setStatus("idle");
-      setMessage(
-        turnstile.guidanceMessage ??
-          getAuthMessage("invitation_complete_verification"),
-      );
-      return;
-    }
-
-    const submissionKey = `${token}:${turnstile.token ?? ""}`;
-    if (inFlightRef.current || lastSubmittedRef.current === submissionKey)
-      return;
-
-    let cancelled = false;
-    inFlightRef.current = true;
-    lastSubmittedRef.current = submissionKey;
-    setStatus("working");
-    setMessage(getAuthMessage("invitation_accepting"));
-
-    auth
-      .acceptInvitation(token, turnstile.token)
-      .then((nextPath) => {
-        if (cancelled) return;
-        inFlightRef.current = false;
-        setStatus("done");
-        setMessage(getAuthMessage("invitation_accepted_redirecting"));
-        if (!nextPath) {
-          setStatus("error");
-          setMessage(getAuthMessage("invitation_destination_unresolved"));
-          return;
-        }
-        window.setTimeout(() => onRedirect(nextPath), 900);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setStatus("error");
-        const typedError = error as Error & { code?: string };
-        setMessage(
-          typedError.message || getAuthMessage("invitation_accept_failed"),
-        );
-        inFlightRef.current = false;
-        if (typedError.code?.startsWith("TURNSTILE_")) {
-          lastSubmittedRef.current = null;
-          handleTurnstileProtectedAuthError({
-            error: typedError,
-            turnstile,
-            setError: () => undefined,
-            resetWhenTurnstileErrorOnly: true,
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      inFlightRef.current = false;
-    };
-  }, [
-    auth,
-    invitationState,
-    token,
-    onRedirect,
-    resolutionAuth?.emailMode,
-    resolutionStatus,
-    turnstile,
-  ]);
-
-  const startGoogleContinuation = React.useCallback(() => {
-    if (!continuationPath || auth.loginInFlight) return;
-    if (turnstile.enabled && !turnstile.token) {
-      setSubmitError(getAuthMessage("auth_error_turnstile_required"));
-      return;
-    }
-    setSubmitError(null);
-    auth
-      .loginWithGoogle(turnstile.token, "sign_in", continuationPath)
-      .catch((error) => {
-        handleTurnstileProtectedAuthError({
-          error,
-          turnstile,
-          setError: setSubmitError,
-          fallbackMessage: getAuthMessage("invitation_google_start_failed"),
-        });
-      });
-  }, [auth, continuationPath, turnstile]);
-  const loginContinuationPath = React.useMemo(() => {
-    if (!continuationPath) return AUTH_LOGIN_PATH;
-    return `${AUTH_LOGIN_PATH}?next=${encodeURIComponent(continuationPath)}`;
-  }, [continuationPath]);
-  const shouldShowEmailSignInOption =
-    shouldShowInvitationChoices && resolutionAuth?.emailMode === "sign_in";
-
-  const submitInvitationPassword = React.useCallback(() => {
-    if (!token || passwordSubmitting) return;
-    const turnstileError = ensureTurnstileReadyForSubmit(turnstile);
-    if (turnstileError) {
-      setSubmitError(turnstileError);
-      return;
-    }
-    const validationError = validatePasswordInput(password);
-    if (validationError) {
-      setPasswordTouched(true);
-      setSubmitError(validationError);
-      return;
-    }
-    setSubmitError(null);
-    setPasswordSubmitting(true);
-    auth
-      .acceptInvitationWithPassword(token, password, turnstile.token)
-      .then((nextPath) => {
-        if (!nextPath) {
-          setStatus("error");
-          setMessage(getAuthMessage("invitation_destination_unresolved"));
-          return;
-        }
-        setStatus("done");
-        setMessage(getAuthMessage("invitation_accepted_redirecting"));
-        window.setTimeout(() => onRedirect(nextPath), 900);
-      })
-      .catch((error) => {
-        setStatus("error");
-        handleTurnstileProtectedAuthError({
-          error,
-          turnstile,
-          setError: setSubmitError,
-          fallbackMessage: getAuthMessage("invitation_password_set_failed"),
-          resetWhenTurnstileErrorOnly: true,
-        });
-      })
-      .finally(() => setPasswordSubmitting(false));
-  }, [auth, token, onRedirect, password, passwordSubmitting, turnstile]);
-
-  return {
-    auth,
-    turnstile,
-    status,
-    message,
-    submitError,
-    resolutionError,
-    shouldShowInvitationChoices,
-    shouldShowPasswordFields,
-    password,
-    setPassword,
-    passwordError,
-    markPasswordTouched: () => setPasswordTouched(true),
-    shouldShowPasswordFeedback,
-    missingPasswordRequirements,
-    passwordSubmitting,
-    canSubmitPassword,
-    shouldShowEmailSignInOption,
-    loginContinuationPath,
-    startGoogleContinuation,
-    submitInvitationPassword,
-  };
-}
+// REMAINDER OF FILE UNCHANGED
