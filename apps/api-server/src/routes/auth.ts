@@ -2584,16 +2584,11 @@ async function resolveNextPathForEstablishedSession(
       Boolean(effectiveContinuation?.orgId) ||
       Boolean(effectiveContinuation?.resourceId);
 
-    const invitationContinuationCanBypass =
-      effectiveContinuation?.type === "invitation_acceptance" &&
-      continuationHasTrustedTarget &&
-      (
-        flow?.requiredOnboarding !== "organization" ||
-        Boolean(effectiveContinuation?.orgId)
-      );
-
     const continuationAllowsBypass =
-      invitationContinuationCanBypass ||
+      (
+        effectiveContinuation?.type === "invitation_acceptance" &&
+        continuationHasTrustedTarget
+      ) ||
       effectiveContinuation?.type === "event_registration" ||
       effectiveContinuation?.type === "client_registration";
 
