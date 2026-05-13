@@ -97,7 +97,12 @@ import {
   verifyMfaChallenge,
 } from "../lib/mfa.js";
 import { getMfaIssuerForSessionGroup } from "../lib/sessionGroupDisplay.js";
-import { getGlobalSettingSnapshot, getMfaIssuerForAppSlug, GLOBAL_SETTING_KEYS, refreshRuntimeCache } from "../lib/runtimeSettings.js";
+import {
+  getGlobalSettingSnapshot,
+  getMfaIssuerForAppSlug,
+  GLOBAL_SETTING_KEYS,
+  refreshRuntimeCache,
+} from "../lib/runtimeSettings.js";
 import {
   sendLane1AuthVerificationEmail,
   sendLane1PasswordResetEmail,
@@ -113,7 +118,10 @@ import {
 const router = Router();
 const SUPERADMIN_TRACE_PREFIX = "[SUPERADMIN-AUTH-TRACE]";
 
-function deriveFrontendOriginForApp(app: { baseUrl?: string | null; domain?: string | null } | null): string | null {
+function deriveFrontendOriginForApp(app: {
+  baseUrl?: string | null;
+  domain?: string | null;
+} | null): string | null {
   if (!app) return null;
 
   const baseUrl = typeof app.baseUrl === "string" ? app.baseUrl.trim() : "";
@@ -125,14 +133,18 @@ function deriveFrontendOriginForApp(app: { baseUrl?: string | null; domain?: str
     }
   }
 
-  const domain = typeof app.domain === "string" ? app.domain.trim().toLowerCase() : "";
+  const domain =
+    typeof app.domain === "string" ? app.domain.trim().toLowerCase() : "";
   if (!domain) return null;
 
   try {
     if (domain.startsWith("http://") || domain.startsWith("https://")) {
       return new URL(domain).origin;
     }
-    const protocol = domain.includes("localhost") || domain.startsWith("127.0.0.1") ? "http" : "https";
+    const protocol =
+      domain.includes("localhost") || domain.startsWith("127.0.0.1")
+        ? "http"
+        : "https";
     return `${protocol}://${domain}`;
   } catch {
     return null;
@@ -223,7 +235,9 @@ function getRequestFrontendOrigin(req: Request): string | null {
   if (hostHeader) {
     const proto =
       forwardedProto ||
-      (req.protocol === "http" || req.protocol === "https" ? req.protocol : "https");
+      (req.protocol === "http" || req.protocol === "https"
+        ? req.protocol
+        : "https");
     const candidate = `${proto}://${hostHeader}`;
     hostOriginCandidate = candidate;
     pushOriginCandidate(candidate);
@@ -248,7 +262,6 @@ function getRequestFrontendOrigin(req: Request): string | null {
   }
   return null;
 }
-
 
 function hasExplicitForwardedHost(req: Request): boolean {
   const forwardedHostRaw =
@@ -288,11 +301,15 @@ function deriveAuthContextRequestOrigin(req: Request): string | null {
 
   const proto =
     forwardedProto ||
-    (req.protocol === "http" || req.protocol === "https" ? req.protocol : "https");
+    (req.protocol === "http" || req.protocol === "https"
+      ? req.protocol
+      : "https");
   return `${proto}://${host}`;
 }
 
-function isCanonicalLookupOutageMessage(message: string | null | undefined): boolean {
+function isCanonicalLookupOutageMessage(
+  message: string | null | undefined,
+): boolean {
   if (!message) return false;
   const normalized = message.toLowerCase();
   return (
@@ -316,7 +333,11 @@ function normalizeOptionalAppSlug(value: unknown): string | null {
 function isAuthTestRuntime(): boolean {
   if (process.env["NODE_ENV"] === "test") return true;
   if (process.env["NODE_ENV"] === "production") return false;
-  if (process.execArgv.some((arg) => arg === "--test" || arg.startsWith("--test="))) {
+  if (
+    process.execArgv.some(
+      (arg) => arg === "--test" || arg.startsWith("--test="),
+    )
+  ) {
     return true;
   }
   return process.argv.some(
@@ -331,7 +352,9 @@ function isAuthTestRuntime(): boolean {
 
 function resolveExplicitRequestOrigin(req: Request): string | null {
   const originHeader =
-    typeof req.headers["origin"] === "string" ? req.headers["origin"].trim() : "";
+    typeof req.headers["origin"] === "string"
+      ? req.headers["origin"].trim()
+      : "";
   return originHeader || null;
 }
 
@@ -560,59 +583,46 @@ function getControlledAuthErrorRedirect(
 function getFrontendBaseForDeny(
   req: Request,
   oauthSessionGroup: string,
-): string | null
-{
+): string | null {
   const allowedOrigins = getAllowedOrigins();
 
   const oauthReturnTo = req.session?.oauthReturnTo;
-  if (typeof oauthReturnTo === "string")
-  {
-    try
-    {
+  if (typeof oauthReturnTo === "string") {
+    try {
       const normalized = new URL(oauthReturnTo).origin;
-      if (allowedOrigins.includes(normalized))
-      {
+      if (allowedOrigins.includes(normalized)) {
         return normalized;
       }
-    }
-    catch
-    {
+    } catch {
       // noop
     }
   }
 
-  const stateReturnTo = parseOAuthStateReturnTo(firstQueryParam(req.query["state"]));
-  if (stateReturnTo)
-  {
+  const stateReturnTo = parseOAuthStateReturnTo(
+    firstQueryParam(req.query["state"]),
+  );
+  if (stateReturnTo) {
     return stateReturnTo;
   }
 
   const statePayload = parseOAuthState(firstQueryParam(req.query["state"]));
-  if (statePayload)
-  {
-    try
-    {
+  if (statePayload) {
+    try {
       const normalized = new URL(statePayload.returnTo).origin;
-      if (allowedOrigins.includes(normalized))
-      {
+      if (allowedOrigins.includes(normalized)) {
         return normalized;
       }
-    }
-    catch
-    {
+    } catch {
       // noop
     }
   }
 
-  if (oauthSessionGroup === SESSION_GROUPS.ADMIN)
-  {
+  if (oauthSessionGroup === SESSION_GROUPS.ADMIN) {
     return getAdminSessionGroupOrigins()[0] ?? null;
   }
 
   return null;
 }
-
-
 
 function getTurnstileToken(req: Request): string {
   const headerValue = req.headers["cf-turnstile-response"];
@@ -690,7 +700,12 @@ function getGoogleConfigValidation() {
   const clientId = process.env["GOOGLE_CLIENT_ID"]?.trim() ?? "";
   const clientSecret = process.env["GOOGLE_CLIENT_SECRET"]?.trim() ?? "";
   void refreshRuntimeCache();
-  const redirectUriRaw = String(getGlobalSettingSnapshot<string>(GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI, process.env["GOOGLE_REDIRECT_URI"] ?? "")).trim();
+  const redirectUriRaw = String(
+    getGlobalSettingSnapshot<string>(
+      GLOBAL_SETTING_KEYS.GOOGLE_REDIRECT_URI,
+      process.env["GOOGLE_REDIRECT_URI"] ?? "",
+    ),
+  ).trim();
   let redirectUriValid = false;
   if (redirectUriRaw) {
     try {
@@ -755,7 +770,8 @@ async function handleMe(req: Request, res: Response) {
     pendingMfaUserId || req.session.pendingMfaReason,
   );
   const sessionUserId =
-    typeof req.session.userId === "string" && req.session.userId.trim().length > 0
+    typeof req.session.userId === "string" &&
+    req.session.userId.trim().length > 0
       ? req.session.userId.trim()
       : authenticatedUser.id;
   const mfaLookupUserIds: string[] = [];
@@ -771,11 +787,15 @@ async function handleMe(req: Request, res: Response) {
   let mfaEnrolled = false;
   let mfaStateReadFailed = false;
   let mfaStateUserId = mfaLookupUserIds[0] ?? authenticatedUser.id;
-  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> = [];
+  const mfaLookupResults: Array<{ userId: string; hasActiveFactor: boolean }> =
+    [];
   for (const candidateUserId of mfaLookupUserIds) {
     try {
       const candidateEnrolled = await hasActiveMfaFactor(candidateUserId);
-      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: candidateEnrolled });
+      mfaLookupResults.push({
+        userId: candidateUserId,
+        hasActiveFactor: candidateEnrolled,
+      });
       if (candidateEnrolled) {
         mfaEnrolled = true;
         mfaStateUserId = candidateUserId;
@@ -784,7 +804,10 @@ async function handleMe(req: Request, res: Response) {
       mfaStateUserId = candidateUserId;
     } catch {
       mfaStateReadFailed = true;
-      mfaLookupResults.push({ userId: candidateUserId, hasActiveFactor: false });
+      mfaLookupResults.push({
+        userId: candidateUserId,
+        hasActiveFactor: false,
+      });
       mfaStateUserId = candidateUserId;
       break;
     }
@@ -1119,15 +1142,14 @@ async function handleLogout(req: Request, res: Response) {
 
 async function handleGoogleUrl(req: Request, res: Response) {
   logGoogleUrlBranch(req, "request_received");
-  const queryAppSlug =
-    req.query?.appSlug ??
-    req.query?.app_slug ??
-    undefined;
+  const queryAppSlug = req.query?.appSlug ?? req.query?.app_slug ?? undefined;
   const requestedAppSlug =
     normalizeOptionalAppSlug(queryAppSlug) ?? getRequestedAppSlugFromRequest(req);
   const explicitOrigin = resolveExplicitRequestOrigin(req);
   const explicitOriginDisallowed =
-    !requestedAppSlug && explicitOrigin && !isOriginAllowedForAuth(explicitOrigin);
+    !requestedAppSlug &&
+    explicitOrigin &&
+    !isOriginAllowedForAuth(explicitOrigin);
   const trustedRequestOrigin =
     explicitOrigin ??
     getRequestFrontendOrigin(req) ??
@@ -1144,7 +1166,8 @@ async function handleGoogleUrl(req: Request, res: Response) {
     sessionGroup: fallbackSessionGroup,
   });
   const isTestEnv = isAuthTestRuntime();
-  const trustedOriginSessionGroup = resolveSessionGroupFromOrigin(trustedRequestOrigin);
+  const trustedOriginSessionGroup =
+    resolveSessionGroupFromOrigin(trustedRequestOrigin);
   const fallbackRequestedSlug = normalizeOptionalAppSlug(requestedAppSlug);
   let fallbackAcceptedContext:
     | {
@@ -1253,7 +1276,11 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnToPath?.startsWith("/register/") === true ||
     returnToPath?.startsWith("/registration/") === true;
 
-  if (isTurnstileEnabled() && !req.turnstileVerified && !returnToPathAllowsOAuthStart) {
+  if (
+    isTurnstileEnabled() &&
+    !req.turnstileVerified &&
+    !returnToPathAllowsOAuthStart
+  ) {
     const turnstileToken = getTurnstileToken(req);
     if (!turnstileToken) {
       logGoogleUrlBranch(req, "turnstile_missing_token", {
@@ -1270,7 +1297,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
       );
       return;
     }
-    const turnstileResult = await verifyTurnstileTokenDetailed(turnstileToken, req.ip);
+    const turnstileResult = await verifyTurnstileTokenDetailed(
+      turnstileToken,
+      req.ip,
+    );
     if (!turnstileResult.ok) {
       logGoogleUrlBranch(req, "turnstile_verification_failed", {
         reason: turnstileResult.reason,
@@ -1279,22 +1309,52 @@ async function handleGoogleUrl(req: Request, res: Response) {
       logAuthFailure(req, "google-url-turnstile-invalid");
       await logTurnstileVerificationResult(req, turnstileResult);
       if (turnstileResult.reason === "missing-secret") {
-        sendGoogleUrlError(req, res, 503, "TURNSTILE_MISCONFIGURED", "Security verification is currently unavailable. Please try again later.", "turnstile_misconfigured");
+        sendGoogleUrlError(
+          req,
+          res,
+          503,
+          "TURNSTILE_MISCONFIGURED",
+          "Security verification is currently unavailable. Please try again later.",
+          "turnstile_misconfigured",
+        );
         return;
       }
       if (turnstileResult.reason === "verification-error") {
-        sendGoogleUrlError(req, res, 503, "TURNSTILE_UNAVAILABLE", "Security verification is currently unavailable. Please try again later.", "turnstile_unavailable");
+        sendGoogleUrlError(
+          req,
+          res,
+          503,
+          "TURNSTILE_UNAVAILABLE",
+          "Security verification is currently unavailable. Please try again later.",
+          "turnstile_unavailable",
+        );
         return;
       }
       if (turnstileResult.reason === "token-expired") {
-        sendGoogleUrlError(req, res, 403, "TURNSTILE_TOKEN_EXPIRED", "Verification expired. Please complete the challenge again.", "turnstile_token_expired");
+        sendGoogleUrlError(
+          req,
+          res,
+          403,
+          "TURNSTILE_TOKEN_EXPIRED",
+          "Verification expired. Please complete the challenge again.",
+          "turnstile_token_expired",
+        );
         return;
       }
-      sendGoogleUrlError(req, res, 403, "TURNSTILE_INVALID_TOKEN", "Security verification failed. Please try again.", "turnstile_invalid_token");
+      sendGoogleUrlError(
+        req,
+        res,
+        403,
+        "TURNSTILE_INVALID_TOKEN",
+        "Security verification failed. Please try again.",
+        "turnstile_invalid_token",
+      );
       return;
     }
     req.turnstileVerified = true;
-    logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
+    logGoogleUrlBranch(req, "turnstile_verification_passed", {
+      turnstileVerificationPassed: true,
+    });
   }
 
   const oauthIntent: OAuthIntent =
@@ -1387,12 +1447,10 @@ async function handleGoogleUrl(req: Request, res: Response) {
         code: "OAUTH_SESSION_INIT_FAILED",
       });
       logAuthFailure(req, "google-url-session-init-failed");
-      res
-        .status(500)
-        .json({
-          error: "Failed to initialize OAuth session.",
-          code: "OAUTH_SESSION_INIT_FAILED",
-        });
+      res.status(500).json({
+        error: "Failed to initialize OAuth session.",
+        code: "OAUTH_SESSION_INIT_FAILED",
+      });
       return;
     }
     logGoogleUrlBranch(req, "success", {
@@ -1647,9 +1705,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         appSlug: activeAppSlug,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "app_not_found"),
-      );
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "app_not_found"));
       return;
     }
 
@@ -1844,8 +1900,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       if (isSuperadminAccessMode) {
         logSuperadminTrace("H. ACCESS PROFILE DECISION", {
           appSlug: activeAppSlug,
-          accessMode:
-            app?.accessMode ?? null,
+          accessMode: app?.accessMode ?? null,
           normalizedAccessProfile,
           allow: false,
           denyReason: "user_not_found_in_superadmin_mode",
@@ -1900,8 +1955,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (user.active === false || user.suspended === true || user.deletedAt) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? null,
+        accessMode: app?.accessMode ?? null,
         normalizedAccessProfile,
         allow: false,
         denyReason: "inactive_or_suspended_user",
@@ -1913,8 +1967,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (isSuperadminAccessMode && user.isSuperAdmin !== true) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? null,
+        accessMode: app?.accessMode ?? null,
         normalizedAccessProfile,
         allow: false,
         denyReason: "not_superadmin",
@@ -2063,17 +2116,12 @@ async function handleGoogleCallback(req: Request, res: Response) {
         denyReason: "missing_app_context",
       });
       logSuperadminTrace("J. CALLBACK EXIT", {
-        redirectTo: getControlledAuthErrorRedirect(
-          frontendBase,
-          "access_denied",
-        ),
+        redirectTo: getControlledAuthErrorRedirect(frontendBase, "access_denied"),
         outcome: "deny",
         lastCompletedStep,
       });
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
-      res.redirect(
-        getControlledAuthErrorRedirect(frontendBase, "access_denied"),
-      );
+      res.redirect(getControlledAuthErrorRedirect(frontendBase, "access_denied"));
       return;
     }
 
@@ -2082,8 +2130,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     if (!effectiveContext.canAccess && !onboardingRequired) {
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
-        accessMode:
-          app?.accessMode ?? null,
+        accessMode: app?.accessMode ?? null,
         normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
         allow: false,
         denyReason: "app_context_denied",
@@ -2099,8 +2146,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
     }
     logSuperadminTrace("H. ACCESS PROFILE DECISION", {
       appSlug: activeAppSlug,
-      accessMode:
-        app?.accessMode ?? null,
+      accessMode: app?.accessMode ?? null,
       normalizedAccessProfile: effectiveContext.normalizedAccessProfile,
       allow: true,
       denyReason: null,
@@ -2166,12 +2212,12 @@ async function resolveRequestedEmailPasswordAppContext(
     typeof explicitAppSlug === "string" && explicitAppSlug.trim().length > 0
       ? explicitAppSlug.trim().toLowerCase()
       : null;
-  const requestedAppSlug = normalizedExplicitAppSlug ?? getRequestedAppSlugFromRequest(req);
+  const requestedAppSlug =
+    normalizedExplicitAppSlug ?? getRequestedAppSlugFromRequest(req);
 
-  const origin =
-    requestedAppSlug
-      ? null
-      : getRequestFrontendOrigin(req) ?? deriveAuthContextRequestOrigin(req) ?? null;
+  const origin = requestedAppSlug
+    ? null
+    : getRequestFrontendOrigin(req) ?? deriveAuthContextRequestOrigin(req) ?? null;
 
   if (!requestedAppSlug && origin && !isOriginAllowedForAuth(origin)) {
     return {
@@ -2227,7 +2273,8 @@ function sendAppContextResolutionError(
   reason: string = AUTH_ERROR_CODES.APP_NOT_FOUND,
 ) {
   res.status(400).json({
-    error: "Application context could not be resolved. Please reload and try again.",
+    error:
+      "Application context could not be resolved. Please reload and try again.",
     code: reason,
   });
 }
@@ -2238,6 +2285,27 @@ function sendPostAuthDestinationUnresolved(res: Response) {
       "Authenticated state could not be resolved to a destination. Please sign in again.",
     code: "POST_AUTH_DESTINATION_UNRESOLVED",
   });
+}
+
+function sendSuperadminPasswordAuthDenied(res: Response) {
+  res.status(403).json({
+    error: "This authentication method is not available for this application.",
+    code: AUTH_ERROR_CODES.ACCESS_DENIED,
+  });
+}
+
+async function isSuperadminPasswordAuthRequest(
+  req: Request,
+  explicitAppSlug?: string | null,
+): Promise<boolean> {
+  const appContext = await resolveRequestedEmailPasswordAppContext(
+    req,
+    explicitAppSlug,
+  );
+
+  if (!appContext.success) return false;
+
+  return resolveNormalizedAccessProfile(appContext.app) === "superadmin";
 }
 
 type SignupDecisionCategory =
@@ -2408,7 +2476,10 @@ async function establishPasswordSession(
   });
 }
 
-type MfaFactorRoutingHint = "has_active_factor" | "no_active_factor" | "lookup_failed";
+type MfaFactorRoutingHint =
+  | "has_active_factor"
+  | "no_active_factor"
+  | "lookup_failed";
 
 type MfaStartResult =
   | { required: false }
@@ -2584,24 +2655,19 @@ async function resolveNextPathForEstablishedSession(
         ? (req.session.postAuthContinuation ?? null)
         : continuation;
 
-    const continuationPath =
-      effectiveContinuation?.returnPath ?? "";
+    const continuationPath = effectiveContinuation?.returnPath ?? "";
 
-    const invitationContinuationHasTrustedOrg =
-      Boolean(effectiveContinuation?.orgId);
+    const invitationContinuationHasTrustedOrg = Boolean(
+      effectiveContinuation?.orgId,
+    );
 
     const continuationAllowsBypass =
-      (
-        effectiveContinuation?.type === "invitation_acceptance" &&
-        invitationContinuationHasTrustedOrg
-      ) ||
+      (effectiveContinuation?.type === "invitation_acceptance" &&
+        invitationContinuationHasTrustedOrg) ||
       effectiveContinuation?.type === "event_registration" ||
       effectiveContinuation?.type === "client_registration";
 
-    if (
-      stage === "post_auth" &&
-      !user.name?.trim()
-    ) {
+    if (stage === "post_auth" && !user.name?.trim()) {
       req.session.postAuthContinuation = effectiveContinuation ?? undefined;
       logAuthDebug(req, "post_auth_redirect_decision", {
         userId,
@@ -2615,11 +2681,7 @@ async function resolveNextPathForEstablishedSession(
       return "/onboarding/user";
     }
 
-    if (
-      stage === "post_auth" &&
-      continuationAllowsBypass &&
-      continuationPath
-    ) {
+    if (stage === "post_auth" && continuationAllowsBypass && continuationPath) {
       delete req.session.postAuthContinuation;
 
       logAuthDebug(req, "post_auth_redirect_decision", {
@@ -2732,7 +2794,9 @@ async function handlePasswordSignup(req: Request, res: Response) {
   }
 
   const requestedSignupAppSlug =
-    firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
+    firstQueryParam(req.query?.appSlug) ??
+    firstQueryParam(req.body?.appSlug) ??
+    null;
   const signupAppContext = await resolveRequestedEmailPasswordAppContext(
     req,
     requestedSignupAppSlug,
@@ -2755,7 +2819,8 @@ async function handlePasswordSignup(req: Request, res: Response) {
     const signupRequestOrigin =
       getRequestFrontendOrigin(req) ?? deriveAuthContextRequestOrigin(req);
     const signupUsesAdminOrigin =
-      resolveSessionGroupFromOrigin(signupRequestOrigin) === SESSION_GROUPS.ADMIN ||
+      resolveSessionGroupFromOrigin(signupRequestOrigin) ===
+        SESSION_GROUPS.ADMIN ||
       req.resolvedSessionGroup === SESSION_GROUPS.ADMIN ||
       req.session?.sessionGroup === SESSION_GROUPS.ADMIN;
 
@@ -2779,12 +2844,10 @@ async function handlePasswordSignup(req: Request, res: Response) {
             signupApp?.customerRegistrationEnabled ?? null,
         },
       });
-      res
-        .status(403)
-        .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
-        });
+      res.status(403).json({
+        error:
+          "We couldn't create this account. Please use a different email and try again.",
+      });
       return;
     }
 
@@ -2805,12 +2868,10 @@ async function handlePasswordSignup(req: Request, res: Response) {
           ipqsProviderFailed: ipqsAssessment.providerFailed,
         },
       });
-      res
-        .status(400)
-        .json({
-          error:
-            "We couldn't create this account. Please use a different email and try again.",
-        });
+      res.status(400).json({
+        error:
+          "We couldn't create this account. Please use a different email and try again.",
+      });
       return;
     }
 
@@ -2861,13 +2922,11 @@ async function handlePasswordSignup(req: Request, res: Response) {
           userId: user.id,
         },
       });
-      res
-        .status(201)
-        .json({
-          success: true,
-          appSlug: signupApp.slug,
-          message: "If your signup is valid, check your email for next steps.",
-        });
+      res.status(201).json({
+        success: true,
+        appSlug: signupApp.slug,
+        message: "If your signup is valid, check your email for next steps.",
+      });
       return;
     }
 
@@ -2930,9 +2989,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
             ? "undeliverable_email"
             : "ipqs_advisory_step_up";
       await logSignupDecision(req, {
-        category: ipqsAssessment.providerFailed
-          ? "provider_failure"
-          : "step_up",
+        category: ipqsAssessment.providerFailed ? "provider_failure" : "step_up",
         reasonCode: stepUpReasonCode,
         email,
         appSlug: signupAppSlug,
@@ -2962,15 +3019,13 @@ async function handlePasswordSignup(req: Request, res: Response) {
       });
     }
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        appSlug: signupApp.slug,
-        message: "If your signup is valid, check your email for next steps.",
-        verifyToken:
-          process.env["NODE_ENV"] === "test" ? verificationToken : undefined,
-      });
+    res.status(201).json({
+      success: true,
+      appSlug: signupApp.slug,
+      message: "If your signup is valid, check your email for next steps.",
+      verifyToken:
+        process.env["NODE_ENV"] === "test" ? verificationToken : undefined,
+    });
   } catch (error) {
     await logSignupDecision(req, {
       category: "internal_error",
@@ -3032,12 +3087,12 @@ async function handlePasswordLogin(req: Request, res: Response) {
     return;
   }
 
-  const bodyAppSlug =
-    req.body?.appSlug ??
-    req.body?.app_slug ??
-    undefined;
+  const bodyAppSlug = req.body?.appSlug ?? req.body?.app_slug ?? undefined;
   const loginAppSlug = normalizeOptionalAppSlug(bodyAppSlug);
-  const appContext = await resolveRequestedEmailPasswordAppContext(req, loginAppSlug);
+  const appContext = await resolveRequestedEmailPasswordAppContext(
+    req,
+    loginAppSlug,
+  );
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
@@ -3045,6 +3100,12 @@ async function handlePasswordLogin(req: Request, res: Response) {
     );
     return;
   }
+
+  if (resolveNormalizedAccessProfile(appContext.app) === "superadmin") {
+    sendSuperadminPasswordAuthDenied(res);
+    return;
+  }
+
   const appSlug = appContext.resolvedAppSlug;
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   const continuation = resolvePostAuthContinuation({
@@ -3127,8 +3188,13 @@ async function handlePasswordLogin(req: Request, res: Response) {
 
 async function handleForgotPassword(req: Request, res: Response) {
   const forgotPasswordAppSlug =
-    firstQueryParam(req.query?.appSlug) ?? firstQueryParam(req.body?.appSlug) ?? null;
-  const appContext = await resolveRequestedEmailPasswordAppContext(req, forgotPasswordAppSlug);
+    firstQueryParam(req.query?.appSlug) ??
+    firstQueryParam(req.body?.appSlug) ??
+    null;
+  const appContext = await resolveRequestedEmailPasswordAppContext(
+    req,
+    forgotPasswordAppSlug,
+  );
   if (!appContext.success) {
     sendAppContextResolutionError(
       res,
@@ -3136,6 +3202,12 @@ async function handleForgotPassword(req: Request, res: Response) {
     );
     return;
   }
+
+  if (resolveNormalizedAccessProfile(appContext.app) === "superadmin") {
+    sendSuperadminPasswordAuthDenied(res);
+    return;
+  }
+
   const appSlug = appContext.resolvedAppSlug;
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
   let token: string | undefined;
@@ -3178,6 +3250,16 @@ async function handleResetPassword(req: Request, res: Response) {
     return;
   }
 
+  if (
+    await isSuperadminPasswordAuthRequest(
+      req,
+      firstQueryParam(req.body?.appSlug) ?? firstQueryParam(req.query?.appSlug),
+    )
+  ) {
+    sendSuperadminPasswordAuthDenied(res);
+    return;
+  }
+
   const consumed = await consumeAuthToken(token, "password_reset");
   if (consumed.status !== "consumed") {
     res.status(400).json({ error: "Reset token is invalid or expired." });
@@ -3197,14 +3279,12 @@ async function handleResetPassword(req: Request, res: Response) {
       .set({ passwordHash: hash, updatedAt: new Date() })
       .where(eq(userCredentialsTable.id, existingCredential.id));
   } else {
-    await db
-      .insert(userCredentialsTable)
-      .values({
-        id: randomUUID(),
-        userId: consumed.token.userId,
-        credentialType: "password",
-        passwordHash: hash,
-      });
+    await db.insert(userCredentialsTable).values({
+      id: randomUUID(),
+      userId: consumed.token.userId,
+      credentialType: "password",
+      passwordHash: hash,
+    });
   }
 
   await markPasswordResetSecurityEvent(consumed.token.userId);
@@ -3264,33 +3344,27 @@ async function handleVerifyEmail(req: Request, res: Response) {
   if (consumed.status !== "consumed") {
     if (consumed.status === "expired") {
       await logVerifyEmailOutcome("token_rejected", { reasonCode: "expired" });
-      res
-        .status(400)
-        .json({
-          error: "Verification token has expired.",
-          code: "VERIFICATION_TOKEN_EXPIRED",
-        });
+      res.status(400).json({
+        error: "Verification token has expired.",
+        code: "VERIFICATION_TOKEN_EXPIRED",
+      });
       return;
     }
     if (consumed.status === "already_used") {
       await logVerifyEmailOutcome("token_rejected", {
         reasonCode: "already_used",
       });
-      res
-        .status(409)
-        .json({
-          error: "Verification token was already used.",
-          code: "VERIFICATION_TOKEN_ALREADY_USED",
-        });
+      res.status(409).json({
+        error: "Verification token was already used.",
+        code: "VERIFICATION_TOKEN_ALREADY_USED",
+      });
       return;
     }
     await logVerifyEmailOutcome("token_rejected", { reasonCode: "invalid" });
-    res
-      .status(400)
-      .json({
-        error: "Verification token is invalid.",
-        code: "VERIFICATION_TOKEN_INVALID",
-      });
+    res.status(400).json({
+      error: "Verification token is invalid.",
+      code: "VERIFICATION_TOKEN_INVALID",
+    });
     return;
   }
 
@@ -3314,6 +3388,27 @@ async function handleVerifyEmail(req: Request, res: Response) {
       userId: consumed.token.userId,
     });
     res.status(403).json({ error: "Account is unavailable." });
+    return;
+  }
+
+  const app = await getAppBySlug(appSlug);
+  const normalizedAccessProfile = app ? resolveNormalizedAccessProfile(app) : null;
+  if (!app || !normalizedAccessProfile) {
+    await logVerifyEmailOutcome("app_context_unavailable", {
+      userId: user.id,
+      appFound: Boolean(app),
+    });
+    sendAppContextResolutionError(res, AUTH_ERROR_CODES.APP_CONTEXT_UNAVAILABLE);
+    return;
+  }
+
+  if (normalizedAccessProfile === "superadmin" && user.isSuperAdmin !== true) {
+    await logVerifyEmailOutcome("superadmin_session_denied", {
+      userId: user.id,
+      normalizedAccessProfile,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+    });
+    sendSuperadminPasswordAuthDenied(res);
     return;
   }
 
@@ -3389,12 +3484,9 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
   try {
     alreadyEnrolled = await hasActiveMfaFactor(userId);
   } catch {
-    res
-      .status(503)
-      .json({
-        error:
-          "Unable to verify two-step verification status. Please try again.",
-      });
+    res.status(503).json({
+      error: "Unable to verify two-step verification status. Please try again.",
+    });
     return;
   }
   if (alreadyEnrolled) {
@@ -3428,20 +3520,20 @@ async function handleMfaEnrollStart(req: Request, res: Response) {
     delete req.session.pendingStayLoggedIn;
     delete req.session.pendingPostAuthContinuation;
     delete req.session.postAuthContinuation;
-    res
-      .status(401)
-      .json({
-        error:
-          "Two-step verification session is no longer valid. Please sign in again.",
-      });
+    res.status(401).json({
+      error:
+        "Two-step verification session is no longer valid. Please sign in again.",
+    });
     return;
   }
 
-  const sessionGroup = req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
+  const sessionGroup =
+    req.session.sessionGroup ?? req.resolvedSessionGroup ?? SESSION_GROUPS.DEFAULT;
   const fallbackIssuer = await getMfaIssuerForSessionGroup(sessionGroup);
   const appSlugForIssuer =
     (typeof req.session.appSlug === "string" && req.session.appSlug) ||
-    (typeof req.session.pendingAppSlug === "string" && req.session.pendingAppSlug) ||
+    (typeof req.session.pendingAppSlug === "string" &&
+      req.session.pendingAppSlug) ||
     (typeof req.body?.appSlug === "string" && req.body.appSlug.trim()) ||
     null;
   const issuer = await getMfaIssuerForAppSlug(appSlugForIssuer, fallbackIssuer);
@@ -3475,9 +3567,9 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
   const code = String(req.body?.code ?? "").trim();
   const rememberDevice = req.body?.rememberDevice === true;
   if (!userId || !factorId || !code) {
-    res
-      .status(400)
-      .json({ error: "Invalid two-step verification setup request." });
+    res.status(400).json({
+      error: "Invalid two-step verification setup request.",
+    });
     return;
   }
   const activated = await activateTotpEnrollment(userId, factorId, code);
@@ -3491,7 +3583,10 @@ async function handleMfaEnrollVerify(req: Request, res: Response) {
     return;
   }
 
-  if (!Array.isArray(activated.recoveryCodes) || activated.recoveryCodes.length === 0) {
+  if (
+    !Array.isArray(activated.recoveryCodes) ||
+    activated.recoveryCodes.length === 0
+  ) {
     logAuthDebug(req, "mfa_enroll_verify_result", {
       userId,
       verified: false,
@@ -3555,9 +3650,9 @@ async function handleMfaChallenge(req: Request, res: Response) {
   const rememberDevice = req.body?.rememberDevice === true;
   const stayLoggedIn = req.body?.stayLoggedIn === true;
   if (!userId || !code) {
-    res
-      .status(400)
-      .json({ error: "Invalid two-step verification challenge request." });
+    res.status(400).json({
+      error: "Invalid two-step verification challenge request.",
+    });
     return;
   }
 
@@ -3576,9 +3671,9 @@ async function handleMfaChallenge(req: Request, res: Response) {
   req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res
-      .status(400)
-      .json({ error: "Two-step verification session is not active." });
+    res.status(400).json({
+      error: "Two-step verification session is not active.",
+    });
     return;
   }
 
@@ -3597,8 +3692,7 @@ async function handleMfaChallenge(req: Request, res: Response) {
         userId,
         appSlug,
         completed.continuation,
-      )) ??
-      undefined)
+      )) ?? undefined)
     : undefined;
   if (appSlug && !nextPath) {
     sendPostAuthDestinationUnresolved(res);
@@ -3640,9 +3734,9 @@ async function handleMfaRecovery(req: Request, res: Response) {
   req.session.pendingStayLoggedIn = stayLoggedIn;
   const completed = await completePendingMfaSession(req);
   if (!completed) {
-    res
-      .status(400)
-      .json({ error: "Two-step verification session is not active." });
+    res.status(400).json({
+      error: "Two-step verification session is not active.",
+    });
     return;
   }
   if (rememberDevice) {
@@ -3660,8 +3754,7 @@ async function handleMfaRecovery(req: Request, res: Response) {
         userId,
         appSlug,
         completed.continuation,
-      )) ??
-      undefined)
+      )) ?? undefined)
     : undefined;
   if (appSlug && !nextPath) {
     sendPostAuthDestinationUnresolved(res);
@@ -3690,14 +3783,13 @@ async function handlePostOnboardingNextPath(req: Request, res: Response) {
     return;
   }
 
-  const nextPath =
-    await resolveNextPathForEstablishedSession(
-      req,
-      userId,
-      appSlug,
-      req.session.postAuthContinuation ?? null,
-      "post_onboarding",
-    );
+  const nextPath = await resolveNextPathForEstablishedSession(
+    req,
+    userId,
+    appSlug,
+    req.session.postAuthContinuation ?? null,
+    "post_onboarding",
+  );
   if (!nextPath) {
     sendPostAuthDestinationUnresolved(res);
     return;
