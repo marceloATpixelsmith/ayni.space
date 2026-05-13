@@ -140,37 +140,54 @@ vi.mock(
           | null,
         routeKind: string,
       ) => {
+        const profile =
+          metadata?.normalizedAccessProfile;
+
+        const allowCustomerRegistration =
+          metadata?.authRoutePolicy
+            ?.allowCustomerRegistration !==
+          false;
+
+        const allowInvitations =
+          metadata?.authRoutePolicy
+            ?.allowInvitations !== false;
+
         if (
-          metadata?.normalizedAccessProfile ===
-          "superadmin"
+          routeKind === "publicAuth" ||
+          routeKind === "tokenAuth"
         ) {
-          if (
-            routeKind === "signup" ||
-            routeKind === "forgotPassword" ||
-            routeKind === "publicAuth" ||
-            routeKind === "tokenAuth"
-          ) {
-            return false;
-          }
+          return allowCustomerRegistration;
         }
 
-        if (!metadata?.authRoutePolicy) {
-          return true;
+        if (
+          routeKind === "onboarding" ||
+          routeKind ===
+            "organizationOnboarding"
+        ) {
+          return profile === "organization";
         }
 
-        if (routeKind === "signup") {
+        if (
+          routeKind === "userOnboarding"
+        ) {
           return (
-            metadata.authRoutePolicy
-              .allowCustomerRegistration !==
-            false
+            profile === "solo" ||
+            profile === "organization"
+          );
+        }
+
+        if (
+          routeKind ===
+          "clientRegistration"
+        ) {
+          return (
+            profile === "solo" ||
+            profile === "organization"
           );
         }
 
         if (routeKind === "invitation") {
-          return (
-            metadata.authRoutePolicy
-              .allowInvitations !== false
-          );
+          return allowInvitations;
         }
 
         return true;
@@ -992,6 +1009,100 @@ describe(
     );
 
     it(
+      "blocks user onboarding for superadmin profile",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        authState.status =
+          "authenticated_fully";
+
+        authState.user = {
+          isSuperAdmin: true,
+          appAccess: {
+            appSlug: "admin",
+            canAccess: true,
+            requiredOnboarding:
+              "none",
+            normalizedAccessProfile:
+              "superadmin",
+            defaultRoute:
+              "/dashboard",
+          },
+        };
+
+        setPath("/onboarding/user");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/dashboard"),
+        );
+      },
+    );
+
+    it(
+      "allows client registration placeholder routes for organization mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "organization",
+          authRoutePolicy: {
+            allowInvitations: true,
+            allowCustomerRegistration:
+              true,
+          },
+        };
+
+        setPath("/register/client");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(
+              "Client registration is not available yet",
+            ),
+          ).toBeTruthy(),
+        );
+      },
+    );
+
+    it(
+      "blocks client registration routes for superadmin mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath("/register/client");
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
+      },
+    );
+
+    it(
       "redirects organization onboarding route to /login for solo profile",
       async () => {
         metadataState.metadata = {
@@ -1054,6 +1165,33 @@ describe(
             "Welcome",
           ),
         ).toBeTruthy();
+      },
+    );
+
+    it(
+      "blocks invitation acceptance route in superadmin mode",
+      async () => {
+        metadataState.metadata = {
+          normalizedAccessProfile:
+            "superadmin",
+          authRoutePolicy: {
+            allowInvitations: false,
+            allowCustomerRegistration:
+              false,
+          },
+        };
+
+        setPath(
+          "/invitations/test-token/accept",
+        );
+
+        render(<App />);
+
+        await waitFor(() =>
+          expect(
+            window.location.pathname,
+          ).toBe("/login"),
+        );
       },
     );
 
