@@ -512,7 +512,11 @@ export type NormalizedAccessProfile = "superadmin" | "solo" | "organization";
 export type AuthRouteKind =
   | "onboarding"
   | "organizationOnboarding"
-  | "invitation";
+  | "userOnboarding"
+  | "invitation"
+  | "publicAuth"
+  | "tokenAuth"
+  | "clientRegistration";
 
 export type PlatformAppMetadata = {
   slug: string;
@@ -584,9 +588,39 @@ export function isAuthRouteAllowed(
 ): boolean {
   const policy = deriveAppAuthRoutePolicy(app);
 
-  return routeKind === "onboarding" || routeKind === "organizationOnboarding"
-    ? policy.allowOnboarding
-    : policy.allowInvitations;
+  if (
+    routeKind === "onboarding" ||
+    routeKind === "organizationOnboarding"
+  ) {
+    return policy.allowOnboarding;
+  }
+
+  if (routeKind === "userOnboarding") {
+    return (
+      app?.normalizedAccessProfile === "solo" ||
+      app?.normalizedAccessProfile === "organization"
+    );
+  }
+
+  if (routeKind === "invitation") {
+    return policy.allowInvitations;
+  }
+
+  if (
+    routeKind === "publicAuth" ||
+    routeKind === "tokenAuth"
+  ) {
+    return policy.allowCustomerRegistration;
+  }
+
+  if (routeKind === "clientRegistration") {
+    return (
+      app?.normalizedAccessProfile === "solo" ||
+      app?.normalizedAccessProfile === "organization"
+    );
+  }
+
+  return false;
 }
 
 export function getDisallowedAuthRouteRedirect({
