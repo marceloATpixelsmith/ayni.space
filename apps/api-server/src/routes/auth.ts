@@ -2584,11 +2584,16 @@ async function resolveNextPathForEstablishedSession(
       Boolean(effectiveContinuation?.orgId) ||
       Boolean(effectiveContinuation?.resourceId);
 
-    const continuationAllowsBypass =
+    const invitationContinuationCanBypass =
+      effectiveContinuation?.type === "invitation_acceptance" &&
+      continuationHasTrustedTarget &&
       (
-        effectiveContinuation?.type === "invitation_acceptance" &&
-        continuationHasTrustedTarget
-      ) ||
+        flow?.requiredOnboarding !== "organization" ||
+        Boolean(effectiveContinuation?.orgId)
+      );
+
+    const continuationAllowsBypass =
+      invitationContinuationCanBypass ||
       effectiveContinuation?.type === "event_registration" ||
       effectiveContinuation?.type === "client_registration";
 
@@ -2746,10 +2751,18 @@ async function handlePasswordSignup(req: Request, res: Response) {
       ? resolveNormalizedAccessProfile(signupApp)
       : null;
 
+    const signupRequestOrigin =
+      getRequestFrontendOrigin(req) ?? deriveAuthContextRequestOrigin(req);
+    const signupUsesAdminOrigin =
+      resolveSessionGroupFromOrigin(signupRequestOrigin) === SESSION_GROUPS.ADMIN ||
+      req.resolvedSessionGroup === SESSION_GROUPS.ADMIN ||
+      req.session?.sessionGroup === SESSION_GROUPS.ADMIN;
+
     if (
       !signupApp ||
       signupAccessProfile === "superadmin" ||
       signupApp.accessMode === "superadmin" ||
+      (signupAppSlug === "admin" && signupUsesAdminOrigin) ||
       (signupApp.accessMode === "organization" &&
         !signupApp.customerRegistrationEnabled)
     ) {
