@@ -1284,12 +1284,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath) ??
-      firstQueryParam(req.body?.returnTo) ??
-      firstQueryParam(req.query?.returnToPath) ??
-      firstQueryParam(req.query?.returnTo),
-  );
+  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
   const oauthIntent: OAuthIntent =
     firstQueryParam(req.body?.intent) === "create_account"
       ? "create_account"
@@ -2576,47 +2571,6 @@ async function resolveNextPathForEstablishedSession(
       continuation === undefined
         ? (req.session.postAuthContinuation ?? null)
         : continuation;
-    if (stage === "post_auth" && !user.name?.trim()) {
-      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
-      logAuthDebug(req, "post_auth_redirect_decision", {
-        userId,
-        appSlug,
-        destination: "/onboarding/user",
-        continuationType: effectiveContinuation?.type ?? null,
-        continuationPath: effectiveContinuation?.returnPath ?? null,
-        requiredOnboarding: "user",
-      });
-      return "/onboarding/user";
-    }
-
-    const continuationPath =
-      effectiveContinuation?.returnPath ?? "";
-
-    const continuationAllowsBypass =
-      continuationPath.startsWith("/invitations/") ||
-      continuationPath.startsWith("/events/") ||
-      continuationPath.startsWith("/register/");
-
-    if (
-      stage === "post_auth" &&
-      normalizedAccessProfile === "organization" &&
-      app.customerRegistrationEnabled === true &&
-      flow?.requiredOnboarding === "organization" &&
-      !continuationAllowsBypass
-    ) {
-      logAuthDebug(req, "post_auth_redirect_decision", {
-        userId,
-        appSlug,
-        destination: "/dashboard",
-        continuationType: effectiveContinuation?.type ?? null,
-        continuationPath: effectiveContinuation?.returnPath ?? null,
-        requiredOnboarding: flow.requiredOnboarding,
-        organizationRegistrationBridge: true,
-      });
-
-      return "/dashboard";
-    }
-
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
@@ -2688,8 +2642,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const signupAppSlug = signupAppContext.resolvedAppSlug;
 
   try {
-    const signupApp = signupAppContext.app;
-
+    const signupApp = await getAppBySlug(signupAppSlug);
     if (
       !signupApp ||
       signupApp.accessMode === "superadmin" ||
