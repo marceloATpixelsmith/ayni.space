@@ -2609,10 +2609,12 @@ async function resolveNextPathForEstablishedSession(
 
     if (
       stage === "post_auth" &&
+      flow?.requiredOnboarding === "none" &&
       continuationAllowsBypass &&
       continuationPath
     ) {
       delete req.session.postAuthContinuation;
+
       logAuthDebug(req, "post_auth_redirect_decision", {
         userId,
         appSlug,
@@ -2623,6 +2625,7 @@ async function resolveNextPathForEstablishedSession(
         authIntent,
         continuationBypass: true,
       });
+
       return continuationPath;
     }
 
