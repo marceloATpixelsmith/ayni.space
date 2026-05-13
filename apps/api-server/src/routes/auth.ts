@@ -2589,6 +2589,30 @@ async function resolveNextPathForEstablishedSession(
       return "/onboarding/user";
     }
 
+    const continuationAllowsBypass =
+      effectiveContinuation?.type === "invitation" ||
+      effectiveContinuation?.type === "client_public";
+
+    if (
+      stage === "post_auth" &&
+      normalizedAccessProfile === "organization" &&
+      app.customerRegistrationEnabled === true &&
+      flow?.requiredOnboarding === "organization" &&
+      !continuationAllowsBypass
+    ) {
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/dashboard",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: flow.requiredOnboarding,
+        organizationRegistrationBridge: true,
+      });
+
+      return "/dashboard";
+    }
+
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
