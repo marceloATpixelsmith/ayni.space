@@ -40,4 +40,9 @@
   - canonical app-entry routes (`/`, `/dashboard`, `/dashboard/apps`, `/apps`)
   Arbitrary continuation paths remain rejected (`apps/api-server/src/lib/postAuthContinuation.ts`, `apps/api-server/src/lib/postAuthDestination.ts`, `lib/frontend-security/src/index.tsx`).
 
-- Client/public registration continuation paths are now explicitly documented as continuation-only allowlisted destinations. They are not treated as organization account creation, generic signup, or implicit onboarding flows unless a dedicated registration implementation exists (`apps/api-server/src/lib/postAuthContinuation.ts`).
+- Client/public registration continuation paths are now explicitly allowlisted and backed by safe frontend placeholder routes:
+  - /register/client
+  - /registration/client
+  - /register/public
+  - /registration/public
+  These routes are reserved for future client/public registration flows. Until a dedicated registration implementation exists, they render a safe “Client registration is not available yet” placeholder instead of acting as organization account creation, generic signup, or implicit onboarding flows.
