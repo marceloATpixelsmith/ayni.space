@@ -22,11 +22,10 @@ function InvitationAcceptContent() {
   const { token } = useParams<Params>();
   const [, setLocation] = useLocation();
 
-  const invitation =
-    useInvitationAcceptRouteRuntime({
-      token,
-      onRedirect: setLocation,
-    });
+  const invitation = useInvitationAcceptRouteRuntime({
+    token,
+    onRedirect: setLocation,
+  });
 
   const backButtonLabel =
     invitation.auth.status === "unauthenticated"
@@ -55,8 +54,7 @@ function InvitationAcceptContent() {
             <Button
               onClick={() =>
                 setLocation(
-                  invitation.auth.status ===
-                    "unauthenticated"
+                  invitation.auth.status === "unauthenticated"
                     ? "/login"
                     : "/",
                 )
@@ -71,21 +69,11 @@ function InvitationAcceptContent() {
         {invitation.shouldShowInvitationChoices ? (
           <div className="space-y-3">
             <GoogleAuthButton
-              onClick={
-                invitation.startGoogleContinuation
-              }
-              disabled={
-                invitation.auth.loginInFlight
-              }
-              loading={
-                invitation.auth.loginInFlight
-              }
-              idleLabel={t(
-                "invitation_google_continue_idle",
-              )}
-              loadingLabel={t(
-                "invitation_google_continue_loading",
-              )}
+              onClick={invitation.startGoogleContinuation}
+              disabled={invitation.auth.loginInFlight}
+              loading={invitation.auth.loginInFlight}
+              idleLabel={t("invitation_google_continue_idle")}
+              loadingLabel={t("invitation_google_continue_loading")}
             />
 
             {invitation.shouldShowPasswordFields ? (
@@ -93,29 +81,19 @@ function InvitationAcceptContent() {
                 <AuthMethodDivider />
 
                 <p className="text-sm text-foreground">
-                  {t(
-                    "invitation_password_create_prompt",
-                  )}
+                  {t("invitation_password_create_prompt")}
                 </p>
 
                 <PasswordInput
                   value={invitation.password}
                   onChange={(event) =>
-                    invitation.setPassword(
-                      event.target.value,
-                    )
+                    invitation.setPassword(event.target.value)
                   }
-                  onBlur={
-                    invitation.markPasswordTouched
-                  }
+                  onBlur={invitation.markPasswordTouched}
                   className="w-full border rounded px-3 py-2"
-                  placeholder={t(
-                    "invitation_password_placeholder",
-                  )}
+                  placeholder={t("invitation_password_placeholder")}
                   autoComplete="new-password"
-                  aria-invalid={Boolean(
-                    invitation.passwordError,
-                  )}
+                  aria-invalid={Boolean(invitation.passwordError)}
                   aria-describedby={
                     invitation.passwordError
                       ? "invite-password-error"
@@ -125,33 +103,25 @@ function InvitationAcceptContent() {
 
                 <FieldValidationMessage
                   id="invite-password-error"
-                  message={
-                    invitation.passwordError
-                  }
+                  message={invitation.passwordError}
                 />
 
                 {invitation.shouldShowPasswordFeedback &&
-                invitation
-                  .missingPasswordRequirements
-                  .length > 0 ? (
+                invitation.missingPasswordRequirements.length > 0 ? (
                   <ul
                     className="text-xs text-destructive list-disc pl-5 space-y-1"
                     aria-live="polite"
                   >
                     {invitation.missingPasswordRequirements.map(
                       (requirement) => (
-                        <li key={requirement}>
-                          {requirement}
-                        </li>
+                        <li key={requirement}>{requirement}</li>
                       ),
                     )}
                   </ul>
                 ) : null}
 
                 <Button
-                  onClick={
-                    invitation.submitInvitationPassword
-                  }
+                  onClick={invitation.submitInvitationPassword}
                   className="w-full"
                   disabled={
                     invitation.passwordSubmitting ||
@@ -159,12 +129,8 @@ function InvitationAcceptContent() {
                   }
                 >
                   {invitation.passwordSubmitting
-                    ? t(
-                        "invitation_password_submitting",
-                      )
-                    : t(
-                        "invitation_password_submit",
-                      )}
+                    ? t("invitation_password_submitting")
+                    : t("invitation_password_submit")}
                 </Button>
               </>
             ) : null}
@@ -175,14 +141,8 @@ function InvitationAcceptContent() {
                 variant="secondary"
                 className="w-full"
               >
-                <Link
-                  href={
-                    invitation.loginContinuationPath
-                  }
-                >
-                  {t(
-                    "invitation_email_sign_in_option",
-                  )}
+                <Link href={invitation.loginContinuationPath}>
+                  {t("invitation_email_sign_in_option")}
                 </Link>
               </Button>
             ) : null}
@@ -200,18 +160,11 @@ function InvitationAcceptContent() {
             invitation.turnstile.enabled &&
             invitation.status !== "done"
           }
-          TurnstileWidget={
-            invitation.turnstile
-              .TurnstileWidget
-          }
+          TurnstileWidget={invitation.turnstile.TurnstileWidget}
           guidanceMessage={
-            invitation.turnstile
-              .guidanceMessage ??
-            undefined
+            invitation.turnstile.guidanceMessage ?? undefined
           }
-          status={
-            invitation.turnstile.status
-          }
+          status={invitation.turnstile.status}
         />
       </AuthFormMotion>
     </AuthShell>
