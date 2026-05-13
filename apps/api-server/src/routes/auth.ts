@@ -2580,15 +2580,17 @@ async function resolveNextPathForEstablishedSession(
     const continuationPath =
       effectiveContinuation?.returnPath ?? "";
 
+    const continuationHasTrustedTarget =
+      Boolean(effectiveContinuation?.orgId) ||
+      Boolean(effectiveContinuation?.resourceId);
+
     const continuationAllowsBypass =
-      effectiveContinuation?.type === "invitation_acceptance" ||
+      (
+        effectiveContinuation?.type === "invitation_acceptance" &&
+        continuationHasTrustedTarget
+      ) ||
       effectiveContinuation?.type === "event_registration" ||
-      effectiveContinuation?.type === "client_registration" ||
-      continuationPath.startsWith("/invitations/") ||
-      continuationPath.startsWith("/events/") ||
-      continuationPath.startsWith("/event-registration/") ||
-      continuationPath.startsWith("/register/") ||
-      continuationPath.startsWith("/registration/");
+      effectiveContinuation?.type === "client_registration";
 
     if (
       stage === "post_auth" &&
@@ -2609,7 +2611,6 @@ async function resolveNextPathForEstablishedSession(
 
     if (
       stage === "post_auth" &&
-      flow?.requiredOnboarding === "none" &&
       continuationAllowsBypass &&
       continuationPath
     ) {
@@ -2627,6 +2628,27 @@ async function resolveNextPathForEstablishedSession(
       });
 
       return continuationPath;
+    }
+
+    if (
+      stage === "post_auth" &&
+      flow?.requiredOnboarding === "organization" &&
+      continuationPath
+    ) {
+      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
+
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/onboarding/organization",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath,
+        requiredOnboarding: flow.requiredOnboarding,
+        authIntent,
+        onboardingBeforeContinuation: true,
+      });
+
+      return "/onboarding/organization";
     }
 
     if (
@@ -2726,7 +2748,6 @@ async function handlePasswordSignup(req: Request, res: Response) {
 
     if (
       !signupApp ||
-      signupAppSlug === "admin" ||
       signupAccessProfile === "superadmin" ||
       signupApp.accessMode === "superadmin" ||
       (signupApp.accessMode === "organization" &&
