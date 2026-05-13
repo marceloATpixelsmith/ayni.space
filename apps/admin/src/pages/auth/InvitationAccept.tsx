@@ -28,6 +28,11 @@ function InvitationAcceptContent() {
       onRedirect: setLocation,
     });
 
+  const backButtonLabel =
+    invitation.auth.status === "unauthenticated"
+      ? t("invitation_back_sign_in")
+      : t("invitation_back_dashboard");
+
   return (
     <AuthShell
       title={t("invitation_title")}
@@ -58,14 +63,7 @@ function InvitationAcceptContent() {
               }
               className="w-full"
             >
-              {invitation.auth.status ===
-              "unauthenticated"
-                ? t(
-                    "invitation_back_sign_in",
-                  )
-                : t(
-                    "invitation_back_dashboard",
-                  )}
+              {backButtonLabel}
             </Button>
           </div>
         ) : null}
