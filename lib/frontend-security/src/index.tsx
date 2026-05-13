@@ -547,14 +547,6 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
-  if (app.authRoutePolicy) {
-    return {
-      allowOnboarding: app.authRoutePolicy.allowOnboarding,
-      allowInvitations: app.authRoutePolicy.allowInvitations,
-      allowCustomerRegistration: app.authRoutePolicy.allowCustomerRegistration,
-    };
-  }
-
   if (app.normalizedAccessProfile === "superadmin") {
     return {
       allowOnboarding: false,
@@ -574,8 +566,8 @@ export function deriveAppAuthRoutePolicy(
   if (app.normalizedAccessProfile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
+      allowInvitations: true,
+      allowCustomerRegistration: true,
     };
   }
 
@@ -692,8 +684,8 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
 
   return {
     allowOnboarding: true,
-    allowInvitations: input.staffInvitesEnabled === true,
-    allowCustomerRegistration: input.customerRegistrationEnabled === true,
+    allowInvitations: true,
+    allowCustomerRegistration: true,
   };
 }
 
