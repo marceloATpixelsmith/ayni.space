@@ -34,7 +34,10 @@ function hasExistingOrganizationOrDirectAppAccess(
     return false;
   }
 
-  return Boolean(context.activeOrg || context.orgMembership);
+  return Boolean(
+    context.activeOrg ||
+      context.orgMembership,
+  );
 }
 
 function allowsOrganizationCustomerRegistration(
@@ -44,19 +47,10 @@ function allowsOrganizationCustomerRegistration(
     return false;
   }
 
-  return context.app.customerRegistrationEnabled === true;
-}
-
-function shouldUseOrganizationCustomerRegistrationBridge(options: {
-  authIntent: PostAuthIntent;
-  normalizedAccessProfile: NormalizedAccessProfile;
-  context: ResolvedPostAuthAppContext;
-}): boolean {
   return (
-    options.normalizedAccessProfile === "organization" &&
-    options.context.normalizedAccessProfile === "organization" &&
-    allowsOrganizationCustomerRegistration(options.context) &&
-    !hasExistingOrganizationOrDirectAppAccess(options.context)
+    context.app
+      .customerRegistrationEnabled ===
+    true
   );
 }
 
@@ -75,51 +69,80 @@ export async function resolvePostAuthFlowDecision(params: {
     authIntent = "sign_in",
   } = params;
 
-  const context: ResolvedPostAuthAppContext | null =
-    normalizedAccessProfile === "superadmin"
+  const context:
+    | ResolvedPostAuthAppContext
+    | null =
+    normalizedAccessProfile ===
+    "superadmin"
       ? {
-          canAccess: Boolean(isSuperAdmin),
-          normalizedAccessProfile: "superadmin",
-          requiredOnboarding: "none",
+          canAccess:
+            Boolean(isSuperAdmin),
+          normalizedAccessProfile:
+            "superadmin",
+          requiredOnboarding:
+            "none",
         }
-      : await getAppContext(userId, appSlug);
+      : await getAppContext(
+          userId,
+          appSlug,
+        );
 
-  if (!context) return null;
+  if (!context) {
+    return null;
+  }
 
-  const usesOrganizationCustomerRegistrationBridge =
-    shouldUseOrganizationCustomerRegistrationBridge({
-      authIntent,
-      normalizedAccessProfile,
+  const isOrganizationCreateAccountBridge =
+    authIntent === "create_account" &&
+    normalizedAccessProfile ===
+      "organization" &&
+    context.normalizedAccessProfile ===
+      "organization" &&
+    allowsOrganizationCustomerRegistration(
       context,
-    });
+    ) &&
+    !hasExistingOrganizationOrDirectAppAccess(
+      context,
+    );
 
   const effectiveRequiredOnboarding =
-    usesOrganizationCustomerRegistrationBridge && authIntent === "create_account"
+    isOrganizationCreateAccountBridge
       ? "organization"
-      : usesOrganizationCustomerRegistrationBridge
-        ? "none"
-        : context.requiredOnboarding;
+      : context.requiredOnboarding;
 
   const effectiveCanAccess =
-    usesOrganizationCustomerRegistrationBridge
+    isOrganizationCreateAccountBridge
       ? true
       : context.canAccess;
 
   const destination =
-    effectiveCanAccess || effectiveRequiredOnboarding !== "none"
+    effectiveRequiredOnboarding !==
+    "none"
       ? getPostAuthRedirectPath({
           appSlug,
           isSuperAdmin,
-          normalizedAccessProfile: context.normalizedAccessProfile,
-          requiredOnboarding: effectiveRequiredOnboarding,
+          normalizedAccessProfile:
+            context.normalizedAccessProfile,
+          requiredOnboarding:
+            effectiveRequiredOnboarding,
         })
-      : buildAccessDeniedLoginPath();
+      : effectiveCanAccess
+        ? getPostAuthRedirectPath({
+            appSlug,
+            isSuperAdmin,
+            normalizedAccessProfile:
+              context.normalizedAccessProfile,
+            requiredOnboarding:
+              "none",
+          })
+        : buildAccessDeniedLoginPath();
 
   return {
     appSlug,
     canAccess: effectiveCanAccess,
-    requiredOnboarding: effectiveRequiredOnboarding,
-    normalizedAccessProfile: context.normalizedAccessProfile,
+    requiredOnboarding:
+      effectiveRequiredOnboarding,
+    normalizedAccessProfile:
+      context.normalizedAccessProfile,
     destination,
   };
 }
