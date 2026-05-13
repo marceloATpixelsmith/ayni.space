@@ -34,10 +34,7 @@ function hasExistingOrganizationOrDirectAppAccess(
     return false;
   }
 
-  return Boolean(
-    context.activeOrg ||
-      context.orgMembership,
-  );
+  return Boolean(context.activeOrg || context.orgMembership);
 }
 
 function allowsOrganizationCustomerRegistration(
@@ -47,10 +44,20 @@ function allowsOrganizationCustomerRegistration(
     return false;
   }
 
+  return context.app.customerRegistrationEnabled === true;
+}
+
+function isOrganizationCreateAccountBridgeAllowed(params: {
+  authIntent: PostAuthIntent;
+  normalizedAccessProfile: NormalizedAccessProfile;
+  context: ResolvedPostAuthAppContext;
+}): boolean {
   return (
-    context.app
-      .customerRegistrationEnabled ===
-    true
+    params.authIntent === "create_account" &&
+    params.normalizedAccessProfile === "organization" &&
+    params.context.normalizedAccessProfile === "organization" &&
+    allowsOrganizationCustomerRegistration(params.context) &&
+    !hasExistingOrganizationOrDirectAppAccess(params.context)
   );
 }
 
@@ -69,80 +76,73 @@ export async function resolvePostAuthFlowDecision(params: {
     authIntent = "sign_in",
   } = params;
 
-  const context:
-    | ResolvedPostAuthAppContext
-    | null =
-    normalizedAccessProfile ===
-    "superadmin"
+  const context: ResolvedPostAuthAppContext | null =
+    normalizedAccessProfile === "superadmin"
       ? {
-          canAccess:
-            Boolean(isSuperAdmin),
-          normalizedAccessProfile:
-            "superadmin",
-          requiredOnboarding:
-            "none",
+          canAccess: Boolean(isSuperAdmin),
+          normalizedAccessProfile: "superadmin",
+          requiredOnboarding: "none",
         }
-      : await getAppContext(
-          userId,
-          appSlug,
-        );
+      : await getAppContext(userId, appSlug);
 
   if (!context) {
     return null;
   }
 
+  if (normalizedAccessProfile === "superadmin") {
+    return {
+      appSlug,
+      canAccess: Boolean(isSuperAdmin),
+      requiredOnboarding: "none",
+      normalizedAccessProfile: "superadmin",
+      destination: isSuperAdmin
+        ? getPostAuthRedirectPath({
+            appSlug,
+            isSuperAdmin,
+            normalizedAccessProfile: "superadmin",
+            requiredOnboarding: "none",
+          })
+        : buildAccessDeniedLoginPath(),
+    };
+  }
+
   const isOrganizationCreateAccountBridge =
-    authIntent === "create_account" &&
-    normalizedAccessProfile ===
-      "organization" &&
-    context.normalizedAccessProfile ===
-      "organization" &&
-    allowsOrganizationCustomerRegistration(
+    isOrganizationCreateAccountBridgeAllowed({
+      authIntent,
+      normalizedAccessProfile,
       context,
-    ) &&
-    !hasExistingOrganizationOrDirectAppAccess(
-      context,
-    );
+    });
 
-  const effectiveRequiredOnboarding =
-    isOrganizationCreateAccountBridge
-      ? "organization"
-      : context.requiredOnboarding;
+  const effectiveRequiredOnboarding = isOrganizationCreateAccountBridge
+    ? "organization"
+    : context.requiredOnboarding;
 
-  const effectiveCanAccess =
-    isOrganizationCreateAccountBridge
-      ? true
-      : context.canAccess;
+  const effectiveCanAccess = isOrganizationCreateAccountBridge
+    ? true
+    : context.canAccess;
 
   const destination =
-    effectiveRequiredOnboarding !==
-    "none"
+    effectiveRequiredOnboarding !== "none"
       ? getPostAuthRedirectPath({
           appSlug,
           isSuperAdmin,
-          normalizedAccessProfile:
-            context.normalizedAccessProfile,
-          requiredOnboarding:
-            effectiveRequiredOnboarding,
+          normalizedAccessProfile: context.normalizedAccessProfile,
+          requiredOnboarding: effectiveRequiredOnboarding,
         })
       : effectiveCanAccess
         ? getPostAuthRedirectPath({
             appSlug,
             isSuperAdmin,
-            normalizedAccessProfile:
-              context.normalizedAccessProfile,
-            requiredOnboarding:
-              "none",
+            normalizedAccessProfile: context.normalizedAccessProfile,
+            requiredOnboarding: "none",
           })
         : buildAccessDeniedLoginPath();
 
   return {
     appSlug,
     canAccess: effectiveCanAccess,
-    requiredOnboarding:
-      effectiveRequiredOnboarding,
-    normalizedAccessProfile:
-      context.normalizedAccessProfile,
+    requiredOnboarding: effectiveRequiredOnboarding,
+    normalizedAccessProfile: context.normalizedAccessProfile,
     destination,
   };
 }
