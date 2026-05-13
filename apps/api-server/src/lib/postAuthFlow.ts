@@ -47,6 +47,19 @@ function allowsOrganizationCustomerRegistration(
   return context.app.customerRegistrationEnabled === true;
 }
 
+function shouldUseOrganizationCustomerRegistrationBridge(options: {
+  authIntent: PostAuthIntent;
+  normalizedAccessProfile: NormalizedAccessProfile;
+  context: ResolvedPostAuthAppContext;
+}): boolean {
+  return (
+    options.normalizedAccessProfile === "organization" &&
+    options.context.normalizedAccessProfile === "organization" &&
+    allowsOrganizationCustomerRegistration(options.context) &&
+    !hasExistingOrganizationOrDirectAppAccess(options.context)
+  );
+}
+
 export async function resolvePostAuthFlowDecision(params: {
   userId: string;
   appSlug: string;
@@ -73,20 +86,22 @@ export async function resolvePostAuthFlowDecision(params: {
 
   if (!context) return null;
 
-  const shouldRequireOrganizationOnboardingForGoogleCreateAccount =
-    authIntent === "create_account" &&
-    normalizedAccessProfile === "organization" &&
-    context.normalizedAccessProfile === "organization" &&
-    allowsOrganizationCustomerRegistration(context) &&
-    !hasExistingOrganizationOrDirectAppAccess(context);
+  const usesOrganizationCustomerRegistrationBridge =
+    shouldUseOrganizationCustomerRegistrationBridge({
+      authIntent,
+      normalizedAccessProfile,
+      context,
+    });
 
   const effectiveRequiredOnboarding =
-    shouldRequireOrganizationOnboardingForGoogleCreateAccount
+    usesOrganizationCustomerRegistrationBridge && authIntent === "create_account"
       ? "organization"
-      : context.requiredOnboarding;
+      : usesOrganizationCustomerRegistrationBridge
+        ? "none"
+        : context.requiredOnboarding;
 
   const effectiveCanAccess =
-    shouldRequireOrganizationOnboardingForGoogleCreateAccount
+    usesOrganizationCustomerRegistrationBridge
       ? true
       : context.canAccess;
 
