@@ -37,12 +37,12 @@ export function getAuthRoutePolicyForProfile(
   >,
 ): AuthRoutePolicy {
   if (profile === "organization") {
+    void organizationCapabilities;
+
     return {
       allowOnboarding: true,
-      allowInvitations:
-        organizationCapabilities.staffInvitesEnabled === true,
-      allowCustomerRegistration:
-        organizationCapabilities.customerRegistrationEnabled === true,
+      allowInvitations: true,
+      allowCustomerRegistration: true,
     };
   }
 
@@ -53,6 +53,8 @@ export function getAuthRoutePolicyForProfile(
       allowCustomerRegistration: true,
     };
   }
+
+  void organizationCapabilities;
 
   return {
     allowOnboarding: false,
