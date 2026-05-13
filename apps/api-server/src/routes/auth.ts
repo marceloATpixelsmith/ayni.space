@@ -2589,9 +2589,13 @@ async function resolveNextPathForEstablishedSession(
       return "/onboarding/user";
     }
 
+    const continuationPath =
+      effectiveContinuation?.returnPath ?? "";
+
     const continuationAllowsBypass =
-      effectiveContinuation?.type === "invitation" ||
-      effectiveContinuation?.type === "client_public";
+      continuationPath.startsWith("/invitations/") ||
+      continuationPath.startsWith("/events/") ||
+      continuationPath.startsWith("/register/");
 
     if (
       stage === "post_auth" &&
