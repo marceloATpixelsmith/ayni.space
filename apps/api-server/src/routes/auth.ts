@@ -1240,7 +1240,20 @@ async function handleGoogleUrl(req: Request, res: Response) {
     );
     return;
   }
-  if (isTurnstileEnabled() && !req.turnstileVerified) {
+  const returnToPath = normalizeReturnToPath(
+    firstQueryParam(req.body?.returnToPath) ??
+      firstQueryParam(req.body?.returnTo) ??
+      firstQueryParam(req.query?.returnToPath) ??
+      firstQueryParam(req.query?.returnTo),
+  );
+  const returnToPathAllowsOAuthStart =
+    returnToPath?.startsWith("/invitations/") === true ||
+    returnToPath?.startsWith("/events/") === true ||
+    returnToPath?.startsWith("/event-registration/") === true ||
+    returnToPath?.startsWith("/register/") === true ||
+    returnToPath?.startsWith("/registration/") === true;
+
+  if (isTurnstileEnabled() && !req.turnstileVerified && !returnToPathAllowsOAuthStart) {
     const turnstileToken = getTurnstileToken(req);
     if (!turnstileToken) {
       logGoogleUrlBranch(req, "turnstile_missing_token", {
@@ -1284,12 +1297,6 @@ async function handleGoogleUrl(req: Request, res: Response) {
     logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
-  const returnToPath = normalizeReturnToPath(
-    firstQueryParam(req.body?.returnToPath) ??
-      firstQueryParam(req.body?.returnTo) ??
-      firstQueryParam(req.query?.returnToPath) ??
-      firstQueryParam(req.query?.returnTo),
-  );
   const oauthIntent: OAuthIntent =
     firstQueryParam(req.body?.intent) === "create_account"
       ? "create_account"
@@ -2580,14 +2587,13 @@ async function resolveNextPathForEstablishedSession(
     const continuationPath =
       effectiveContinuation?.returnPath ?? "";
 
-    const continuationHasTrustedTarget =
-      Boolean(effectiveContinuation?.orgId) ||
-      Boolean(effectiveContinuation?.resourceId);
+    const invitationContinuationHasTrustedOrg =
+      Boolean(effectiveContinuation?.orgId);
 
     const continuationAllowsBypass =
       (
         effectiveContinuation?.type === "invitation_acceptance" &&
-        continuationHasTrustedTarget
+        invitationContinuationHasTrustedOrg
       ) ||
       effectiveContinuation?.type === "event_registration" ||
       effectiveContinuation?.type === "client_registration";
