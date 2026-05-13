@@ -360,16 +360,19 @@ function parseGroupFromOAuthState(state: string): string | null {
   return sessionGroup || null;
 }
 
+type OAuthIntent = "sign_in" | "create_account";
+
 type OAuthStatePayload = {
   nonce: string;
   appSlug: string;
   returnTo: string;
   sessionGroup: string;
   returnToPath?: string;
+  intent?: OAuthIntent;
 };
 type OAuthStateContext = Pick<
   OAuthStatePayload,
-  "appSlug" | "returnTo" | "sessionGroup" | "returnToPath"
+  "appSlug" | "returnTo" | "sessionGroup" | "returnToPath" | "intent"
 >;
 
 function normalizeReturnToPath(value: unknown): string | null {
@@ -407,12 +410,15 @@ function decodeOAuthStatePayload(
     )
       return null;
     const returnToPath = normalizeReturnToPath(parsed["returnToPath"]);
+    const intent: OAuthIntent =
+      parsed["intent"] === "create_account" ? "create_account" : "sign_in";
     return {
       nonce: parsed["nonce"],
       appSlug: parsed["appSlug"],
       returnTo: parsed["returnTo"],
       sessionGroup: parsed["sessionGroup"],
       returnToPath: returnToPath ?? undefined,
+      intent,
     };
   } catch {
     return null;
@@ -477,6 +483,7 @@ function validateOAuthCallbackState(
     returnTo: parsedState.returnTo,
     sessionGroup: parsedState.sessionGroup,
     returnToPath: parsedState.returnToPath,
+    intent: parsedState.intent ?? "sign_in",
   };
   return { valid: true, stateContext };
 }
@@ -553,25 +560,59 @@ function getControlledAuthErrorRedirect(
 function getFrontendBaseForDeny(
   req: Request,
   oauthSessionGroup: string,
-): string | null {
+): string | null
+{
+  const allowedOrigins = getAllowedOrigins();
+
   const oauthReturnTo = req.session?.oauthReturnTo;
-  if (typeof oauthReturnTo === "string") {
-    try {
+  if (typeof oauthReturnTo === "string")
+  {
+    try
+    {
       const normalized = new URL(oauthReturnTo).origin;
-      if (getAllowedOrigins().includes(normalized)) {
+      if (allowedOrigins.includes(normalized))
+      {
         return normalized;
       }
-    } catch {
+    }
+    catch
+    {
       // noop
     }
   }
 
-  if (oauthSessionGroup === SESSION_GROUPS.ADMIN) {
+  const stateReturnTo = parseOAuthStateReturnTo(firstQueryParam(req.query["state"]));
+  if (stateReturnTo)
+  {
+    return stateReturnTo;
+  }
+
+  const statePayload = parseOAuthState(firstQueryParam(req.query["state"]));
+  if (statePayload)
+  {
+    try
+    {
+      const normalized = new URL(statePayload.returnTo).origin;
+      if (allowedOrigins.includes(normalized))
+      {
+        return normalized;
+      }
+    }
+    catch
+    {
+      // noop
+    }
+  }
+
+  if (oauthSessionGroup === SESSION_GROUPS.ADMIN)
+  {
     return getAdminSessionGroupOrigins()[0] ?? null;
   }
 
   return null;
 }
+
+
 
 function getTurnstileToken(req: Request): string {
   const headerValue = req.headers["cf-turnstile-response"];
@@ -1243,7 +1284,15 @@ async function handleGoogleUrl(req: Request, res: Response) {
     logGoogleUrlBranch(req, "turnstile_verification_passed", { turnstileVerificationPassed: true });
   }
 
-  const returnToPath = normalizeReturnToPath(firstQueryParam(req.body?.returnToPath));
+  const returnToPath = normalizeReturnToPath(
+    firstQueryParam(req.body?.returnToPath) ??
+      firstQueryParam(req.query?.returnTo) ??
+      firstQueryParam(req.query?.returnToPath),
+  );
+  const oauthIntent: OAuthIntent =
+    firstQueryParam(req.body?.intent) === "create_account"
+      ? "create_account"
+      : "sign_in";
 
   const statePayload = {
     nonce: randomUUID(),
@@ -1251,6 +1300,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnTo,
     sessionGroup: oauthSessionGroup,
     returnToPath: returnToPath ?? undefined,
+    intent: oauthIntent,
   };
   const state = buildOAuthState(statePayload);
   const configValidation = getGoogleConfigValidation();
@@ -1312,6 +1362,7 @@ async function handleGoogleUrl(req: Request, res: Response) {
     returnTo: statePayload.returnTo,
     returnToPath: statePayload.returnToPath ?? null,
     sessionGroup: statePayload.sessionGroup,
+    intent: statePayload.intent ?? "sign_in",
   });
   logVerboseTrace(
     `[AUTH-CHECK-TRACE] OAUTH STATE CREATED ` +
@@ -1446,6 +1497,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       returnTo: stateContext?.returnTo ?? null,
       returnToPath: stateContext?.returnToPath ?? null,
       sessionGroup: resolvedStateSessionGroup,
+      intent: stateContext?.intent ?? null,
     });
     lastCompletedStep = "A4";
     if (!stateValid) {
@@ -1489,7 +1541,9 @@ async function handleGoogleCallback(req: Request, res: Response) {
       returnTo: parsedStateContext.returnTo,
       returnToPath: parsedStateContext.returnToPath ?? null,
       sessionGroup: parsedStateContext.sessionGroup,
+      intent: parsedStateContext.intent ?? "sign_in",
     });
+    const oauthIntent: OAuthIntent = parsedStateContext.intent ?? "sign_in";
     const oauthReturnTo = parsedStateContext.returnTo;
     const oauthReturnToPath =
       parsedStateContext.returnToPath ?? req.session.oauthReturnToPath ?? null;
@@ -1980,6 +2034,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       appSlug: activeAppSlug,
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
+      authIntent: oauthIntent,
     });
 
     if (!effectiveContext) {
@@ -2054,6 +2109,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       activeAppSlug,
       oauthContinuation,
       "post_auth",
+      oauthIntent,
     );
     if (!finalDestination) {
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
@@ -2497,6 +2553,7 @@ async function resolveNextPathForEstablishedSession(
   appSlug: string,
   continuation?: PostAuthContinuation | null,
   stage: PostAuthResolutionStage = "post_auth",
+  authIntent: OAuthIntent = "sign_in",
 ): Promise<string | null> {
   try {
     const user = await db.query.usersTable.findFirst({
@@ -2512,11 +2569,24 @@ async function resolveNextPathForEstablishedSession(
       appSlug: app.slug,
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
+      authIntent,
     });
     const effectiveContinuation =
       continuation === undefined
         ? (req.session.postAuthContinuation ?? null)
         : continuation;
+    if (stage === "post_auth" && !user.name?.trim()) {
+      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/onboarding/user",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: "user",
+      });
+      return "/onboarding/user";
+    }
     const destination = resolveAuthenticatedPostAuthDestination({
       continuation: effectiveContinuation,
       flowDecision: flow,
@@ -2540,6 +2610,7 @@ async function resolveNextPathForEstablishedSession(
       continuationType: effectiveContinuation?.type ?? null,
       continuationPath: effectiveContinuation?.returnPath ?? null,
       requiredOnboarding: flow?.requiredOnboarding ?? null,
+      authIntent,
     });
     return destination;
   } catch {
@@ -2587,7 +2658,7 @@ async function handlePasswordSignup(req: Request, res: Response) {
   const signupAppSlug = signupAppContext.resolvedAppSlug;
 
   try {
-    const signupApp = await getAppBySlug(signupAppSlug);
+    const signupApp = signupAppContext.app;
     if (
       !signupApp ||
       signupApp.accessMode === "superadmin" ||
