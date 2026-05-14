@@ -1797,6 +1797,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
 
     let user = null;
     let boundGoogleSubjectThisCallback = false;
+    let provisionedNewUserThisCallback = false;
     if (subject) {
       logSuperadminTrace("D0. SUBJECT LOOKUP BEFORE", { subject });
       user = await db.query.usersTable.findFirst({
@@ -1927,6 +1928,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
         })
         .returning();
       user = createdRows[0] ?? null;
+      provisionedNewUserThisCallback = Boolean(user);
 
       logSuperadminTrace("H. ACCESS PROFILE DECISION", {
         appSlug: activeAppSlug,
@@ -2090,12 +2092,16 @@ async function handleGoogleCallback(req: Request, res: Response) {
       return;
     }
 
+    const effectiveOAuthIntent: OAuthIntent = provisionedNewUserThisCallback
+      ? oauthIntent
+      : "sign_in";
+
     const effectiveContext = await resolvePostAuthFlowDecision({
       userId: user.id,
       appSlug: activeAppSlug,
       isSuperAdmin: Boolean(user.isSuperAdmin),
       normalizedAccessProfile,
-      authIntent: oauthIntent,
+      authIntent: effectiveOAuthIntent,
     });
 
     if (!effectiveContext) {
@@ -2163,7 +2169,7 @@ async function handleGoogleCallback(req: Request, res: Response) {
       activeAppSlug,
       oauthContinuation,
       "post_auth",
-      oauthIntent,
+      effectiveOAuthIntent,
     );
     if (!finalDestination) {
       await destroySessionAndClearCookie(req, res, oauthSessionGroup);
