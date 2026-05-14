@@ -1,713 +1,767 @@
-import {
-  Switch,
-  Route,
-  Router as WouterRouter,
-  useLocation,
-  useRoute,
-} from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import React from "react";
+import { getAuthMessage } from "@workspace/auth-ui";
 import {
-  AuthProvider,
-  getLastAuthDebugEventSummary,
-  useAuth,
-  getDisallowedAuthRouteRedirect,
-  getMfaPendingRoute,
-  isAuthDebugEnabled,
-  useFrontendRuntimeSettings,
-  isMfaPendingStatus,
-  isAuthRouteAllowed,
-  logAuthDebug,
-  resolveAuthenticatedNextStep,
-  useCurrentPlatformAppMetadata,
+  AUTH_LOGIN_PATH,
   DEFAULT_POST_AUTH_PATH,
-  type AuthRouteKind,
-} from "@workspace/frontend-security";
-import { MonitoringErrorBoundary } from "@workspace/frontend-observability";
+  buildAdminAccessDeniedLoginPath,
+  getAuthErrorMessage,
+  isFullyAuthenticatedStatus,
+  parseAuthErrorCode,
+  resolveAuthenticatedNextStep,
+  deriveAppAuthRoutePolicy,
+  useAuth,
+  useCurrentPlatformAppMetadata,
+  useTurnstileToken,
+} from "./index";
+import {
+  ensureTurnstileReadyForSubmit,
+  getAuthActionErrorMessage,
+  handleTurnstileProtectedAuthError,
+  useAuthSubmitOrchestration,
+} from "./auth-form-runtime";
+import {
+  getMissingPasswordRequirements,
+  normalizeEmailInput,
+  validatePasswordInput,
+} from "./authValidation";
 
-import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
-import ForgotPassword from "./pages/auth/ForgotPassword";
-import ResetPassword from "./pages/auth/ResetPassword";
-import VerifyEmail from "./pages/auth/VerifyEmail";
-import MfaEnroll from "./pages/auth/MfaEnroll";
-import MfaChallenge from "./pages/auth/MfaChallenge";
-import Onboarding from "./pages/auth/Onboarding";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import DashboardHome from "./pages/dashboard/DashboardHome";
-import AppsDirectory from "./pages/dashboard/Apps";
-import Members from "./pages/dashboard/Members";
-import Invitations from "./pages/dashboard/Invitations";
-import Billing from "./pages/dashboard/Billing";
-import Settings from "./pages/dashboard/Settings";
-import InvitationAccept from "./pages/auth/InvitationAccept";
-import NotFound from "./pages/not-found";
-import { adminAccessDeniedLoginPath } from "./pages/auth/accessDenied";
+export function getLoginDisabledReasons(input: {
+  authStatus: ReturnType<typeof useAuth>["status"];
+  loginInFlight: boolean;
+  csrfReady: boolean;
+  csrfTokenPresent: boolean;
+  turnstileEnabled: boolean;
+  turnstileReady: boolean;
+  turnstileTokenPresent: boolean;
+}) {
+  const reasons: string[] = [];
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+  if (input.authStatus === "authenticated_fully") {
+    reasons.push("auth.status===authenticated_fully");
+  }
 
-type AuthAppAccessSnapshot = {
-  appSlug: string;
-  canAccess: boolean;
-  requiredOnboarding: "none" | "organization" | "user";
-  defaultRoute: string;
-  normalizedAccessProfile: "superadmin" | "solo" | "organization";
+  if (input.loginInFlight) {
+    reasons.push("auth.loginInFlight");
+  }
+
+  if (!input.csrfReady) {
+    reasons.push("!auth.csrfReady");
+  }
+
+  if (!input.csrfTokenPresent) {
+    reasons.push("!auth.csrfToken");
+  }
+
+  if (input.turnstileEnabled && !input.turnstileReady) {
+    reasons.push("turnstileEnabled&&!turnstileReady");
+  }
+
+  if (input.turnstileEnabled && !input.turnstileTokenPresent) {
+    reasons.push("turnstileEnabled&&!turnstileToken");
+  }
+
+  return reasons;
+}
+
+export type LoginPageVisibilityPolicy = {
+  allowGoogleLogin: boolean;
+  allowEmailLogin: boolean;
+  allowForgotPassword: boolean;
+  allowCreateAccount: boolean;
 };
 
-function getCurrentAppAccess(
-  user: ReturnType<typeof useAuth>["user"],
-  currentAppSlug: string | null,
-): AuthAppAccessSnapshot | null {
-  const candidate = (user as (typeof user & { appAccess?: unknown }) | null)
-    ?.appAccess;
-  if (!candidate || typeof candidate !== "object") return null;
-  const record = candidate as unknown as Record<string, unknown>;
-  if (!currentAppSlug) return null;
-  if (record["appSlug"] !== currentAppSlug) return null;
-  if (typeof record["canAccess"] !== "boolean") return null;
-  if (typeof record["appSlug"] !== "string") return null;
-  if (
-    record["requiredOnboarding"] !== "none" &&
-    record["requiredOnboarding"] !== "organization" &&
-    record["requiredOnboarding"] !== "user"
-  )
-    return null;
-  if (typeof record["defaultRoute"] !== "string") return null;
-  if (
-    record["normalizedAccessProfile"] !== "superadmin" &&
-    record["normalizedAccessProfile"] !== "solo" &&
-    record["normalizedAccessProfile"] !== "organization"
-  )
-    return null;
+export function deriveLoginPageVisibilityPolicy(
+  metadata: Parameters<typeof deriveAppAuthRoutePolicy>[0],
+): LoginPageVisibilityPolicy {
+  if (!metadata) {
+    return {
+      allowGoogleLogin: false,
+      allowEmailLogin: false,
+      allowForgotPassword: false,
+      allowCreateAccount: false,
+    };
+  }
+
+  const authPolicy = deriveAppAuthRoutePolicy(metadata);
+
+  if (metadata.normalizedAccessProfile === "superadmin") {
+    return {
+      allowGoogleLogin: true,
+      allowEmailLogin: false,
+      allowForgotPassword: false,
+      allowCreateAccount: false,
+    };
+  }
 
   return {
-    appSlug: record["appSlug"],
-    canAccess: record["canAccess"],
-    requiredOnboarding: record["requiredOnboarding"],
-    defaultRoute: record["defaultRoute"],
-    normalizedAccessProfile: record["normalizedAccessProfile"],
+    allowGoogleLogin: true,
+    allowEmailLogin: true,
+    allowForgotPassword: true,
+    allowCreateAccount: authPolicy.allowCustomerRegistration,
   };
 }
 
-function AuthLoading() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background">
-      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-    </div>
+export function useLoginRouteComposition() {
+  const auth = useAuth();
+
+  const {
+    metadata,
+    resolutionError,
+    diagnostic,
+  } = useCurrentPlatformAppMetadata();
+
+  const turnstile = useTurnstileToken();
+
+  const loginPageVisibility =
+    deriveLoginPageVisibilityPolicy(metadata);
+
+  const hideSignupAffordances =
+    !loginPageVisibility.allowCreateAccount;
+
+  return {
+    auth,
+    metadata,
+    turnstile,
+    loginPageVisibility,
+    hideSignupAffordances,
+    metadataResolutionError: resolutionError,
+    metadataResolutionDiagnostic: diagnostic,
+  };
+}
+
+export function useLoginRoutePolicy(options: {
+  search: string;
+  onRedirect: (path: string) => void;
+}) {
+  const { search, onRedirect } = options;
+
+  const {
+    auth,
+    metadata,
+    turnstile,
+    loginPageVisibility,
+    hideSignupAffordances,
+    metadataResolutionError,
+  } = useLoginRouteComposition();
+
+  const query = React.useMemo(
+    () => new URLSearchParams(search),
+    [search],
   );
-}
 
-function Home() {
-  const [, setLocation] = useLocation();
-  const auth = useAuth();
+  const nextPath = query.get("next");
+
+  const accessError = getAuthErrorMessage(
+    parseAuthErrorCode(query.get("error")),
+  );
+
+  const metadataError = metadataResolutionError
+    ? getAuthMessage("auth_metadata_unavailable")
+    : null;
+
+  const combinedAccessError =
+    accessError ?? metadataError;
+
+  const deniedCleanupAttemptedRef =
+    React.useRef(false);
 
   React.useEffect(() => {
-    if (auth.status !== "loading") {
-      if (auth.status === "unauthenticated") {
-        setLocation("/login");
-        logAuthDebug("guard_redirect", {
-          from: "/",
-          to: "/login",
-          reason: "home_unauthenticated",
-        });
-        return;
-      }
-      const nextStep = resolveAuthenticatedNextStep({
-        authStatus: auth.status,
-        user: auth.user,
-        deniedLoginPath: adminAccessDeniedLoginPath(),
-        defaultPath: DEFAULT_POST_AUTH_PATH,
-      });
-      if (
-        (auth.user as (typeof auth.user & { appAccess?: { normalizedAccessProfile?: string } }) | null)?.appAccess
-          ?.normalizedAccessProfile === "superadmin"
-      ) {
-        setLocation(
-          auth.user?.isSuperAdmin
-            ? DEFAULT_POST_AUTH_PATH
-            : adminAccessDeniedLoginPath(),
-        );
-        return;
-      }
-      logAuthDebug("guard_redirect", {
-        from: "/",
-        to: nextStep.destination,
-        reason: `home_${nextStep.reason}`,
-      });
-      setLocation(nextStep.destination);
+    if (!combinedAccessError) {
+      deniedCleanupAttemptedRef.current = false;
+      return;
     }
-  }, [auth.status, auth.user?.isSuperAdmin, setLocation]);
 
-  return <AuthLoading />;
-}
+    if (!isFullyAuthenticatedStatus(auth.status)) {
+      return;
+    }
 
-function AuthRedirect({ to }: { to: string }) {
-  const [from, setLocation] = useLocation();
+    if (deniedCleanupAttemptedRef.current) {
+      return;
+    }
+
+    deniedCleanupAttemptedRef.current = true;
+
+    void auth.logout();
+  }, [
+    combinedAccessError,
+    auth.status,
+    auth.logout,
+  ]);
 
   React.useEffect(() => {
-    logAuthDebug("guard_redirect", {
-      from,
-      to,
-      reason: "AuthRedirect_component",
-    });
-    setLocation(to);
-  }, [from, setLocation, to]);
+    if (!isFullyAuthenticatedStatus(auth.status)) {
+      return;
+    }
 
-  return <AuthLoading />;
-}
-
-function ConfigDrivenAuthRoute({
-  routeKind,
-  children,
-}: {
-  routeKind: AuthRouteKind;
-  children: React.ReactNode;
-}) {
-  const auth = useAuth();
-  const [location] = useLocation();
-  const { metadata, loading } = useCurrentPlatformAppMetadata();
-
-  if (routeKind === "invitation") {
-    console.info("[INVITATION-FLOW] invitation route hit", {
-      path: location,
-      authStatus: auth.status,
-      metadataLoaded: !loading,
-      invitationRoutesAllowed:
-        metadata?.authRoutePolicy?.allowInvitations ?? null,
-    });
-  }
-
-  if (loading || auth.status === "loading") return <AuthLoading />;
-
-  if (!isAuthRouteAllowed(metadata, routeKind)) {
-    const redirectTo = getDisallowedAuthRouteRedirect({
-      app: metadata,
-      authStatus: auth.status,
-      isSuperAdmin: auth.user?.isSuperAdmin,
-      deniedLoginPath: adminAccessDeniedLoginPath(),
-    });
-
-    console.info("[INVITATION-FLOW] auth route disallowed by metadata policy", {
-      routeKind,
-      path: location,
-      authStatus: auth.status,
-      redirectTo,
-      metadataPolicy: metadata?.authRoutePolicy ?? null,
-    });
-
-    return <AuthRedirect to={redirectTo} />;
-  }
-
-  if (auth.status === "unauthenticated" && routeKind === "invitation") {
-    console.info("[INVITATION-FLOW] allowing unauthenticated invitation route render", {
-      path: location,
-    });
-    return <>{children}</>;
-  }
-
-  if (isMfaPendingStatus(auth.status)) {
-    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
-  }
-
-  if (auth.status === "unauthenticated") {
-    console.info(
-      "[INVITATION-FLOW] redirecting unauthenticated user to generic login",
-      {
-        routeKind,
-        path: location,
-      },
-    );
-    return <AuthRedirect to="/login" />;
-  }
-
-  return <>{children}</>;
-}
-
-function AppModeAuthRoute({
-  routeKind,
-  children,
-}: {
-  routeKind: AuthRouteKind;
-  children: React.ReactNode;
-}) {
-  const auth = useAuth();
-  const { metadata, loading } = useCurrentPlatformAppMetadata();
-
-  if (loading || auth.status === "loading") return <AuthLoading />;
-
-  if (!isAuthRouteAllowed(metadata, routeKind)) {
-    return (
-      <AuthRedirect
-        to={getDisallowedAuthRouteRedirect({
-          app: metadata,
-          authStatus: auth.status,
-          isSuperAdmin: auth.user?.isSuperAdmin,
-          deniedLoginPath: adminAccessDeniedLoginPath(),
-        })}
-      />
-    );
-  }
-
-  return <>{children}</>;
-}
-
-function UserOnboardingRoute() {
-  const auth = useAuth();
-  const { metadata, loading, currentAppSlug } = useCurrentPlatformAppMetadata();
-
-  if (loading || auth.status === "loading") return <AuthLoading />;
-
-  if (auth.status === "unauthenticated") {
-    return <AuthRedirect to="/login" />;
-  }
-
-  if (isMfaPendingStatus(auth.status)) {
-    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
-  }
-
-  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
-
-  if (metadata?.normalizedAccessProfile === "superadmin") {
-    return (
-      <AuthRedirect
-        to={
-          auth.user?.isSuperAdmin
-            ? DEFAULT_POST_AUTH_PATH
-            : adminAccessDeniedLoginPath()
-        }
-      />
-    );
-  }
-
-  if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
-    return <AuthRedirect to="/onboarding/organization" />;
-  }
-
-  if (appAccess?.requiredOnboarding !== "user") {
     const nextStep = resolveAuthenticatedNextStep({
       authStatus: auth.status,
       user: auth.user,
-      deniedLoginPath: adminAccessDeniedLoginPath(),
+      continuationPath: nextPath,
+      deniedLoginPath: buildAdminAccessDeniedLoginPath(),
       defaultPath: DEFAULT_POST_AUTH_PATH,
     });
 
-    return <AuthRedirect to={nextStep.destination} />;
-  }
+    onRedirect(nextStep.destination);
+  }, [
+    auth.status,
+    auth.user,
+    nextPath,
+    onRedirect,
+  ]);
 
-  return <Onboarding />;
-}
-
-function ClientRegistrationUnavailable() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-lg rounded-lg border bg-card p-6 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Client registration is not available yet
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          This route is reserved for client/public registration continuation flows,
-          but the registration experience has not been implemented in this app yet.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ProtectedAppAccess({ children }: { children: React.ReactNode }) {
-  const auth = useAuth();
-  const { currentAppSlug } = useCurrentPlatformAppMetadata();
-
-  if (auth.status === "loading") return <AuthLoading />;
-
-  if (auth.status === "unauthenticated") {
-    return <AuthRedirect to="/login" />;
-  }
-  if (isMfaPendingStatus(auth.status)) {
-    return <AuthRedirect to={getMfaPendingRoute(auth.status) ?? "/login"} />;
-  }
-
-  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
-
-  if (appAccess?.requiredOnboarding === "organization" && !appAccess.canAccess) {
-    return <AuthRedirect to="/onboarding/organization" />;
-  }
-  if (appAccess?.requiredOnboarding === "user") {
-    return <AuthRedirect to="/onboarding/user" />;
-  }
-
-  if (appAccess?.normalizedAccessProfile === "superadmin" && !auth.user?.isSuperAdmin) {
-    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
-  }
-
-  if (appAccess && !appAccess.canAccess) {
-    return <AuthRedirect to={adminAccessDeniedLoginPath()} />;
-  }
-
-  return <>{children}</>;
-}
-
-function DashboardRoute() {
-  const [isSectionMatch, sectionParams] = useRoute<{ section?: string }>(
-    "/dashboard/:section",
-  );
-  const section = isSectionMatch ? sectionParams?.section : undefined;
-
-  const auth = useAuth();
-  const { currentAppSlug } = useCurrentPlatformAppMetadata();
-  const appAccess = getCurrentAppAccess(auth.user, currentAppSlug);
-
-  if (appAccess?.normalizedAccessProfile === "superadmin") {
-    return <AdminDashboard section={section} />;
-  }
-
-  const orgSection = section ?? "overview";
-  switch (orgSection) {
-    case "overview":
-      return <DashboardHome />;
-    case "apps":
-      return <AppsDirectory />;
-    case "members":
-      return <Members />;
-    case "invitations":
-      return <Invitations />;
-    case "billing":
-      return <Billing />;
-    case "settings":
-      return <Settings />;
-    default:
-      return <NotFound />;
-  }
-}
-
-function AuthDebugOverlay() {
-  const auth = useAuth();
-  const runtimeSettings = useFrontendRuntimeSettings();
-  const [location] = useLocation();
-  const storageKey = "auth-debug-overlay-collapsed";
-  const [isCollapsed, setIsCollapsed] = React.useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(storageKey) === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [lastEventSummary, setLastEventSummary] = React.useState<string | null>(
-    () => getLastAuthDebugEventSummary(),
-  );
-
-  React.useEffect(() => {
-    const update = () => {
-      setLastEventSummary(getLastAuthDebugEventSummary());
-    };
-    update();
-    const interval = window.setInterval(update, 500);
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    try {
-      window.localStorage.setItem(storageKey, String(isCollapsed));
-    } catch {
-      // no-op: localStorage may be unavailable in some environments
-    }
-  }, [isCollapsed]);
-
-  if (!runtimeSettings.authDebug && !isAuthDebugEnabled()) {
-    return null;
-  }
-
-  const shortUserId = auth.user?.id ? `${auth.user.id.slice(0, 8)}…` : "none";
-  const isAuthenticated = auth.status === "authenticated_fully";
-  const needsEnrollment =
-    auth.status === "authenticated_mfa_pending_unenrolled";
-  const parsedEvent = (() => {
-    if (!lastEventSummary) return null;
-    try {
-      return JSON.parse(lastEventSummary) as {
-        event?: string;
-        flowId?: string;
-        ts?: number;
-        fields?: Record<string, unknown>;
-      };
-    } catch {
-      return null;
-    }
-  })();
-  const eventSummary = parsedEvent?.event ?? "none";
-  const eventTs = parsedEvent?.ts
-    ? new Date(parsedEvent.ts).toISOString()
-    : null;
-  const togglePanel = () => setIsCollapsed((current) => !current);
-  const onToggleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === " " || event.key === "Enter") {
-      event.preventDefault();
-      togglePanel();
-    }
+  return {
+    auth,
+    metadata,
+    turnstile,
+    loginPageVisibility,
+    hideSignupAffordances,
+    nextPath,
+    accessError: combinedAccessError,
   };
+}
 
-  if (isCollapsed) {
-    return (
-      <aside className="fixed bottom-3 right-3 z-[10000]">
-        <button
-          type="button"
-          aria-label="Expand auth debug panel"
-          aria-expanded="false"
-          onClick={togglePanel}
-          onKeyDown={onToggleKeyDown}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/95 text-zinc-100 shadow-lg transition-colors hover:bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-        >
-          <span aria-hidden>⌃</span>
-        </button>
-      </aside>
-    );
+export function useLoginRouteActions(options: {
+  auth: ReturnType<typeof useAuth>;
+  turnstile: ReturnType<typeof useTurnstileToken>;
+  nextPath?: string | null;
+  allowCreateAccount: boolean;
+  email: string;
+  password: string;
+  emailError?: string | null;
+}) {
+  const {
+    auth,
+    turnstile,
+    nextPath,
+    allowCreateAccount,
+    email,
+    password,
+    emailError,
+  } = options;
+
+  const [loginError, setLoginError] =
+    React.useState<string | null>(null);
+
+  const handleGoogleLogin = React.useCallback(
+    (intent: "sign_in" | "create_account" = "sign_in") => {
+      const turnstileError =
+        ensureTurnstileReadyForSubmit(turnstile);
+
+      if (turnstileError) {
+        setLoginError(turnstileError);
+        return;
+      }
+
+      const safeIntent =
+        intent === "create_account" && !allowCreateAccount
+          ? "sign_in"
+          : intent;
+
+      void auth
+        .loginWithGoogle(
+          turnstile.token,
+          safeIntent,
+          nextPath ?? null,
+        )
+        .catch((error) => {
+          handleTurnstileProtectedAuthError({
+            error,
+            turnstile,
+            setError: setLoginError,
+            fallbackMessage: getAuthMessage("login_error_google_start"),
+          });
+        });
+    },
+    [
+      allowCreateAccount,
+      auth,
+      nextPath,
+      turnstile,
+    ],
+  );
+
+  const handlePasswordLogin = React.useCallback(() => {
+    if (emailError) {
+      setLoginError(emailError);
+      return;
+    }
+
+    const normalizedEmail = normalizeEmailInput(email);
+
+    if (!normalizedEmail || !password) {
+      setLoginError(getAuthMessage("login_error_missing_credentials"));
+      return;
+    }
+
+    const turnstileError =
+      ensureTurnstileReadyForSubmit(turnstile);
+
+    if (turnstileError) {
+      setLoginError(turnstileError);
+      return;
+    }
+
+    void auth
+      .loginWithPassword(
+        normalizedEmail,
+        password,
+        turnstile.token,
+        nextPath ?? null,
+      )
+      .catch((error) => {
+        handleTurnstileProtectedAuthError({
+          error,
+          turnstile,
+          setError: setLoginError,
+          fallbackMessage: getAuthMessage("login_error_invalid_credentials"),
+        });
+      });
+  }, [
+    auth,
+    email,
+    emailError,
+    nextPath,
+    password,
+    turnstile,
+  ]);
+
+  return {
+    loginError,
+    setLoginError,
+    handleGoogleLogin,
+    handlePasswordLogin,
+  };
+}
+
+export function getSignupDisabledReasons(input: {
+  signupInFlight: boolean;
+  emailPresent: boolean;
+  passwordPresent: boolean;
+  emailError: boolean;
+  passwordError: boolean;
+}) {
+  const reasons: string[] = [];
+
+  if (input.signupInFlight) {
+    reasons.push("signup.inFlight");
   }
 
-  return (
-    <aside className="fixed right-3 top-3 z-[10000] max-h-[80vh] w-[min(360px,calc(100vw-1.5rem))] overflow-auto rounded-md border border-zinc-700 bg-zinc-950/95 p-3 text-xs text-zinc-100 shadow-lg">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-semibold tracking-wide text-amber-300">
-          AUTH DEBUG
-        </div>
-        <button
-          type="button"
-          aria-label="Collapse auth debug panel"
-          aria-expanded="true"
-          onClick={togglePanel}
-          onKeyDown={onToggleKeyDown}
-          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-700 text-zinc-100 transition-colors hover:bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-        >
-          <span aria-hidden>⌄</span>
-        </button>
-      </div>
-      <dl className="space-y-1">
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">route</dt>
-          <dd className="text-right">{location}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">status</dt>
-          <dd className="text-right">{auth.status}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">authenticated</dt>
-          <dd>{String(isAuthenticated)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">userId</dt>
-          <dd>{shortUserId}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">mfaPending</dt>
-          <dd>{String(auth.user?.mfaPending ?? false)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">mfaEnrolled</dt>
-          <dd>{String(auth.user?.mfaEnrolled ?? false)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">nextStep</dt>
-          <dd>{auth.user?.nextStep ?? "none"}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">needsEnrollment</dt>
-          <dd>{String(needsEnrollment)}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-zinc-400">authBootstrapping</dt>
-          <dd>{String(auth.authBootstrapping)}</dd>
-        </div>
-      </dl>
-      <div className="mt-2 border-t border-zinc-700 pt-2">
-        <div className="text-zinc-400">lastEvent</div>
-        <div className="break-words">{eventSummary}</div>
-        {eventTs ? (
-          <div className="text-[10px] text-zinc-500">{eventTs}</div>
-        ) : null}
-      </div>
-    </aside>
-  );
+  if (!input.emailPresent) {
+    reasons.push("!signup.email");
+  }
+
+  if (!input.passwordPresent) {
+    reasons.push("!signup.password");
+  }
+
+  if (input.emailError) {
+    reasons.push("signup.emailError");
+  }
+
+  if (input.passwordError) {
+    reasons.push("signup.passwordError");
+  }
+
+  return reasons;
 }
 
-function Router() {
+export function useSignupRoutePolicy(options: {
+  locationPath: string;
+  signupPath?: string;
+  onRedirect: (path: string) => void;
+}) {
+  const { metadata, loading } =
+    useCurrentPlatformAppMetadata();
+
+  const metadataResolved = !loading;
+
+  const authPolicy =
+    deriveAppAuthRoutePolicy(metadata);
+
+  const signupAllowed =
+    authPolicy.allowCustomerRegistration;
+
+  const signupPath =
+    options.signupPath ?? "/signup";
+
+  React.useEffect(() => {
+    if (!metadataResolved) {
+      return;
+    }
+
+    if (signupAllowed) {
+      return;
+    }
+
+    if (options.locationPath !== signupPath) {
+      return;
+    }
+
+    options.onRedirect(AUTH_LOGIN_PATH);
+  }, [
+    metadataResolved,
+    signupAllowed,
+    options.locationPath,
+    options.onRedirect,
+    signupPath,
+  ]);
+
+  return {
+    metadataResolved,
+    signupAllowed,
+  };
+}
+
+function buildVerifyEmailPath(input: {
+  email: string;
+  appSlug?: string;
+  verifyToken?: string;
+}): string {
+  const query = new URLSearchParams();
+
+  query.set("email", input.email);
+
+  if (input.appSlug) {
+    query.set("appSlug", input.appSlug);
+  }
+
+  if (input.verifyToken) {
+    query.set("token", input.verifyToken);
+  }
+
+  return `/verify-email?${query.toString()}`;
+}
+
+export function useSignupRouteActions(options: {
+  auth: ReturnType<typeof useAuth>;
+  turnstile: ReturnType<typeof useTurnstileToken>;
+  email: string;
+  password: string;
+  emailError?: string | null;
+  onRedirect: (path: string) => void;
+}) {
+  const {
+    auth,
+    turnstile,
+    email,
+    password,
+    emailError,
+    onRedirect,
+  } = options;
+
+  const submit = useAuthSubmitOrchestration();
+
+  const handleSignup = React.useCallback(() => {
+    if (emailError) {
+      submit.setError(emailError);
+      return;
+    }
+
+    const normalizedEmail = normalizeEmailInput(email);
+    const passwordError = validatePasswordInput(password);
+
+    if (passwordError) {
+      submit.setError(passwordError);
+      return;
+    }
+
+    const turnstileError =
+      ensureTurnstileReadyForSubmit(turnstile);
+
+    if (turnstileError) {
+      submit.setError(turnstileError);
+      return;
+    }
+
+    void submit
+      .run(() =>
+        auth.signupWithPassword(
+          normalizedEmail,
+          password,
+          turnstile.token,
+        ),
+      )
+      .then((result) => {
+        onRedirect(
+          buildVerifyEmailPath({
+            email: normalizedEmail,
+            appSlug: result.appSlug,
+            verifyToken: result.verifyToken,
+          }),
+        );
+      })
+      .catch((error) => {
+        handleTurnstileProtectedAuthError({
+          error,
+          turnstile,
+          setError: submit.setError,
+          fallbackMessage: getAuthMessage("signup_error_fallback"),
+        });
+      });
+  }, [
+    auth,
+    email,
+    emailError,
+    onRedirect,
+    password,
+    submit,
+    turnstile,
+  ]);
+
+  return {
+    submit,
+    handleSignup,
+  };
+}
+
+type InvitationAcceptStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "submitting"
+  | "done"
+  | "error";
+
+function buildInvitationContinuationPath(token: string): string {
+  return `/invitations/${encodeURIComponent(token)}/accept`;
+}
+
+export function useInvitationAcceptRouteRuntime(options: {
+  token?: string | null;
+  onRedirect: (path: string) => void;
+}) {
   const auth = useAuth();
+  const turnstile = useTurnstileToken();
+  const [status, setStatus] =
+    React.useState<InvitationAcceptStatus>("idle");
+  const [message, setMessage] =
+    React.useState<string | null>(null);
+  const [resolutionError, setResolutionError] =
+    React.useState<string | null>(null);
+  const [submitError, setSubmitError] =
+    React.useState<string | null>(null);
+  const [password, setPassword] =
+    React.useState("");
+  const [passwordTouched, setPasswordTouched] =
+    React.useState(false);
+  const [passwordSubmitted, setPasswordSubmitted] =
+    React.useState(false);
+  const acceptanceAttemptedRef =
+    React.useRef(false);
 
-  return (
-    <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/signup">
-        {() => (
-          <AppModeAuthRoute routeKind="publicAuth">
-            <Signup />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/forgot-password">
-        {() => (
-          <AppModeAuthRoute routeKind="tokenAuth">
-            <ForgotPassword />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/reset-password">
-        {() => (
-          <AppModeAuthRoute routeKind="tokenAuth">
-            <ResetPassword />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/verify-email">
-        {() => (
-          <AppModeAuthRoute routeKind="tokenAuth">
-            <VerifyEmail />
-          </AppModeAuthRoute>
-        )}
-      </Route>
+  const token =
+    typeof options.token === "string"
+      ? options.token.trim()
+      : "";
 
-      <Route path="/mfa/enroll">
-        {() => {
-          if (auth.status === "loading") return <AuthLoading />;
-          if (auth.status === "unauthenticated")
-            return <AuthRedirect to="/login" />;
-          if (auth.status === "authenticated_fully") {
-            const nextStep = resolveAuthenticatedNextStep({
-              authStatus: auth.status,
-              user: auth.user,
-              deniedLoginPath: adminAccessDeniedLoginPath(),
-              defaultPath: DEFAULT_POST_AUTH_PATH,
-            });
-            return <AuthRedirect to={nextStep.destination} />;
-          }
-          if (auth.status === "authenticated_mfa_pending_enrolled")
-            return <AuthRedirect to="/mfa/challenge" />;
-          return <MfaEnroll />;
-        }}
-      </Route>
-      <Route path="/mfa/challenge">
-        {() => {
-          if (auth.status === "loading") return <AuthLoading />;
-          if (auth.status === "unauthenticated")
-            return <AuthRedirect to="/login" />;
-          if (auth.status === "authenticated_fully") {
-            const nextStep = resolveAuthenticatedNextStep({
-              authStatus: auth.status,
-              user: auth.user,
-              deniedLoginPath: adminAccessDeniedLoginPath(),
-              defaultPath: DEFAULT_POST_AUTH_PATH,
-            });
-            return <AuthRedirect to={nextStep.destination} />;
-          }
-          if (auth.status === "authenticated_mfa_pending_unenrolled")
-            return <AuthRedirect to="/mfa/enroll" />;
-          return <MfaChallenge />;
-        }}
-      </Route>
-      <Route path="/onboarding/organization">
-        {() => (
-          <ConfigDrivenAuthRoute routeKind="onboarding">
-            <Onboarding />
-          </ConfigDrivenAuthRoute>
-        )}
-      </Route>
-      <Route path="/onboarding/user">
-        {() => <UserOnboardingRoute />}
-      </Route>
-      <Route path="/onboarding">
-        {() => <AuthRedirect to="/onboarding/organization" />}
-      </Route>
-      <Route path="/invitations/:token/accept">
-        {() => (
-          <ConfigDrivenAuthRoute routeKind="invitation">
-            <InvitationAccept />
-          </ConfigDrivenAuthRoute>
-        )}
-      </Route>
+  const loginContinuationPath = token
+    ? `/login?next=${encodeURIComponent(
+        buildInvitationContinuationPath(token),
+      )}`
+    : AUTH_LOGIN_PATH;
 
-      <Route path="/register/client">
-        {() => (
-          <AppModeAuthRoute routeKind="clientRegistration">
-            <ClientRegistrationUnavailable />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/registration/client">
-        {() => (
-          <AppModeAuthRoute routeKind="clientRegistration">
-            <ClientRegistrationUnavailable />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/register/public">
-        {() => (
-          <AppModeAuthRoute routeKind="clientRegistration">
-            <ClientRegistrationUnavailable />
-          </AppModeAuthRoute>
-        )}
-      </Route>
-      <Route path="/registration/public">
-        {() => (
-          <AppModeAuthRoute routeKind="clientRegistration">
-            <ClientRegistrationUnavailable />
-          </AppModeAuthRoute>
-        )}
-      </Route>
+  const passwordError =
+    passwordTouched || passwordSubmitted
+      ? validatePasswordInput(password)
+      : null;
 
-      <Route path="/dashboard">
-        {() => (
-          <ProtectedAppAccess>
-            <DashboardRoute />
-          </ProtectedAppAccess>
-        )}
-      </Route>
-      <Route path="/dashboard/:section">
-        {() => (
-          <ProtectedAppAccess>
-            <DashboardRoute />
-          </ProtectedAppAccess>
-        )}
-      </Route>
+  const missingPasswordRequirements =
+    getMissingPasswordRequirements(password);
 
-      <Route path="/apps/:slug">
-        {() => (
-          <ProtectedAppAccess>
-            <AuthRedirect to="/dashboard/apps" />
-          </ProtectedAppAccess>
-        )}
-      </Route>
+  const shouldShowPasswordFeedback =
+    password.length > 0 &&
+    missingPasswordRequirements.length > 0;
 
-      <Route path={"/"} nest component={Home} />
+  const canSubmitPassword =
+    Boolean(token) &&
+    Boolean(password) &&
+    !passwordError &&
+    (!turnstile.enabled || Boolean(turnstile.token));
 
-      <Route component={NotFound} />
-    </Switch>
-  );
+  const passwordSubmitting =
+    status === "submitting";
+
+  const shouldShowInvitationChoices =
+    Boolean(token) &&
+    auth.status === "unauthenticated" &&
+    status !== "done" &&
+    status !== "error";
+
+  const shouldShowPasswordFields =
+    shouldShowInvitationChoices;
+
+  const shouldShowEmailSignInOption =
+    shouldShowInvitationChoices;
+
+  React.useEffect(() => {
+    if (!token) {
+      setStatus("error");
+      setResolutionError(getAuthMessage("invitation_invalid_link"));
+      setMessage(getAuthMessage("invitation_invalid_link"));
+      return;
+    }
+
+    if (auth.status === "loading") {
+      setStatus("loading");
+      setMessage(getAuthMessage("invitation_loading"));
+      return;
+    }
+
+    if (auth.status === "unauthenticated") {
+      setStatus("ready");
+      setMessage(getAuthMessage("invitation_sign_in_prompt"));
+      acceptanceAttemptedRef.current = false;
+      return;
+    }
+
+    if (acceptanceAttemptedRef.current) {
+      return;
+    }
+
+    acceptanceAttemptedRef.current = true;
+    setStatus("submitting");
+    setMessage(getAuthMessage("invitation_accepting"));
+
+    void auth
+      .acceptInvitation(token, turnstile.token)
+      .then((nextPath) => {
+        setStatus("done");
+        setMessage(getAuthMessage("invitation_accept_success"));
+        options.onRedirect(nextPath ?? DEFAULT_POST_AUTH_PATH);
+      })
+      .catch((error) => {
+        setStatus("error");
+        const errorMessage = getAuthActionErrorMessage(
+          error,
+          getAuthMessage("invitation_accept_failed"),
+        );
+        setResolutionError(errorMessage);
+        setMessage(errorMessage);
+
+        if (turnstile.enabled) {
+          turnstile.reset();
+        }
+      });
+  }, [
+    auth,
+    options,
+    token,
+    turnstile,
+  ]);
+
+  const markPasswordTouched =
+    React.useCallback(() => {
+      setPasswordTouched(true);
+    }, []);
+
+  const startGoogleContinuation =
+    React.useCallback(() => {
+      if (!token) {
+        setSubmitError(getAuthMessage("invitation_invalid_link"));
+        return;
+      }
+
+      const turnstileError =
+        ensureTurnstileReadyForSubmit(turnstile);
+
+      if (turnstileError) {
+        setSubmitError(turnstileError);
+        return;
+      }
+
+      void auth
+        .loginWithGoogle(
+          turnstile.token,
+          "sign_in",
+          buildInvitationContinuationPath(token),
+        )
+        .catch((error) => {
+          handleTurnstileProtectedAuthError({
+            error,
+            turnstile,
+            setError: setSubmitError,
+            fallbackMessage: getAuthMessage("invitation_accept_failed"),
+          });
+        });
+    }, [
+      auth,
+      token,
+      turnstile,
+    ]);
+
+  const submitInvitationPassword =
+    React.useCallback(() => {
+      setPasswordSubmitted(true);
+
+      if (!token) {
+        setSubmitError(getAuthMessage("invitation_invalid_link"));
+        return;
+      }
+
+      if (passwordError) {
+        setSubmitError(passwordError);
+        return;
+      }
+
+      const turnstileError =
+        ensureTurnstileReadyForSubmit(turnstile);
+
+      if (turnstileError) {
+        setSubmitError(turnstileError);
+        return;
+      }
+
+      setStatus("submitting");
+      setSubmitError(null);
+
+      void auth
+        .acceptInvitationWithPassword(
+          token,
+          password,
+          turnstile.token,
+        )
+        .then((nextPath) => {
+          setStatus("done");
+          options.onRedirect(nextPath ?? DEFAULT_POST_AUTH_PATH);
+        })
+        .catch((error) => {
+          setStatus("ready");
+          handleTurnstileProtectedAuthError({
+            error,
+            turnstile,
+            setError: setSubmitError,
+            fallbackMessage: getAuthMessage("invitation_password_set_failed"),
+          });
+        });
+    }, [
+      auth,
+      options,
+      password,
+      passwordError,
+      token,
+      turnstile,
+    ]);
+
+  return {
+    auth,
+    turnstile,
+    status,
+    message,
+    resolutionError,
+    submitError,
+    password,
+    setPassword,
+    markPasswordTouched,
+    passwordError,
+    missingPasswordRequirements,
+    shouldShowPasswordFeedback,
+    passwordSubmitting,
+    canSubmitPassword,
+    shouldShowInvitationChoices,
+    shouldShowPasswordFields,
+    shouldShowEmailSignInOption,
+    loginContinuationPath,
+    startGoogleContinuation,
+    submitInvitationPassword,
+  };
 }
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <MonitoringErrorBoundary app="admin" fallback={<AuthLoading />}>
-        <AuthProvider>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <AuthDebugOverlay />
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </AuthProvider>
-      </MonitoringErrorBoundary>
-    </QueryClientProvider>
-  );
-}
-
-export default App;
