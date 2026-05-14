@@ -599,11 +599,12 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
-  if (app.normalizedAccessProfile === "organization") {
+   if (app.normalizedAccessProfile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: app.staffInvitesEnabled === true,
-      allowCustomerRegistration: app.customerRegistrationEnabled === true,
+      allowInvitations: app.staffInvitesEnabled !== false,
+      allowCustomerRegistration:
+        app.customerRegistrationEnabled !== false,
     };
   }
 
@@ -638,7 +639,7 @@ export function isAuthRouteAllowed(
     return policy.allowInvitations;
   }
 
-    if (routeKind === "publicAuth") {
+  if (routeKind === "publicAuth") {
     return policy.allowCustomerRegistration;
   }
 
@@ -760,8 +761,9 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
 
   return {
     allowOnboarding: true,
-    allowInvitations: input.staffInvitesEnabled === true,
-    allowCustomerRegistration: input.customerRegistrationEnabled === true,
+    allowInvitations: input.staffInvitesEnabled !== false,
+    allowCustomerRegistration:
+      input.customerRegistrationEnabled !== false,
   };
 }
 
