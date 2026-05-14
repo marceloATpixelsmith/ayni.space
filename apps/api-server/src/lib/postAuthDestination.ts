@@ -10,20 +10,6 @@ export const DEFAULT_POST_AUTH_PATH = DEFAULT_POST_AUTH_PATH_COMPAT;
 
 export type PostAuthResolutionStage = "post_auth" | "post_onboarding";
 
-function isContinuationBypassAllowed(
-  continuation: PostAuthContinuation | null | undefined,
-): boolean {
-  if (!continuation) return false;
-
-  return (
-    continuation.type === "event_registration" ||
-    continuation.type === "client_registration" ||
-    (continuation.type === "invitation_acceptance" &&
-      typeof continuation.orgId === "string" &&
-      continuation.orgId.trim().length > 0)
-  );
-}
-
 export function resolveAuthenticatedPostAuthDestination(options: {
   continuation?: PostAuthContinuation | null;
   flowDecision: PostAuthFlowDecision | null;
@@ -49,27 +35,16 @@ export function resolveAuthenticatedPostAuthDestination(options: {
   const canAccess = options.flowDecision?.canAccess ?? false;
   const requiredOnboarding = options.flowDecision?.requiredOnboarding ?? "none";
   const requiresOnboarding = requiredOnboarding !== "none";
-  const continuationCanBypassOnboarding =
-    continuationEligible && isContinuationBypassAllowed(options.continuation);
 
   if (!canAccess) {
     return flowDestination ?? null;
   }
 
-  if (
-    stage === "post_auth" &&
-    requiresOnboarding &&
-    flowDestination &&
-    !continuationCanBypassOnboarding
-  ) {
+  if (requiresOnboarding && flowDestination) {
     return flowDestination;
   }
 
-  if (
-    stage === "post_auth" &&
-    requiredOnboarding === "user" &&
-    flowDestination
-  ) {
+  if (stage === "post_onboarding" && requiresOnboarding && flowDestination) {
     return flowDestination;
   }
 
