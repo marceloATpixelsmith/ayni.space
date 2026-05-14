@@ -11,7 +11,8 @@ on:
     - cron: "0 3 * * *"
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 jobs:
   backend-typecheck:
@@ -22,6 +23,8 @@ jobs:
       BACKEND_TRACE_VERBOSE: "0"
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
@@ -59,6 +62,9 @@ jobs:
           name: backend-typecheck-failure-output
           path: ci-output/
           if-no-files-found: error
+      - name: Publish backend-typecheck failure report
+        if: ${{ failure() && hashFiles('ci-output/backend-typecheck.log') != '' }}
+        run: node scripts/ci/publish-failure-report.mjs ci-output
 
   backend-build-api:
     name: backend-build-api
@@ -68,6 +74,8 @@ jobs:
       BACKEND_TRACE_VERBOSE: "0"
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
@@ -105,6 +113,9 @@ jobs:
           name: backend-build-api-failure-output
           path: ci-output/
           if-no-files-found: error
+      - name: Publish backend-build-api failure report
+        if: ${{ failure() && hashFiles('ci-output/backend-build-api.log') != '' }}
+        run: node scripts/ci/publish-failure-report.mjs ci-output
 
   backend-api-tests:
     name: backend-api-tests
@@ -115,6 +126,8 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
@@ -152,3 +165,6 @@ jobs:
           name: backend-api-tests-failure-output
           path: ci-output/
           if-no-files-found: error
+      - name: Publish backend-api-tests failure report
+        if: ${{ failure() && hashFiles('ci-output/backend-api-tests.log') != '' }}
+        run: node scripts/ci/publish-failure-report.mjs ci-output
