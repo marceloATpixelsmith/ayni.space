@@ -556,7 +556,7 @@ function Router() {
       </Route>
       <Route path="/forgot-password">
         {() => (
-          <AppModeAuthRoute routeKind="publicAuth">
+          <AppModeAuthRoute routeKind="tokenAuth">
             <ForgotPassword />
           </AppModeAuthRoute>
         )}
