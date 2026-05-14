@@ -1,0 +1,33 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-typecheck
+Run ID: 25875039705
+Run number: 868
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25875039705
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 6553abf4b676177a6fabe9b8aa88c38d59d11117
+Actor: marceloATpixelsmith
+Event: push
+Command: pnpm -w typecheck
+Failure type: ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL
+Failing test: @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Actual: N/A
+Expected: N/A
+File/line: N/A
+Auth-context signal: N/A
+Likely source area: N/A
+Exit code: 2
+Relevant log excerpt:
+Failing command: pnpm -w typecheck
+apps/api-server typecheck: src/routes/auth.ts(2856,3): error TS1128: Declaration or statement expected.
+apps/api-server typecheck: src/routes/auth.ts(2856,5): error TS1005: 'try' expected.
+apps/api-server typecheck: src/routes/auth.ts(2859,1): error TS1128: Declaration or statement expected.
+apps/api-server typecheck: Failed
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+ ELIFECYCLE  Command failed with exit code 2.
+Exit code: 2
+==================================================

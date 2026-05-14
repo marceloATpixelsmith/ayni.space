@@ -1,0 +1,25 @@
+Failing command: pnpm -w typecheck
+----------------------------------------
+
+> workspace@0.0.0 typecheck /home/runner/work/ayni.space/ayni.space
+> pnpm run typecheck:libs && pnpm -r --filter "./apps/**" --filter "./scripts" --if-present run typecheck
+
+
+> workspace@0.0.0 typecheck:libs /home/runner/work/ayni.space/ayni.space
+> tsc --build
+
+Scope: 4 of 19 workspace projects
+apps/admin typecheck$ tsc -p tsconfig.json --noEmit
+apps/api-server typecheck$ tsc -p tsconfig.json --noEmit
+apps/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit
+scripts typecheck$ tsc -p tsconfig.json --noEmit
+apps/api-server typecheck: src/routes/auth.ts(2856,3): error TS1128: Declaration or statement expected.
+apps/api-server typecheck: src/routes/auth.ts(2856,5): error TS1005: 'try' expected.
+apps/api-server typecheck: src/routes/auth.ts(2859,1): error TS1128: Declaration or statement expected.
+apps/api-server typecheck: Failed
+/home/runner/work/ayni.space/ayni.space/apps/api-server:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
+----------------------------------------
+Exit code: 2
