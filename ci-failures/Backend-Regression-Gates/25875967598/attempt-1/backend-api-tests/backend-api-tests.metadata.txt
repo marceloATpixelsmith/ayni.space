@@ -1,0 +1,17 @@
+==================================================
+CI RUN METADATA
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-api-tests
+Run ID: 25875967598
+Run number: 869
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25875967598
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 860f1e7578ccba6f47cfd3791b58947160ff1dac
+Actor: marceloATpixelsmith
+Event: push
+Raw log: ci-output/backend-api-tests.log
+Summary log: ci-output/backend-api-tests.summary.txt
+==================================================
