@@ -31,7 +31,7 @@ export function resolveNormalizedAccessProfile(
 
 export function getAuthRoutePolicyForProfile(
   profile: NormalizedAccessProfile,
-  organizationCapabilities: Pick<
+  _organizationCapabilities: Pick<
     App,
     "staffInvitesEnabled" | "customerRegistrationEnabled"
   >,
@@ -39,9 +39,8 @@ export function getAuthRoutePolicyForProfile(
   if (profile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: organizationCapabilities.staffInvitesEnabled !== false,
-      allowCustomerRegistration:
-        organizationCapabilities.customerRegistrationEnabled !== false,
+      allowInvitations: true,
+      allowCustomerRegistration: true,
     };
   }
 
