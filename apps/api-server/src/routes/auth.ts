@@ -2770,7 +2770,93 @@ async function resolveNextPathForEstablishedSession(
   }
 }
 
-   
+    if (stage === "post_auth" && continuationAllowsBypass && continuationPath) {
+      delete req.session.postAuthContinuation;
+
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: continuationPath,
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath,
+        requiredOnboarding: flow?.requiredOnboarding ?? null,
+        authIntent,
+        continuationBypass: true,
+      });
+
+      return continuationPath;
+    }
+
+    if (
+      stage === "post_auth" &&
+      flow?.requiredOnboarding === "organization" &&
+      continuationPath
+    ) {
+      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
+
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/onboarding/organization",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath,
+        requiredOnboarding: flow.requiredOnboarding,
+        authIntent,
+        onboardingBeforeContinuation: true,
+      });
+
+      return "/onboarding/organization";
+    }
+
+    if (
+      stage === "post_auth" &&
+      normalizedAccessProfile === "organization" &&
+      app.customerRegistrationEnabled === true &&
+      flow?.requiredOnboarding === "organization"
+    ) {
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: "/dashboard",
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath: effectiveContinuation?.returnPath ?? null,
+        requiredOnboarding: flow.requiredOnboarding,
+        organizationRegistrationBridge: true,
+        authIntent,
+      });
+      return "/dashboard";
+    }
+
+    const destination = resolveAuthenticatedPostAuthDestination({
+      continuation: effectiveContinuation,
+      flowDecision: flow,
+      stage,
+      currentAppSlug: app.slug,
+    });
+    if (!destination) {
+      return null;
+    }
+    const shouldKeepContinuation =
+      stage === "post_auth" && flow?.requiredOnboarding !== "none";
+    if (effectiveContinuation && shouldKeepContinuation) {
+      req.session.postAuthContinuation = effectiveContinuation;
+    } else {
+      delete req.session.postAuthContinuation;
+    }
+    logAuthDebug(req, "post_auth_redirect_decision", {
+      userId,
+      appSlug,
+      destination,
+      continuationType: effectiveContinuation?.type ?? null,
+      continuationPath: effectiveContinuation?.returnPath ?? null,
+      requiredOnboarding: flow?.requiredOnboarding ?? null,
+      authIntent,
+    });
+    return destination;
+  } catch {
+    return null;
+  }
+}
 
 async function handlePasswordSignup(req: Request, res: Response) {
   const email = normalizeEmailAddress(String(req.body?.email ?? ""));
