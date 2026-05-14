@@ -122,10 +122,10 @@ try
 
     const hasChanges = readGit(['status', '--short']);
 
-    if (!hasChanges)
+   if (!hasChanges)
       {
         console.log('No CI failure report changes to publish.');
-        return;
+        process.exit(0);
       }
 
     runGit([
