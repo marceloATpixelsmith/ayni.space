@@ -2639,7 +2639,9 @@ async function resolveNextPathForEstablishedSession(
       where: eq(usersTable.id, userId),
     });
     const app = await getAppBySlug(appSlug);
+
     if (!user || !app) return null;
+
     const normalizedAccessProfile = resolveNormalizedAccessProfile(app);
     if (!normalizedAccessProfile) return null;
 
@@ -2650,61 +2652,121 @@ async function resolveNextPathForEstablishedSession(
       normalizedAccessProfile,
       authIntent,
     });
+
+    if (!flow) return null;
+
     const effectiveContinuation =
       continuation === undefined
         ? (req.session.postAuthContinuation ?? null)
         : continuation;
 
-    const continuationPath = effectiveContinuation?.returnPath ?? "";
-
+    const continuationPath = effectiveContinuation?.returnPath ?? null;
     const invitationContinuationHasTrustedOrg = Boolean(
-      effectiveContinuation?.orgId,
+      effectiveContinuation?.type === "invitation_acceptance" &&
+        effectiveContinuation.orgId,
     );
 
     const continuationAllowsBypass =
-  effectiveContinuation?.type === "invitation_acceptance" &&
-  invitationContinuationHasTrustedOrg &&
-  flow?.canAccess === true &&
-  flow.requiredOnboarding === "none" &&
-  normalizedAccessProfile !== "superadmin";
+      effectiveContinuation?.type === "invitation_acceptance" &&
+      invitationContinuationHasTrustedOrg &&
+      flow.canAccess === true &&
+      flow.requiredOnboarding === "none" &&
+      normalizedAccessProfile !== "superadmin";
 
     if (stage === "post_auth" && continuationPath) {
-  if (continuationAllowsBypass) {
-    delete req.session.postAuthContinuation;
+      if (continuationAllowsBypass) {
+        delete req.session.postAuthContinuation;
+
+        logAuthDebug(req, "post_auth_redirect_decision", {
+          userId,
+          appSlug,
+          destination: continuationPath,
+          continuationType: effectiveContinuation?.type ?? null,
+          continuationPath,
+          requiredOnboarding: flow.requiredOnboarding,
+          authIntent,
+          continuationBypass: true,
+        });
+
+        return continuationPath;
+      }
+
+      if (
+        flow.requiredOnboarding !== "none" ||
+        flow.canAccess !== true
+      ) {
+        req.session.postAuthContinuation =
+          effectiveContinuation ?? undefined;
+
+        logAuthDebug(req, "post_auth_redirect_decision", {
+          userId,
+          appSlug,
+          destination: flow.destination,
+          continuationType: effectiveContinuation?.type ?? null,
+          continuationPath,
+          requiredOnboarding: flow.requiredOnboarding,
+          authIntent,
+          continuationDeferred: true,
+        });
+
+        return flow.destination;
+      }
+    }
+
+    if (
+      stage === "post_onboarding" &&
+      flow.requiredOnboarding !== "none"
+    ) {
+      req.session.postAuthContinuation =
+        effectiveContinuation ?? undefined;
+
+      logAuthDebug(req, "post_auth_redirect_decision", {
+        userId,
+        appSlug,
+        destination: flow.destination,
+        continuationType: effectiveContinuation?.type ?? null,
+        continuationPath,
+        requiredOnboarding: flow.requiredOnboarding,
+        authIntent,
+        onboardingStillRequired: true,
+      });
+
+      return flow.destination;
+    }
+
+    const destination = resolveAuthenticatedPostAuthDestination({
+      continuation: effectiveContinuation,
+      flowDecision: flow,
+      stage,
+      currentAppSlug: app.slug,
+    });
+
+    if (!destination) {
+      return null;
+    }
+
+    const shouldKeepContinuation =
+      stage === "post_auth" && flow.requiredOnboarding !== "none";
+
+    if (effectiveContinuation && shouldKeepContinuation) {
+      req.session.postAuthContinuation = effectiveContinuation;
+    } else {
+      delete req.session.postAuthContinuation;
+    }
 
     logAuthDebug(req, "post_auth_redirect_decision", {
       userId,
       appSlug,
-      destination: continuationPath,
+      destination,
       continuationType: effectiveContinuation?.type ?? null,
-      continuationPath,
-      requiredOnboarding: flow?.requiredOnboarding ?? null,
+      continuationPath: effectiveContinuation?.returnPath ?? null,
+      requiredOnboarding: flow.requiredOnboarding,
       authIntent,
-      continuationBypass: true,
     });
 
-    return continuationPath;
-  }
-
-  if (
-    flow?.requiredOnboarding !== "none" ||
-    flow?.canAccess !== true
-  ) {
-    req.session.postAuthContinuation =
-      effectiveContinuation ?? undefined;
-
-    logAuthDebug(req, "post_auth_redirect_decision", {
-      userId,
-      appSlug,
-      destination: flow?.destination ?? null,
-      continuationType:
-        effectiveContinuation?.type ?? null,
-      continuationPath,
-      requiredOnboarding:
-        flow?.requiredOnboarding ?? null,
-      authIntent,
-      continuationDeferred: true,
-    });
+    return destination;
+  } catch {
+    return null;
   }
 }
 
