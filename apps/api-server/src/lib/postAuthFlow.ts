@@ -117,9 +117,13 @@ export async function resolvePostAuthFlowDecision(params: {
     ? "organization"
     : context.requiredOnboarding;
 
-  const effectiveCanAccess = isOrganizationCreateAccountBridge
-    ? true
-    : context.canAccess;
+  const effectiveCanAccess =
+    isOrganizationCreateAccountBridge ||
+    context.canAccess ||
+    (
+      normalizedAccessProfile === "organization" &&
+      allowsOrganizationCustomerRegistration(context)
+    );
 
   const destination =
     effectiveRequiredOnboarding !== "none"
