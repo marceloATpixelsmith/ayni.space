@@ -638,11 +638,15 @@ export function isAuthRouteAllowed(
     return policy.allowInvitations;
   }
 
-  if (
-    routeKind === "publicAuth" ||
-    routeKind === "tokenAuth"
-  ) {
+    if (routeKind === "publicAuth") {
     return policy.allowCustomerRegistration;
+  }
+
+  if (routeKind === "tokenAuth") {
+    return (
+      app?.normalizedAccessProfile === "solo" ||
+      app?.normalizedAccessProfile === "organization"
+    );
   }
 
   if (routeKind === "clientRegistration") {
