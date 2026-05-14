@@ -27,10 +27,43 @@ function shouldUseSsl(env: NodeJS.ProcessEnv, sslMode: string | null): boolean
 {
   const nodeEnv = env.NODE_ENV ?? "development";
   const isProductionLike = nodeEnv === "production" || env.CI === "true";
-  if (isProductionLike) return true;
 
-  if (!sslMode) return false;
+  if (isProductionLike)
+  {
+    return true;
+  }
+
+  if (!sslMode)
+  {
+    return false;
+  }
+
   return sslMode !== "disable";
+}
+
+function buildSslConfig(
+  env: NodeJS.ProcessEnv,
+  sslMode: string | null,
+): PoolConfig["ssl"]
+{
+  const nodeEnv = env.NODE_ENV ?? "development";
+  const isProductionLike = nodeEnv === "production" || env.CI === "true";
+
+  if (isProductionLike)
+  {
+    return {
+      rejectUnauthorized: true,
+    };
+  }
+
+  if (!sslMode || sslMode === "disable")
+  {
+    return false;
+  }
+
+  return {
+    rejectUnauthorized: true,
+  };
 }
 
 export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig
@@ -41,7 +74,9 @@ export function buildDbPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolCon
 
   return {
     connectionString: databaseUrl,
-    ssl: useSsl ? { rejectUnauthorized: true } : false,
+    ssl: useSsl
+      ? buildSslConfig(env, sslMode)
+      : false,
   };
 }
 
