@@ -1,0 +1,33 @@
+Failing command: pnpm -w typecheck
+----------------------------------------
+
+> workspace@0.0.0 typecheck /home/runner/work/ayni.space/ayni.space
+> pnpm run typecheck:libs && pnpm -r --filter "./apps/**" --filter "./scripts" --if-present run typecheck
+
+
+> workspace@0.0.0 typecheck:libs /home/runner/work/ayni.space/ayni.space
+> tsc --build
+
+Scope: 4 of 19 workspace projects
+apps/admin typecheck$ tsc -p tsconfig.json --noEmit
+apps/api-server typecheck$ tsc -p tsconfig.json --noEmit
+apps/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit
+scripts typecheck$ tsc -p tsconfig.json --noEmit
+scripts typecheck: Done
+apps/mockup-sandbox typecheck: Done
+apps/api-server typecheck: Done
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(292,36): error TS2345: Argument of type '"login_error_missing_credentials"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(599,41): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(600,33): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(606,33): error TS2345: Argument of type '"invitation_loading"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(612,33): error TS2345: Argument of type '"invitation_sign_in_prompt"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(629,35): error TS2345: Argument of type '"invitation_accept_success"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(660,39): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(697,39): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: Failed
+/home/runner/work/ayni.space/ayni.space/apps/admin:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/admin@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
+----------------------------------------
+Exit code: 2
