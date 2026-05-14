@@ -542,8 +542,7 @@ function AuthDebugOverlay() {
 }
 
 function Router() {
-  const auth = useAuth();
-
+  
   return (
     <Switch>
       <Route path="/login" component={Login} />
@@ -680,7 +679,7 @@ function Router() {
         )}
       </Route>
 
-      {/* Fail-closed aliases for legacy routes */}
+      {/* Legacy aliases */}
       <Route path="/apps/:slug">
         {() => (
           <ProtectedAppAccess>
