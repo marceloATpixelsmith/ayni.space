@@ -52,12 +52,12 @@ jobs:
             node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
             exit "$STATUS"
           fi
-      - name: Upload backend-typecheck failure log
+      - name: Upload backend-typecheck failure output
         if: ${{ failure() && hashFiles('ci-output/backend-typecheck.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: backend-typecheck-failure-log
-          path: ci-output/backend-typecheck.log
+          name: backend-typecheck-failure-output
+          path: ci-output/
           if-no-files-found: error
 
   backend-build-api:
@@ -98,12 +98,12 @@ jobs:
             node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
             exit "$STATUS"
           fi
-      - name: Upload backend-build-api failure log
+      - name: Upload backend-build-api failure output
         if: ${{ failure() && hashFiles('ci-output/backend-build-api.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: backend-build-api-failure-log
-          path: ci-output/backend-build-api.log
+          name: backend-build-api-failure-output
+          path: ci-output/
           if-no-files-found: error
 
   backend-api-tests:
@@ -145,10 +145,10 @@ jobs:
             node scripts/ci/extract-failure-summary.mjs "$LOG_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
             exit "$STATUS"
           fi
-      - name: Upload backend-api-tests failure log
+      - name: Upload backend-api-tests failure output
         if: ${{ failure() && hashFiles('ci-output/backend-api-tests.log') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: backend-api-tests-failure-log
-          path: ci-output/backend-api-tests.log
+          name: backend-api-tests-failure-output
+          path: ci-output/
           if-no-files-found: error
