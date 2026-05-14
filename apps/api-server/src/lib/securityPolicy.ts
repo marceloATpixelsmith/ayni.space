@@ -149,12 +149,6 @@ export function getSecurityConfig(): SecurityConfig {
         disableTurnstileReason: "Frontend monitoring ingest is machine-posted.",
         rateLimit: { type: "default", options: { keyPrefix: "monitoring-events" } },
       },
-      {
-        method: "GET",
-        pattern: /^\/debug-sentry\/?$/,
-        category: "INTERNAL",
-      },
-
       // ADMIN prefix
       {
         method: "*",

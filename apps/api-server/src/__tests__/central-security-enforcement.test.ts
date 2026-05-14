@@ -242,6 +242,27 @@ test("ADMIN routes are centrally enforced as super-admin only", async () => {
   }
 });
 
+test("temporary Sentry debug endpoint is not exposed as a live route", async () => {
+  const restores = [
+    patchProperty(db.query.usersTable, "findFirst", async () => user("debug-route-user")),
+    patchProperty(db, "update", () => ({ set: () => ({ where: async () => undefined }) } as never)),
+  ];
+
+  try {
+    assert.equal(getSecurityRuleForRequest("GET", "/debug-sentry"), null);
+
+    const response = await requestJson(
+      createApp({ userId: "debug-route-user" }),
+      "GET",
+      "/debug-sentry",
+    );
+
+    assert.equal(response.status, 404);
+  } finally {
+    restores.reverse().forEach((restore) => restore());
+  }
+});
+
 test("origin/referer protection denies unsafe requests with missing headers except explicit machine exceptions", async () => {
   const { originRefererProtection } = await import("../middlewares/csrf.js");
   const app = express();
