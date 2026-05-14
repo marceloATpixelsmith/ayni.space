@@ -518,9 +518,17 @@ export type AuthRouteKind =
   | "tokenAuth"
   | "clientRegistration";
 
+export type AppAuthRoutePolicy = {
+  allowOnboarding: boolean;
+  allowInvitations: boolean;
+  allowCustomerRegistration: boolean;
+};
+
 export type PlatformAppMetadata = {
   slug: string;
   normalizedAccessProfile: NormalizedAccessProfile;
+  staffInvitesEnabled?: boolean;
+  customerRegistrationEnabled?: boolean;
   authRoutePolicy?: AppAuthRoutePolicy;
 };
 
@@ -534,11 +542,31 @@ export type PlatformAppMetadataDiagnostic = {
   message: string | null;
 };
 
-export type AppAuthRoutePolicy = {
-  allowOnboarding: boolean;
-  allowInvitations: boolean;
-  allowCustomerRegistration: boolean;
-};
+function normalizeBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function normalizeAuthRoutePolicy(
+  value: unknown,
+): AppAuthRoutePolicy | null {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Record<string, unknown>;
+
+  if (
+    typeof candidate["allowOnboarding"] !== "boolean" ||
+    typeof candidate["allowInvitations"] !== "boolean" ||
+    typeof candidate["allowCustomerRegistration"] !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    allowOnboarding: candidate["allowOnboarding"],
+    allowInvitations: candidate["allowInvitations"],
+    allowCustomerRegistration: candidate["allowCustomerRegistration"],
+  };
+}
 
 export function deriveAppAuthRoutePolicy(
   app: PlatformAppMetadata | null | undefined,
@@ -559,6 +587,10 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
+  if (app.authRoutePolicy) {
+    return app.authRoutePolicy;
+  }
+
   if (app.normalizedAccessProfile === "solo") {
     return {
       allowOnboarding: false,
@@ -570,8 +602,8 @@ export function deriveAppAuthRoutePolicy(
   if (app.normalizedAccessProfile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: true,
-      allowCustomerRegistration: true,
+      allowInvitations: app.staffInvitesEnabled === true,
+      allowCustomerRegistration: app.customerRegistrationEnabled === true,
     };
   }
 
@@ -681,17 +713,23 @@ function normalizePlatformAppMetadata(
 
   if (!normalizedAccessProfile) return null;
 
+  const staffInvitesEnabled = normalizeBoolean(candidate["staffInvitesEnabled"]);
+  const customerRegistrationEnabled = normalizeBoolean(
+    candidate["customerRegistrationEnabled"],
+  );
+  const providedPolicy = normalizeAuthRoutePolicy(candidate["authRoutePolicy"]);
   const fallbackPolicy = getAuthRoutePolicyForNormalizedProfile({
     normalizedAccessProfile,
-    staffInvitesEnabled: candidate["staffInvitesEnabled"] === true,
-    customerRegistrationEnabled:
-      candidate["customerRegistrationEnabled"] === true,
+    staffInvitesEnabled,
+    customerRegistrationEnabled,
   });
 
   return {
     slug: candidate["slug"],
     normalizedAccessProfile,
-    authRoutePolicy: fallbackPolicy,
+    staffInvitesEnabled,
+    customerRegistrationEnabled,
+    authRoutePolicy: providedPolicy ?? fallbackPolicy,
   };
 }
 
@@ -718,8 +756,8 @@ function getAuthRoutePolicyForNormalizedProfile(input: {
 
   return {
     allowOnboarding: true,
-    allowInvitations: true,
-    allowCustomerRegistration: true,
+    allowInvitations: input.staffInvitesEnabled === true,
+    allowCustomerRegistration: input.customerRegistrationEnabled === true,
   };
 }
 
@@ -1584,7 +1622,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token, password }),
+          body: JSON.stringify({
+            token,
+            password,
+            appSlug: resolveRequiredAuthAppSlug(),
+          }),
         },
         csrfToken,
       );
@@ -1621,7 +1663,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             token,
-            appSlug: appSlug?.trim() || undefined,
+            appSlug: appSlug?.trim() || resolveRequiredAuthAppSlug(),
           }),
         },
         csrfToken,
