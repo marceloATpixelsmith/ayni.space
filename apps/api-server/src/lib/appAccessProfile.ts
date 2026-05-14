@@ -39,9 +39,9 @@ export function getAuthRoutePolicyForProfile(
   if (profile === "organization") {
     return {
       allowOnboarding: true,
-      allowInvitations: organizationCapabilities.staffInvitesEnabled === true,
+      allowInvitations: organizationCapabilities.staffInvitesEnabled !== false,
       allowCustomerRegistration:
-        organizationCapabilities.customerRegistrationEnabled === true,
+        organizationCapabilities.customerRegistrationEnabled !== false,
     };
   }
 
