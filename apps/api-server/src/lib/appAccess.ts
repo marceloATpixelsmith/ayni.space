@@ -444,16 +444,7 @@ export async function getAppContext(userId: string, appSlug: string) {
     activeOrg = selectedAuthorization?.organization ?? null;
     orgMembership = selectedAuthorization?.membership ?? null;
 
-    const hasOrganizationAuthorization = Boolean(selectedAuthorization);
-    const hasCustomerRegistrationAccess =
-      app.customerRegistrationEnabled === true &&
-      !hasOrganizationAuthorization &&
-      !hasActiveAppAccess;
-
-    canAccess =
-      hasOrganizationAuthorization ||
-      hasActiveAppAccess ||
-      hasCustomerRegistrationAccess;
+    canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
 
     if (!canAccess) {
       requiredOnboarding = "organization";
