@@ -63,8 +63,6 @@ type AuthAppAccessSnapshot = {
   normalizedAccessProfile: "superadmin" | "solo" | "organization";
 };
 
-type AppModeAuthRouteKind = "publicAuth" | "tokenAuth" | "clientRegistration";
-
 function getCurrentAppAccess(
   user: ReturnType<typeof useAuth>["user"],
   currentAppSlug: string | null,
@@ -239,15 +237,25 @@ function AppModeAuthRoute({
   routeKind,
   children,
 }: {
-  routeKind: AppModeAuthRouteKind;
+  routeKind: AuthRouteKind;
   children: React.ReactNode;
 }) {
+  const auth = useAuth();
   const { metadata, loading } = useCurrentPlatformAppMetadata();
 
-  if (loading) return <AuthLoading />;
+  if (loading || auth.status === "loading") return <AuthLoading />;
 
-  if (metadata?.normalizedAccessProfile === "superadmin") {
-    return <AuthRedirect to="/login" />;
+  if (!isAuthRouteAllowed(metadata, routeKind)) {
+    return (
+      <AuthRedirect
+        to={getDisallowedAuthRouteRedirect({
+          app: metadata,
+          authStatus: auth.status,
+          isSuperAdmin: auth.user?.isSuperAdmin,
+          deniedLoginPath: adminAccessDeniedLoginPath(),
+        })}
+      />
+    );
   }
 
   return <>{children}</>;
