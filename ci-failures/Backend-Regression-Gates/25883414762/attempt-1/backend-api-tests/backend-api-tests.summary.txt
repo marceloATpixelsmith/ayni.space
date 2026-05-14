@@ -1,0 +1,104 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-api-tests
+Run ID: 25883414762
+Run number: 877
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25883414762
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 8c7e7d6464c83245b3ed6f8b7acb5a2cf45af4e1
+Actor: marceloATpixelsmith
+Event: push
+Command: pnpm --filter @workspace/api-server run test:ci
+Failure type: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+Failing test: org signup -> verify-email route -> MFA challenge -> dashboard when org app allows direct registration (147.471965ms)
+Actual: '/onboarding/organization',
+Expected: '/dashboard',
+File/line: src/__tests__/auth-google-url-rate-limit.test.ts:177:13
+Auth-context signal: [auth/google/url] app context resolution failed {
+Likely source area: src/__tests__/auth-google-url-rate-limit.test.ts
+Exit code: 1
+Relevant log excerpt:
+Failing command: pnpm --filter @workspace/api-server run test:ci
+✔ GET /api/apps returns fallback admin app metadata when DB lookup fails in test mode (5.14195ms)
+✔ turnstile middleware logs repeated failures when verification fails (11.822026ms)
+✔ resolveAppContextForAuth fails with app_slug_missing when no app context candidates are present (572.833434ms)
+✔ google auth client creation fails closed when required env is missing (0.546714ms)
+[auth/access] canonical app lookup failed, using test fallback { appSlug: 'workspace', error: 'SSL/TLS required' }
+[auth/google/url] app context resolution failed {
+    lookupError: 'SSL/TLS required'
+✔ canonical lookup TLS outage: test mode fallback allowed, production fails closed (9.795045ms)
+✔ extract-failure-summary prioritizes test file/auth context over unrelated audit noise (41.030788ms)
+✔ phase 1c continuation validation remains fail-closed (0.170007ms)
+[rate-limit] distributed limiter failure Error: store down
+    at Object.consume (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-google-url-rate-limit.test.ts:177:13)
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/middlewares/rateLimit.ts:222:8)
+    at Layer.handleRequest (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+    at trimPrefix (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9
+    at processParams (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+    at next (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:186:3)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/application.js:177:15)
+    at Server.app (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/express.js:38:9)
+✔ production rate limiter fails closed when distributed store is unavailable (5.877775ms)
+✔ IPQS provider failures fail-soft to step_up (13.543456ms)
+✔ apps with unknown metadata sessionGroup fail closed to default group (0.304929ms)
+✔ logout fail-closes protected auth/me route in subsequent request (19.995341ms)
+✔ google oauth url endpoint fails closed without valid turnstile token (804.597062ms)
+✔ forgot password fails closed when app slug context is missing (138.102236ms)
+✖ org signup -> verify-email route -> MFA challenge -> dashboard when org app allows direct registration (147.471965ms)
+✖ invitation password + existing sign-in + google continuation branches preserve invitation route and post-auth stages (128.283229ms)
+[auth/google/url] app context resolution failed {
+✔ admin oauth start fails closed without explicit appSlug when using forwarded host context (67.142174ms)
+[auth/access] canonical app lookup failed, using test fallback { appSlug: 'admin', error: 'ECONNREFUSED' }
+✔ non-super-admin admin callback fails closed when admin app lookup is unavailable (3.891299ms)
+✖ organization callback redirects existing user without org access to default destination when customer registration is enabled (378.727288ms)
+✔ organization callback with missing appSlug in state fails with explicit app slug error (6.145216ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user-read-failure isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me fails closed to challenge when factor state read fails (2.741551ms)
+✔ logout fails closed for ambiguous multi-group cookies when origin context is missing (2.331494ms)
+[invitations] lane1 invitation email send failed {
+  error: 'Missing app transactional_from_email configuration'
+✔ invitation creation fails clearly when sender/template config is missing (1034.292086ms)
+✔ invitation org routes fail closed when session group is missing (5.14496ms)
+✔ login fails closed to mfa_challenge when active factor lookup errors (201.093634ms)
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.281805ms)
+✔ requireAuth fail-closed path clears cookie when session user is missing from DB (38.190353ms)
+✔ signup provider-failure step-up logs ipqs_provider_failure_step_up reason code (47.162518ms)
+✔ signup validation denial logs validation_failed reason code (4.843642ms)
+Error: insert failed
+    at Object.returning (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/signup-observability.test.ts:544:19)
+    at handlePasswordSignup (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2897:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[transactional-email] brevo webhook ingestion failed { error: 'boom' }
+✔ send endpoint surfaces provider failures with normalized error and logs failure (5.595823ms)
+ℹ fail 3
+✖ failing tests:
+test at src/__tests__/auth-real-journey-routes.test.ts:1:8979
+✖ org signup -> verify-email route -> MFA challenge -> dashboard when org app allows direct registration (147.471965ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-real-journey-routes.test.ts:329:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+test at src/__tests__/auth-real-journey-routes.test.ts:1:11769
+✖ invitation password + existing sign-in + google continuation branches preserve invitation route and post-auth stages (128.283229ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-real-journey-routes.test.ts:467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/auth-session-group-hardening.test.ts:1:26002
+✖ organization callback redirects existing user without org access to default destination when customer registration is enabled (378.727288ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-session-group-hardening.test.ts:800:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit code: 1
+==================================================
