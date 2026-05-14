@@ -3,13 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const filePath = process.argv[2];
-if (!filePath) {
-  console.error('Usage: node scripts/ci/extract-failure-summary.mjs <log-file>');
-  process.exit(1);
-}
+
+if (!filePath)
+  {
+    console.error('Usage: node scripts/ci/extract-failure-summary.mjs <log-file>');
+    process.exit(1);
+  }
 
 const raw = fs.readFileSync(filePath, 'utf8');
-const lines = raw.split(/\r?\n/);
 
 const redact = (text) => text
   .replace(/(DATABASE_URL|SESSION_SECRET|GOOGLE_CLIENT_SECRET)\s*[=:]\s*[^\s"']+/gi, '$1=[REDACTED_SECRET]')
@@ -26,18 +27,39 @@ const safeLines = text.split(/\r?\n/);
 
 const normalizeField = (value) => String(value ?? 'N/A').split(/\r?\n/)[0].trim() || 'N/A';
 
-const firstMatch = (regexes) => {
-  for (const rx of regexes) {
-    const m = text.match(rx);
-    if (m) return normalizeField(m[1] || m[0]);
-  }
-  return 'N/A';
-};
+const firstMatch = (regexes) =>
+  {
+    for (const rx of regexes)
+      {
+        const m = text.match(rx);
+
+        if (m)
+          {
+            return normalizeField(m[1] || m[0]);
+          }
+      }
+
+    return 'N/A';
+  };
 
 const workflow = process.env.GITHUB_WORKFLOW || 'N/A';
 const job = process.env.GITHUB_JOB || 'N/A';
+const runId = process.env.GITHUB_RUN_ID || 'N/A';
+const runNumber = process.env.GITHUB_RUN_NUMBER || 'N/A';
+const runAttempt = process.env.GITHUB_RUN_ATTEMPT || 'N/A';
+const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+const repository = process.env.GITHUB_REPOSITORY || 'N/A';
+const sha = process.env.GITHUB_SHA || 'N/A';
+const ref = process.env.GITHUB_REF || 'N/A';
+const actor = process.env.GITHUB_ACTOR || 'N/A';
+const eventName = process.env.GITHUB_EVENT_NAME || 'N/A';
+const runUrl = repository !== 'N/A' && runId !== 'N/A'
+  ? `${serverUrl}/${repository}/actions/runs/${runId}`
+  : 'N/A';
+
 const command = firstMatch([/Failing command:\s*(.+)/i]);
 const exitCode = firstMatch([/Exit code:\s*(\d+)/i]);
+
 const failingTest = firstMatch([
   /AssertionError[^\n]*\n[^\n]*at\s+(src\/__tests__\/[\w\-./]+:\d+:\d+)/i,
   /✖\s+(.+)/,
@@ -59,6 +81,7 @@ const actual = firstMatch([
   /actual\s*[:=]\s*(.+)/i,
   /\+\s+actual\s+-\s+expected[\s\S]*?\n\+\s*(.+)/i,
 ]);
+
 const expected = firstMatch([
   /Expected:\s*(.+)/i,
   /expected\s*[:=]\s*(.+)/i,
@@ -72,8 +95,6 @@ const fileLine = firstMatch([
   /(scripts\/[\w\-/\.]+:\d+:\d+)/,
   /((?:[A-Za-z]:)?[^\s:]+\.(?:ts|tsx|js|mjs|cjs|yml):\d+:\d+)/,
 ]);
-
-
 
 const authContextLogLine = firstMatch([
   /(\[auth\/google\/url\] app context resolution failed[^\n]*)/i,
@@ -101,7 +122,7 @@ const likelyArea = fileLine !== 'N/A'
 
 const relevance = /(AssertionError|ERR_PNPM|\bTS\d{4}\b|Type error|Error:|✖|×|FAIL|failed|Exit code|at\s+.+:\d+:\d+)/i;
 const relevantLines = safeLines.filter((line) => relevance.test(line));
-const excerptLines = (relevantLines.length ? relevantLines : safeLines).slice(-80);
+const excerptLines = (relevantLines.length ? relevantLines : safeLines).slice(-120);
 
 const out = [
   '==================================================',
@@ -109,6 +130,15 @@ const out = [
   '==================================================',
   `Workflow: ${workflow}`,
   `Job: ${job}`,
+  `Run ID: ${runId}`,
+  `Run number: ${runNumber}`,
+  `Run attempt: ${runAttempt}`,
+  `Run URL: ${runUrl}`,
+  `Repository: ${repository}`,
+  `Ref: ${ref}`,
+  `SHA: ${sha}`,
+  `Actor: ${actor}`,
+  `Event: ${eventName}`,
   `Command: ${command}`,
   `Failure type: ${failureType}`,
   `Failing test: ${failingTest}`,
@@ -122,5 +152,32 @@ const out = [
   excerptLines.join('\n'),
   '==================================================',
 ].join('\n');
+
+const parsedPath = path.parse(filePath);
+const summaryPath = path.join(parsedPath.dir, `${parsedPath.name}.summary.txt`);
+const metadataPath = path.join(parsedPath.dir, `${parsedPath.name}.metadata.txt`);
+
+const metadata = [
+  '==================================================',
+  'CI RUN METADATA',
+  '==================================================',
+  `Workflow: ${workflow}`,
+  `Job: ${job}`,
+  `Run ID: ${runId}`,
+  `Run number: ${runNumber}`,
+  `Run attempt: ${runAttempt}`,
+  `Run URL: ${runUrl}`,
+  `Repository: ${repository}`,
+  `Ref: ${ref}`,
+  `SHA: ${sha}`,
+  `Actor: ${actor}`,
+  `Event: ${eventName}`,
+  `Raw log: ${filePath}`,
+  `Summary log: ${summaryPath}`,
+  '==================================================',
+].join('\n');
+
+fs.writeFileSync(summaryPath, `${out}\n`, 'utf8');
+fs.writeFileSync(metadataPath, `${metadata}\n`, 'utf8');
 
 console.log(out);
