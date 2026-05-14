@@ -443,7 +443,17 @@ export async function getAppContext(userId: string, appSlug: string) {
 
     activeOrg = selectedAuthorization?.organization ?? null;
     orgMembership = selectedAuthorization?.membership ?? null;
-    canAccess = Boolean(selectedAuthorization) || hasActiveAppAccess;
+
+    const hasOrganizationAuthorization = Boolean(selectedAuthorization);
+    const hasCustomerRegistrationAccess =
+      app.customerRegistrationEnabled === true &&
+      !hasOrganizationAuthorization &&
+      !hasActiveAppAccess;
+
+    canAccess =
+      hasOrganizationAuthorization ||
+      hasActiveAppAccess ||
+      hasCustomerRegistrationAccess;
 
     if (!canAccess) {
       requiredOnboarding = "organization";
