@@ -2662,24 +2662,51 @@ async function resolveNextPathForEstablishedSession(
     );
 
     const continuationAllowsBypass =
-      (effectiveContinuation?.type === "invitation_acceptance" &&
-        invitationContinuationHasTrustedOrg) ||
-      effectiveContinuation?.type === "event_registration" ||
-      effectiveContinuation?.type === "client_registration";
+  effectiveContinuation?.type === "invitation_acceptance" &&
+  invitationContinuationHasTrustedOrg &&
+  flow?.canAccess === true &&
+  flow.requiredOnboarding === "none" &&
+  normalizedAccessProfile !== "superadmin";
 
-    if (stage === "post_auth" && !user.name?.trim()) {
-      req.session.postAuthContinuation = effectiveContinuation ?? undefined;
-      logAuthDebug(req, "post_auth_redirect_decision", {
-        userId,
-        appSlug,
-        destination: "/onboarding/user",
-        continuationType: effectiveContinuation?.type ?? null,
-        continuationPath: effectiveContinuation?.returnPath ?? null,
-        requiredOnboarding: "user",
-        authIntent,
-      });
-      return "/onboarding/user";
-    }
+    if (stage === "post_auth" && continuationPath) {
+  if (continuationAllowsBypass) {
+    delete req.session.postAuthContinuation;
+
+    logAuthDebug(req, "post_auth_redirect_decision", {
+      userId,
+      appSlug,
+      destination: continuationPath,
+      continuationType: effectiveContinuation?.type ?? null,
+      continuationPath,
+      requiredOnboarding: flow?.requiredOnboarding ?? null,
+      authIntent,
+      continuationBypass: true,
+    });
+
+    return continuationPath;
+  }
+
+  if (
+    flow?.requiredOnboarding !== "none" ||
+    flow?.canAccess !== true
+  ) {
+    req.session.postAuthContinuation =
+      effectiveContinuation ?? undefined;
+
+    logAuthDebug(req, "post_auth_redirect_decision", {
+      userId,
+      appSlug,
+      destination: flow?.destination ?? null,
+      continuationType:
+        effectiveContinuation?.type ?? null,
+      continuationPath,
+      requiredOnboarding:
+        flow?.requiredOnboarding ?? null,
+      authIntent,
+      continuationDeferred: true,
+    });
+  }
+}
 
     if (stage === "post_auth" && continuationAllowsBypass && continuationPath) {
       delete req.session.postAuthContinuation;
