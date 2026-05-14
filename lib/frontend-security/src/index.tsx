@@ -599,7 +599,7 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
-   if (app.normalizedAccessProfile === "organization") {
+     if (app.normalizedAccessProfile === "organization") {
     return {
       allowOnboarding: true,
       allowInvitations: app.staffInvitesEnabled !== false,
