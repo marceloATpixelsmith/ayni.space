@@ -546,28 +546,6 @@ function normalizeBoolean(value: unknown): boolean {
   return value === true;
 }
 
-function normalizeAuthRoutePolicy(
-  value: unknown,
-): AppAuthRoutePolicy | null {
-  if (!value || typeof value !== "object") return null;
-
-  const candidate = value as Record<string, unknown>;
-
-  if (
-    typeof candidate["allowOnboarding"] !== "boolean" ||
-    typeof candidate["allowInvitations"] !== "boolean" ||
-    typeof candidate["allowCustomerRegistration"] !== "boolean"
-  ) {
-    return null;
-  }
-
-  return {
-    allowOnboarding: candidate["allowOnboarding"],
-    allowInvitations: candidate["allowInvitations"],
-    allowCustomerRegistration: candidate["allowCustomerRegistration"],
-  };
-}
-
 export function deriveAppAuthRoutePolicy(
   app: PlatformAppMetadata | null | undefined,
 ): AppAuthRoutePolicy {
@@ -587,8 +565,12 @@ export function deriveAppAuthRoutePolicy(
     };
   }
 
-  if (app.authRoutePolicy) {
-    return app.authRoutePolicy;
+  if (app.normalizedAccessProfile === "organization") {
+    return {
+      allowOnboarding: true,
+      allowInvitations: true,
+      allowCustomerRegistration: true,
+    };
   }
 
   if (app.normalizedAccessProfile === "solo") {
@@ -596,15 +578,6 @@ export function deriveAppAuthRoutePolicy(
       allowOnboarding: false,
       allowInvitations: false,
       allowCustomerRegistration: true,
-    };
-  }
-
-     if (app.normalizedAccessProfile === "organization") {
-    return {
-      allowOnboarding: true,
-      allowInvitations: app.staffInvitesEnabled !== false,
-      allowCustomerRegistration:
-        app.customerRegistrationEnabled !== false,
     };
   }
 
@@ -722,8 +695,8 @@ function normalizePlatformAppMetadata(
   const customerRegistrationEnabled = normalizeBoolean(
     candidate["customerRegistrationEnabled"],
   );
-  const providedPolicy = normalizeAuthRoutePolicy(candidate["authRoutePolicy"]);
-  const fallbackPolicy = getAuthRoutePolicyForNormalizedProfile({
+  const authRoutePolicy = deriveAppAuthRoutePolicy({
+    slug: candidate["slug"],
     normalizedAccessProfile,
     staffInvitesEnabled,
     customerRegistrationEnabled,
@@ -734,36 +707,7 @@ function normalizePlatformAppMetadata(
     normalizedAccessProfile,
     staffInvitesEnabled,
     customerRegistrationEnabled,
-    authRoutePolicy: providedPolicy ?? fallbackPolicy,
-  };
-}
-
-function getAuthRoutePolicyForNormalizedProfile(input: {
-  normalizedAccessProfile: NormalizedAccessProfile;
-  staffInvitesEnabled: boolean;
-  customerRegistrationEnabled: boolean;
-}): AppAuthRoutePolicy {
-  if (input.normalizedAccessProfile === "superadmin") {
-    return {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: false,
-    };
-  }
-
-  if (input.normalizedAccessProfile === "solo") {
-    return {
-      allowOnboarding: false,
-      allowInvitations: false,
-      allowCustomerRegistration: true,
-    };
-  }
-
-  return {
-    allowOnboarding: true,
-    allowInvitations: input.staffInvitesEnabled !== false,
-    allowCustomerRegistration:
-      input.customerRegistrationEnabled !== false,
+    authRoutePolicy,
   };
 }
 
