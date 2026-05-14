@@ -3,7 +3,7 @@ import cors from "cors";
 import { securityHeaders } from "./middlewares/securityHeaders.js";
 import router from "./routes/index.js";
 import { createSessionMiddleware, sessionSecurityMiddleware } from "./lib/session.js";
-import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureSentryTestError, captureFrontendMonitoringEvent } from "./middlewares/observability.js";
+import { sentryRequestHandler, setupSentryExpressErrorHandler, sentryErrorHandler, correlationIdMiddleware, captureFrontendMonitoringEvent } from "./middlewares/observability.js";
 import { validateEnv } from "./lib/env.js";
 import { runCriticalAssertions } from "./lib/assertions.js";
 import { csrfProtection, csrfTokenEndpoint, originRefererProtection } from "./middlewares/csrf.js";
@@ -127,20 +127,6 @@ app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // ── ORIGIN/REFERER PROTECTION (for sensitive routes) ───────────────────────
 app.use(originRefererProtection(() => getEffectiveAllowedOrigins()));
-
-
-// TEMPORARY: Backend-only Sentry verification endpoint.
-// Remove this route after confirming Sentry error capture in deployed environments.
-app.get("/debug-sentry", async (_req, res) => {
-  const result = await captureSentryTestError("Sentry Test Error");
-  res.status(result.captured ? 200 : 503).json({
-    ok: result.captured,
-    message: result.captured
-      ? "Sentry test event submitted. Check Sentry dashboard for 'Sentry Test Error'."
-      : "Sentry test event was not captured.",
-    ...result,
-  });
-});
 
 // ── PUBLIC FRONTEND MONITORING CONFIG ─────────────────────────────────────────
 app.get("/api/monitoring/config", (_req, res) => {
