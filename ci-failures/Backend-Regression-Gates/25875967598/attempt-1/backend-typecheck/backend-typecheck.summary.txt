@@ -1,0 +1,50 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-typecheck
+Run ID: 25875967598
+Run number: 869
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25875967598
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 860f1e7578ccba6f47cfd3791b58947160ff1dac
+Actor: marceloATpixelsmith
+Event: push
+Command: pnpm -w typecheck
+Failure type: ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL
+Failing test: @workspace/admin@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Actual: N/A
+Expected: N/A
+File/line: N/A
+Auth-context signal: N/A
+Likely source area: lib/frontend-security/src/auth-page-orchestration.ts
+Exit code: 2
+Relevant log excerpt:
+Failing command: pnpm -w typecheck
+apps/admin typecheck: src/App.tsx(580,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(581,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(583,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(585,27): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(586,21): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(592,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(599,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(600,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(602,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(604,27): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(605,21): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: src/App.tsx(611,15): error TS2304: Cannot find name 'auth'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(292,36): error TS2345: Argument of type '"login_error_missing_credentials"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(599,41): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(600,33): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(606,33): error TS2345: Argument of type '"invitation_loading"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(612,33): error TS2345: Argument of type '"invitation_sign_in_prompt"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(629,35): error TS2345: Argument of type '"invitation_accept_success"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(660,39): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: ../../lib/frontend-security/src/auth-page-orchestration.ts(697,39): error TS2345: Argument of type '"invitation_invalid_link"' is not assignable to parameter of type '"auth_method_divider_or" | "login_title" | "login_subtitle_with_signup" | "login_subtitle_sign_in_only" | "login_google_sign_in_idle" | "login_google_sign_in_loading" | ... 180 more ... | "onboarding_org_continue_button"'.
+apps/admin typecheck: Failed
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/admin@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+ ELIFECYCLE  Command failed with exit code 2.
+Exit code: 2
+==================================================
