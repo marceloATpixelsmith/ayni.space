@@ -34,7 +34,7 @@ function hasExistingOrganizationOrDirectAppAccess(
     return false;
   }
 
-  return Boolean(context.activeOrg || context.orgMembership);
+  return Boolean(context.activeOrg || context.orgMembership || context.appAccess);
 }
 
 function allowsOrganizationCustomerRegistration(
@@ -47,6 +47,16 @@ function allowsOrganizationCustomerRegistration(
   return context.app.customerRegistrationEnabled === true;
 }
 
+function hasCompletedUserProfile(
+  context: ResolvedPostAuthAppContext,
+): boolean {
+  if (!("user" in context)) {
+    return true;
+  }
+
+  return Boolean(context.user.name?.trim());
+}
+
 function isOrganizationCreateAccountBridgeAllowed(params: {
   authIntent: PostAuthIntent;
   normalizedAccessProfile: NormalizedAccessProfile;
@@ -54,6 +64,20 @@ function isOrganizationCreateAccountBridgeAllowed(params: {
 }): boolean {
   return (
     params.authIntent === "create_account" &&
+    params.normalizedAccessProfile === "organization" &&
+    params.context.normalizedAccessProfile === "organization" &&
+    allowsOrganizationCustomerRegistration(params.context) &&
+    !hasExistingOrganizationOrDirectAppAccess(params.context)
+  );
+}
+
+function isOrganizationCustomerRegistrationAccessAllowed(params: {
+  authIntent: PostAuthIntent;
+  normalizedAccessProfile: NormalizedAccessProfile;
+  context: ResolvedPostAuthAppContext;
+}): boolean {
+  return (
+    params.authIntent === "sign_in" &&
     params.normalizedAccessProfile === "organization" &&
     params.context.normalizedAccessProfile === "organization" &&
     allowsOrganizationCustomerRegistration(params.context) &&
@@ -113,17 +137,25 @@ export async function resolvePostAuthFlowDecision(params: {
       context,
     });
 
+  const isOrganizationCustomerRegistrationAccess =
+    isOrganizationCustomerRegistrationAccessAllowed({
+      authIntent,
+      normalizedAccessProfile,
+      context,
+    });
+
   const effectiveRequiredOnboarding = isOrganizationCreateAccountBridge
     ? "organization"
-    : context.requiredOnboarding;
+    : isOrganizationCustomerRegistrationAccess
+      ? hasCompletedUserProfile(context)
+        ? "none"
+        : "user"
+      : context.requiredOnboarding;
 
   const effectiveCanAccess =
     isOrganizationCreateAccountBridge ||
-    context.canAccess ||
-    (
-      normalizedAccessProfile === "organization" &&
-      allowsOrganizationCustomerRegistration(context)
-    );
+    isOrganizationCustomerRegistrationAccess ||
+    context.canAccess;
 
   const destination =
     effectiveRequiredOnboarding !== "none"
