@@ -83,6 +83,8 @@ export const authEn = {
     "Unable to start Google sign-in right now. Please try again.",
   login_error_email_sign_in: "Unable to sign in.",
   login_error_invalid_credentials: "Invalid email or password.",
+  login_error_missing_credentials:
+    "Please enter both your email and password.",
   login_error_routing_unresolved:
     "We could not complete sign-in routing safely. Please sign in again.",
   login_error_google_rate_limited: "Too many attempts. Please wait and retry.",
@@ -197,6 +199,14 @@ export const authEn = {
   invitation_complete_verification:
     "Complete verification to accept this invitation.",
   invitation_accepting: "Accepting invitation...",
+  invitation_invalid_link:
+    "This invitation link is invalid or incomplete.",
+  invitation_loading:
+    "Loading invitation...",
+  invitation_sign_in_prompt:
+    "Sign in to continue accepting this invitation.",
+  invitation_accept_success:
+    "Invitation accepted successfully.",
   invitation_accepted_redirecting: "Invitation accepted. Redirecting...",
   invitation_destination_unresolved:
     "Authenticated destination could not be resolved.",
