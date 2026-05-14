@@ -40,11 +40,23 @@ export function resolveAuthenticatedPostAuthDestination(options: {
     return flowDestination ?? null;
   }
 
-  if (requiresOnboarding && flowDestination) {
-    return flowDestination;
+  if (stage === "post_onboarding") {
+    if (requiredOnboarding === "user" && flowDestination) {
+      return flowDestination;
+    }
+
+    if (continuationPath) {
+      return continuationPath;
+    }
+
+    if (flowDestination) {
+      return flowDestination;
+    }
+
+    return null;
   }
 
-  if (stage === "post_onboarding" && requiresOnboarding && flowDestination) {
+  if (requiresOnboarding && flowDestination) {
     return flowDestination;
   }
 
