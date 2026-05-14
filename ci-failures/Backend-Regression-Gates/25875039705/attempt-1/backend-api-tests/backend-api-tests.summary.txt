@@ -1,0 +1,145 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-api-tests
+Run ID: 25875039705
+Run number: 868
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25875039705
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 6553abf4b676177a6fabe9b8aa88c38d59d11117
+Actor: marceloATpixelsmith
+Event: push
+Command: pnpm --filter @workspace/api-server run test:ci
+Failure type: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+Failing test: src/__tests__/api-regression-phase-a.test.ts (1857.496029ms)
+Actual: { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false },
+Expected: { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: true },
+File/line: src/__tests__/auth-google-url-rate-limit.test.ts:177:13
+Auth-context signal: N/A
+Likely source area: src/__tests__/auth-google-url-rate-limit.test.ts
+Exit code: 1
+Relevant log excerpt:
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+✖ src/__tests__/password-auth-login-rehash.test.ts (894.538386ms)
+✖ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (3.754555ms)
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.421851ms)
+✖ post-onboarding destination resumes invitation continuation after organization onboarding (2.830875ms)
+✔ requireAuth fail-closed path clears cookie when session user is missing from DB (39.484312ms)
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+✖ src/__tests__/signup-observability.test.ts (312.833547ms)
+[transactional-email] brevo webhook ingestion failed { error: 'boom' }
+✔ send endpoint surfaces provider failures with normalized error and logs failure (6.239291ms)
+ℹ fail 16
+✖ failing tests:
+test at src/__tests__/api-regression-phase-a.test.ts:1:1
+✖ src/__tests__/api-regression-phase-a.test.ts (1857.496029ms)
+  'test failed'
+test at src/__tests__/app-access-profile-policy.test.ts:1:451
+✖ organization auth route policy enables registration, onboarding, and invitations (2.73165ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/app-access-profile-policy.test.ts:25:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+test at src/__tests__/auth-entry-regression-guards.test.ts:1:1
+✖ src/__tests__/auth-entry-regression-guards.test.ts (457.629949ms)
+  'test failed'
+test at src/__tests__/auth-flow-closure-regression.test.ts:1:904
+✖ ORG ADMIN SIGNUP FLOW: verify -> MFA -> onboarding -> dashboard destination chain remains deterministic (4.471439ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-flow-closure-regression.test.ts:54:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.start (node:internal/test_runner/test:944:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17) {
+test at src/__tests__/auth-flow-closure-regression.test.ts:1:2214
+✖ INVITATION FLOW: password + google continuations survive MFA and onboarding before final destination (0.588502ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-flow-closure-regression.test.ts:130:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/auth-flow-phase1c-regression.test.ts:1:1
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1035.35096ms)
+  'test failed'
+test at src/__tests__/auth-logout-turnstile.test.ts:1:1
+✖ src/__tests__/auth-logout-turnstile.test.ts (304.931117ms)
+  'test failed'
+test at src/__tests__/auth-real-journey-routes.test.ts:1:1
+✖ src/__tests__/auth-real-journey-routes.test.ts (1067.662656ms)
+  'test failed'
+test at src/__tests__/auth-session-group-hardening.test.ts:1:1
+✖ src/__tests__/auth-session-group-hardening.test.ts (1413.011014ms)
+  'test failed'
+test at src/__tests__/central-security-enforcement.test.ts:1:1
+✖ src/__tests__/central-security-enforcement.test.ts (1489.492538ms)
+  'test failed'
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:1131
+✖ invitation password acceptance returns MFA enrollment step when user is not enrolled (131.439099ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts:156:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:4717
+✖ invitation destination matrix keeps canonical precedence with onboarding and continuation combinations (0.75781ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts:205:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+test at src/__tests__/password-auth-login-rehash.test.ts:1:1
+✖ src/__tests__/password-auth-login-rehash.test.ts (894.538386ms)
+  'test failed'
+test at src/__tests__/post-auth-flow-resolver.test.ts:1:3551
+✖ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (3.754555ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/post-auth-flow-resolver.test.ts:157:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/post-auth-routing-regression.test.ts:1:4056
+✖ post-onboarding destination resumes invitation continuation after organization onboarding (2.830875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/post-auth-routing-regression.test.ts:229:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/signup-observability.test.ts:1:1
+✖ src/__tests__/signup-observability.test.ts (312.833547ms)
+  'test failed'
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit code: 1
+==================================================

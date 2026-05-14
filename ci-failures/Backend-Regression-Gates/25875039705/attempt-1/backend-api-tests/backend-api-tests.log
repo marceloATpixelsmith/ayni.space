@@ -1,0 +1,737 @@
+Failing command: pnpm --filter @workspace/api-server run test:ci
+----------------------------------------
+
+> @workspace/api-server@0.0.0 test:ci /home/runner/work/ayni.space/ayni.space/apps/api-server
+> tsx --test --test-reporter=spec src/__tests__/*.test.ts
+
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-1/email-templates/password_reset/preview method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,isSuperAdmin,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-1/email-templates/password_reset/preview sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ admin preview rejects unsupported template tokens (102.883031ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/api-regression-phase-a.test.ts (1857.496029ms)
+[auth/access] normalized app profile {
+  appSlug: 'admin',
+  appId: 'app-admin',
+  normalizedAccessProfile: 'superadmin'
+}
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-solo',
+  normalizedAccessProfile: 'solo'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-ayni',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-shipibo',
+  normalizedAccessProfile: 'organization'
+}
+✔ superadmin apps require super-admin even when app entitlement exists (4.0392ms)
+✔ solo apps remain directly accessible for valid users (0.947095ms)
+✔ organization mode allows active membership + org_app_access without user_app_access (1.206501ms)
+✔ organization mode denies when membership exists but org_app_access is missing (0.92311ms)
+✔ organization mode denies when org_app_access exists but membership is missing (0.835967ms)
+✔ same org membership can authorize the same user to multiple apps via org_app_access (1.490754ms)
+✔ superadmin auth route policy disables registration, onboarding, and invitations (1.97454ms)
+✖ organization auth route policy enables registration, onboarding, and invitations (2.73165ms)
+✔ solo auth route policy enables registration and disables organization onboarding/invitations (0.230021ms)
+✔ GET /api/apps returns active admin app metadata for auth entry (59.694845ms)
+✔ GET /api/apps injects test admin metadata when active admin app is missing (12.066453ms)
+✔ GET /api/apps returns fallback admin app metadata when DB lookup fails in test mode (18.450758ms)
+✔ getFrontendRuntimeSettingsForApp returns app-scoped frontend runtime values (3.391426ms)
+✔ turnstile defaults to enabled in production (16.572488ms)
+✔ abuse client key derives from trusted req.ip instead of raw forwarded header (0.193072ms)
+✔ abuse signal marks repeated events once threshold is reached (0.217587ms)
+✔ turnstile middleware logs repeated failures when verification fails (11.526672ms)
+✔ turnstile signup audit context does not default appSlug to admin (1.543503ms)
+✔ turnstile detailed verification marks stale tokens as token-expired (24.796248ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-expired/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept rejects expired invitations (585.932042ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-mismatch/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-used/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept rejects email mismatch and non-pending invitation (140.185371ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-disabled/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept is blocked when organization staff invites are disabled (16.461203ms)
+✔ resolveAppContextForAuth fails with app_slug_missing when no app context candidates are present (470.96953ms)
+✔ deriveAuthContextPolicy marks admin metadata as explicit admin policy (0.481051ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-1 method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ rejects unauthenticated access to protected org route (44.698561ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-allowed method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ allows authenticated user with org membership (405.709051ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-forbidden method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ forbids authenticated user without org membership (59.578827ms)
+✔ oauth continuation is restored when backend flow allows access and onboarding is not required (1.994769ms)
+✔ password login continuation follows same backend destination precedence policy as oauth (0.443291ms)
+✔ invitation continuation is ignored when authenticated app context differs (0.194314ms)
+✔ post-auth destination precedence matrix stays backend-authoritative across combinations (0.22923ms)
+✔ invitation acceptance route does not hardcode dashboard masking fallback (0.377969ms)
+✔ finalizeInvitationAcceptance resolves post-auth destination through canonical resolver only (0.353703ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/auth/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=session-id sessionGroup=admin userId=user-pending-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/protected/resource method=GET cookieHeaderPresent=false sessionExists=true sessionId=session-id sessionGroup=admin userId=user-pending-1 isSuperAdmin=false allow=false denyReason=mfa_pending sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ requireAuth enforces MFA-pending behavior consistently across /api/auth/me and protected routes (72.684191ms)
+✔ session-group compatibility boundaries reject mismatched groups and missing session group (1.454295ms)
+✔ session-group compatibility honors app metadata and defaults safely (0.663614ms)
+✔ verify-email continuation enforces app-bound destination resolution (0.650499ms)
+✔ unknown auth appSlug is rejected instead of silently falling back to default session group (19.4604ms)
+✔ turnstile signup audit metadata keeps unresolved session group as null (no hidden fallback) (1.40358ms)
+✔ google auth url builder preserves caller-provided state and scopes (1.191443ms)
+✔ google auth client creation fails closed when required env is missing (0.554459ms)
+✔ password auth opaque identifier is null for blank email input (0.169217ms)
+✔ MFA requirement uses user auth-security override independent of activeOrgId (0.687689ms)
+✔ shared auth contract builds stable denied login path (1.048335ms)
+✔ shared auth contract parses only supported auth error codes (0.265818ms)
+✔ shared auth contract resolves access denied message (0.215835ms)
+
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/auth-entry-regression-guards.test.ts (457.629949ms)
+✔ global fallback guard blocks /dashboard fallback shortcuts in auth routing surfaces (4.806608ms)
+✖ ORG ADMIN SIGNUP FLOW: verify -> MFA -> onboarding -> dashboard destination chain remains deterministic (4.471439ms)
+✔ SOLO SIGNUP FLOW: verify/authenticated routes to user onboarding and never leaks organization onboarding (0.59239ms)
+✖ INVITATION FLOW: password + google continuations survive MFA and onboarding before final destination (0.588502ms)
+✔ STANDARD LOGIN FLOW: email/password and google share denied-access override and onboarding branch precedence (0.304711ms)
+✔ FORGOT/RESET + already-have-account continuity: default app entry stays canonical and stale continuation is rejected (0.210355ms)
+✔ CONTINUATION COMPETITION: onboarding > continuation > default and invalid/mismatched appSlug are rejected (0.285264ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1035.35096ms)
+✔ google auth url limiter allows normal login attempts without 429 (81.339665ms)
+✔ google auth url limiter returns 429 after configured threshold (12.947463ms)
+✔ google auth url limiter unlocks after rate limit window resets (136.565752ms)
+✔ google auth url limiter does not consume generic auth limiter budget (13.872416ms)
+✔ rate limiter ignores spoofed forwarded headers when trust proxy is disabled (5.874879ms)
+✔ rate limiter honors forwarded client ip when trust proxy is enabled (5.761454ms)
+[rate-limit] distributed limiter failure Error: store down
+    at Object.consume (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-google-url-rate-limit.test.ts:177:13)
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/middlewares/rateLimit.ts:222:8)
+    at Layer.handleRequest (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+    at trimPrefix (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9
+    at processParams (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+    at next (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:186:3)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/application.js:177:15)
+    at Server.app (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/express.js:38:9)
+✔ production rate limiter fails closed when distributed store is unavailable (6.971725ms)
+[rate-limit] distributed ip limiter backend unavailable; using emergency in-memory limiter until database rollout is fixed {
+  code: '42P01',
+  message: 'relation "platform.rate_limits" does not exist',
+  remediation: 'apply migration lib/db/migrations/20260407_distributed_rate_limits.sql and ensure API DB role has INSERT/UPDATE/SELECT on platform.rate_limits'
+}
+✔ production rate limiter uses emergency local limiter when distributed table is missing (5.885379ms)
+✔ IPQS provider failures fail-soft to step_up (13.88522ms)
+✔ IPQS disposable email is blocked (17.471751ms)
+✔ IPQS high fraud score is advisory step_up and not block (0.694581ms)
+✔ IPQS undeliverable signal is advisory step_up and not block (0.565059ms)
+✔ MFA trusted-device cookie policy uses 20 day max-age (0.263544ms)
+✔ MFA requirement applies to org owner/admin even when no activeOrgId is set (0.398867ms)
+✔ apps with unknown metadata sessionGroup fail closed to default group (0.380633ms)
+✔ MFA enrollment start refuses unknown users before factor insert (1.431182ms)
+✔ MFA enrollment start returns factor id and secret for valid users (0.803386ms)
+✔ MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret (1.935918ms)
+✔ MFA challenge does not accept pending factor rows (0.401803ms)
+
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/auth-logout-turnstile.test.ts (304.931117ms)
+✔ superadmin profile denies non-super-admin callback destination (0.979105ms)
+✔ organization profile routes post-auth users to onboarding when required (0.136546ms)
+✔ authorized callback destination remains dashboard when onboarding not required (0.132879ms)
+✔ user onboarding destination is explicit when required (0.188994ms)
+✔ client/public registrant resolves to user onboarding (0.191479ms)
+✔ invited org member resolves to user onboarding after auth success (0.12282ms)
+✔ organization profile onboarding redirect never includes /admin prefix (0.172844ms)
+✔ default post-auth redirect remains dashboard when no onboarding is required (0.130975ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/auth-real-journey-routes.test.ts (1067.662656ms)
+✔ auth security regression suite contains all required auth regression test files (3.180249ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/auth-session-group-hardening.test.ts (1413.011014ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/central-security-enforcement.test.ts (1489.492538ms)
+✔ production db pool config enforces certificate validation by default (2.270485ms)
+✔ production db pool config honors explicit sslmode=require with strict cert validation (0.316072ms)
+✔ production db pool config ignores sslmode=no-verify downgrade (0.238136ms)
+✔ non-production db pool config behavior is explicit (0.258364ms)
+✔ production db pool config keeps certificate validation enabled on Render runtime (0.235572ms)
+✔ production db pool config respects explicit verify-full on Render runtime (0.307867ms)
+✔ ci db pool config enforces certificate validation (0.236553ms)
+✔ non-production db pool config enables ssl when sslmode requires it (0.355225ms)
+✔ invitation token renderer replaces allowlisted tokens and preserves unknown tokens (2.275644ms)
+✔ invitation token renderer deterministically escapes html values and empty missing values (0.365415ms)
+✔ invitee_name derivation is deterministic for full and partial names (0.327574ms)
+✔ lane1 invitation sender uses app sender/template config and logs lane1 outcome (51.522693ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[invitations] lane1 invitation email send failed {
+  invitationId: 'inv-1',
+  orgId: 'org-1',
+  appId: 'app-1',
+  error: 'Missing app transactional_from_email configuration'
+}
+✔ invitation creation fails clearly when sender/template config is missing (578.823634ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation create persists invitee first and last name (174.506226ms)
+✔ invitation resend omits plaintext token in API response while email link still contains token (1.67538ms)
+✔ template validation rejects unsupported tokens for template type (1.141008ms)
+✔ password reset sender resolves lane1 template and logs lane1 outcome (1.773803ms)
+✖ invitation password acceptance returns MFA enrollment step when user is not enrolled (131.439099ms)
+✖ invitation destination matrix keeps canonical precedence with onboarding and continuation combinations (0.75781ms)
+✔ invitation route source keeps resolver-based destination and blocks route-local dashboard fallback literals (1.295187ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation creation for org in App A stores App A on invitation (579.228285ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-b/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation creation for org in App B stores App B on invitation (545.482588ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-admin/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation create and accept deny incompatible session-group org access (164.956219ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-default/invitations method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=owner-3 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation org routes fail closed when session group is missing (6.002678ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=invitee-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-a',
+  normalizedAccessProfile: 'organization'
+}
+✔ invitation accept prioritizes organization onboarding when post-auth resolver requires it (59.230099ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations/inv-org-b method=DELETE cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-4 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation cancellation is denied for cross-org invitation ids and leaves invitation unchanged (105.461064ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns pending + create_password for invite without password credential (4.559153ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns sign_in for pending invite with existing password credential (6.528032ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns terminal state for accepted invite (6.288183ms)
+[invitations] RESOLVE HIT { token: 'non-existent' }
+✔ invitation resolve returns invalid state when token lookup misses (4.46151ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns expired state for pending invite past expiration (3.941175ms)
+[invitations] RESOLVE HIT { token: 'token' }
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve derives googleAllowed from Google auth config (7.015916ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ organization creation is blocked for superadmin app sessions (49.837965ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ organization creation is blocked for solo app sessions (7.973441ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation acceptance is blocked for non-organization app sessions (6.160764ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=u-boundary isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ organization listing keeps same-session-group memberships and drops cross-group memberships (467.934808ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-admin method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=u-read isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ organization read route denies incompatible session-group even with membership (62.476117ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/password-auth-login-rehash.test.ts (894.538386ms)
+✔ current versioned password hash and verify (136.320124ms)
+✔ legacy scrypt password hashes still verify and require upgrade (184.33601ms)
+✔ opaque token hashing is deterministic (0.806622ms)
+✔ password auth opaque identifier is deterministic and normalized (0.176801ms)
+✔ password strength policy requires length/upper/lower/number/special (0.348373ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ GET /api/platform/settings returns global + app settings payload (67.158362ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/settings rejects unsupported key (29.149708ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/apps/:id/settings rejects unsupported app key (10.103442ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/settings rejects seeded non-editable global key (7.182709ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/settings allows operator-editable global key (464.094594ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/apps/:id/settings rejects bootstrap mirror key (7.024342ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/apps/:id/settings allows operator-editable app key (120.252138ms)
+✔ continuation resolver maps invitation acceptance (1.077007ms)
+✔ continuation resolver maps event registration (0.236423ms)
+✔ continuation resolver maps client/public registration (0.235382ms)
+✔ continuation resolver falls back to default app entry (0.237966ms)
+✔ continuation resolver rejects arbitrary continuation paths (0.196959ms)
+✔ continuation resolver rejects missing appSlug (0.121107ms)
+✔ continuation resolver rejects explicit invitation continuation type when path is not invitation acceptance (0.178345ms)
+✔ post-auth redirect helper exports remain consistent with canonical auth contract (1.470957ms)
+✔ post-auth resolver prioritizes onboarding over continuation path (0.665297ms)
+✔ post-auth resolver falls back to flow decision destination when continuation is missing (0.188784ms)
+✔ post-auth resolver prioritizes continuation when onboarding is not required (0.197461ms)
+✔ login without onboarding and with continuation resolves continuation destination (0.225032ms)
+✔ verify-email without onboarding and with continuation resolves continuation destination (0.418724ms)
+✖ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (3.754555ms)
+✔ post-auth resolver falls back to default destination when continuation is missing and onboarding is not required (0.186219ms)
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.421851ms)
+✔ post-onboarding resolver resumes continuation before default destination (0.532357ms)
+✔ post-auth resolver ignores invalid continuation paths and falls back safely (0.20858ms)
+✔ post-onboarding resolver uses default destination when continuation is missing (0.15447ms)
+✔ post-auth resolver ignores continuation when app access is denied (0.177102ms)
+✔ post-auth resolver ignores continuation when continuation app does not match resolved app (0.146975ms)
+✔ post-onboarding resolver still blocks continuation when onboarding is still required (0.18721ms)
+✔ solo flow does not leak organization onboarding when user onboarding is required (0.156143ms)
+✔ continuation competition remains MFA->onboarding->continuation->default in post-auth resolver contracts (0.170509ms)
+✔ post-auth destination keeps superadmin access-denied ahead of continuation (1.753416ms)
+✔ post-auth destination keeps organization onboarding ahead of invitation continuation (0.225703ms)
+✔ post-auth destination keeps solo user onboarding ahead of client continuation (0.441778ms)
+✔ post-auth destination resumes invitation continuation only when app slug matches (0.272631ms)
+✔ post-auth continuation allowlist accepts client and public registration routes (0.169869ms)
+✔ post-auth continuation rejects client registration type when path does not match allowlist (0.132417ms)
+✔ post-auth continuation rejects arbitrary and malformed paths (0.208872ms)
+✖ post-onboarding destination resumes invitation continuation after organization onboarding (2.830875ms)
+✔ post-onboarding destination keeps user onboarding until user onboarding is complete (1.870577ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ session-required route rejects missing session (56.051484ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-switch isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,userId
+✔ switch-org denies orgs where user lacks membership (9.185801ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-switch-ok isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,sessionGroup,userId
+✔ switch-org rotates/persists session for valid org membership (387.999114ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-switch-boundary isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,sessionGroup,userId
+✔ switch-org denies cross-session-group targets and preserves active org (397.247342ms)
+✔ revokeOtherSessionsForUser executes explicit platform.sessions query (1.55869ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=missing-user isSuperAdmin=false allow=false denyReason=user_not_found sessionKeys=destroy,id,regenerate,save,userId
+✔ requireAuth fail-closed path clears cookie when session user is missing from DB (39.484312ms)
+✔ applySessionPersistence sets default idle timeout when stayLoggedIn is false (0.980587ms)
+✔ applySessionPersistence sets 14-day maxAge when stayLoggedIn is true (0.158928ms)
+✔ session store config is pinned to platform.sessions and migration-managed provisioning (1.123224ms)
+✔ logout-others query targets platform.sessions via shared helper (0.248025ms)
+✔ password reset global revoke query targets platform.sessions across session groups (0.136716ms)
+✔ session store infrastructure bootstrap creates schema/table/index if missing (4.56299ms)
+✔ session lifecycle uses shared destroy helper instead of ad hoc req.session.destroy (2.58835ms)
+✔ runtime-critical source has no stale public.sessions assumptions (5.648223ms)
+✔ session runtime no longer depends on startup-time SESSION_GROUP env cookie selection (0.178254ms)
+✔ session group cookie defaults no longer hardcode legacy saas.sid singleton (0.14935ms)
+✔ session cookie flags are hardened in production (1.555063ms)
+✔ absolute session timeout returns 401 and destroys session (3.926046ms)
+✔ session anomaly writes observational audit event when ip or ua changes (0.428723ms)
+✔ getSetting reads parsed value from cache-backed DB rows (1.587113ms)
+✔ getAppSettingBySlug resolves app-scoped value (0.430577ms)
+✔ getAppSetting falls back when app key missing (0.329597ms)
+✔ getMfaIssuerForAppSlug falls back safely (0.345327ms)
+✔ getMfaIssuerForAppSlug resolves canonical per-app issuer values when present (0.447889ms)
+✔ allowed origins derive from active app domains (1.071698ms)
+✔ allowed origins normalize localhost domains and union env extension values (0.519273ms)
+✔ allowed origins uses env fallback when DB returns empty (0.3524ms)
+✔ parseSettingValue handles number, boolean and json types (0.311073ms)
+✔ global setting snapshot uses DB cache before env fallback (0.625131ms)
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2856:2: ERROR: Unexpected "}"
+    at failureErrorWithLog (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.22.2
+✖ src/__tests__/signup-observability.test.ts (312.833547ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-b method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-org-a isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ tenant isolation denies cross-org reads (439.244181ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/words method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-no-shipibo isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-shipibo',
+  normalizedAccessProfile: 'organization'
+}
+✔ app access boundary denies user without app entitlement (63.906672ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ceremonies method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-has-ayni isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-ayni',
+  normalizedAccessProfile: 'organization'
+}
+✔ ayni tenant routes deny cross-org reads even with app access (61.2423ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/checkout method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=billing-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+✔ billing tenant routes deny cross-org writes when orgId is in request body (18.870371ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/connections method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org admin can create connection and response is redacted (55.185995ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-b/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ cross-org access is denied for org-scoped log queries (7.700629ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/connections/conn-1/validate method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ validation response sanitizes credential-like diagnostics (5.218788ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org log query supports recipient filtering (5.284542ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/admin/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=admin userId=sa-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/admin/transactional-email/logs sessionExists=true sessionGroup=admin userId=sa-1 isSuperAdmin=false allow=false denyReason=not_superadmin
+✔ superadmin access to platform-wide logs is enforced (5.626062ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/events method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org events query excludes events from other org logs (5.093344ms)
+[transactional-email] brevo webhook signature rejected
+✔ brevo webhook rejects malformed signature without throwing (5.410368ms)
+[transactional-email] brevo webhook ingestion failed { error: 'boom' }
+✔ brevo webhook endpoint remains resilient when ingestion throws (4.825692ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/send method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ send endpoint returns success payload for accepted provider result (9.434007ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/send method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ send endpoint surfaces provider failures with normalized error and logs failure (6.239291ms)
+✔ webhook payload guards accept but ignore oversized webhook batches (4.260312ms)
+✔ correlation_status migration is additive and non-destructive (3.994395ms)
+ℹ tests 218
+ℹ suites 0
+ℹ pass 202
+ℹ fail 16
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60975.143596
+
+✖ failing tests:
+
+test at src/__tests__/api-regression-phase-a.test.ts:1:1
+✖ src/__tests__/api-regression-phase-a.test.ts (1857.496029ms)
+  'test failed'
+
+test at src/__tests__/app-access-profile-policy.test.ts:1:451
+✖ organization auth route policy enables registration, onboarding, and invitations (2.73165ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   allowCustomerRegistration: false,
+  +   allowInvitations: false,
+  -   allowCustomerRegistration: true,
+  -   allowInvitations: true,
+      allowOnboarding: true
+    }
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/app-access-profile-policy.test.ts:25:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { allowOnboarding: true, allowInvitations: false, allowCustomerRegistration: false },
+    expected: { allowOnboarding: true, allowInvitations: true, allowCustomerRegistration: true },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/auth-entry-regression-guards.test.ts:1:1
+✖ src/__tests__/auth-entry-regression-guards.test.ts (457.629949ms)
+  'test failed'
+
+test at src/__tests__/auth-flow-closure-regression.test.ts:1:904
+✖ ORG ADMIN SIGNUP FLOW: verify -> MFA -> onboarding -> dashboard destination chain remains deterministic (4.471439ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/org-token/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-flow-closure-regression.test.ts:54:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.start (node:internal/test_runner/test:944:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/org-token/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/auth-flow-closure-regression.test.ts:1:2214
+✖ INVITATION FLOW: password + google continuations survive MFA and onboarding before final destination (0.588502ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/token-123/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-flow-closure-regression.test.ts:130:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/token-123/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/auth-flow-phase1c-regression.test.ts:1:1
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1035.35096ms)
+  'test failed'
+
+test at src/__tests__/auth-logout-turnstile.test.ts:1:1
+✖ src/__tests__/auth-logout-turnstile.test.ts (304.931117ms)
+  'test failed'
+
+test at src/__tests__/auth-real-journey-routes.test.ts:1:1
+✖ src/__tests__/auth-real-journey-routes.test.ts (1067.662656ms)
+  'test failed'
+
+test at src/__tests__/auth-session-group-hardening.test.ts:1:1
+✖ src/__tests__/auth-session-group-hardening.test.ts (1413.011014ms)
+  'test failed'
+
+test at src/__tests__/central-security-enforcement.test.ts:1:1
+✖ src/__tests__/central-security-enforcement.test.ts (1489.492538ms)
+  'test failed'
+
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:1131
+✖ invitation password acceptance returns MFA enrollment step when user is not enrolled (131.439099ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/token-1/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts:156:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/token-1/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:4717
+✖ invitation destination matrix keeps canonical precedence with onboarding and continuation combinations (0.75781ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/token-matrix/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts:205:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/token-matrix/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:1
+✖ src/__tests__/password-auth-login-rehash.test.ts (894.538386ms)
+  'test failed'
+
+test at src/__tests__/post-auth-flow-resolver.test.ts:1:3551
+✖ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (3.754555ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/token-3/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/post-auth-flow-resolver.test.ts:157:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/token-3/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/post-auth-routing-regression.test.ts:1:4056
+✖ post-onboarding destination resumes invitation continuation after organization onboarding (2.830875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/onboarding/organization'
+  - '/invitations/token-1/accept'
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/post-auth-routing-regression.test.ts:229:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1047:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+      at Test.postRun (node:internal/test_runner/test:1173:19)
+      at Test.run (node:internal/test_runner/test:1101:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/onboarding/organization',
+    expected: '/invitations/token-1/accept',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/signup-observability.test.ts:1:1
+✖ src/__tests__/signup-observability.test.ts (312.833547ms)
+  'test failed'
+/home/runner/work/ayni.space/ayni.space/apps/api-server:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit status 1
+----------------------------------------
+Exit code: 1
