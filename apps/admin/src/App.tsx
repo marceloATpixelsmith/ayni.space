@@ -542,7 +542,8 @@ function AuthDebugOverlay() {
 }
 
 function Router() {
-  
+  const auth = useAuth();
+
   return (
     <Switch>
       <Route path="/login" component={Login} />
