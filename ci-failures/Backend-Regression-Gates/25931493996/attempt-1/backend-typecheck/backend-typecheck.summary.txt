@@ -1,0 +1,34 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-typecheck
+Run ID: 25931493996
+Run number: 888
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25931493996
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/pull/832/merge
+SHA: 064d884fd538759270cdb670bdd05806d41f214a
+Actor: dependabot[bot]
+Event: pull_request
+Command: pnpm -w typecheck
+Failure type: ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL
+Failing test: @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Actual: N/A
+Expected: N/A
+File/line: N/A
+Auth-context signal: N/A
+Likely source area: N/A
+Exit code: 2
+Relevant log excerpt:
+Failing command: pnpm -w typecheck
+apps/api-server typecheck: src/__tests__/session-security.test.ts(29,36): error TS2339: Property 'httpOnly' does not exist on type 'CookieOptions | ((req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>) => CookieOptions)'.
+apps/api-server typecheck: src/__tests__/session-security.test.ts(30,36): error TS2339: Property 'secure' does not exist on type 'CookieOptions | ((req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>) => CookieOptions)'.
+apps/api-server typecheck: src/__tests__/session-security.test.ts(31,36): error TS2339: Property 'sameSite' does not exist on type 'CookieOptions | ((req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>) => CookieOptions)'.
+apps/api-server typecheck: src/__tests__/session-security.test.ts(32,36): error TS2339: Property 'maxAge' does not exist on type 'CookieOptions | ((req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>) => CookieOptions)'.
+apps/api-server typecheck: Failed
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+ ELIFECYCLE  Command failed with exit code 2.
+Exit code: 2
+==================================================
