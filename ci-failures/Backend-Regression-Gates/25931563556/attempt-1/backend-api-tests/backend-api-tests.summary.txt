@@ -1,0 +1,145 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-api-tests
+Run ID: 25931563556
+Run number: 892
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/25931563556
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/pull/836/merge
+SHA: d197f6dedfe645c6b0a25debedd4f5c242748216
+Actor: dependabot[bot]
+Event: pull_request
+Command: pnpm --filter @workspace/api-server run test:ci
+Failure type: ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL
+Failing test: src/__tests__/admin-email-templates.test.ts (1464.371015ms)
+Actual: N/A
+Expected: N/A
+File/line: src/__tests__/admin-email-templates.test.ts:7:16
+Auth-context signal: N/A
+Likely source area: src/__tests__/admin-email-templates.test.ts
+Exit code: 1
+Relevant log excerpt:
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/signup-observability.test.ts:58:33)
+✖ src/__tests__/signup-observability.test.ts (1523.818662ms)
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/tenant-isolation.test.ts:7:16)
+✖ src/__tests__/tenant-isolation.test.ts (1432.689991ms)
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/transactional-email-management.test.ts:7:16)
+✖ src/__tests__/transactional-email-management.test.ts (1376.178555ms)
+ℹ fail 34
+✖ failing tests:
+test at src/__tests__/admin-email-templates.test.ts:1:1
+✖ src/__tests__/admin-email-templates.test.ts (1464.371015ms)
+  'test failed'
+test at src/__tests__/api-regression-phase-a.test.ts:1:1
+✖ src/__tests__/api-regression-phase-a.test.ts (1495.03214ms)
+  'test failed'
+test at src/__tests__/app-access-mode-enforcement.test.ts:1:1
+✖ src/__tests__/app-access-mode-enforcement.test.ts (1547.387246ms)
+  'test failed'
+test at src/__tests__/apps-public-metadata.test.ts:1:1
+✖ src/__tests__/apps-public-metadata.test.ts (1791.738696ms)
+  'test failed'
+test at src/__tests__/apps-runtime-settings.test.ts:1:1
+✖ src/__tests__/apps-runtime-settings.test.ts (1709.069526ms)
+  'test failed'
+test at src/__tests__/auth-abuse-hardening.test.ts:1:1
+✖ src/__tests__/auth-abuse-hardening.test.ts (1793.064839ms)
+  'test failed'
+test at src/__tests__/auth-app-context-policy.test.ts:1:1
+✖ src/__tests__/auth-app-context-policy.test.ts (1681.228679ms)
+  'test failed'
+test at src/__tests__/auth-authz.test.ts:1:1
+✖ src/__tests__/auth-authz.test.ts (1641.438623ms)
+  'test failed'
+test at src/__tests__/auth-backend-authority-gaps.test.ts:1:1
+✖ src/__tests__/auth-backend-authority-gaps.test.ts (1690.652917ms)
+  'test failed'
+test at src/__tests__/auth-entry-regression-guards.test.ts:1:1
+✖ src/__tests__/auth-entry-regression-guards.test.ts (2008.165375ms)
+  'test failed'
+test at src/__tests__/auth-flow-phase1c-regression.test.ts:1:1
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1802.249099ms)
+  'test failed'
+test at src/__tests__/auth-google-url-rate-limit.test.ts:1:1
+✖ src/__tests__/auth-google-url-rate-limit.test.ts (1663.686696ms)
+  'test failed'
+test at src/__tests__/auth-ipqs-mfa-utils.test.ts:1:1
+✖ src/__tests__/auth-ipqs-mfa-utils.test.ts (1920.497664ms)
+  'test failed'
+test at src/__tests__/auth-logout-turnstile.test.ts:1:1
+✖ src/__tests__/auth-logout-turnstile.test.ts (2021.130979ms)
+  'test failed'
+test at src/__tests__/auth-real-journey-routes.test.ts:1:1
+✖ src/__tests__/auth-real-journey-routes.test.ts (1888.829506ms)
+  'test failed'
+test at src/__tests__/auth-session-group-hardening.test.ts:1:1
+✖ src/__tests__/auth-session-group-hardening.test.ts (1562.285937ms)
+  'test failed'
+test at src/__tests__/central-security-enforcement.test.ts:1:1
+✖ src/__tests__/central-security-enforcement.test.ts (1470.390212ms)
+  'test failed'
+test at src/__tests__/db-tls-config.test.ts:1:1
+✖ src/__tests__/db-tls-config.test.ts (1237.818298ms)
+  'test failed'
+test at src/__tests__/invitation-email-lane1.test.ts:1:1
+✖ src/__tests__/invitation-email-lane1.test.ts (1433.799581ms)
+  'test failed'
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:1
+✖ src/__tests__/invitation-password-mfa-routing.test.ts (1443.506573ms)
+  'test failed'
+test at src/__tests__/invitation-session-group-compatibility.test.ts:1:1
+✖ src/__tests__/invitation-session-group-compatibility.test.ts (1461.240735ms)
+  'test failed'
+test at src/__tests__/organization-session-access-enforcement.test.ts:1:1
+✖ src/__tests__/organization-session-access-enforcement.test.ts (1407.822517ms)
+  'test failed'
+test at src/__tests__/organization-session-group-boundary.test.ts:1:1
+✖ src/__tests__/organization-session-group-boundary.test.ts (1424.827089ms)
+  'test failed'
+test at src/__tests__/password-auth-login-rehash.test.ts:1:1
+✖ src/__tests__/password-auth-login-rehash.test.ts (1515.67856ms)
+  'test failed'
+test at src/__tests__/platform-settings-routes.test.ts:1:1
+✖ src/__tests__/platform-settings-routes.test.ts (1441.540256ms)
+  'test failed'
+test at src/__tests__/session-flows.test.ts:1:1
+✖ src/__tests__/session-flows.test.ts (1489.508414ms)
+  'test failed'
+test at src/__tests__/session-lifecycle-hardening.test.ts:1:1
+✖ src/__tests__/session-lifecycle-hardening.test.ts (1426.373734ms)
+  'test failed'
+test at src/__tests__/session-persistence.test.ts:1:1
+✖ src/__tests__/session-persistence.test.ts (1312.038417ms)
+  'test failed'
+test at src/__tests__/session-platform-persistence.test.ts:1:1
+✖ src/__tests__/session-platform-persistence.test.ts (1461.766126ms)
+  'test failed'
+test at src/__tests__/session-security.test.ts:1:1
+✖ src/__tests__/session-security.test.ts (1483.333555ms)
+  'test failed'
+test at src/__tests__/settings-runtime.test.ts:1:1
+✖ src/__tests__/settings-runtime.test.ts (1555.473844ms)
+  'test failed'
+test at src/__tests__/signup-observability.test.ts:1:1
+✖ src/__tests__/signup-observability.test.ts (1523.818662ms)
+  'test failed'
+test at src/__tests__/tenant-isolation.test.ts:1:1
+✖ src/__tests__/tenant-isolation.test.ts (1432.689991ms)
+  'test failed'
+test at src/__tests__/transactional-email-management.test.ts:1:1
+✖ src/__tests__/transactional-email-management.test.ts (1376.178555ms)
+  'test failed'
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit code: 1
+==================================================
