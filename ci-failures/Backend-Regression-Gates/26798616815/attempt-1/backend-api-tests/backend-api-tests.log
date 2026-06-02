@@ -1,0 +1,1453 @@
+Failing command: pnpm --filter @workspace/api-server run test:ci
+----------------------------------------
+
+> @workspace/api-server@0.0.0 test:ci /home/runner/work/ayni.space/ayni.space/apps/api-server
+> tsx --test --test-reporter=spec src/__tests__/*.test.ts
+
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-1/email-templates/password_reset/preview method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,isSuperAdmin,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-1/email-templates/password_reset/preview sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ admin preview rejects unsupported template tokens (119.119717ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-auth isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ A: auth/session protections and logout flow (2435.974546ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-profile isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-profile isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-profile isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-profile isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-profile isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ B: user profile and org switching paths (878.38247ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-b method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-orgs isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ C: organizations visibility, validation, and role-gated update (2880.69577ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-onboarding isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-onboarding isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-ayni',
+  normalizedAccessProfile: 'organization'
+}
+✔ C2: auth/me reflects authorized appAccess immediately after onboarding organization creation (983.74755ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a/members method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a/members method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a/members/member-1 method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-a/members/member-1 method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-1',
+  normalizedAccessProfile: 'organization'
+}
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-inv isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ D: members and invitations role/org checks and invitation acceptance states (10423.384768ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=false allow=false denyReason=not_superadmin
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/organizations method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/organizations sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/organizations sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/users method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/users sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/users method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/users sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+✔ E: super admin endpoints are super-admin only (no app/subscription dependency) (19.119401ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ceremonies method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=apps-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-1',
+  normalizedAccessProfile: 'organization'
+}
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/words method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=apps-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-1',
+  normalizedAccessProfile: 'organization'
+}
+✔ Optional: starter tenant/app access checks for ayni + shipibo (1476.787372ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-onboard isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-onboard isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-1',
+  normalizedAccessProfile: 'organization'
+}
+✔ E: organization onboarding grants immediate app authorization in /api/auth/me (4197.40622ms)
+[auth/access] normalized app profile {
+  appSlug: 'admin',
+  appId: 'app-admin',
+  normalizedAccessProfile: 'superadmin'
+}
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-solo',
+  normalizedAccessProfile: 'solo'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-org',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-ayni',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-shipibo',
+  normalizedAccessProfile: 'organization'
+}
+✔ superadmin apps require super-admin even when app entitlement exists (3.888817ms)
+✔ solo apps remain directly accessible for valid users (0.826506ms)
+✔ organization mode allows active membership + org_app_access without user_app_access (1.316066ms)
+✔ organization mode denies when membership exists but org_app_access is missing (0.825103ms)
+✔ organization mode denies when org_app_access exists but membership is missing (0.891346ms)
+✔ same org membership can authorize the same user to multiple apps via org_app_access (1.483497ms)
+✔ superadmin auth route policy disables registration, onboarding, and invitations (2.000537ms)
+✔ organization auth route policy enables registration, onboarding, and invitations (0.15603ms)
+✔ solo auth route policy enables registration and disables organization onboarding/invitations (0.143797ms)
+✔ GET /api/apps returns active admin app metadata for auth entry (52.535603ms)
+✔ GET /api/apps injects test admin metadata when active admin app is missing (9.979305ms)
+✔ GET /api/apps returns fallback admin app metadata when DB lookup fails in test mode (6.234698ms)
+✔ getFrontendRuntimeSettingsForApp returns app-scoped frontend runtime values (2.6072ms)
+✔ turnstile defaults to enabled in production (18.758887ms)
+✔ abuse client key derives from trusted req.ip instead of raw forwarded header (0.261317ms)
+✔ abuse signal marks repeated events once threshold is reached (0.275292ms)
+✔ turnstile middleware logs repeated failures when verification fails (12.567382ms)
+✔ turnstile signup audit context does not default appSlug to admin (1.235188ms)
+✔ turnstile detailed verification marks stale tokens as token-expired (18.69093ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-expired/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept rejects expired invitations (947.186716ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-mismatch/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-used/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept rejects email mismatch and non-pending invitation (1099.52402ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token-disabled/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation accept is blocked when organization staff invites are disabled (8.338943ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: f336a586-43b3-49b2-b67b-e414b6523916,org-1,user-1,,invitation.accept.failed,invitation,inv-disabled,{"reason":"staff-invites-disabled"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'f336a586-43b3-49b2-b67b-e414b6523916',
+    'org-1',
+    'user-1',
+    null,
+    'invitation.accept.failed',
+    'invitation',
+    'inv-disabled',
+    '{"reason":"staff-invites-disabled"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ resolveAppContextForAuth fails with app_slug_missing when no app context candidates are present (552.194089ms)
+✔ deriveAuthContextPolicy marks admin metadata as explicit admin policy (0.458153ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-1 method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ rejects unauthenticated access to protected org route (49.833967ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-allowed method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ allows authenticated user with org membership (671.583733ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-forbidden method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ forbids authenticated user without org membership (531.935341ms)
+✔ oauth continuation is restored when backend flow allows access and onboarding is not required (1.748239ms)
+✔ password login continuation follows same backend destination precedence policy as oauth (0.342908ms)
+✔ invitation continuation is ignored when authenticated app context differs (0.140601ms)
+✔ post-auth destination precedence matrix stays backend-authoritative across combinations (0.165668ms)
+✔ invitation acceptance route does not hardcode dashboard masking fallback (0.248412ms)
+✔ finalizeInvitationAcceptance resolves post-auth destination through canonical resolver only (0.227563ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/auth/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=session-id sessionGroup=admin userId=user-pending-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/protected/resource method=GET cookieHeaderPresent=false sessionExists=true sessionId=session-id sessionGroup=admin userId=user-pending-1 isSuperAdmin=false allow=false denyReason=mfa_pending sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ requireAuth enforces MFA-pending behavior consistently across /api/auth/me and protected routes (54.5013ms)
+✔ session-group compatibility boundaries reject mismatched groups and missing session group (1.0335ms)
+✔ session-group compatibility honors app metadata and defaults safely (0.428846ms)
+✔ verify-email continuation enforces app-bound destination resolution (0.537219ms)
+✔ unknown auth appSlug is rejected instead of silently falling back to default session group (12.536196ms)
+✔ turnstile signup audit metadata keeps unresolved session group as null (no hidden fallback) (1.223073ms)
+✔ google auth url builder preserves caller-provided state and scopes (0.849038ms)
+✔ google auth client creation fails closed when required env is missing (0.646581ms)
+✔ password auth opaque identifier is null for blank email input (0.138777ms)
+✔ MFA requirement uses user auth-security override independent of activeOrgId (0.519395ms)
+✔ shared auth contract builds stable denied login path (0.842194ms)
+✔ shared auth contract parses only supported auth error codes (0.222654ms)
+✔ shared auth contract resolves access denied message (0.164075ms)
+✔ oauth start: explicit appSlug and origin mapping contracts remain locked (2845.038317ms)
+✔ oauth start test isolation does not inherit ambient Turnstile enforcement (577.654175ms)
+[auth/access] canonical app lookup failed, using test fallback { appSlug: 'workspace', error: 'SSL/TLS required' }
+[auth/google/url] app context resolution failed {
+  requestOrigin: null,
+  reason: 'app_not_found',
+  details: {
+    resolvedAppSlug: 'workspace',
+    attemptedAppSlugs: [ 'workspace' ],
+    lookupError: 'SSL/TLS required'
+  },
+  resolvedSessionGroup: null,
+  originSessionGroup: 'default',
+  requestAppSlug: 'workspace'
+}
+✔ canonical lookup TLS outage: test mode fallback allowed, production fails closed (10.089327ms)
+✔ password login app-context contract: mfa challenge response keeps pending session fields (916.7676ms)
+Error: Failed query: select "id", "email", "name", "avatar_url", "password_hash", "google_subject", "email_verified_at", "is_super_admin", "active_org_id", "active", "suspended", "deleted_at", "last_login_at", "last_seen_at", "created_at", "updated_at" from "platform"."users" "usersTable" where lower("usersTable"."email") = $1 limit $2
+params: mfa@example.com,1
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async handlePasswordLogin (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3061:16)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 4e29dc9b-5234-49ca-816c-3b8b5fa5f5e9,,,,auth.failure,auth,google-url-app-context-failed,{"reason":"app_not_found","count":1,"threshold":5,"requestOrigin":null},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '4e29dc9b-5234-49ca-816c-3b8b5fa5f5e9',
+    null,
+    null,
+    null,
+    'auth.failure',
+    'auth',
+    'google-url-app-context-failed',
+    '{"reason":"app_not_found","count":1,"threshold":5,"requestOrigin":null}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ superadmin apps reject password login entrypoints (738.491413ms)
+Error: Failed query: select "id", "email", "name", "avatar_url", "password_hash", "google_subject", "email_verified_at", "is_super_admin", "active_org_id", "active", "suspended", "deleted_at", "last_login_at", "last_seen_at", "created_at", "updated_at" from "platform"."users" "usersTable" where lower("usersTable"."email") = $1 limit $2
+params: not-admin@example.com,1
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async handlePasswordLogin (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3061:16)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: b2cbe02b-a3be-468e-9777-4473c0a7532b,,,,auth.signup.decision,auth,signup,{"decisionCategory":"block","reasonCode":"signup_not_allowed_by_access_policy","appSlug":"admin","sessionGroup":"default","correlationId":null,"normalizedEmailHash":"f742f78993e342ab64ba8eefa7a916294e2712b9087f1d408f792d1cf8b98f8c","normalizedEmailMasked":"si***@example.com","normalizedEmailDomain":"example.com","appFound":true,"appAccessMode":"superadmin","customerRegistrationEnabled":true},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logSignupDecision (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2385:3)
+    at async handlePasswordSignup (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2843:7) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'b2cbe02b-a3be-468e-9777-4473c0a7532b',
+    null,
+    null,
+    null,
+    'auth.signup.decision',
+    'auth',
+    'signup',
+    '{"decisionCategory":"block","reasonCode":"signup_not_allowed_by_access_policy","appSlug":"admin","sessionGroup":"default","correlationId":null,"normalizedEmailHash":"f742f78993e342ab64ba8eefa7a916294e2712b9087f1d408f792d1cf8b98f8c","normalizedEmailMasked":"si***@example.com","normalizedEmailDomain":"example.com","appFound":true,"appAccessMode":"superadmin","customerRegistrationEnabled":true}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logSignupDecision (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2385:3)
+      at async handlePasswordSignup (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2843:7) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ superadmin apps reject signup entrypoints (1148.123998ms)
+✔ organization apps preserve invitation continuation eligibility (501.157817ms)
+✔ client/public continuation allowlist remains accepted (1192.07237ms)
+✔ extract-failure-summary prioritizes test file/auth context over unrelated audit noise (40.752268ms)
+✔ global fallback guard blocks /dashboard fallback shortcuts in auth routing surfaces (4.652426ms)
+✔ ORG ADMIN SIGNUP FLOW: verify -> MFA -> onboarding -> dashboard destination chain remains deterministic (1.569226ms)
+✔ SOLO SIGNUP FLOW: verify/authenticated routes to user onboarding and never leaks organization onboarding (0.208468ms)
+✔ INVITATION FLOW: password + google continuations survive MFA and onboarding before final destination (0.196385ms)
+✔ STANDARD LOGIN FLOW: email/password and google share denied-access override and onboarding branch precedence (0.250505ms)
+✔ FORGOT/RESET + already-have-account continuity: default app entry stays canonical and stale continuation is rejected (0.154427ms)
+✔ CONTINUATION COMPETITION: onboarding > continuation > default and invalid/mismatched appSlug are rejected (0.238362ms)
+✔ phase 1c login and onboarding destination matrix remains backend-authoritative (1.149156ms)
+✔ phase 1c verify-email and invitation continuation precedence is enforced (0.639949ms)
+✔ phase 1c continuation validation remains fail-closed (0.188681ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=admin userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=admin userId=user-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=admin userId=user-3 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ phase 1c /api/me state matrix returns expected auth/session markers (560.705049ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=flow-session-id sessionGroup=admin userId=flow-user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ phase 1c stale-state refresh matrix remains correct across verify/login/google/invitation/MFA/reset/onboarding transitions (4188.898769ms)
+✔ google auth url limiter allows normal login attempts without 429 (75.163828ms)
+✔ google auth url limiter returns 429 after configured threshold (11.289438ms)
+✔ google auth url limiter unlocks after rate limit window resets (117.471061ms)
+✔ google auth url limiter does not consume generic auth limiter budget (10.410284ms)
+✔ rate limiter ignores spoofed forwarded headers when trust proxy is disabled (5.462105ms)
+✔ rate limiter honors forwarded client ip when trust proxy is enabled (4.356579ms)
+[rate-limit] distributed limiter failure Error: store down
+    at Object.consume (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-google-url-rate-limit.test.ts:177:13)
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/middlewares/rateLimit.ts:222:8)
+    at Layer.handleRequest (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/lib/layer.js:152:17)
+    at trimPrefix (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:342:13)
+    at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:297:9
+    at processParams (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:582:12)
+    at next (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:291:5)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/router@2.2.0/node_modules/router/index.js:186:3)
+    at Function.handle (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/application.js:177:15)
+    at Server.app (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/express.js:38:9)
+✔ production rate limiter fails closed when distributed store is unavailable (6.2337ms)
+[rate-limit] distributed ip limiter backend unavailable; using emergency in-memory limiter until database rollout is fixed {
+  code: '42P01',
+  message: 'relation "platform.rate_limits" does not exist',
+  remediation: 'apply migration lib/db/migrations/20260407_distributed_rate_limits.sql and ensure API DB role has INSERT/UPDATE/SELECT on platform.rate_limits'
+}
+✔ production rate limiter uses emergency local limiter when distributed table is missing (4.907213ms)
+✔ IPQS provider failures fail-soft to step_up (14.669582ms)
+✔ IPQS disposable email is blocked (22.197368ms)
+✔ IPQS high fraud score is advisory step_up and not block (0.580379ms)
+✔ IPQS undeliverable signal is advisory step_up and not block (0.506241ms)
+✔ MFA trusted-device cookie policy uses 20 day max-age (0.27454ms)
+✔ MFA requirement applies to org owner/admin even when no activeOrgId is set (0.393902ms)
+✔ apps with unknown metadata sessionGroup fail closed to default group (0.359769ms)
+✔ MFA enrollment start refuses unknown users before factor insert (1.39319ms)
+✔ MFA enrollment start returns factor id and secret for valid users (0.772386ms)
+✔ MFA challenge accepts valid RFC6238-style TOTP from stored base32 secret (1.841964ms)
+✔ MFA challenge does not accept pending factor rows (0.521851ms)
+✔ logout clears cookie with shared session cookie options (51.97572ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=session-after-logout sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ logout fail-closes protected auth/me route in subsequent request (14.988922ms)
+✔ google oauth url endpoint fails closed without valid turnstile token (1100.935552ms)
+✔ google oauth url uses test fallback when origin candidate maps to known workspace app (7.844177ms)
+✔ google oauth url test fallback proceeds to oauth config checks (4.492328ms)
+✔ google oauth url allows test fallback from non-admin origin when app slug mapping is missing (797.509164ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: b085c839-2342-444f-a7e1-c8070dd8f27d,,,,auth.failure,auth,google-url-turnstile-missing,{"reason":"google-url-turnstile-missing","count":1,"threshold":5},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'b085c839-2342-444f-a7e1-c8070dd8f27d',
+    null,
+    null,
+    null,
+    'auth.failure',
+    'auth',
+    'google-url-turnstile-missing',
+    '{"reason":"google-url-turnstile-missing","count":1,"threshold":5}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ forgot password fails closed when app slug context is missing (685.311968ms)
+✔ google oauth url rejects disallowed origins with explicit error code (494.998133ms)
+✔ csrf lifecycle after logout requires a fresh token for immediate login (31.154036ms)
+✔ google oauth url persists stayLoggedIn after known workspace test fallback (8.284445ms)
+✔ google oauth url test fallback still checks oauth config before session side effects (23.863748ms)
+✔ superadmin profile denies non-super-admin callback destination (1.018192ms)
+✔ organization profile routes post-auth users to onboarding when required (0.137415ms)
+✔ authorized callback destination remains dashboard when onboarding not required (0.132306ms)
+✔ user onboarding destination is explicit when required (0.218666ms)
+✔ client/public registrant resolves to user onboarding (0.141183ms)
+✔ invited org member resolves to user onboarding after auth success (0.135272ms)
+✔ organization profile onboarding redirect never includes /admin prefix (0.180736ms)
+✔ default post-auth redirect remains dashboard when no onboarding is required (0.168343ms)
+[auth/access] normalized app profile {
+  appSlug: 'org-open',
+  appId: 'app-org-open',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'org-open',
+  appId: 'app-org-open',
+  normalizedAccessProfile: 'organization'
+}
+✔ org signup -> verify-email route -> MFA challenge -> dashboard when org app allows direct registration (162.809208ms)
+[auth/access] normalized app profile {
+  appSlug: 'solo-app',
+  appId: 'app-solo',
+  normalizedAccessProfile: 'solo'
+}
+✔ solo signup -> verify-email route -> user onboarding when profile is incomplete (54.473583ms)
+[invitations] RESOLVE HIT { token: 'invite-password-token' }
+[auth/access] normalized app profile {
+  appSlug: 'org-open',
+  appId: 'app-org-open',
+  normalizedAccessProfile: 'organization'
+}
+[invitations] RESOLVE HIT { token: 'invite-signin-token' }
+[auth/access] normalized app profile {
+  appSlug: 'org-open',
+  appId: 'app-org-open',
+  normalizedAccessProfile: 'organization'
+}
+✔ invitation password + existing sign-in + google continuation branches preserve invitation route and post-auth stages (148.782655ms)
+[auth/access] normalized app profile {
+  appSlug: 'solo-app',
+  appId: 'app-solo',
+  normalizedAccessProfile: 'solo'
+}
+✔ forgot/reset password route journey invalidates stale auth and boots through fresh login (83.015513ms)
+✔ auth security regression suite contains all required auth regression test files (2.661607ms)
+✔ session-group resolver maps admin and default origins (2.13074ms)
+✔ session-group resolver does not infer admin group from hostname heuristics (0.272156ms)
+✔ session-group resolver falls back to auth appSlug when origin and cookies are unavailable (1.306348ms)
+✔ production session cookie config defaults to SameSite=None with secure=true (0.179834ms)
+[auth/google/url] {
+  branch: 'request_received',
+  method: 'POST',
+  path: '/google/url',
+  origin: null,
+  resolvedSessionGroup: null,
+  turnstileTokenPresent: false,
+  turnstileVerified: true
+}
+[auth/google/url] {
+  branch: 'success',
+  method: 'POST',
+  path: '/google/url',
+  origin: null,
+  resolvedSessionGroup: null,
+  turnstileTokenPresent: false,
+  turnstileVerified: true,
+  sessionGroup: 'admin',
+  status: 200,
+  configValidationPassed: true
+}
+✔ admin oauth start requires explicit admin appSlug and emits oauth-state trace log (1730.431265ms)
+✔ oauth start preserves login continuation path in oauth state payload (603.194827ms)
+✔ non-admin oauth start still allows origin-derived app context without explicit appSlug (1219.547059ms)
+✔ admin oauth start honors explicit appSlug even when origin mapping differs (577.685834ms)
+[auth/google/url] app context resolution failed {
+  requestOrigin: 'http://admin.local',
+  reason: 'app_slug_missing',
+  details: null,
+  resolvedSessionGroup: null,
+  originSessionGroup: 'admin',
+  requestAppSlug: null
+}
+✔ admin oauth start fails closed without explicit appSlug when using forwarded host context (784.683812ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 669a307f-82e4-4da3-be71-1f150d352a21,,,,auth.failure,auth,google-url-app-context-failed,{"reason":"app_slug_missing","count":1,"threshold":5,"requestOrigin":"http://admin.local"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '669a307f-82e4-4da3-be71-1f150d352a21',
+    null,
+    null,
+    null,
+    'auth.failure',
+    'auth',
+    'google-url-app-context-failed',
+    '{"reason":"app_slug_missing","count":1,"threshold":5,"requestOrigin":"http://admin.local"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ super admin oauth callback in admin group redirects to /mfa/enroll (1614.496334ms)
+✔ non-super-admin oauth callback in admin group is denied and only admin cookie is cleared (5.496462ms)
+[auth/access] canonical app lookup failed, using test fallback { appSlug: 'admin', error: 'ECONNREFUSED' }
+✔ non-super-admin admin callback fails closed when admin app lookup is unavailable (4.55938ms)
+✔ pre-provisioned superadmin with null google_subject binds successfully on first login (1262.482148ms)
+✔ pre-provisioned non-superadmin is denied in superadmin mode (6.372379ms)
+✔ unknown user in superadmin mode is denied without creating a user row (3.718949ms)
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+✔ organization create_account callback provisions unknown user and redirects to onboarding (2815.525114ms)
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+✔ organization callback redirects existing user without org access to default destination when customer registration is enabled (2592.19553ms)
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+✔ organization callback keeps onboarding redirect ahead of invitation continuation when onboarding is required (4204.893414ms)
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace',
+  appId: 'workspace-app',
+  normalizedAccessProfile: 'organization'
+}
+✔ organization oauth callback redirect is unchanged across authIntent values (8497.279768ms)
+[auth/google/callback] missing appSlug in OAuth callback state {
+  statePresent: true,
+  expectedStatePresent: true,
+  stateSessionGroup: 'default',
+  frontendBaseFromState: 'http://workspace.local'
+}
+✔ organization callback with missing appSlug in state fails with explicit app slug error (11.827244ms)
+[auth/access] normalized app profile {
+  appSlug: 'workspace-solo',
+  appId: 'solo-app',
+  normalizedAccessProfile: 'solo'
+}
+[auth/access] normalized app profile {
+  appSlug: 'workspace-solo',
+  appId: 'solo-app',
+  normalizedAccessProfile: 'solo'
+}
+✔ solo callback provisions unknown user and keeps dashboard redirect (1482.072341ms)
+✔ second login matches by subject directly for pre-provisioned superadmin (994.387528ms)
+[auth/google/callback] resolved app context {
+  appSlug: 'admin',
+  appId: 'admin-app',
+  normalizedAccessProfile: 'superadmin'
+}
+✔ superadmin callback + downstream admin check emits trace checkpoints and redirects to MFA challenge (974.612487ms)
+✔ superadmin callback stores pending MFA identity and blocks admin guard until MFA is completed (1339.452302ms)
+✔ logout clears only the current request session-group cookie (admin) (7.274369ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me returns safe pending contract with nextStep=challenge (5.587063ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user-read-failure isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me fails closed to challenge when factor state read fails (4.868508ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user-no-factor isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me returns nextStep=enroll when active factor is missing (6.760785ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user-stale-enroll isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me overrides stale enrollment_required to challenge when active factor exists (10.068252ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=stale-user-id isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup,userId
+✔ mfa-pending /api/auth/me evaluates factor state against pendingUserId when session userId diverges (5.481357ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=active-session-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup,userId
+✔ mfa-pending /api/auth/me falls back to authenticated user factor state when pendingUserId is stale (6.485223ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/auth/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=central-security-session sessionGroup=admin userId=pending-central-path isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=true sessionExists=true sessionId=central-security-session sessionGroup=admin userId=pending-central-path isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me returns pending payload when central security middleware runs before auth router (5.060044ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/ method=GET cookieHeaderPresent=true sessionExists=true sessionId=test-session-id sessionGroup=admin userId=pending-user-slash isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,pendingAppSlug,pendingMfaReason,pendingUserId,regenerate,save,sessionGroup
+✔ mfa-pending /api/auth/me/ with trailing slash remains allowed and returns pending contract (4.04087ms)
+✔ logout fails closed for ambiguous multi-group cookies when origin context is missing (4.513689ms)
+✔ request group resolution prefers trusted origin over spoofable cookie order (0.285791ms)
+✔ oauth callback can resolve group from state when multiple group cookies coexist (0.223135ms)
+✔ session middleware selects the correct group handler per request and preserves multi-cookie coexistence (8.278225ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: a6d52dcb-314a-4e4f-a8bb-9311c4e217bf,,,,turnstile.failed,security,/api/auth/google/url,{"reason":"missing-token","count":1,"threshold":5,"method":"POST","path":"/api/auth/google/url","correlationId":null,"appDomain":null},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logTurnstileFailure (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/middlewares/turnstile.ts:162:3) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'a6d52dcb-314a-4e4f-a8bb-9311c4e217bf',
+    null,
+    null,
+    null,
+    'turnstile.failed',
+    'security',
+    '/api/auth/google/url',
+    '{"reason":"missing-token","count":1,"threshold":5,"method":"POST","path":"/api/auth/google/url","correlationId":null,"appDomain":null}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logTurnstileFailure (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/middlewares/turnstile.ts:162:3) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ PUBLIC login endpoint requires turnstile via central enforcement (1441.184655ms)
+✔ PUBLIC login endpoint accepts turnstile token from request body (695.81573ms)
+✔ verify-email endpoint remains public without requiring turnstile token (605.360478ms)
+Error: Failed query: update "platform"."auth_tokens" set "consumed_at" = $1 where ("platform"."auth_tokens"."token_hash" = $2 and "platform"."auth_tokens"."token_type" = $3 and "platform"."auth_tokens"."consumed_at" is null and "platform"."auth_tokens"."expires_at" > $4) returning "id", "user_id", "token_type", "token_hash", "expires_at", "consumed_at", "created_at"
+params: 2026-06-02T04:35:27.902Z,e1466187c844c921b622aff2197444cfdc2c87489f7a6e71cef47b31a1602ced,email_verification,Tue Jun 02 2026 04:35:27 GMT+0000 (Coordinated Universal Time)
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async consumeAuthToken (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2431:16)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3351:20)
+✔ mfa challenge endpoint does not require turnstile token (10.239453ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 9c09a31c-1c0a-4146-bd44-78b589c41c62,,,,auth.verify_email,auth_verification,,{"outcome":"token_rejected","appSlug":null,"correlationId":null,"reasonCode":"expired"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3354:7) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '9c09a31c-1c0a-4146-bd44-78b589c41c62',
+    null,
+    null,
+    null,
+    'auth.verify_email',
+    'auth_verification',
+    null,
+    '{"outcome":"token_rejected","appSlug":null,"correlationId":null,"reasonCode":"expired"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+      at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3354:7) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: c012fd22-396c-488d-a5ee-2274c7706fe3,,,,auth.verify_email,auth_verification,,{"outcome":"token_rejected","appSlug":null,"correlationId":null,"reasonCode":"already_used"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3362:7) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'c012fd22-396c-488d-a5ee-2274c7706fe3',
+    null,
+    null,
+    null,
+    'auth.verify_email',
+    'auth_verification',
+    null,
+    '{"outcome":"token_rejected","appSlug":null,"correlationId":null,"reasonCode":"already_used"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+      at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3362:7) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ verify-email reports expired and already-used token states distinctly (1769.867934ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/users/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/users/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-auth isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-auth isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+✔ AUTHENTICATED routes require valid session by default (11.671553ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ public invitation token routes do not require an authenticated session (10.002693ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/organizations/org-a/invitations method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ protected invitation management endpoints still require authenticated session (2.582267ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=false allow=false denyReason=not_superadmin
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/api/admin/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/api/admin/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/stats method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/stats sessionExists=true sessionGroup=null userId=admin-user isSuperAdmin=true allow=true denyReason=null
+✔ ADMIN routes are centrally enforced as super-admin only (5.84004ms)
+✔ origin/referer protection denies unsafe requests with missing headers except explicit machine exceptions (14.273708ms)
+✔ origin/referer protection denies invalid and malformed origin values while allowing referer-only valid requests (6.493734ms)
+✔ privileged non-/api/admin routes are explicitly classified as ADMIN (0.367643ms)
+✔ production db pool config enforces certificate validation by default (1.467918ms)
+✔ production db pool config honors explicit sslmode=require with strict cert validation (0.261106ms)
+✔ production db pool config ignores sslmode=no-verify downgrade (0.181868ms)
+✔ non-production db pool config behavior is explicit (0.166519ms)
+✔ production db pool config keeps certificate validation enabled on Render runtime (0.203778ms)
+✔ production db pool config respects explicit verify-full on Render runtime (0.208147ms)
+✔ ci db pool config enforces certificate validation (0.138758ms)
+✔ non-production db pool config enables ssl when sslmode requires it (0.244023ms)
+✔ invitation token renderer replaces allowlisted tokens and preserves unknown tokens (1.757415ms)
+✔ invitation token renderer deterministically escapes html values and empty missing values (0.270272ms)
+✔ invitee_name derivation is deterministic for full and partial names (0.239705ms)
+✔ lane1 invitation sender uses app sender/template config and logs lane1 outcome (40.599066ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[invitations] lane1 invitation email send failed {
+  invitationId: 'inv-1',
+  orgId: 'org-1',
+  appId: 'app-1',
+  error: 'Missing app transactional_from_email configuration'
+}
+✔ invitation creation fails clearly when sender/template config is missing (2403.748273ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation create persists invitee first and last name (1529.198418ms)
+✔ invitation resend omits plaintext token in API response while email link still contains token (1.729353ms)
+✔ template validation rejects unsupported tokens for template type (1.166708ms)
+✔ password reset sender resolves lane1 template and logs lane1 outcome (1.855778ms)
+✔ invitation password acceptance returns MFA enrollment step when user is not enrolled (89.986128ms)
+✔ invitation destination matrix keeps canonical precedence with onboarding and continuation combinations (0.266956ms)
+✔ invitation route source keeps resolver-based destination and blocks route-local dashboard fallback literals (0.368235ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation creation for org in App A stores App A on invitation (1792.049796ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-b/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation creation for org in App B stores App B on invitation (1507.549118ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-admin/invitations method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-2 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation create and accept deny incompatible session-group org access (2401.680161ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-default/invitations method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=owner-3 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation org routes fail closed when session group is missing (6.026869ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=invitee-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 0b37a1ba-093c-4794-a4d7-1540ca6ad2cb,org-admin,owner-2,,invitation.accept.failed,invitation,inv-cross,{"reason":"Organization is not accessible from this session context."},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '0b37a1ba-093c-4794-a4d7-1540ca6ad2cb',
+    'org-admin',
+    'owner-2',
+    null,
+    'invitation.accept.failed',
+    'invitation',
+    'inv-cross',
+    '{"reason":"Organization is not accessible from this session context."}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-a',
+  normalizedAccessProfile: 'organization'
+}
+✔ invitation accept prioritizes organization onboarding when post-auth resolver requires it (993.71425ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-a/invitations/inv-org-b method=DELETE cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=owner-4 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,sessionGroup,userId
+✔ invitation cancellation is denied for cross-org invitation ids and leaves invitation unchanged (1174.467723ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns pending + create_password for invite without password credential (6.494136ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns sign_in for pending invite with existing password credential (7.819998ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns terminal state for accepted invite (4.534588ms)
+[invitations] RESOLVE HIT { token: 'non-existent' }
+✔ invitation resolve returns invalid state when token lookup misses (4.776337ms)
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve returns expired state for pending invite past expiration (4.166966ms)
+[invitations] RESOLVE HIT { token: 'token' }
+[invitations] RESOLVE HIT { token: 'token' }
+✔ invitation resolve derives googleAllowed from Google auth config (6.478016ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ organization creation is blocked for superadmin app sessions (53.080804ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ organization creation is blocked for solo app sessions (7.532113ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/invitations/token/accept method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=u-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=appSlug,destroy,id,regenerate,save,userId
+✔ invitation acceptance is blocked for non-organization app sessions (5.944583ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=u-boundary isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ organization listing keeps same-session-group memberships and drops cross-group memberships (568.875102ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-admin method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=u-read isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ organization read route denies incompatible session-group even with membership (492.499099ms)
+[auth/access] normalized app profile {
+  appSlug: 'admin',
+  appId: 'admin-app',
+  normalizedAccessProfile: 'solo'
+}
+✔ legacy scrypt login transparently upgrades stored hash to current versioned format (3619.061331ms)
+[auth/access] normalized app profile {
+  appSlug: 'admin',
+  appId: 'admin-app',
+  normalizedAccessProfile: 'solo'
+}
+✔ password login prioritizes invitation continuation returnToPath over generic post-auth redirects (1783.506916ms)
+✖ login returns mfa_challenge for users with active MFA factor (909.704351ms)
+✖ mfa-required login persists pending invitation continuation returnToPath in session (906.721303ms)
+[auth/access] normalized app profile {
+  appSlug: 'admin',
+  appId: 'admin-app',
+  normalizedAccessProfile: 'solo'
+}
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: be3401d5-65bf-4ea0-aaa8-deaeb6471f4a,,,,auth.verify_email,auth_verification,,{"outcome":"verified_session_established","appSlug":"admin","correlationId":null,"userId":"user-1","nextPath":"/invitations/test-token/accept"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3471:3) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    'be3401d5-65bf-4ea0-aaa8-deaeb6471f4a',
+    null,
+    null,
+    null,
+    'auth.verify_email',
+    'auth_verification',
+    null,
+    '{"outcome":"verified_session_established","appSlug":"admin","correlationId":null,"userId":"user-1","nextPath":"/invitations/test-token/accept"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+      at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3471:3) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ verify-email prioritizes continuation returnToPath over default destination when onboarding is not required (1605.138577ms)
+✖ verify-email with MFA requirement persists pending continuation in session (583.452155ms)
+Error: Failed query: select "id", "name", "slug", "domain", "base_url", "turnstile_site_key_override", "description", "icon_url", "access_mode", "staff_invites_enabled", "customer_registration_enabled", "transactional_from_email", "transactional_from_name", "transactional_reply_to_email", "invitation_email_subject", "invitation_email_html", "is_active", "metadata", "created_at", "updated_at" from "platform"."apps" "appsTable" where ("appsTable"."slug" = $1 and "appsTable"."is_active" = $2) limit $3
+params: admin,true,1
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async getAppBySlug (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/appAccess.ts:207:25)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3402:15)
+✖ login fails closed to mfa_challenge when active factor lookup errors (608.731759ms)
+✔ mfa enroll start returns mfa_challenge hint when pending session already has an active factor (8.942918ms)
+[SESSION-TRACE] login:incoming anonymousSid=admin.9e20a8a8-60dd-42e3-a4c8-21e419b760ff
+✖ admin MFA login regenerates to a new pending session id and preserves that id across /api/auth/me and /api/csrf-token (782.887062ms)
+✔ current versioned password hash and verify (113.807218ms)
+✔ legacy scrypt password hashes still verify and require upgrade (146.18172ms)
+✔ opaque token hashing is deterministic (0.647543ms)
+✔ password auth opaque identifier is deterministic and normalized (0.168943ms)
+✔ password strength policy requires length/upper/lower/number/special (0.277806ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ GET /api/platform/settings returns global + app settings payload (49.566675ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/settings rejects unsupported key (21.635764ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/apps/:id/settings rejects unsupported app key (5.750926ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/settings rejects seeded non-editable global key (5.687077ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 37d53483-3a43-47f4-956c-3106c084f51e,,super-1,,platform.setting.update,setting,setting-1,{"key":"SENTRY_ENVIRONMENT","valueType":"string"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:97:3) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '37d53483-3a43-47f4-956c-3106c084f51e',
+    null,
+    'super-1',
+    null,
+    'platform.setting.update',
+    'setting',
+    'setting-1',
+    '{"key":"SENTRY_ENVIRONMENT","valueType":"string"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:97:3) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ PATCH /api/platform/settings allows operator-editable global key (1934.186655ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+✔ PATCH /api/platform/apps/:id/settings rejects bootstrap mirror key (4.847823ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/apps/app-admin/settings method=PATCH cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/apps/app-admin/settings sessionExists=true sessionGroup=null userId=super-1 isSuperAdmin=true allow=true denyReason=null
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 7f8a469d-474b-437c-b508-dca9709a820e,,super-1,,platform.app_setting.update,app_setting,setting-1,{"appId":"app-admin","key":"MFA_ISSUER","valueType":"string"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:177:3) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '7f8a469d-474b-437c-b508-dca9709a820e',
+    null,
+    'super-1',
+    null,
+    'platform.app_setting.update',
+    'app_setting',
+    'setting-1',
+    '{"appId":"app-admin","key":"MFA_ISSUER","valueType":"string"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:177:3) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ PATCH /api/platform/apps/:id/settings allows operator-editable app key (1074.862518ms)
+✔ continuation resolver maps invitation acceptance (0.987894ms)
+✔ continuation resolver maps event registration (0.237812ms)
+✔ continuation resolver maps client/public registration (0.231961ms)
+✔ continuation resolver falls back to default app entry (0.220229ms)
+✔ continuation resolver rejects arbitrary continuation paths (0.218345ms)
+✔ continuation resolver rejects missing appSlug (0.12422ms)
+✔ continuation resolver rejects explicit invitation continuation type when path is not invitation acceptance (0.181737ms)
+✔ post-auth redirect helper exports remain consistent with canonical auth contract (1.012881ms)
+✔ post-auth resolver prioritizes onboarding over continuation path (0.48446ms)
+✔ post-auth resolver falls back to flow decision destination when continuation is missing (0.128138ms)
+✔ post-auth resolver prioritizes continuation when onboarding is not required (0.128899ms)
+✔ login without onboarding and with continuation resolves continuation destination (0.132686ms)
+✔ verify-email without onboarding and with continuation resolves continuation destination (0.369496ms)
+✔ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (0.145049ms)
+✔ post-auth resolver falls back to default destination when continuation is missing and onboarding is not required (0.116767ms)
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.262327ms)
+✔ post-onboarding resolver resumes continuation before default destination (0.387529ms)
+✔ post-auth resolver ignores invalid continuation paths and falls back safely (0.138678ms)
+✔ post-onboarding resolver uses default destination when continuation is missing (0.096379ms)
+✔ post-auth resolver ignores continuation when app access is denied (0.104083ms)
+✔ post-auth resolver ignores continuation when continuation app does not match resolved app (0.096589ms)
+✔ post-onboarding resolver still blocks continuation when onboarding is still required (0.115745ms)
+✔ solo flow does not leak organization onboarding when user onboarding is required (0.10268ms)
+✔ continuation competition remains MFA->onboarding->continuation->default in post-auth resolver contracts (0.111938ms)
+✔ post-auth destination keeps superadmin access-denied ahead of continuation (1.27088ms)
+✔ post-auth destination keeps organization onboarding ahead of invitation continuation (0.157432ms)
+✔ post-auth destination keeps solo user onboarding ahead of client continuation (0.315836ms)
+✔ post-auth destination resumes invitation continuation only when app slug matches (0.254473ms)
+✔ post-auth continuation allowlist accepts client and public registration routes (0.169625ms)
+✔ post-auth continuation rejects client registration type when path does not match allowlist (0.134029ms)
+✔ post-auth continuation rejects arbitrary and malformed paths (0.214258ms)
+✔ post-onboarding destination resumes invitation continuation after organization onboarding (0.179934ms)
+✔ post-onboarding destination keeps user onboarding until user onboarding is complete (0.260885ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=null isSuperAdmin=false allow=false denyReason=missing_user_id sessionKeys=destroy,id,regenerate,save
+✔ session-required route rejects missing session (61.87008ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-switch isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,userId
+✔ switch-org denies orgs where user lacks membership (8.306606ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-switch-ok isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,sessionGroup,userId
+✔ switch-org rotates/persists session for valid org membership (619.105106ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me/switch-org method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-switch-boundary isSuperAdmin=false allow=true denyReason=null sessionKeys=activeOrgId,destroy,id,regenerate,save,sessionGroup,userId
+✔ switch-org denies cross-session-group targets and preserves active org (477.431613ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 2599da3d-8a15-4151-a99b-3e757061355a,22222222-2222-4222-8222-222222222222,user-switch-ok,,user.active_org.switched,user,user-switch-ok,{"activeOrgId":"22222222-2222-4222-8222-222222222222"},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  query: 'insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)',
+  params: [
+    '2599da3d-8a15-4151-a99b-3e757061355a',
+    '22222222-2222-4222-8222-222222222222',
+    'user-switch-ok',
+    null,
+    'user.active_org.switched',
+    'user',
+    'user-switch-ok',
+    '{"activeOrgId":"22222222-2222-4222-8222-222222222222"}',
+    '::ffff:127.0.0.1',
+    'node'
+  ],
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    length: 112,
+    severity: 'FATAL',
+    code: '28000',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'miscinit.c',
+    line: '851',
+    routine: 'InitializeSessionUserId'
+  }
+}
+✔ revokeOtherSessionsForUser executes explicit platform.sessions query (3.149058ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/me method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=missing-user isSuperAdmin=false allow=false denyReason=user_not_found sessionKeys=destroy,id,regenerate,save,userId
+✔ requireAuth fail-closed path clears cookie when session user is missing from DB (55.533108ms)
+✔ applySessionPersistence sets default idle timeout when stayLoggedIn is false (0.989708ms)
+✔ applySessionPersistence sets 14-day maxAge when stayLoggedIn is true (0.144799ms)
+✔ session store config is pinned to platform.sessions and migration-managed provisioning (1.369593ms)
+✔ logout-others query targets platform.sessions via shared helper (0.272837ms)
+✔ password reset global revoke query targets platform.sessions across session groups (0.190214ms)
+✔ session store infrastructure bootstrap creates schema/table/index if missing (6.971266ms)
+✔ session lifecycle uses shared destroy helper instead of ad hoc req.session.destroy (2.366445ms)
+✔ runtime-critical source has no stale public.sessions assumptions (1.935765ms)
+✔ session runtime no longer depends on startup-time SESSION_GROUP env cookie selection (0.165197ms)
+✔ session group cookie defaults no longer hardcode legacy saas.sid singleton (0.148756ms)
+✔ session cookie flags are hardened in production (1.694667ms)
+✔ absolute session timeout returns 401 and destroys session (4.391145ms)
+✔ session anomaly writes observational audit event when ip or ua changes (0.490221ms)
+✔ getSetting reads parsed value from cache-backed DB rows (1.675784ms)
+✔ getAppSettingBySlug resolves app-scoped value (0.460466ms)
+✔ getAppSetting falls back when app key missing (0.340943ms)
+✔ getMfaIssuerForAppSlug falls back safely (0.3824ms)
+✔ getMfaIssuerForAppSlug resolves canonical per-app issuer values when present (0.481565ms)
+✔ allowed origins derive from active app domains (1.068194ms)
+✔ allowed origins normalize localhost domains and union env extension values (0.567915ms)
+✔ allowed origins uses env fallback when DB returns empty (0.361982ms)
+✔ parseSettingValue handles number, boolean and json types (0.358706ms)
+✔ global setting snapshot uses DB cache before env fallback (0.593213ms)
+✔ signup denial logs disposable_email reason code (62.229391ms)
+✔ signup step-up logs undeliverable_email reason code (50.199043ms)
+✔ signup step-up logs ipqs_advisory_step_up reason code for high fraud score (51.997576ms)
+✔ signup duplicate-email denial logs duplicate_existing_email reason code (68.866747ms)
+✔ signup duplicate-email and fresh signup share public success contract (92.114953ms)
+✔ signup policy denial logs signup_not_allowed_by_access_policy reason code (5.628641ms)
+✔ signup provider-failure step-up logs ipqs_provider_failure_step_up reason code (45.306501ms)
+✔ turnstile signup denial logs turnstile_missing_or_invalid reason code (9.053866ms)
+✔ signup validation denial logs validation_failed reason code (5.132569ms)
+✔ signup internal exception path logs internal_exception reason code (18.157898ms)
+Error: insert failed
+    at Object.returning (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/signup-observability.test.ts:544:19)
+    at handlePasswordSignup (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2897:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+✔ signup returns appSlug and routes verification email through lane1 outbound logging (69.782809ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/org-b method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-org-a isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ tenant isolation denies cross-org reads (558.94745ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/words method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-no-shipibo isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'shipibo',
+  appId: 'app-shipibo',
+  normalizedAccessProfile: 'organization'
+}
+✔ app access boundary denies user without app entitlement (590.569589ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/ceremonies method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=user-has-ayni isSuperAdmin=true allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+[auth/access] normalized app profile {
+  appSlug: 'ayni',
+  appId: 'app-ayni',
+  normalizedAccessProfile: 'organization'
+}
+✔ ayni tenant routes deny cross-org reads even with app access (682.531999ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/checkout method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=null userId=billing-user isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,userId
+✔ billing tenant routes deny cross-org writes when orgId is in request body (18.635103ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/connections method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org admin can create connection and response is redacted (60.066381ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-b/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ cross-org access is denied for org-scoped log queries (11.258013ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/connections/conn-1/validate method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ validation response sanitizes credential-like diagnostics (7.189512ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org log query supports recipient filtering (6.405965ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/admin/transactional-email/logs method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=admin userId=sa-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+[AUTH-CHECK-TRACE] ADMIN GUARD path=/admin/transactional-email/logs sessionExists=true sessionGroup=admin userId=sa-1 isSuperAdmin=false allow=false denyReason=not_superadmin
+✔ superadmin access to platform-wide logs is enforced (6.175698ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/events method=GET cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ org events query excludes events from other org logs (5.83784ms)
+[transactional-email] brevo webhook signature rejected
+✔ brevo webhook rejects malformed signature without throwing (6.848808ms)
+[transactional-email] brevo webhook ingestion failed { error: 'boom' }
+✔ brevo webhook endpoint remains resilient when ingestion throws (5.979934ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/send method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ send endpoint returns success payload for accepted provider result (9.598138ms)
+[AUTH-CHECK-TRACE] FIRST AUTH REQUEST path=/organizations/org-1/transactional-email/send method=POST cookieHeaderPresent=false sessionExists=true sessionId=test-session-id sessionGroup=default userId=user-1 isSuperAdmin=false allow=true denyReason=null sessionKeys=destroy,id,regenerate,save,sessionGroup,userId
+✔ send endpoint surfaces provider failures with normalized error and logs failure (8.10904ms)
+✔ webhook payload guards accept but ignore oversized webhook batches (3.840036ms)
+✔ correlation_status migration is additive and non-destructive (5.386812ms)
+ℹ tests 315
+ℹ suites 0
+ℹ pass 310
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53309.229031
+
+✖ failing tests:
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:4793
+✖ login returns mfa_challenge for users with active MFA factor (909.704351ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 202
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:209:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 202,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:6221
+✖ mfa-required login persists pending invitation continuation returnToPath in session (906.721303ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 202
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:300:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 202,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:9643
+✖ verify-email with MFA requirement persists pending continuation in session (583.452155ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  500 !== 202
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 500,
+    expected: 202,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:11625
+✖ login fails closed to mfa_challenge when active factor lookup errors (608.731759ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 202
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:522:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 202,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:13796
+✖ admin MFA login regenerates to a new pending session id and preserves that id across /api/auth/me and /api/csrf-token (782.887062ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  403 !== 202
+  
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:677:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 403,
+    expected: 202,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+/home/runner/work/ayni.space/ayni.space/apps/api-server:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit status 1
+----------------------------------------
+Exit code: 1
