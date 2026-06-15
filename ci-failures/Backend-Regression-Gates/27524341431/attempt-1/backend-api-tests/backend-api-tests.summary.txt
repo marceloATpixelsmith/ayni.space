@@ -1,0 +1,145 @@
+==================================================
+CI FAILURE SUMMARY
+==================================================
+Workflow: Backend Regression Gates
+Job: backend-api-tests
+Run ID: 27524341431
+Run number: 929
+Run attempt: 1
+Run URL: https://github.com/marceloATpixelsmith/ayni.space/actions/runs/27524341431
+Repository: marceloATpixelsmith/ayni.space
+Ref: refs/heads/master
+SHA: 70bbc34977440cf5fe58c46b17d720f9cca60262
+Actor: marceloATpixelsmith
+Event: schedule
+Command: pnpm --filter @workspace/api-server run test:ci
+Failure type: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+Failing test: login returns mfa_challenge for users with active MFA factor (791.8976ms)
+Actual: 403,
+Expected: 202,
+File/line: src/__tests__/auth-google-url-rate-limit.test.ts:177:13
+Auth-context signal: [auth/google/url] app context resolution failed {
+Likely source area: src/__tests__/auth-google-url-rate-limit.test.ts
+Exit code: 1
+Relevant log excerpt:
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+params: 4b349f05-6b7e-4a8c-8002-1f85fa54e036,org-admin,owner-2,,invitation.accept.failed,invitation,inv-cross,{"reason":"Organization is not accessible from this session context."},::ffff:127.0.0.1,node
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+    'invitation.accept.failed',
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+✖ login returns mfa_challenge for users with active MFA factor (791.8976ms)
+✖ mfa-required login persists pending invitation continuation returnToPath in session (782.188767ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3471:3) {
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async logVerifyEmailOutcome (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3331:5)
+      at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3471:3) {
+✖ verify-email with MFA requirement persists pending continuation in session (475.101429ms)
+Error: Failed query: select "id", "name", "slug", "domain", "base_url", "turnstile_site_key_override", "description", "icon_url", "access_mode", "staff_invites_enabled", "customer_registration_enabled", "transactional_from_email", "transactional_from_name", "transactional_reply_to_email", "invitation_email_subject", "invitation_email_html", "is_active", "metadata", "created_at", "updated_at" from "platform"."apps" "appsTable" where ("appsTable"."slug" = $1 and "appsTable"."is_active" = $2) limit $3
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+    at async getAppBySlug (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/appAccess.ts:207:25)
+    at async handleVerifyEmail (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:3402:15)
+✖ login fails closed to mfa_challenge when active factor lookup errors (743.398911ms)
+✖ admin MFA login regenerates to a new pending session id and preserves that id across /api/auth/me and /api/csrf-token (806.20924ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:97:3) {
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:97:3) {
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:177:3) {
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/platform.ts:177:3) {
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.263018ms)
+Failed to write audit log: DrizzleQueryError: Failed query: insert into "platform"."audit_logs" ("id", "org_id", "user_id", "user_email", "action", "resource_type", "resource_id", "metadata", "ip_address", "user_agent", "created_at") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, default)
+    at NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+  cause: error: role "ameyalli" is not permitted to log in
+      at /home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async <anonymous> (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:149:14)
+      at async NodePgPreparedQuery.queryWithCache (/home/runner/work/ayni.space/ayni.space/node_modules/.pnpm/drizzle-orm@0.45.1_@opentelemetry+api@1.9.0_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+      at async writeAuditLog (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/lib/audit.ts:21:5) {
+✔ requireAuth fail-closed path clears cookie when session user is missing from DB (42.097452ms)
+✔ signup provider-failure step-up logs ipqs_provider_failure_step_up reason code (54.922668ms)
+✔ signup validation denial logs validation_failed reason code (7.442062ms)
+Error: insert failed
+    at Object.returning (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/signup-observability.test.ts:544:19)
+    at handlePasswordSignup (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/routes/auth.ts:2897:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[transactional-email] brevo webhook ingestion failed { error: 'boom' }
+✔ send endpoint surfaces provider failures with normalized error and logs failure (7.016154ms)
+ℹ fail 5
+✖ failing tests:
+test at src/__tests__/password-auth-login-rehash.test.ts:1:4793
+✖ login returns mfa_challenge for users with active MFA factor (791.8976ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:209:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/password-auth-login-rehash.test.ts:1:6221
+✖ mfa-required login persists pending invitation continuation returnToPath in session (782.188767ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:300:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/password-auth-login-rehash.test.ts:1:9643
+✖ verify-email with MFA requirement persists pending continuation in session (475.101429ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/password-auth-login-rehash.test.ts:1:11625
+✖ login fails closed to mfa_challenge when active factor lookup errors (743.398911ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:522:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+test at src/__tests__/password-auth-login-rehash.test.ts:1:13796
+✖ admin MFA login regenerates to a new pending session id and preserves that id across /api/auth/me and /api/csrf-token (806.20924ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      at TestContext.<anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:677:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit code: 1
+==================================================
