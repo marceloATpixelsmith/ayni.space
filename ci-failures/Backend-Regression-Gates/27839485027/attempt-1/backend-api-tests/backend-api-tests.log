@@ -1,0 +1,626 @@
+Failing command: pnpm --filter @workspace/api-server run test:ci
+----------------------------------------
+
+> @workspace/api-server@0.0.0 test:ci /home/runner/work/ayni.space/ayni.space/apps/api-server
+> tsx --test --test-reporter=spec src/__tests__/*.test.ts
+
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/admin-email-templates.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/admin-email-templates.test.ts (1555.974231ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/api-regression-phase-a.test.ts:9:16)
+
+Node.js v22.22.3
+✖ src/__tests__/api-regression-phase-a.test.ts (1492.612404ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/app-access-mode-enforcement.test.ts:8:16)
+
+Node.js v22.22.3
+✖ src/__tests__/app-access-mode-enforcement.test.ts (1542.20938ms)
+✔ superadmin auth route policy disables registration, onboarding, and invitations (1.312862ms)
+✔ organization auth route policy enables registration, onboarding, and invitations (0.146525ms)
+✔ solo auth route policy enables registration and disables organization onboarding/invitations (0.142056ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/apps-public-metadata.test.ts:7:33)
+
+Node.js v22.22.3
+✖ src/__tests__/apps-public-metadata.test.ts (1528.086096ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/apps-runtime-settings.test.ts:7:25)
+
+Node.js v22.22.3
+✖ src/__tests__/apps-runtime-settings.test.ts (1506.215886ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-abuse-hardening.test.ts:7:89)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-abuse-hardening.test.ts (1449.059632ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-app-context-policy.test.ts:11:5)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-app-context-policy.test.ts (1488.543228ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-authz.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-authz.test.ts (1452.546813ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-backend-authority-gaps.test.ts:9:16)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-backend-authority-gaps.test.ts (1352.899571ms)
+✔ shared auth contract builds stable denied login path (1.199921ms)
+✔ shared auth contract parses only supported auth error codes (0.246542ms)
+✔ shared auth contract resolves access denied message (0.230813ms)
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-entry-regression-guards.test.ts:66:3)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-entry-regression-guards.test.ts (1669.232169ms)
+✔ global fallback guard blocks /dashboard fallback shortcuts in auth routing surfaces (5.293347ms)
+✔ ORG ADMIN SIGNUP FLOW: verify -> MFA -> onboarding -> dashboard destination chain remains deterministic (2.024968ms)
+✔ SOLO SIGNUP FLOW: verify/authenticated routes to user onboarding and never leaks organization onboarding (0.288832ms)
+✔ INVITATION FLOW: password + google continuations survive MFA and onboarding before final destination (0.208832ms)
+✔ STANDARD LOGIN FLOW: email/password and google share denied-access override and onboarding branch precedence (0.439133ms)
+✔ FORGOT/RESET + already-have-account continuity: default app entry stays canonical and stale continuation is rejected (0.203472ms)
+✔ CONTINUATION COMPETITION: onboarding > continuation > default and invalid/mismatched appSlug are rejected (0.318678ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-flow-phase1c-regression.test.ts:11:16)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1509.479306ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-google-url-rate-limit.test.ts:11:5)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-google-url-rate-limit.test.ts (1468.790139ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-ipqs-mfa-utils.test.ts:8:14)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-ipqs-mfa-utils.test.ts (1502.246072ms)
+node:internal/test_runner/harness:99
+      throw err;
+      ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-logout-turnstile.test.ts:35:33)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-logout-turnstile.test.ts (1481.159513ms)
+✔ superadmin profile denies non-super-admin callback destination (1.478443ms)
+✔ organization profile routes post-auth users to onboarding when required (0.177783ms)
+✔ authorized callback destination remains dashboard when onboarding not required (0.180518ms)
+✔ user onboarding destination is explicit when required (0.251001ms)
+✔ client/public registrant resolves to user onboarding (0.174298ms)
+✔ invited org member resolves to user onboarding after auth success (0.21375ms)
+✔ organization profile onboarding redirect never includes /admin prefix (0.251031ms)
+✔ default post-auth redirect remains dashboard when no onboarding is required (0.15976ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-real-journey-routes.test.ts:23:22)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-real-journey-routes.test.ts (1538.498924ms)
+✔ auth security regression suite contains all required auth regression test files (3.724967ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/auth-session-group-hardening.test.ts:15:16)
+
+Node.js v22.22.3
+✖ src/__tests__/auth-session-group-hardening.test.ts (1557.049793ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/central-security-enforcement.test.ts:10:49)
+
+Node.js v22.22.3
+✖ src/__tests__/central-security-enforcement.test.ts (1441.718791ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/db-tls-config.test.ts:6:31)
+
+Node.js v22.22.3
+✖ src/__tests__/db-tls-config.test.ts (1314.746491ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-email-lane1.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/invitation-email-lane1.test.ts (1398.972481ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-password-mfa-routing.test.ts:11:16)
+
+Node.js v22.22.3
+✖ src/__tests__/invitation-password-mfa-routing.test.ts (1465.485661ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/invitation-session-group-compatibility.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/invitation-session-group-compatibility.test.ts (1475.07626ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/organization-session-access-enforcement.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/organization-session-access-enforcement.test.ts (1403.463727ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/organization-session-group-boundary.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/organization-session-group-boundary.test.ts (1469.269278ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/password-auth-login-rehash.test.ts:11:33)
+
+Node.js v22.22.3
+✖ src/__tests__/password-auth-login-rehash.test.ts (1417.243836ms)
+✔ current versioned password hash and verify (172.999486ms)
+✔ legacy scrypt password hashes still verify and require upgrade (238.558254ms)
+✔ opaque token hashing is deterministic (0.949662ms)
+✔ password auth opaque identifier is deterministic and normalized (0.309597ms)
+✔ password strength policy requires length/upper/lower/number/special (0.372286ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/platform-settings-routes.test.ts:7:37)
+
+Node.js v22.22.3
+✖ src/__tests__/platform-settings-routes.test.ts (1362.829341ms)
+✔ continuation resolver maps invitation acceptance (0.978976ms)
+✔ continuation resolver maps event registration (0.254427ms)
+✔ continuation resolver maps client/public registration (0.229861ms)
+✔ continuation resolver falls back to default app entry (0.206467ms)
+✔ continuation resolver rejects arbitrary continuation paths (0.188984ms)
+✔ continuation resolver rejects missing appSlug (0.163186ms)
+✔ continuation resolver rejects explicit invitation continuation type when path is not invitation acceptance (0.18675ms)
+✔ post-auth redirect helper exports remain consistent with canonical auth contract (1.391629ms)
+✔ post-auth resolver prioritizes onboarding over continuation path (0.514625ms)
+✔ post-auth resolver falls back to flow decision destination when continuation is missing (0.196739ms)
+✔ post-auth resolver prioritizes continuation when onboarding is not required (0.200275ms)
+✔ login without onboarding and with continuation resolves continuation destination (0.246793ms)
+✔ verify-email without onboarding and with continuation resolves continuation destination (0.324648ms)
+✔ login with onboarding and continuation resolves onboarding first, then continuation post-onboarding (0.155292ms)
+✔ post-auth resolver falls back to default destination when continuation is missing and onboarding is not required (0.221054ms)
+✔ post-auth resolver fail-closes when flow decision is unavailable (0.339998ms)
+✔ post-onboarding resolver resumes continuation before default destination (0.469931ms)
+✔ post-auth resolver ignores invalid continuation paths and falls back safely (0.140614ms)
+✔ post-onboarding resolver uses default destination when continuation is missing (0.162645ms)
+✔ post-auth resolver ignores continuation when app access is denied (0.168876ms)
+✔ post-auth resolver ignores continuation when continuation app does not match resolved app (0.162445ms)
+✔ post-onboarding resolver still blocks continuation when onboarding is still required (0.16506ms)
+✔ solo flow does not leak organization onboarding when user onboarding is required (0.116258ms)
+✔ continuation competition remains MFA->onboarding->continuation->default in post-auth resolver contracts (0.124554ms)
+✔ post-auth destination keeps superadmin access-denied ahead of continuation (1.806838ms)
+✔ post-auth destination keeps organization onboarding ahead of invitation continuation (0.242775ms)
+✔ post-auth destination keeps solo user onboarding ahead of client continuation (0.530986ms)
+✔ post-auth destination resumes invitation continuation only when app slug matches (0.33645ms)
+✔ post-auth continuation allowlist accepts client and public registration routes (0.361037ms)
+✔ post-auth continuation rejects client registration type when path does not match allowlist (0.194826ms)
+✔ post-auth continuation rejects arbitrary and malformed paths (0.350357ms)
+✔ post-onboarding destination resumes invitation continuation after organization onboarding (0.27157ms)
+✔ post-onboarding destination keeps user onboarding until user onboarding is complete (0.436599ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/session-flows.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/session-flows.test.ts (1459.197096ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/session-lifecycle-hardening.test.ts:8:20)
+
+Node.js v22.22.3
+✖ src/__tests__/session-lifecycle-hardening.test.ts (1426.76177ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/session-persistence.test.ts:6:80)
+
+Node.js v22.22.3
+✖ src/__tests__/session-persistence.test.ts (1370.257205ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/session-platform-persistence.test.ts:10:20)
+
+Node.js v22.22.3
+✖ src/__tests__/session-platform-persistence.test.ts (1508.34211ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/session-security.test.ts:8:20)
+
+Node.js v22.22.3
+✖ src/__tests__/session-security.test.ts (1345.541762ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/settings-runtime.test.ts:7:18)
+
+Node.js v22.22.3
+✖ src/__tests__/settings-runtime.test.ts (1540.356093ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/signup-observability.test.ts:58:33)
+
+Node.js v22.22.3
+✖ src/__tests__/signup-observability.test.ts (1530.265091ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/tenant-isolation.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/tenant-isolation.test.ts (1434.848345ms)
+/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9
+  throw new Error(
+        ^
+
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+    at <anonymous> (/home/runner/work/ayni.space/ayni.space/lib/db/src/index.ts:9:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async <anonymous> (/home/runner/work/ayni.space/ayni.space/apps/api-server/src/__tests__/transactional-email-management.test.ts:7:16)
+
+Node.js v22.22.3
+✖ src/__tests__/transactional-email-management.test.ts (1359.157032ms)
+✔ correlation_status migration is additive and non-destructive (4.045947ms)
+ℹ tests 95
+ℹ suites 0
+ℹ pass 61
+ℹ fail 34
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18078.631698
+
+✖ failing tests:
+
+test at src/__tests__/admin-email-templates.test.ts:1:1
+✖ src/__tests__/admin-email-templates.test.ts (1555.974231ms)
+  'test failed'
+
+test at src/__tests__/api-regression-phase-a.test.ts:1:1
+✖ src/__tests__/api-regression-phase-a.test.ts (1492.612404ms)
+  'test failed'
+
+test at src/__tests__/app-access-mode-enforcement.test.ts:1:1
+✖ src/__tests__/app-access-mode-enforcement.test.ts (1542.20938ms)
+  'test failed'
+
+test at src/__tests__/apps-public-metadata.test.ts:1:1
+✖ src/__tests__/apps-public-metadata.test.ts (1528.086096ms)
+  'test failed'
+
+test at src/__tests__/apps-runtime-settings.test.ts:1:1
+✖ src/__tests__/apps-runtime-settings.test.ts (1506.215886ms)
+  'test failed'
+
+test at src/__tests__/auth-abuse-hardening.test.ts:1:1
+✖ src/__tests__/auth-abuse-hardening.test.ts (1449.059632ms)
+  'test failed'
+
+test at src/__tests__/auth-app-context-policy.test.ts:1:1
+✖ src/__tests__/auth-app-context-policy.test.ts (1488.543228ms)
+  'test failed'
+
+test at src/__tests__/auth-authz.test.ts:1:1
+✖ src/__tests__/auth-authz.test.ts (1452.546813ms)
+  'test failed'
+
+test at src/__tests__/auth-backend-authority-gaps.test.ts:1:1
+✖ src/__tests__/auth-backend-authority-gaps.test.ts (1352.899571ms)
+  'test failed'
+
+test at src/__tests__/auth-entry-regression-guards.test.ts:1:1
+✖ src/__tests__/auth-entry-regression-guards.test.ts (1669.232169ms)
+  'test failed'
+
+test at src/__tests__/auth-flow-phase1c-regression.test.ts:1:1
+✖ src/__tests__/auth-flow-phase1c-regression.test.ts (1509.479306ms)
+  'test failed'
+
+test at src/__tests__/auth-google-url-rate-limit.test.ts:1:1
+✖ src/__tests__/auth-google-url-rate-limit.test.ts (1468.790139ms)
+  'test failed'
+
+test at src/__tests__/auth-ipqs-mfa-utils.test.ts:1:1
+✖ src/__tests__/auth-ipqs-mfa-utils.test.ts (1502.246072ms)
+  'test failed'
+
+test at src/__tests__/auth-logout-turnstile.test.ts:1:1
+✖ src/__tests__/auth-logout-turnstile.test.ts (1481.159513ms)
+  'test failed'
+
+test at src/__tests__/auth-real-journey-routes.test.ts:1:1
+✖ src/__tests__/auth-real-journey-routes.test.ts (1538.498924ms)
+  'test failed'
+
+test at src/__tests__/auth-session-group-hardening.test.ts:1:1
+✖ src/__tests__/auth-session-group-hardening.test.ts (1557.049793ms)
+  'test failed'
+
+test at src/__tests__/central-security-enforcement.test.ts:1:1
+✖ src/__tests__/central-security-enforcement.test.ts (1441.718791ms)
+  'test failed'
+
+test at src/__tests__/db-tls-config.test.ts:1:1
+✖ src/__tests__/db-tls-config.test.ts (1314.746491ms)
+  'test failed'
+
+test at src/__tests__/invitation-email-lane1.test.ts:1:1
+✖ src/__tests__/invitation-email-lane1.test.ts (1398.972481ms)
+  'test failed'
+
+test at src/__tests__/invitation-password-mfa-routing.test.ts:1:1
+✖ src/__tests__/invitation-password-mfa-routing.test.ts (1465.485661ms)
+  'test failed'
+
+test at src/__tests__/invitation-session-group-compatibility.test.ts:1:1
+✖ src/__tests__/invitation-session-group-compatibility.test.ts (1475.07626ms)
+  'test failed'
+
+test at src/__tests__/organization-session-access-enforcement.test.ts:1:1
+✖ src/__tests__/organization-session-access-enforcement.test.ts (1403.463727ms)
+  'test failed'
+
+test at src/__tests__/organization-session-group-boundary.test.ts:1:1
+✖ src/__tests__/organization-session-group-boundary.test.ts (1469.269278ms)
+  'test failed'
+
+test at src/__tests__/password-auth-login-rehash.test.ts:1:1
+✖ src/__tests__/password-auth-login-rehash.test.ts (1417.243836ms)
+  'test failed'
+
+test at src/__tests__/platform-settings-routes.test.ts:1:1
+✖ src/__tests__/platform-settings-routes.test.ts (1362.829341ms)
+  'test failed'
+
+test at src/__tests__/session-flows.test.ts:1:1
+✖ src/__tests__/session-flows.test.ts (1459.197096ms)
+  'test failed'
+
+test at src/__tests__/session-lifecycle-hardening.test.ts:1:1
+✖ src/__tests__/session-lifecycle-hardening.test.ts (1426.76177ms)
+  'test failed'
+
+test at src/__tests__/session-persistence.test.ts:1:1
+✖ src/__tests__/session-persistence.test.ts (1370.257205ms)
+  'test failed'
+
+test at src/__tests__/session-platform-persistence.test.ts:1:1
+✖ src/__tests__/session-platform-persistence.test.ts (1508.34211ms)
+  'test failed'
+
+test at src/__tests__/session-security.test.ts:1:1
+✖ src/__tests__/session-security.test.ts (1345.541762ms)
+  'test failed'
+
+test at src/__tests__/settings-runtime.test.ts:1:1
+✖ src/__tests__/settings-runtime.test.ts (1540.356093ms)
+  'test failed'
+
+test at src/__tests__/signup-observability.test.ts:1:1
+✖ src/__tests__/signup-observability.test.ts (1530.265091ms)
+  'test failed'
+
+test at src/__tests__/tenant-isolation.test.ts:1:1
+✖ src/__tests__/tenant-isolation.test.ts (1434.848345ms)
+  'test failed'
+
+test at src/__tests__/transactional-email-management.test.ts:1:1
+✖ src/__tests__/transactional-email-management.test.ts (1359.157032ms)
+  'test failed'
+/home/runner/work/ayni.space/ayni.space/apps/api-server:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 test:ci: `tsx --test --test-reporter=spec src/__tests__/*.test.ts`
+Exit status 1
+----------------------------------------
+Exit code: 1
