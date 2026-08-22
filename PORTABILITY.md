@@ -23,7 +23,7 @@ This platform is developed on Replit but is **not dependent on any Replit-specif
 3. Configure:
    - **Build Command**: `pnpm install && pnpm run build`
    - **Start Command**: `node apps/api-server/dist/index.cjs`
-   - **Environment**: Node 20+
+   - **Environment**: Node 24.x
 
 4. Set environment variables:
    ```
@@ -85,7 +85,7 @@ staticDir = "apps/admin/dist"
 ### Create Dockerfile
 
 ```dockerfile
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -100,7 +100,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm run build
 
 # Production image
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 RUN npm install -g pnpm
 COPY --from=base /app/apps/api-server/dist ./dist
